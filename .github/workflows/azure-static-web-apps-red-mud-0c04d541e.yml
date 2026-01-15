@@ -19,13 +19,6 @@ jobs:
         with:
           submodules: true
           lfs: false
-      # Setup Node.js 20 explicitly
-      - name: Use Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
       - run: npm ci
       - run: npm run build
       - run: npm run deploy
@@ -55,6 +48,7 @@ jobs:
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_RED_MUD_0C04D541E }}
           action: "close"
+
 
 
 
