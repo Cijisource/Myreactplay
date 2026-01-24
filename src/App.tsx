@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import './App.css'
+import { API_BASE_URL } from './constants'
 
 function App() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -20,14 +21,14 @@ function App() {
     formData.append('photo', selectedFile);
 
     try {
-      const response = await fetch('http://140.245.238.26:3001/upload', {
+      const response = await fetch(`${API_BASE_URL}/upload`, {
         method: 'POST',
         body: formData,
       });
 
       if (response.ok) {
         const data = await response.json();
-        setUploadedImage(`http://140.245.238.26:3001/uploads/${data.filename}`);
+        setUploadedImage(`${API_BASE_URL}/uploads/${data.filename}`);
       } else {
         alert('Upload failed');
       }
