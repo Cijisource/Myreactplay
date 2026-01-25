@@ -2,9 +2,11 @@ import { useState } from 'react'
 import './App.css'
 import { API_BASE_URL } from './constants'
 import ListPhotos from './ListPhotos'
+import UploadVideo from './UploadVideo'
+import ListVideos from './ListVideos'
 
 function App() {
-  const [currentView, setCurrentView] = useState<'upload' | 'list'>('upload');
+  const [currentView, setCurrentView] = useState<'upload-photo' | 'list-photos' | 'upload-video' | 'list-videos'>('upload-photo');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -44,39 +46,67 @@ function App() {
 
   return (
     <div className="App">
-      <h1>Photo Upload App</h1>
-      <nav style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
+      <h1>Photo & Video Upload App</h1>
+      <nav style={{ marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
         <button 
-          onClick={() => setCurrentView('upload')}
+          onClick={() => setCurrentView('upload-photo')}
           style={{
             padding: '8px 16px',
-            backgroundColor: currentView === 'upload' ? '#007bff' : '#f0f0f0',
-            color: currentView === 'upload' ? 'white' : 'black',
+            backgroundColor: currentView === 'upload-photo' ? '#007bff' : '#f0f0f0',
+            color: currentView === 'upload-photo' ? 'white' : 'black',
             border: 'none',
             borderRadius: '4px',
             cursor: 'pointer',
-            fontWeight: currentView === 'upload' ? 'bold' : 'normal'
+            fontWeight: currentView === 'upload-photo' ? 'bold' : 'normal'
           }}
         >
           Upload Photo
         </button>
         <button 
-          onClick={() => setCurrentView('list')}
+          onClick={() => setCurrentView('list-photos')}
           style={{
             padding: '8px 16px',
-            backgroundColor: currentView === 'list' ? '#007bff' : '#f0f0f0',
-            color: currentView === 'list' ? 'white' : 'black',
+            backgroundColor: currentView === 'list-photos' ? '#007bff' : '#f0f0f0',
+            color: currentView === 'list-photos' ? 'white' : 'black',
             border: 'none',
             borderRadius: '4px',
             cursor: 'pointer',
-            fontWeight: currentView === 'list' ? 'bold' : 'normal'
+            fontWeight: currentView === 'list-photos' ? 'bold' : 'normal'
           }}
         >
-          View All Photos
+          View Photos
+        </button>
+        <button 
+          onClick={() => setCurrentView('upload-video')}
+          style={{
+            padding: '8px 16px',
+            backgroundColor: currentView === 'upload-video' ? '#28a745' : '#f0f0f0',
+            color: currentView === 'upload-video' ? 'white' : 'black',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontWeight: currentView === 'upload-video' ? 'bold' : 'normal'
+          }}
+        >
+          Upload Video
+        </button>
+        <button 
+          onClick={() => setCurrentView('list-videos')}
+          style={{
+            padding: '8px 16px',
+            backgroundColor: currentView === 'list-videos' ? '#28a745' : '#f0f0f0',
+            color: currentView === 'list-videos' ? 'white' : 'black',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontWeight: currentView === 'list-videos' ? 'bold' : 'normal'
+          }}
+        >
+          View Videos
         </button>
       </nav>
 
-      {currentView === 'upload' ? (
+      {currentView === 'upload-photo' ? (
         <div>
           <input type="file" accept="image/*" onChange={handleFileChange} />
           <button onClick={handleUpload} disabled={!selectedFile || uploading}>
@@ -89,8 +119,12 @@ function App() {
             </div>
           )}
         </div>
-      ) : (
+      ) : currentView === 'list-photos' ? (
         <ListPhotos />
+      ) : currentView === 'upload-video' ? (
+        <UploadVideo />
+      ) : (
+        <ListVideos />
       )}
     </div>
   )
