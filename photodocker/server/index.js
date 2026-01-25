@@ -42,6 +42,29 @@ app.post('/upload', upload.single('photo'), (req, res) => {
   res.send({ message: 'File uploaded successfully', filename: req.file.filename });
 });
 
+app.get('/api/uploads', (req, res) => {
+  const uploadsDir = path.join(__dirname, '../uploads');
+  fs.readdir(uploadsDir, (err, files) => {
+    if (err) {
+      return res.status(500).json({ error: 'Unable to read uploads directory' });
+    }
+    const images = files
+      .filter(file => /\.(jpg|jpeg|png|gif)$/i.test(file))
+      .map(file => {
+        const filePath = path.join(uploadsDir, file);
+        const stats = fs.statSync(filePath);
+        return {
+          filename: file,
+          size: stats.size,
+          sizeKB: (stats.size / 1024).toFixed(2),
+          uploadedAt: stats.mtime
+        };
+      })
+      .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+    res.json(images);
+  });
+});
+
 app.get('/uploads/:filename', (req, res) => {
   const filename = req.params.filename;
   console.log('Serving file:', filename);
