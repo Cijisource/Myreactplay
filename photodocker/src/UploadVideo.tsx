@@ -55,24 +55,30 @@ function UploadVideo() {
 
   return (
     <div>
-      <input 
-        type="file" 
-        accept="video/*" 
-        onChange={handleFileChange}
-        disabled={uploading}
-      />
-      {selectedFile && <p>Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)</p>}
-      <button onClick={handleUpload} disabled={!selectedFile || uploading}>
-        {uploading ? 'Uploading...' : 'Upload Video'}
-      </button>
-      {error && <p style={{ color: 'red', marginTop: '10px' }}>{error}</p>}
+      <div className="upload-section">
+        <h2>🎥 Upload Video</h2>
+        <input 
+          type="file" 
+          accept="video/*" 
+          onChange={handleFileChange}
+          disabled={uploading}
+        />
+        {selectedFile && (
+          <p className="file-info">
+            📹 {selectedFile.name} • {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+          </p>
+        )}
+        <button onClick={handleUpload} disabled={!selectedFile || uploading}>
+          {uploading ? '⏳ Uploading Video...' : '📤 Upload Video'}
+        </button>
+        {error && <div className="error-message">❌ {error}</div>}
+      </div>
       {uploadedVideo && (
-        <div style={{ marginTop: '20px' }}>
-          <h2>Uploaded Video:</h2>
+        <div className="preview-section">
+          <h2>✅ Uploaded Video</h2>
           <video 
             src={uploadedVideo} 
             controls 
-            style={{ maxWidth: '100%', maxHeight: '400px' }}
           />
         </div>
       )}

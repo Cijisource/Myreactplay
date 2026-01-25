@@ -27,43 +27,53 @@ function ListPhotos() {
 
   return (
     <div>
-      <h1>Uploaded Photos</h1>
+      <h2>📷 Uploaded Photos</h2>
       {loading ? (
-        <p>Loading...</p>
+        <div className="loading">⏳ Loading photos...</div>
       ) : photos.length === 0 ? (
-        <p>No photos uploaded yet.</p>
+        <div className="empty-state">
+          <p>📭 No photos uploaded yet. <strong>Start by uploading your first photo!</strong></p>
+        </div>
       ) : (
         <>
-          <p>Total photos: {photos.length}</p>
-          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
+          <div className="stats">
+            <div className="stat-item">
+              <span className="number">{photos.length}</span>
+              <span className="label">Total Photos</span>
+            </div>
+            <div className="stat-item">
+              <span className="number">{(photos.reduce((sum, p) => sum + parseFloat(p.sizeKB), 0) / 1024).toFixed(2)}</span>
+              <span className="label">Total Size (MB)</span>
+            </div>
+          </div>
+          
+          <table>
             <thead>
-              <tr style={{ borderBottom: '2px solid #ccc' }}>
-                <th style={{ padding: '10px', textAlign: 'left' }}>Filename</th>
-                <th style={{ padding: '10px', textAlign: 'left' }}>Size</th>
-                <th style={{ padding: '10px', textAlign: 'left' }}>Uploaded</th>
+              <tr>
+                <th>📄 Filename</th>
+                <th>📊 Size</th>
+                <th>📅 Uploaded</th>
               </tr>
             </thead>
             <tbody>
               {photos.map(photo => (
-                <tr key={photo.filename} style={{ borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: '10px' }}>{photo.filename}</td>
-                  <td style={{ padding: '10px' }}>{photo.sizeKB} KB</td>
-                  <td style={{ padding: '10px' }}>{new Date(photo.uploadedAt).toLocaleString()}</td>
+                <tr key={photo.filename}>
+                  <td>{photo.filename}</td>
+                  <td>{photo.sizeKB} KB</td>
+                  <td>{new Date(photo.uploadedAt).toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px' }}>
+          
+          <div className="content-grid">
             {photos.map(photo => (
-              <div key={photo.filename} style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '10px' }}>
+              <div key={photo.filename} className="media-card">
                 <img
                   src={`${API_BASE_URL}/uploads/${photo.filename}`}
                   alt={photo.filename}
-                  style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '4px' }}
                 />
-                <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#666' }}>
-                  {photo.sizeKB} KB
-                </p>
+                <p>{photo.sizeKB} KB</p>
               </div>
             ))}
           </div>

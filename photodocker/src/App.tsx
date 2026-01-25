@@ -46,76 +46,46 @@ function App() {
 
   return (
     <div className="App">
-      <h1>Photo & Video Upload App</h1>
-      <nav style={{ marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+      <h1>📱 MediaHub</h1>
+      <nav className="navigation">
         <button 
+          className={`nav-button ${currentView === 'upload-photo' ? 'active-photo' : ''}`}
           onClick={() => setCurrentView('upload-photo')}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: currentView === 'upload-photo' ? '#007bff' : '#f0f0f0',
-            color: currentView === 'upload-photo' ? 'white' : 'black',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontWeight: currentView === 'upload-photo' ? 'bold' : 'normal'
-          }}
         >
-          Upload Photo
+          📷 Upload Photo
         </button>
         <button 
+          className={`nav-button ${currentView === 'list-photos' ? 'active-photo' : ''}`}
           onClick={() => setCurrentView('list-photos')}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: currentView === 'list-photos' ? '#007bff' : '#f0f0f0',
-            color: currentView === 'list-photos' ? 'white' : 'black',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontWeight: currentView === 'list-photos' ? 'bold' : 'normal'
-          }}
         >
-          View Photos
+          🖼️ View Photos
         </button>
         <button 
+          className={`nav-button ${currentView === 'upload-video' ? 'active-video' : ''}`}
           onClick={() => setCurrentView('upload-video')}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: currentView === 'upload-video' ? '#28a745' : '#f0f0f0',
-            color: currentView === 'upload-video' ? 'white' : 'black',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontWeight: currentView === 'upload-video' ? 'bold' : 'normal'
-          }}
         >
-          Upload Video
+          🎥 Upload Video
         </button>
         <button 
+          className={`nav-button ${currentView === 'list-videos' ? 'active-video' : ''}`}
           onClick={() => setCurrentView('list-videos')}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: currentView === 'list-videos' ? '#28a745' : '#f0f0f0',
-            color: currentView === 'list-videos' ? 'white' : 'black',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontWeight: currentView === 'list-videos' ? 'bold' : 'normal'
-          }}
         >
-          View Videos
+          🎬 View Videos
         </button>
       </nav>
 
       {currentView === 'upload-photo' ? (
-        <div>
+        <div className="upload-section">
+          <h2>Upload Photo</h2>
           <input type="file" accept="image/*" onChange={handleFileChange} />
+          {selectedFile && <p className="file-info">📄 {selectedFile.name}</p>}
           <button onClick={handleUpload} disabled={!selectedFile || uploading}>
-            {uploading ? 'Uploading...' : 'Upload Photo'}
+            {uploading ? '⏳ Uploading...' : '📤 Upload Photo'}
           </button>
           {uploadedImage && (
-            <div>
-              <h2>Uploaded Image:</h2>
-              <img src={uploadedImage} alt="Uploaded" style={{ maxWidth: '300px' }} />
+            <div className="preview-section">
+              <h2>✅ Uploaded Image</h2>
+              <img src={uploadedImage} alt="Uploaded" />
             </div>
           )}
         </div>
