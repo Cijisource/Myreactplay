@@ -1,0 +1,9 @@
+version: '3.8'
+
+services:
+  photoapp:
+    build: .
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./uploads:/app/uploads
