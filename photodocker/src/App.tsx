@@ -2,9 +2,11 @@ import { useState } from 'react'
 import './App.css'
 import { API_BASE_URL } from './constants'
 import ListPhotos from './ListPhotos'
+import UploadVideo from './UploadVideo'
+import ListVideos from './ListVideos'
 
 function App() {
-  const [currentView, setCurrentView] = useState<'upload' | 'list'>('upload');
+  const [currentView, setCurrentView] = useState<'upload-photo' | 'list-photos' | 'upload-video' | 'list-videos'>('upload-photo');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -44,53 +46,55 @@ function App() {
 
   return (
     <div className="App">
-      <h1>Photo Upload App</h1>
-      <nav style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
+      <h1>📱 MediaHub</h1>
+      <nav className="navigation">
         <button 
-          onClick={() => setCurrentView('upload')}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: currentView === 'upload' ? '#007bff' : '#f0f0f0',
-            color: currentView === 'upload' ? 'white' : 'black',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontWeight: currentView === 'upload' ? 'bold' : 'normal'
-          }}
+          className={`nav-button ${currentView === 'upload-photo' ? 'active-photo' : ''}`}
+          onClick={() => setCurrentView('upload-photo')}
         >
-          Upload Photo
+          📷 Upload Photo
         </button>
         <button 
-          onClick={() => setCurrentView('list')}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: currentView === 'list' ? '#007bff' : '#f0f0f0',
-            color: currentView === 'list' ? 'white' : 'black',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontWeight: currentView === 'list' ? 'bold' : 'normal'
-          }}
+          className={`nav-button ${currentView === 'list-photos' ? 'active-photo' : ''}`}
+          onClick={() => setCurrentView('list-photos')}
         >
-          View All Photos
+          🖼️ View Photos
+        </button>
+        <button 
+          className={`nav-button ${currentView === 'upload-video' ? 'active-video' : ''}`}
+          onClick={() => setCurrentView('upload-video')}
+        >
+          🎥 Upload Video
+        </button>
+        <button 
+          className={`nav-button ${currentView === 'list-videos' ? 'active-video' : ''}`}
+          onClick={() => setCurrentView('list-videos')}
+        >
+          🎬 View Videos
         </button>
       </nav>
 
-      {currentView === 'upload' ? (
-        <div>
+      {currentView === 'upload-photo' ? (
+        <div className="upload-section">
+          <h2>Upload Photo</h2>
           <input type="file" accept="image/*" onChange={handleFileChange} />
+          {selectedFile && <p className="file-info">📄 {selectedFile.name}</p>}
           <button onClick={handleUpload} disabled={!selectedFile || uploading}>
-            {uploading ? 'Uploading...' : 'Upload Photo'}
+            {uploading ? '⏳ Uploading...' : '📤 Upload Photo'}
           </button>
           {uploadedImage && (
-            <div>
-              <h2>Uploaded Image:</h2>
-              <img src={uploadedImage} alt="Uploaded" style={{ maxWidth: '300px' }} />
+            <div className="preview-section">
+              <h2>✅ Uploaded Image</h2>
+              <img src={uploadedImage} alt="Uploaded" />
             </div>
           )}
         </div>
-      ) : (
+      ) : currentView === 'list-photos' ? (
         <ListPhotos />
+      ) : currentView === 'upload-video' ? (
+        <UploadVideo />
+      ) : (
+        <ListVideos />
       )}
     </div>
   )

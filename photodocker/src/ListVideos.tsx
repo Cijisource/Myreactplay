@@ -1,0 +1,86 @@
+import { useEffect, useState } from 'react';
+import { API_BASE_URL } from './constants';
+
+interface Video {
+  filename: string;
+  size: number;
+  sizeMB: string;
+  uploadedAt: string;
+}
+
+function ListVideos() {
+  const [videos, setVideos] = useState<Video[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/videos`)
+      .then(response => response.json())
+      .then(data => {
+        setVideos(data);
+        setLoading(false);
+      })
+      .catch(error => {
+        console.error('Error fetching videos:', error);
+        setLoading(false);
+      });
+  }, []);
+
+  return (
+    <div>
+      <h2>🎬 Uploaded Videos</h2>
+      {loading ? (
+        <div className="loading">⏳ Loading videos...</div>
+      ) : videos.length === 0 ? (
+        <div className="empty-state">
+          <p>📭 No videos uploaded yet. <strong>Start by uploading your first video!</strong></p>
+        </div>
+      ) : (
+        <>
+          <div className="stats">
+            <div className="stat-item">
+              <span className="number">{videos.length}</span>
+              <span className="label">Total Videos</span>
+            </div>
+            <div className="stat-item">
+              <span className="number">{videos.reduce((sum, v) => sum + parseFloat(v.sizeMB), 0).toFixed(2)}</span>
+              <span className="label">Total Size (MB)</span>
+            </div>
+          </div>
+          
+          <table>
+            <thead>
+              <tr>
+                <th>📹 Filename</th>
+                <th>📊 Size</th>
+                <th>📅 Uploaded</th>
+              </tr>
+            </thead>
+            <tbody>
+              {videos.map(video => (
+                <tr key={video.filename}>
+                  <td>{video.filename}</td>
+                  <td>{video.sizeMB} MB</td>
+                  <td>{new Date(video.uploadedAt).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          
+          <div className="content-grid">
+            {videos.map(video => (
+              <div key={video.filename} className="media-card">
+                <video
+                  src={`${API_BASE_URL}/uploads/${video.filename}`}
+                  controls
+                />
+                <p>{video.sizeMB} MB</p>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+export default ListVideos;

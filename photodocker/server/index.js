@@ -27,7 +27,14 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ storage });
+const upload = multer({ 
+  storage,
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit
+  fileFilter: (req, file, cb) => {
+    // Accept all files, filter will be done per endpoint
+    cb(null, true);
+  }
+});
 
 // Ensure uploads directory exists
 if (!fs.existsSync(path.join(__dirname, '../uploads'))) {
@@ -38,8 +45,16 @@ app.post('/upload', upload.single('photo'), (req, res) => {
   if (!req.file) {
     return res.status(400).send('No file uploaded.');
   }
-  console.log('File uploaded:', req.file.filename);
+  console.log('Photo uploaded:', req.file.filename);
   res.send({ message: 'File uploaded successfully', filename: req.file.filename });
+});
+
+app.post('/upload-video', upload.single('video'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).send('No file uploaded.');
+  }
+  console.log('Video uploaded:', req.file.filename);
+  res.send({ message: 'Video uploaded successfully', filename: req.file.filename });
 });
 
 app.get('/api/uploads', (req, res) => {
@@ -62,6 +77,29 @@ app.get('/api/uploads', (req, res) => {
       })
       .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
     res.json(images);
+  });
+});
+
+app.get('/api/videos', (req, res) => {
+  const uploadsDir = path.join(__dirname, '../uploads');
+  fs.readdir(uploadsDir, (err, files) => {
+    if (err) {
+      return res.status(500).json({ error: 'Unable to read uploads directory' });
+    }
+    const videos = files
+      .filter(file => /\.(mp4|webm|mov|avi|mkv|flv|wmv)$/i.test(file))
+      .map(file => {
+        const filePath = path.join(uploadsDir, file);
+        const stats = fs.statSync(filePath);
+        return {
+          filename: file,
+          size: stats.size,
+          sizeMB: (stats.size / 1024 / 1024).toFixed(2),
+          uploadedAt: stats.mtime
+        };
+      })
+      .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+    res.json(videos);
   });
 });
 
