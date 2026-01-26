@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { API_BASE_URL } from './constants';
+import PhotoViewer from './PhotoViewer';
 
 interface Photo {
   filename: string;
@@ -11,6 +12,7 @@ interface Photo {
 function ListPhotos() {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
 
   useEffect(() => {
     fetch(`${API_BASE_URL}/api/uploads`)
@@ -67,17 +69,34 @@ function ListPhotos() {
           </table>
           
           <div className="content-grid">
-            {photos.map(photo => (
-              <div key={photo.filename} className="media-card">
-                <img
-                  src={`${API_BASE_URL}/uploads/${photo.filename}`}
-                  alt={photo.filename}
-                />
+            {photos.map((photo, index) => (
+              <div 
+                key={photo.filename} 
+                className="media-card"
+                onClick={() => setSelectedPhotoIndex(index)}
+              >
+                <div className="media-card-image">
+                  <img
+                    src={`${API_BASE_URL}/uploads/${photo.filename}`}
+                    alt={photo.filename}
+                  />
+                  <div className="media-card-overlay">
+                    <button className="view-btn">👁️ View</button>
+                  </div>
+                </div>
                 <p>{photo.sizeKB} KB</p>
               </div>
             ))}
           </div>
         </>
+      )}
+
+      {selectedPhotoIndex !== null && (
+        <PhotoViewer
+          photos={photos}
+          initialIndex={selectedPhotoIndex}
+          onClose={() => setSelectedPhotoIndex(null)}
+        />
       )}
     </div>
   );
