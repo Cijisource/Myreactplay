@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { API_BASE_URL } from './constants';
+import PhotoModal from './PhotoModal';
 
 interface Photo {
   filename: string;
@@ -11,6 +12,7 @@ interface Photo {
 function ListPhotos() {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
 
   useEffect(() => {
     fetch(`${API_BASE_URL}/api/uploads`)
@@ -57,7 +59,7 @@ function ListPhotos() {
             </thead>
             <tbody>
               {photos.map(photo => (
-                <tr key={photo.filename}>
+                <tr key={photo.filename} onClick={() => setSelectedPhoto(photo)} style={{ cursor: 'pointer' }}>
                   <td>{photo.filename}</td>
                   <td>{photo.sizeKB} KB</td>
                   <td>{new Date(photo.uploadedAt).toLocaleString()}</td>
@@ -68,7 +70,7 @@ function ListPhotos() {
           
           <div className="content-grid">
             {photos.map(photo => (
-              <div key={photo.filename} className="media-card">
+              <div key={photo.filename} className="media-card" onClick={() => setSelectedPhoto(photo)}>
                 <img
                   src={`${API_BASE_URL}/uploads/${photo.filename}`}
                   alt={photo.filename}
@@ -77,6 +79,14 @@ function ListPhotos() {
               </div>
             ))}
           </div>
+
+          {selectedPhoto && (
+            <PhotoModal 
+              imageUrl={`${API_BASE_URL}/uploads/${selectedPhoto.filename}`}
+              filename={selectedPhoto.filename}
+              onClose={() => setSelectedPhoto(null)}
+            />
+          )}
         </>
       )}
     </div>

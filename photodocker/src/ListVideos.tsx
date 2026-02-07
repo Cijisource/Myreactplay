@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { API_BASE_URL } from './constants';
+import VideoModal from './VideoModal';
 
 interface Video {
   filename: string;
@@ -11,6 +12,7 @@ interface Video {
 function ListVideos() {
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
 
   useEffect(() => {
     fetch(`${API_BASE_URL}/api/videos`)
@@ -57,7 +59,7 @@ function ListVideos() {
             </thead>
             <tbody>
               {videos.map(video => (
-                <tr key={video.filename}>
+                <tr key={video.filename} onClick={() => setSelectedVideo(video)} style={{ cursor: 'pointer' }}>
                   <td>{video.filename}</td>
                   <td>{video.sizeMB} MB</td>
                   <td>{new Date(video.uploadedAt).toLocaleString()}</td>
@@ -68,15 +70,23 @@ function ListVideos() {
           
           <div className="content-grid">
             {videos.map(video => (
-              <div key={video.filename} className="media-card">
+              <div key={video.filename} className="media-card" onClick={() => setSelectedVideo(video)}>
                 <video
                   src={`${API_BASE_URL}/uploads/${video.filename}`}
-                  controls
+                  preload="metadata"
                 />
                 <p>{video.sizeMB} MB</p>
               </div>
             ))}
           </div>
+
+          {selectedVideo && (
+            <VideoModal 
+              videoUrl={`${API_BASE_URL}/uploads/${selectedVideo.filename}`}
+              filename={selectedVideo.filename}
+              onClose={() => setSelectedVideo(null)}
+            />
+          )}
         </>
       )}
     </div>
