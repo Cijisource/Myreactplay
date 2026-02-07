@@ -6,15 +6,15 @@ function UploadVideo() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadedVideo, setUploadedVideo] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const { progress, uploading, uploadFile, error } = useUploadProgress();
+  const { progress, uploading, uploadFile } = useUploadProgress();
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      // Check file size (max 100MB)
-      const maxSize = 100 * 1024 * 1024;
+      // Check file size (max 500MB)
+      const maxSize = 500 * 1024 * 1024;
       if (file.size > maxSize) {
-        setUploadError('File size must be less than 100MB');
+        setUploadError('File size must be less than 500MB');
         setSelectedFile(null);
         return;
       }
@@ -28,13 +28,14 @@ function UploadVideo() {
 
     const result = await uploadFile(selectedFile, `${API_BASE_URL}/upload-video`);
 
-    if (result) {
+    if (result.success) {
       setUploadedVideo(`${API_BASE_URL}/uploads/${result.filename}`);
       setSelectedFile(null);
+      setUploadError(null);
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
-    } else if (!error) {
-      setUploadError('Upload failed');
+    } else {
+      setUploadError(result.error);
     }
   };
 
@@ -64,7 +65,7 @@ function UploadVideo() {
             <div className="progress-text">{Math.round(progress)}%</div>
           </div>
         )}
-        {(uploadError || error) && <div className="error-message">❌ {uploadError || error}</div>}
+        {(uploadError) && <div className="error-message">❌ {uploadError}</div>}
       </div>
       {uploadedVideo && (
         <div className="preview-section">

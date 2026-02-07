@@ -6,6 +6,18 @@ interface UploadProgress {
   error: string | null;
 }
 
+interface UploadResultSuccess {
+  success: true;
+  filename: string;
+}
+
+interface UploadResultError {
+  success: false;
+  error: string;
+}
+
+type UploadResult = UploadResultSuccess | UploadResultError;
+
 export const useUploadProgress = () => {
   const [uploadState, setUploadState] = useState<UploadProgress>({
     progress: 0,
@@ -16,7 +28,7 @@ export const useUploadProgress = () => {
   const uploadFile = async (
     file: File,
     endpoint: string
-    ): Promise<{ filename: string } | null> => {
+  ): Promise<UploadResult> => {
     setUploadState({ progress: 0, uploading: true, error: null });
 
     return new Promise((resolve) => {
@@ -35,30 +47,66 @@ export const useUploadProgress = () => {
 
       xhr.addEventListener('load', () => {
         if (xhr.status === 200) {
-          const response = JSON.parse(xhr.responseText);
-          setUploadState({
-            progress: 100,
-            uploading: false,
-            error: null,
-          });
-          resolve(response);
+          try {
+            const response = JSON.parse(xhr.responseText);
+            setUploadState({
+              progress: 100,
+              uploading: false,
+              error: null,
+            });
+            resolve({
+              success: true,
+              filename: response.filename,
+            });
+          } catch (e) {
+            setUploadState({
+              progress: 0,
+              uploading: false,
+              error: 'Failed to parse response',
+            });
+            resolve({
+              success: false,
+              error: 'Failed to parse response',
+            });
+          }
         } else {
+          const errorMsg = 'Upload failed';
           setUploadState({
             progress: 0,
             uploading: false,
-            error: 'Upload failed',
+            error: errorMsg,
           });
-          resolve(null);
+          resolve({
+            success: false,
+            error: errorMsg,
+          });
         }
       });
 
       xhr.addEventListener('error', () => {
+        const errorMsg = 'Upload failed';
         setUploadState({
           progress: 0,
           uploading: false,
-          error: 'Upload failed',
+          error: errorMsg,
         });
-        resolve(null);
+        resolve({
+          success: false,
+          error: errorMsg,
+        });
+      });
+
+      xhr.addEventListener('abort', () => {
+        const errorMsg = 'Upload cancelled';
+        setUploadState({
+          progress: 0,
+          uploading: false,
+          error: errorMsg,
+        });
+        resolve({
+          success: false,
+          error: errorMsg,
+        });
       });
 
       const formData = new FormData();

@@ -10,7 +10,8 @@ function App() {
   const [currentView, setCurrentView] = useState<'upload-photo' | 'list-photos' | 'upload-video' | 'list-videos'>('upload-photo');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
-  const { progress, uploading, uploadFile, error } = useUploadProgress();
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const { progress, uploading, uploadFile } = useUploadProgress();
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
@@ -23,13 +24,14 @@ function App() {
 
     const result = await uploadFile(selectedFile, `${API_BASE_URL}/upload`);
 
-    if (result) {
+    if (result.success) {
       setUploadedImage(`${API_BASE_URL}/uploads/${result.filename}`);
       setSelectedFile(null);
+      setUploadError(null);
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
-    } else if (!error) {
-      alert('Upload failed');
+    } else {
+      setUploadError(result.error);
     }
   };
 
@@ -79,7 +81,7 @@ function App() {
               <div className="progress-text">{Math.round(progress)}%</div>
             </div>
           )}
-          {error && <div className="error-message">❌ {error}</div>}
+          {uploadError && <div className="error-message">❌ {uploadError}</div>}
           {uploadedImage && (
             <div className="preview-section">
               <h2>✅ Uploaded Image</h2>
