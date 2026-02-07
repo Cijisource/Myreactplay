@@ -1,9 +1,25 @@
-version: '3.8'
-
 services:
   photoapp:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: photoapp
     ports:
-      - "3001:3001"
+      - "3003:3001"
     volumes:
-      - ./uploads:/app/uploads
+      - C:/Users/jc_vi/Pictures/My Pictures/dck:/app/uploads
+    environment:
+      - NODE_ENV=production
+      - PORT=3003
+      - VITE_API_BASE_URL=http://localhost:3003
+    restart: unless-stopped
+    networks:
+      - photonet
+
+networks:
+  photonet:
+    driver: bridge
+
+volumes:
+  uploads:
+    driver: local

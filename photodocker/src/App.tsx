@@ -4,12 +4,14 @@ import { API_BASE_URL } from './constants'
 import ListPhotos from './ListPhotos'
 import UploadVideo from './UploadVideo'
 import ListVideos from './ListVideos'
+import { useUploadProgress } from './hooks/useUploadProgress'
 
 function App() {
   const [currentView, setCurrentView] = useState<'upload-photo' | 'list-photos' | 'upload-video' | 'list-videos'>('upload-photo');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const { progress, uploading, uploadFile } = useUploadProgress();
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
@@ -20,27 +22,16 @@ function App() {
   const handleUpload = async () => {
     if (!selectedFile) return;
 
-    setUploading(true);
-    const formData = new FormData();
-    formData.append('photo', selectedFile);
+    const result = await uploadFile(selectedFile, `${API_BASE_URL}/upload`);
 
-    try {
-      const response = await fetch(`${API_BASE_URL}/upload`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setUploadedImage(`${API_BASE_URL}/uploads/${data.filename}`);
-      } else {
-        alert('Upload failed');
-      }
-    } catch (error) {
-      console.error('Error uploading file:', error);
-      alert('Upload failed');
-    } finally {
-      setUploading(false);
+    if (result.success) {
+      setUploadedImage(`${API_BASE_URL}/uploads/${result.filename}`);
+      setSelectedFile(null);
+      setUploadError(null);
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
+    } else {
+      setUploadError(result.error);
     }
   };
 
@@ -77,11 +68,20 @@ function App() {
       {currentView === 'upload-photo' ? (
         <div className="upload-section">
           <h2>Upload Photo</h2>
-          <input type="file" accept="image/*" onChange={handleFileChange} />
+          <input type="file" accept="image/*" onChange={handleFileChange} disabled={uploading} />
           {selectedFile && <p className="file-info">📄 {selectedFile.name}</p>}
           <button onClick={handleUpload} disabled={!selectedFile || uploading}>
             {uploading ? '⏳ Uploading...' : '📤 Upload Photo'}
           </button>
+          {uploading && (
+            <div style={{ marginTop: '1rem' }}>
+              <div className="progress-bar">
+                <div className="progress-fill" style={{ width: `${progress}%` }}></div>
+              </div>
+              <div className="progress-text">{Math.round(progress)}%</div>
+            </div>
+          )}
+          {uploadError && <div className="error-message">❌ {uploadError}</div>}
           {uploadedImage && (
             <div className="preview-section">
               <h2>✅ Uploaded Image</h2>

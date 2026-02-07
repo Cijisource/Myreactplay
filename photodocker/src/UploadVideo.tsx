@@ -1,55 +1,41 @@
 import { useState } from 'react'
 import { API_BASE_URL } from './constants'
+import { useUploadProgress } from './hooks/useUploadProgress'
 
 function UploadVideo() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadedVideo, setUploadedVideo] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const { progress, uploading, uploadFile } = useUploadProgress();
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      // Check file size (max 100MB)
-      const maxSize = 100 * 1024 * 1024;
+      // Check file size (max 500MB)
+      const maxSize = 500 * 1024 * 1024;
       if (file.size > maxSize) {
-        setError('File size must be less than 100MB');
+        setUploadError('File size must be less than 500MB');
         setSelectedFile(null);
         return;
       }
       setSelectedFile(file);
-      setError(null);
+      setUploadError(null);
     }
   };
 
   const handleUpload = async () => {
     if (!selectedFile) return;
 
-    setUploading(true);
-    setError(null);
-    const formData = new FormData();
-    formData.append('video', selectedFile);
+    const result = await uploadFile(selectedFile, `${API_BASE_URL}/upload-video`);
 
-    try {
-      const response = await fetch(`${API_BASE_URL}/upload-video`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setUploadedVideo(`${API_BASE_URL}/uploads/${data.filename}`);
-        setSelectedFile(null);
-        const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
-        if (fileInput) fileInput.value = '';
-      } else {
-        setError('Upload failed');
-      }
-    } catch (err) {
-      console.error('Error uploading file:', err);
-      setError('Upload failed');
-    } finally {
-      setUploading(false);
+    if (result.success) {
+      setUploadedVideo(`${API_BASE_URL}/uploads/${result.filename}`);
+      setSelectedFile(null);
+      setUploadError(null);
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
+    } else {
+      setUploadError(result.error);
     }
   };
 
@@ -71,7 +57,15 @@ function UploadVideo() {
         <button onClick={handleUpload} disabled={!selectedFile || uploading}>
           {uploading ? '⏳ Uploading Video...' : '📤 Upload Video'}
         </button>
-        {error && <div className="error-message">❌ {error}</div>}
+        {uploading && (
+          <div style={{ marginTop: '1rem' }}>
+            <div className="progress-bar">
+              <div className="progress-fill" style={{ width: `${progress}%` }}></div>
+            </div>
+            <div className="progress-text">{Math.round(progress)}%</div>
+          </div>
+        )}
+        {(uploadError) && <div className="error-message">❌ {uploadError}</div>}
       </div>
       {uploadedVideo && (
         <div className="preview-section">
