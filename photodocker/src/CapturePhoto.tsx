@@ -142,8 +142,6 @@ function CapturePhoto() {
             playsInline
             onLoadedMetadata={() => setVideoReady(true)}
             style={{
-              width: '100%',
-              maxWidth: '500px',
               borderRadius: '8px',
               backgroundColor: '#000',
             }}
