@@ -10,6 +10,7 @@ function CapturePhoto() {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [permissionError, setPermissionError] = useState<string | null>(null);
+  const [videoReady, setVideoReady] = useState(false);
   const { progress, uploading, uploadFile } = useUploadProgress();
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -22,6 +23,11 @@ function CapturePhoto() {
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        // Ensure the video element actually plays the stream
+        videoRef.current.play().catch(error => {
+          console.error('Error playing video:', error);
+          setPermissionError('Failed to play video stream');
+        });
       }
       setIsCameraActive(true);
     } catch (error) {
@@ -30,6 +36,7 @@ function CapturePhoto() {
           ? 'Camera access denied. Please allow camera access in your browser settings.'
           : 'Failed to access camera'
       );
+      console.error('Camera error:', error);
     }
   };
 
@@ -39,19 +46,43 @@ function CapturePhoto() {
       streamRef.current = null;
     }
     setIsCameraActive(false);
+    setVideoReady(false);
   };
 
   const capturePhoto = () => {
-    if (videoRef.current && canvasRef.current) {
+    if (!videoRef.current || !canvasRef.current) {
+      setUploadError('Camera not ready');
+      return;
+    }
+
+    // Check if video has valid dimensions
+    if (videoRef.current.videoWidth === 0 || videoRef.current.videoHeight === 0) {
+      setUploadError('Video stream not ready. Please wait a moment and try again.');
+      return;
+    }
+
+    try {
       const context = canvasRef.current.getContext('2d');
-      if (context) {
-        canvasRef.current.width = videoRef.current.videoWidth;
-        canvasRef.current.height = videoRef.current.videoHeight;
-        context.drawImage(videoRef.current, 0, 0);
-        const imageData = canvasRef.current.toDataURL('image/jpeg');
-        setCapturedImage(imageData);
-        setUploadError(null);
+      if (!context) {
+        setUploadError('Failed to get canvas context');
+        return;
       }
+
+      canvasRef.current.width = videoRef.current.videoWidth;
+      canvasRef.current.height = videoRef.current.videoHeight;
+      context.drawImage(videoRef.current, 0, 0);
+      const imageData = canvasRef.current.toDataURL('image/jpeg');
+      
+      if (!imageData || imageData.length < 100) {
+        setUploadError('Failed to capture photo. Please try again.');
+        return;
+      }
+
+      setCapturedImage(imageData);
+      setUploadError(null);
+    } catch (error) {
+      console.error('Error capturing photo:', error);
+      setUploadError('Failed to capture photo. Please try again.');
     }
   };
 
@@ -107,7 +138,9 @@ function CapturePhoto() {
           <video
             ref={videoRef}
             autoPlay
+            muted
             playsInline
+            onLoadedMetadata={() => setVideoReady(true)}
             style={{
               width: '100%',
               maxWidth: '500px',
@@ -115,8 +148,13 @@ function CapturePhoto() {
               backgroundColor: '#000',
             }}
           />
+          {!videoReady && (
+            <div className="loading-indicator" style={{ padding: '1rem', color: '#6b7280', fontSize: '0.9em' }}>
+              Loading camera...
+            </div>
+          )}
           <div className="camera-controls">
-            <button onClick={capturePhoto} className="capture-button primary">
+            <button onClick={capturePhoto} disabled={!videoReady} className="capture-button primary">
               📷 Take Photo
             </button>
             <button onClick={stopCamera} className="capture-button secondary">

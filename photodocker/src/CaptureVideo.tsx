@@ -13,6 +13,7 @@ function CaptureVideo() {
   const [uploadedVideo, setUploadedVideo] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [permissionError, setPermissionError] = useState<string | null>(null);
+  const [videoReady, setVideoReady] = useState(false);
   const { progress, uploading, uploadFile } = useUploadProgress();
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -27,6 +28,11 @@ function CaptureVideo() {
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        // Ensure the video element actually plays the stream
+        videoRef.current.play().catch(error => {
+          console.error('Error playing video:', error);
+          setPermissionError('Failed to play video stream');
+        });
       }
       setIsCameraActive(true);
     } catch (error) {
@@ -35,6 +41,7 @@ function CaptureVideo() {
           ? 'Camera/Microphone access denied. Please allow access in your browser settings.'
           : 'Failed to access camera'
       );
+      console.error('Camera error:', error);
     }
   };
 
@@ -52,39 +59,53 @@ function CaptureVideo() {
   };
 
   const startRecording = () => {
-    if (!streamRef.current) return;
+    if (!streamRef.current) {
+      setUploadError('Camera stream not available');
+      return;
+    }
 
-    chunksRef.current = [];
-    const mediaRecorder = new MediaRecorder(streamRef.current, {
-      mimeType: 'video/webm;codecs=vp8,opus',
-    });
+    try {
+      chunksRef.current = [];
+      const mediaRecorder = new MediaRecorder(streamRef.current, {
+        mimeType: 'video/webm;codecs=vp8,opus',
+      });
 
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        chunksRef.current.push(event.data);
-      }
-    };
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunksRef.current.push(event.data);
+        }
+      };
 
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(chunksRef.current, { type: 'video/webm' });
-      const url = URL.createObjectURL(blob);
-      setCapturedVideo(url);
-      setIsRecording(false);
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        setCapturedVideo(url);
+        setIsRecording(false);
+        setRecordingTime(0);
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+        }
+      };
+
+      mediaRecorder.onerror = (event) => {
+        console.error('MediaRecorder error:', event.error);
+        setUploadError(`Recording error: ${event.error}`);
+      };
+
+      mediaRecorder.start();
+      mediaRecorderRef.current = mediaRecorder;
+      setIsRecording(true);
       setRecordingTime(0);
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
+      setUploadError(null);
 
-    mediaRecorder.start();
-    mediaRecorderRef.current = mediaRecorder;
-    setIsRecording(true);
-    setRecordingTime(0);
-
-    // Timer
-    timerRef.current = setInterval(() => {
-      setRecordingTime(prev => prev + 1);
-    }, 1000);
+      // Timer
+      timerRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      setUploadError('Failed to start recording');
+    }
   };
 
   const stopRecording = () => {
@@ -165,7 +186,9 @@ function CaptureVideo() {
           <video
             ref={videoRef}
             autoPlay
+            muted
             playsInline
+            onLoadedMetadata={() => setVideoReady(true)}
             style={{
               width: '100%',
               maxWidth: '500px',
@@ -173,6 +196,11 @@ function CaptureVideo() {
               backgroundColor: '#000',
             }}
           />
+          {!videoReady && (
+            <div className="loading-indicator" style={{ padding: '1rem', color: '#6b7280', fontSize: '0.9em' }}>
+              Loading camera...
+            </div>
+          )}
           <div className="recording-info">
             {isRecording && (
               <div className="recording-indicator">
@@ -183,7 +211,7 @@ function CaptureVideo() {
           </div>
           <div className="camera-controls">
             {!isRecording ? (
-              <button onClick={startRecording} className="capture-button primary">
+              <button onClick={startRecording} disabled={!videoReady} className="capture-button primary">
                 🔴 Start Recording
               </button>
             ) : (
