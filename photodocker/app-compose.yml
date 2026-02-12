@@ -1,7 +1,7 @@
 services:
   photoapp:
-    image: 555cijaiz555/reactphoto:v10
-    container_name: reactphotoappv10
+    image: 555cijaiz555/reactphoto:v11
+    container_name: reactphotoappv11
     ports:
       - "3001:3001"
     volumes:
