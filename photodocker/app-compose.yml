@@ -1,11 +1,9 @@
-version: '3.8'
-
 services:
   photoapp:
-    image: 555cijaiz555/reactphoto:v9
-    container_name: photoapp
+    image: 555cijaiz555/reactphoto:v10
+    container_name: reactphotoappv10
     ports:
-      - "3002:3001"
+      - "3001:3001"
     volumes:
       - /home/ubuntu/photoapp/uploads:/app/uploads
     environment:

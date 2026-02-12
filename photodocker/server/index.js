@@ -109,6 +109,25 @@ app.get('/uploads/:filename', (req, res) => {
   res.sendFile(path.join(__dirname, '../uploads', filename));
 });
 
+app.delete('/api/uploads/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join(__dirname, '../uploads', filename);
+  
+  // Validate filename to prevent directory traversal
+  if (filename.includes('..') || filename.includes('/')) {
+    return res.status(400).json({ error: 'Invalid filename' });
+  }
+  
+  fs.unlink(filePath, (err) => {
+    if (err) {
+      console.error('Error deleting file:', err);
+      return res.status(500).json({ error: 'Unable to delete file' });
+    }
+    console.log('File deleted:', filename);
+    res.json({ message: 'File deleted successfully' });
+  });
+});
+
 // Catch all handler: send back React's index.html file for client-side routing
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../dist/index.html'));
