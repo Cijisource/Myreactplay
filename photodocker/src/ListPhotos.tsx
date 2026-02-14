@@ -15,7 +15,7 @@ function ListPhotos() {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
-  const [dateCategory, setDateCategory] = useState<DateCategory>('all');
+  const [dateCategory, setDateCategory] = useState<DateCategory>('today');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
