@@ -21,27 +21,59 @@ function CaptureVideo() {
   const startCamera = async () => {
     try {
       setPermissionError(null);
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: true,
-      });
+      setVideoReady(false);
+      
+      // Request camera and audio with fallback constraints
+      try {
+        var stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: true,
+        });
+      } catch (e) {
+        // Fallback to basic request if constrained request fails
+        console.warn('Constrained getUserMedia failed, trying basic request:', e);
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      }
+      
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        // Ensure the video element actually plays the stream
-        videoRef.current.play().catch(error => {
-          console.error('Error playing video:', error);
-          setPermissionError('Failed to play video stream');
-        });
+        
+        // Handle play promise
+        const playPromise = videoRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => {
+              console.log('Video playback started');
+              // Set a timeout to enable recording if metadata doesn't load
+              setTimeout(() => {
+                if (videoRef.current && videoRef.current.videoWidth > 0) {
+                  setVideoReady(true);
+                }
+              }, 300);
+            })
+            .catch(error => {
+              console.error('Error playing video:', error);
+              setPermissionError('Failed to play video stream. Check your browser permissions.');
+            });
+        }
       }
       setIsCameraActive(true);
-    } catch (error) {
-      setPermissionError(
-        error instanceof DOMException 
-          ? 'Camera/Microphone access denied. Please allow access in your browser settings.'
-          : 'Failed to access camera'
-      );
-      console.error('Camera error:', error);
+    } catch (error: any) {
+      console.error('Camera error details:', error);
+      let errorMsg = 'Failed to access camera';
+      
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        errorMsg = '❌ Camera/Microphone permission denied. Please allow access when prompted by your browser, or check your browser/system settings.';
+      } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+        errorMsg = '❌ No camera or microphone device found. Please ensure they are connected.';
+      } else if (error.name === 'NotReadableError') {
+        errorMsg = '❌ Camera/Microphone is in use by another application. Please close other apps using them.';
+      } else if (error instanceof DOMException) {
+        errorMsg = '❌ Camera/Microphone access denied. Please allow access in your browser settings.';
+      }
+      
+      setPermissionError(errorMsg);
     }
   };
 
@@ -188,12 +220,25 @@ function CaptureVideo() {
             autoPlay
             muted
             playsInline
-            onLoadedMetadata={() => setVideoReady(true)}
+            onLoadedMetadata={() => {
+              console.log('Video metadata loaded:', videoRef.current?.videoWidth, 'x', videoRef.current?.videoHeight);
+              setVideoReady(true);
+            }}
+            onCanPlay={() => {
+              console.log('Video can play');
+              if (!videoReady) setVideoReady(true);
+            }}
+            onError={(e) => {
+              console.error('Video element error:', e);
+              setPermissionError('Error loading video stream');
+            }}
             style={{
               width: '100%',
               maxWidth: '500px',
               borderRadius: '8px',
               backgroundColor: '#000',
+              aspectRatio: '16 / 9',
+              objectFit: 'cover',
             }}
           />
           {!videoReady && (
