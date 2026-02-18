@@ -4,10 +4,12 @@ import { API_BASE_URL } from './constants'
 import ListPhotos from './ListPhotos'
 import UploadVideo from './UploadVideo'
 import ListVideos from './ListVideos'
+import CapturePhoto from './CapturePhoto'
+import CaptureVideo from './CaptureVideo'
 import { useUploadProgress } from './hooks/useUploadProgress'
 
 function App() {
-  const [currentView, setCurrentView] = useState<'upload-photo' | 'list-photos' | 'upload-video' | 'list-videos'>('upload-photo');
+  const [currentView, setCurrentView] = useState<'upload-photo' | 'capture-photo' | 'list-photos' | 'upload-video' | 'capture-video' | 'list-videos'>('upload-photo');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -39,35 +41,53 @@ function App() {
     <div className="App">
       <h1>📱 MediaHub</h1>
       <nav className="navigation">
-        <button 
-          className={`nav-button ${currentView === 'upload-photo' ? 'active-photo' : ''}`}
-          onClick={() => setCurrentView('upload-photo')}
-        >
-          📷 Upload Photo
-        </button>
-        <button 
-          className={`nav-button ${currentView === 'list-photos' ? 'active-photo' : ''}`}
-          onClick={() => setCurrentView('list-photos')}
-        >
-          🖼️ View Photos
-        </button>
-        <button 
-          className={`nav-button ${currentView === 'upload-video' ? 'active-video' : ''}`}
-          onClick={() => setCurrentView('upload-video')}
-        >
-          🎥 Upload Video
-        </button>
-        <button 
-          className={`nav-button ${currentView === 'list-videos' ? 'active-video' : ''}`}
-          onClick={() => setCurrentView('list-videos')}
-        >
-          🎬 View Videos
-        </button>
+        <div className="nav-group">
+          <h3>Photos</h3>
+          <button 
+            className={`nav-button ${currentView === 'upload-photo' ? 'active-photo' : ''}`}
+            onClick={() => setCurrentView('upload-photo')}
+          >
+            📤 Upload Photo
+          </button>
+          <button 
+            className={`nav-button ${currentView === 'capture-photo' ? 'active-photo' : ''}`}
+            onClick={() => setCurrentView('capture-photo')}
+          >
+            📸 Capture Photo
+          </button>
+          <button 
+            className={`nav-button ${currentView === 'list-photos' ? 'active-photo' : ''}`}
+            onClick={() => setCurrentView('list-photos')}
+          >
+            🖼️ View Photos
+          </button>
+        </div>
+        <div className="nav-group">
+          <h3>Videos</h3>
+          <button 
+            className={`nav-button ${currentView === 'upload-video' ? 'active-video' : ''}`}
+            onClick={() => setCurrentView('upload-video')}
+          >
+            📤 Upload Video
+          </button>
+          <button 
+            className={`nav-button ${currentView === 'capture-video' ? 'active-video' : ''}`}
+            onClick={() => setCurrentView('capture-video')}
+          >
+            🎬 Capture Video
+          </button>
+          <button 
+            className={`nav-button ${currentView === 'list-videos' ? 'active-video' : ''}`}
+            onClick={() => setCurrentView('list-videos')}
+          >
+            📹 View Videos
+          </button>
+        </div>
       </nav>
 
       {currentView === 'upload-photo' ? (
         <div className="upload-section">
-          <h2>Upload Photo</h2>
+          <h2>📤 Upload Photo</h2>
           <input type="file" accept="image/*" onChange={handleFileChange} disabled={uploading} />
           {selectedFile && <p className="file-info">📄 {selectedFile.name}</p>}
           <button onClick={handleUpload} disabled={!selectedFile || uploading}>
@@ -89,10 +109,14 @@ function App() {
             </div>
           )}
         </div>
+      ) : currentView === 'capture-photo' ? (
+        <CapturePhoto />
       ) : currentView === 'list-photos' ? (
         <ListPhotos />
       ) : currentView === 'upload-video' ? (
         <UploadVideo />
+      ) : currentView === 'capture-video' ? (
+        <CaptureVideo />
       ) : (
         <ListVideos />
       )}

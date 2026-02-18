@@ -32,6 +32,12 @@ function UploadVideo() {
       setUploadedVideo(`${API_BASE_URL}/uploads/${result.filename}`);
       setSelectedFile(null);
       setUploadError(null);
+
+       // Optionally fetch the datetime file
+      //const datetimeResponse = await fetch(`${API_BASE_URL}/uploads/${result.filename}.txt`);
+      //const datetimeText = await datetimeResponse.text();
+      //console.log(datetimeText); // "Uploaded at: 2026-02-16T13:18:00.000Z"
+
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
     } else {

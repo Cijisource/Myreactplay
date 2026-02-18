@@ -46,6 +46,17 @@ app.post('/upload', upload.single('photo'), (req, res) => {
     return res.status(400).send('No file uploaded.');
   }
   console.log('Photo uploaded:', req.file.filename);
+
+  const uploadDir = path.join(__dirname, '../uploads');
+
+  // Create a text file with upload datetime
+  const datetimeFile = path.join(uploadDir, `${req.file.filename}.txt`);
+  const uploadedAt = new Date().toISOString();
+  console.log('uploaded file name: ', datetimeFile);
+  fs.writeFileSync(datetimeFile, `${uploadedAt}`);
+
+  console.log('PHoto metadata uploaded:', datetimeFile);
+
   res.send({ message: 'File uploaded successfully', filename: req.file.filename });
 });
 
@@ -54,6 +65,16 @@ app.post('/upload-video', upload.single('video'), (req, res) => {
     return res.status(400).send('No file uploaded.');
   }
   console.log('Video uploaded:', req.file.filename);
+
+  const uploadDir = path.join(__dirname, '../uploads');
+
+  // Create a text file with upload datetime
+  const datetimeFile = path.join(uploadDir, `${req.file.filename}.txt`);
+  const uploadedAt = new Date().toISOString();
+  console.log('uploaded file name: ', datetimeFile);
+  fs.writeFileSync(datetimeFile, `${uploadedAt}`);
+
+  console.log('Video metadata uploaded:', datetimeFile);
   res.send({ message: 'Video uploaded successfully', filename: req.file.filename });
 });
 
@@ -68,11 +89,20 @@ app.get('/api/uploads', (req, res) => {
       .map(file => {
         const filePath = path.join(uploadsDir, file);
         const stats = fs.statSync(filePath);
+
+        // Read datetime from the companion text file
+        const datetimeFile = path.join(uploadsDir, `${file}.txt`);
+        let uploadedAt = null;
+        if (fs.existsSync(datetimeFile)) {
+          uploadedAt = fs.readFileSync(datetimeFile, 'utf-8').trim();
+          console.log('Read datetime for', file, ':', datetimeFile, '->', uploadedAt);
+        }
+        
         return {
           filename: file,
           size: stats.size,
           sizeKB: (stats.size / 1024).toFixed(2),
-          uploadedAt: stats.mtime
+          uploadedAt: uploadedAt
         };
       })
       .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
@@ -91,11 +121,20 @@ app.get('/api/videos', (req, res) => {
       .map(file => {
         const filePath = path.join(uploadsDir, file);
         const stats = fs.statSync(filePath);
+
+        // Read datetime from the companion text file
+        const datetimeFile = path.join(uploadsDir, `${file}.txt`);
+        let uploadedAt = null;
+        if (fs.existsSync(datetimeFile)) {
+          uploadedAt = fs.readFileSync(datetimeFile, 'utf-8').trim();
+          console.log('Read datetime for', file, ':', datetimeFile, '->', uploadedAt);
+        }
+
         return {
           filename: file,
           size: stats.size,
           sizeMB: (stats.size / 1024 / 1024).toFixed(2),
-          uploadedAt: stats.mtime
+          uploadedAt: uploadedAt
         };
       })
       .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
