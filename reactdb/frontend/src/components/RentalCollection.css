@@ -1,0 +1,239 @@
+.rental-container {
+  width: 100%;
+  padding: 30px 20px;
+  background: #f5f7fa;
+  min-height: 100vh;
+}
+
+.rental-header {
+  max-width: 1200px;
+  margin: 0 auto 40px;
+  text-align: center;
+}
+
+.rental-header h1 {
+  color: #1a202c;
+  font-size: 2.5em;
+  margin: 0 0 10px;
+}
+
+.rental-header p {
+  color: #666;
+  font-size: 1.1em;
+  margin: 0;
+}
+
+/* Summary Cards */
+.summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+  max-width: 1200px;
+  margin: 0 auto 40px;
+}
+
+.card {
+  background: white;
+  border-radius: 12px;
+  padding: 25px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-left: 4px solid #667eea;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.card-content h3 {
+  color: #666;
+  font-size: 0.9em;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 0 0 15px;
+  font-weight: 600;
+}
+
+.card-content .amount {
+  font-size: 2em;
+  font-weight: bold;
+  color: #667eea;
+  margin: 0;
+}
+
+.card-content .amount.unpaid {
+  color: #e74c3c;
+}
+
+/* Sections */
+.section {
+  max-width: 1200px;
+  margin: 0 auto 40px;
+  background: white;
+  border-radius: 12px;
+  padding: 30px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.section h2 {
+  color: #1a202c;
+  margin: 0 0 25px;
+  font-size: 1.8em;
+  border-bottom: 2px solid #667eea;
+  padding-bottom: 15px;
+}
+
+/* Tables */
+.table-wrapper {
+  overflow-x: auto;
+}
+
+.summary-table,
+.details-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95em;
+}
+
+.summary-table thead,
+.details-table thead {
+  background: #f8f9fa;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.summary-table th,
+.details-table th {
+  padding: 15px;
+  text-align: left;
+  font-weight: 600;
+  color: #333;
+}
+
+.summary-table tbody tr,
+.details-table tbody tr {
+  border-bottom: 1px solid #e0e0e0;
+  transition: background-color 0.2s;
+}
+
+.summary-table tbody tr:hover,
+.details-table tbody tr:hover {
+  background-color: #f9f9f9;
+}
+
+.summary-table td,
+.details-table td {
+  padding: 15px;
+  color: #555;
+}
+
+.summary-table td.paid {
+  color: #27ae60;
+  font-weight: 600;
+}
+
+.summary-table td.unpaid {
+  color: #e74c3c;
+  font-weight: 600;
+}
+
+.details-table td.tenant-id {
+  font-weight: 600;
+  color: #667eea;
+}
+
+.details-table td.amount {
+  color: #e74c3c;
+  font-weight: 600;
+}
+
+/* Month Selector */
+.month-selector {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 25px;
+}
+
+.month-selector label {
+  font-weight: 600;
+  color: #333;
+  white-space: nowrap;
+}
+
+.month-selector select {
+  padding: 10px 15px;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 1em;
+  color: #333;
+  background: white;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.month-selector select:hover,
+.month-selector select:focus {
+  border-color: #667eea;
+  outline: none;
+}
+
+/* Info and Error Boxes */
+.info-box {
+  background: #d1ecf1;
+  border: 1px solid #bee5eb;
+  color: #0c5460;
+  padding: 15px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.error-box {
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  color: #721c24;
+  padding: 15px;
+  border-radius: 8px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: #666;
+  font-size: 1.1em;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .rental-header h1 {
+    font-size: 1.8em;
+  }
+
+  .summary-cards {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+
+  .summary-table th,
+  .summary-table td,
+  .details-table th,
+  .details-table td {
+    padding: 12px 8px;
+    font-size: 0.85em;
+  }
+
+  .card-content .amount {
+    font-size: 1.5em;
+  }
+
+  .month-selector {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .month-selector select {
+    width: 100%;
+  }
+}

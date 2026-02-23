@@ -15,7 +15,7 @@ function ListVideos() {
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
-  const [dateCategory, setDateCategory] = useState<DateCategory>('all');
+  const [dateCategory, setDateCategory] = useState<DateCategory>('today');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
