@@ -3,15 +3,23 @@ import { apiService } from './api';
 import './App.css';
 import RentalCollection from './components/RentalCollection';
 import Diagnostic from './components/Diagnostic';
+import PaymentTracking from './components/PaymentTracking';
+import TenantManagement from './components/TenantManagement';
+import RoomOccupancy from './components/RoomOccupancy';
+import OccupancyLinks from './components/OccupancyLinks';
+import ComplaintsManagement from './components/ComplaintsManagement';
+import LoginScreen from './components/LoginScreen';
+import { AuthProvider, useAuth } from './components/AuthContext';
 
-type Page = 'home' | 'rental' | 'diagnostic';
+type Page = 'home' | 'rental' | 'diagnostic' | 'payment' | 'tenants' | 'occupancy' | 'occupancy-links' | 'complaints';
 
-function App() {
+function AppContent() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
   const [backendStatus, setBackendStatus] = useState<string>('loading');
   const [dbStatus, setDbStatus] = useState<string>('loading');
   const [tables, setTables] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const { isAuthenticated, user, logout } = useAuth();
 
   useEffect(() => {
     const fetchStatus = async () => {
@@ -42,10 +50,15 @@ function App() {
       }
     };
 
-    if (currentPage === 'home') {
+    if (currentPage === 'home' && isAuthenticated) {
       fetchStatus();
     }
-  }, [currentPage]);
+  }, [currentPage, isAuthenticated]);
+
+  // If not authenticated, show login screen
+  if (!isAuthenticated) {
+    return <LoginScreen />;
+  }
 
   const renderPage = () => {
     if (currentPage === 'rental') {
@@ -56,9 +69,40 @@ function App() {
       return <Diagnostic />;
     }
 
+    if (currentPage === 'payment') {
+      return <PaymentTracking />;
+    }
+
+    if (currentPage === 'tenants') {
+      return <TenantManagement />;
+    }
+
+    if (currentPage === 'occupancy') {
+      return <RoomOccupancy />;
+    }
+
+    if (currentPage === 'occupancy-links') {
+      return <OccupancyLinks />;
+    }
+
+    if (currentPage === 'complaints') {
+      return <ComplaintsManagement />;
+    }
+
     return (
       <div className="container">
-        <h1>Mansion App</h1>
+        <div className="home-header">
+          <div>
+            <h1>🏰 Mansion Management System</h1>
+            <p>Welcome back, {user?.username}!</p>
+          </div>
+          <button 
+            className="logout-btn"
+            onClick={logout}
+          >
+            Sign Out
+          </button>
+        </div>
         
         <div className="nav-buttons">
           <button 
@@ -69,9 +113,39 @@ function App() {
           </button>
           <button 
             className="nav-btn"
+            onClick={() => setCurrentPage('occupancy-links')}
+          >
+            Occupancy Links
+          </button>
+          <button 
+            className="nav-btn"
+            onClick={() => setCurrentPage('occupancy')}
+          >
+            Room Occupancy
+          </button>
+          <button 
+            className="nav-btn"
+            onClick={() => setCurrentPage('tenants')}
+          >
+            Tenant Management
+          </button>
+          <button 
+            className="nav-btn"
             onClick={() => setCurrentPage('rental')}
           >
             Rental Collection
+          </button>
+          <button 
+            className="nav-btn"
+            onClick={() => setCurrentPage('payment')}
+          >
+            Payment Tracking
+          </button>
+          <button 
+            className="nav-btn"
+            onClick={() => setCurrentPage('complaints')}
+          >
+            Complaints Management
           </button>
           <button 
             className="nav-btn diagnostic"
@@ -122,17 +196,26 @@ function App() {
   return (
     <>
       {currentPage !== 'home' && (
-        <div className="header-nav">
+        <div className="top-header-bar">
           <button 
-            className="back-btn"
+            className="back-home-btn"
             onClick={() => setCurrentPage('home')}
           >
             ← Back to Home
           </button>
+          <div className="page-title">{currentPage.charAt(0).toUpperCase() + currentPage.slice(1).replace('-', ' ')}</div>
         </div>
       )}
       {renderPage()}
     </>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 

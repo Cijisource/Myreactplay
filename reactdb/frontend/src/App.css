@@ -1,7 +1,7 @@
 .container {
   width: 100%;
   max-width: 900px;
-  margin: 0 auto;
+  margin: 80px auto 0;
   padding: 40px 20px;
   background: white;
   border-radius: 12px;
@@ -14,8 +14,6 @@ h1 {
   margin-bottom: 30px;
   font-size: 2.5em;
 }
-
-h2 {
   color: #555;
   border-bottom: 2px solid #667eea;
   padding-bottom: 10px;
@@ -121,13 +119,22 @@ h2 {
 }
 
 /* Navigation */
-.header-nav {
+.top-header-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 15px 20px;
-  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
 }
 
-.back-btn {
+.back-home-btn {
   background: white;
   color: #667eea;
   border: none;
@@ -136,11 +143,22 @@ h2 {
   cursor: pointer;
   font-weight: 600;
   transition: all 0.2s;
+  white-space: nowrap;
 }
 
-.back-btn:hover {
+.back-home-btn:hover {
   background: #f0f0f0;
   transform: translateX(-2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.page-title {
+  color: white;
+  font-size: 1.2em;
+  font-weight: 600;
+  flex: 1;
+  text-align: center;
+  margin-right: 50px;
 }
 
 .nav-buttons {
@@ -187,5 +205,56 @@ h2 {
 
   .nav-btn {
     width: 100%;
+  }
+}
+/* Home Header with Logout */
+.home-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.home-header h1 {
+  margin: 0;
+  text-align: left;
+  font-size: 2rem;
+}
+
+.home-header p {
+  margin: 0.5rem 0 0 0;
+  color: #718096;
+  font-size: 0.95rem;
+}
+
+.logout-btn {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.logout-btn:hover {
+  background: #c82333;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
+}
+
+@media (max-width: 768px) {
+  .home-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .logout-btn {
+    align-self: flex-start;
   }
 }
