@@ -1,15 +1,15 @@
 .payment-tracking-container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 2rem;
+  padding: clamp(1rem, 5vw, 2rem);
   background: #f5f7fa;
   min-height: 100vh;
 }
 
 .payment-tracking-container h1 {
   color: #1a202c;
-  margin-bottom: 2rem;
-  font-size: 2rem;
+  margin-bottom: clamp(1rem, 5vw, 2rem);
+  font-size: clamp(1.5rem, 5vw, 2rem);
   font-weight: 600;
 }
 
@@ -346,62 +346,104 @@
 }
 
 /* Responsive Design */
+@media (max-width: 1024px) {
+  .summary-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .month-selector {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .dropdown-container {
+    width: 100%;
+  }
+
+  .payment-table {
+    font-size: 0.9rem;
+  }
+}
+
 @media (max-width: 768px) {
   .payment-tracking-container {
-    padding: 1rem;
+    padding: clamp(0.75rem, 3vw, 1rem);
   }
 
   .payment-tracking-container h1 {
-    font-size: 1.5rem;
+    font-size: clamp(1.2rem, 4vw, 1.5rem);
     margin-bottom: 1rem;
   }
 
   .summary-cards {
     grid-template-columns: 1fr;
+    gap: clamp(1rem, 3vw, 1.5rem);
   }
 
   .status-summary {
     flex-direction: column;
+    gap: 0.75rem;
   }
 
   .status-badge {
     width: 100%;
     justify-content: space-between;
+    padding: clamp(0.75rem, 2vw, 1rem) clamp(1rem, 3vw, 1.5rem);
+    font-size: 0.9rem;
   }
 
   .payment-table {
-    font-size: 0.85rem;
+    font-size: clamp(0.75rem, 2vw, 0.85rem);
   }
 
   .payment-table th,
   .payment-table td {
-    padding: 0.75rem 0.5rem;
+    padding: clamp(0.5rem, 1vw, 0.75rem);
+    word-break: break-word;
   }
 
   .dropdown-list {
     max-height: 200px;
   }
+
+  .month-selector {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .dropdown-container {
+    width: 100%;
+  }
 }
 
 @media (max-width: 480px) {
   .payment-table {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
   }
 
   .payment-table th,
   .payment-table td {
-    padding: 0.5rem 0.25rem;
+    padding: 0.4rem 0.25rem;
   }
 
   .summary-label {
-    font-size: 0.7rem;
+    font-size: clamp(0.7rem, 1.5vw, 0.75rem);
   }
 
   .summary-value {
-    font-size: 1.25rem;
+    font-size: clamp(1rem, 2.5vw, 1.5rem);
+  }
+
+  .status-badge {
+    font-size: 0.8rem;
+    padding: 0.6rem 1rem;
   }
 
   .month-selector {
-    padding: 1rem;
+    padding: clamp(1rem, 3vw, 1.5rem);
+  }
+
+  .table-wrapper {
+    border-radius: 0;
   }
 }

@@ -112,14 +112,14 @@
 
 .login-header h1 {
   color: #1a202c;
-  font-size: 2rem;
+  font-size: clamp(1.5rem, 5vw, 2rem);
   margin-bottom: 0.5rem;
   font-weight: 700;
 }
 
 .login-header p {
   color: #718096;
-  font-size: 0.95rem;
+  font-size: clamp(0.9rem, 2vw, 0.95rem);
   font-weight: 500;
   letter-spacing: 0.5px;
 }

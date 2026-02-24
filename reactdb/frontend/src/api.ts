@@ -59,6 +59,9 @@ export const apiService = {
   getComplaints: () => api.get('/complaints'),
   getComplaintTypes: () => api.get('/complaints/types'),
   getComplaintStatuses: () => api.get('/complaints/statuses'),
+  createComplaint: (data: any) => api.post('/complaints', data),
+  updateComplaint: (complaintId: number, data: any) => api.put(`/complaints/${complaintId}`, data),
+  deleteComplaint: (complaintId: number) => api.delete(`/complaints/${complaintId}`),
   getRooms: () => api.get('/rooms'),
   
   // Diagnostic APIs

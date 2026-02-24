@@ -487,75 +487,114 @@
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .occupancy-links-container {
-    padding: 1rem;
-  }
-
-  .links-header {
-    padding: 1.5rem;
+    padding: clamp(1rem, 3vw, 2rem);
   }
 
   .links-header h1 {
-    font-size: 1.75rem;
+    font-size: clamp(1.8rem, 4vw, 2.5rem);
   }
 
   .stats-grid {
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 1rem;
-  }
-
-  .stat-card {
-    padding: 1rem;
-    flex-direction: column;
-    text-align: center;
-  }
-
-  .stat-icon {
-    font-size: 2rem;
-  }
-
-  .stat-value {
-    font-size: 1.5rem;
-  }
-
-  .filter-controls {
-    flex-direction: column;
-    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: clamp(0.75rem, 2vw, 1.5rem);
   }
 
   .filter-buttons {
-    width: 100%;
+    flex-wrap: wrap;
   }
 
   .filter-btn {
     flex: 1;
+    min-width: 100px;
+  }
+}
+
+@media (max-width: 768px) {
+  .occupancy-links-container {
+    padding: clamp(1rem, 3vw, 2rem);
+  }
+
+  .links-header {
+    padding: clamp(1rem, 3vw, 1.5rem);
+    margin-bottom: clamp(1rem, 3vw, 2rem);
+  }
+
+  .links-header h1 {
+    font-size: clamp(1.5rem, 4vw, 1.75rem);
+  }
+
+  .links-header p {
+    font-size: clamp(0.85rem, 2vw, 1rem);
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: clamp(0.75rem, 2vw, 1rem);
+  }
+
+  .stat-card {
+    padding: clamp(0.75rem, 2vw, 1rem);
+    flex-direction: column;
+    text-align: center;
+    min-height: 44px;
+  }
+
+  .stat-icon {
+    font-size: clamp(1.5rem, 3vw, 2rem);
+  }
+
+  .stat-value {
+    font-size: clamp(1.2rem, 2.5vw, 1.5rem);
+  }
+
+  .filter-controls {
+    flex-direction: column;
+    gap: clamp(0.75rem, 2vw, 1rem);
+  }
+
+  .filter-buttons {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .filter-btn {
+    width: 100%;
+    min-height: 44px;
+    font-size: clamp(0.85rem, 2vw, 1rem);
   }
 
   .sort-controls {
     width: 100%;
+    flex-direction: column;
+    gap: 0.5rem;
   }
 
   .sort-select {
     width: 100%;
+    min-height: 44px;
+    font-size: clamp(0.85rem, 2vw, 1rem);
   }
 
   /* Table Scrolling */
   .table-wrapper {
     overflow-x: auto;
+    border-radius: 8px;
   }
 
   .occupancy-table {
-    font-size: 0.85rem;
+    font-size: clamp(0.75rem, 1.5vw, 0.85rem);
   }
 
   .occupancy-table th,
   .occupancy-table td {
-    padding: 0.75rem 0.5rem;
+    padding: clamp(0.5rem, 1vw, 0.75rem);
+    word-break: break-word;
   }
 
   .relationship-diagram {
-    gap: 1rem;
+    gap: clamp(0.75rem, 2vw, 1rem);
     flex-direction: column;
   }
 
@@ -565,84 +604,90 @@
 
   .entity {
     min-width: 120px;
+    padding: clamp(0.75rem, 1.5vw, 1rem);
+  }
+
+  .relationship-info {
+    padding: clamp(1rem, 2vw, 1.5rem);
+  }
+
+  .relationship-info h3 {
+    font-size: clamp(1rem, 2.5vw, 1.25rem);
   }
 }
 
 @media (max-width: 480px) {
   .occupancy-links-container {
-    padding: 0.5rem;
+    padding: clamp(0.75rem, 2vw, 1rem);
   }
 
   .links-header {
-    padding: 1rem;
-  }
-
-  .links-header h1 {
-    font-size: 1.5rem;
-  }
-
-  .stats-grid {
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 0.75rem;
-  }
-
-  .stat-card {
-    padding: 0.75rem;
-  }
-
-  .stat-icon {
-    font-size: 1.75rem;
-  }
-
-  .stat-value {
-    font-size: 1.25rem;
-  }
-
-  .filter-group {
+    padding: clamp(0.75rem, 2vw, 1rem);
     margin-bottom: 1rem;
   }
 
-  .filters-section {
-    padding: 1rem;
+  .links-header h1 {
+    font-size: clamp(1.2rem, 3vw, 1.5rem);
+  }
+
+  .links-header p {
+    font-size: clamp(0.8rem, 1.5vw, 0.9rem);
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: clamp(0.5rem, 1vw, 0.75rem);
+  }
+
+  .stat-card {
+    padding: clamp(0.6rem, 1.5vw, 0.75rem);
+  }
+
+  .stat-icon {
+    font-size: clamp(1.25rem, 2vw, 1.75rem);
+  }
+
+  .stat-value {
+    font-size: clamp(1rem, 2vw, 1.25rem);
   }
 
   .filter-btn {
-    padding: 0.5rem 1rem;
-    font-size: 0.85rem;
+    padding: 0.6rem;
+    font-size: 0.8rem;
   }
 
   .sort-select {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.85rem;
+    padding: 0.6rem;
+    font-size: 0.8rem;
   }
 
   .occupancy-table {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
   }
 
   .occupancy-table th,
   .occupancy-table td {
-    padding: 0.5rem 0.25rem;
+    padding: 0.4rem 0.25rem;
   }
 
   .relationship-info {
-    padding: 1rem;
+    padding: clamp(0.75rem, 1.5vw, 1rem);
   }
 
   .relationship-info h3 {
-    font-size: 1.1rem;
+    font-size: clamp(0.9rem, 2vw, 1.1rem);
   }
 
   .entity {
-    min-width: 100px;
-    padding: 0.75rem;
+    min-width: 90px;
+    padding: clamp(0.5rem, 1vw, 0.75rem);
   }
 
   .entity strong {
-    font-size: 0.85rem;
+    font-size: clamp(0.7rem, 1.5vw, 0.85rem);
   }
 
   .entity small {
-    font-size: 0.7rem;
+    font-size: clamp(0.6rem, 1vw, 0.7rem);
   }
 }

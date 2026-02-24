@@ -798,6 +798,161 @@ app.get('/api/complaints/statuses', async (req: Request, res: Response) => {
   }
 });
 
+// Create a new complaint
+app.post('/api/complaints', async (req: Request, res: Response) => {
+  try {
+    const {
+      description,
+      complaintTypeId,
+      complaintStatusId,
+      roomId,
+      charges,
+      chargesDetails,
+      proof1Url,
+      proof2Url,
+      videoUrl
+    } = req.body;
+
+    // Validation
+    if (!description || !complaintTypeId || !complaintStatusId || !roomId) {
+      return res.status(400).json({
+        error: 'Description, complaint type, status, and room are required'
+      });
+    }
+
+    const pool = getPool();
+    const result = await pool.request()
+      .input('description', sql.NVarChar(sql.MAX), description)
+      .input('complaintTypeId', sql.Int, complaintTypeId)
+      .input('complaintStatusId', sql.Int, complaintStatusId)
+      .input('roomId', sql.Int, roomId)
+      .input('charges', sql.Decimal(10, 2), charges || 0)
+      .input('chargesDetails', sql.NVarChar(sql.MAX), chargesDetails || null)
+      .input('proof1Url', sql.NVarChar(sql.MAX), proof1Url || null)
+      .input('proof2Url', sql.NVarChar(sql.MAX), proof2Url || null)
+      .input('videoUrl', sql.NVarChar(sql.MAX), videoUrl || null)
+      .query(`
+        INSERT INTO Complains (
+          Description, ComplaintTypeId, ComplaintStatusId, RoomId, 
+          Charges, ChargesDetails, Proof1Url, Proof2Url, VideoUrl, 
+          CreatedDate, UpdatedDate
+        )
+        VALUES (
+          @description, @complaintTypeId, @complaintStatusId, @roomId,
+          @charges, @chargesDetails, @proof1Url, @proof2Url, @videoUrl,
+          GETDATE(), GETDATE()
+        );
+        SELECT SCOPE_IDENTITY() as id;
+      `);
+
+    const newId = result.recordset[0]?.id;
+    res.status(201).json({
+      message: 'Complaint created successfully',
+      id: newId
+    });
+  } catch (error) {
+    console.error('Create complaint error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({
+      error: 'Failed to create complaint',
+      details: errorMessage
+    });
+  }
+});
+
+// Update a complaint
+app.put('/api/complaints/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const {
+      description,
+      complaintTypeId,
+      complaintStatusId,
+      roomId,
+      closedDate,
+      closureComments,
+      charges,
+      chargesDetails,
+      proof1Url,
+      proof2Url,
+      videoUrl
+    } = req.body;
+
+    // Validation
+    if (!description || !complaintTypeId || !complaintStatusId || !roomId) {
+      return res.status(400).json({
+        error: 'Description, complaint type, status, and room are required'
+      });
+    }
+
+    const pool = getPool();
+    await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .input('description', sql.NVarChar(sql.MAX), description)
+      .input('complaintTypeId', sql.Int, complaintTypeId)
+      .input('complaintStatusId', sql.Int, complaintStatusId)
+      .input('roomId', sql.Int, roomId)
+      .input('closedDate', sql.DateTime, closedDate || null)
+      .input('closureComments', sql.NVarChar(sql.MAX), closureComments || null)
+      .input('charges', sql.Decimal(10, 2), charges || 0)
+      .input('chargesDetails', sql.NVarChar(sql.MAX), chargesDetails || null)
+      .input('proof1Url', sql.NVarChar(sql.MAX), proof1Url || null)
+      .input('proof2Url', sql.NVarChar(sql.MAX), proof2Url || null)
+      .input('videoUrl', sql.NVarChar(sql.MAX), videoUrl || null)
+      .query(`
+        UPDATE Complains
+        SET
+          Description = @description,
+          ComplaintTypeId = @complaintTypeId,
+          ComplaintStatusId = @complaintStatusId,
+          RoomId = @roomId,
+          ClosedDate = @closedDate,
+          ClosureComments = @closureComments,
+          Charges = @charges,
+          ChargesDetails = @chargesDetails,
+          Proof1Url = @proof1Url,
+          Proof2Url = @proof2Url,
+          VideoUrl = @videoUrl,
+          UpdatedDate = GETDATE()
+        WHERE Id = @id
+      `);
+
+    res.json({ message: 'Complaint updated successfully' });
+  } catch (error) {
+    console.error('Update complaint error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({
+      error: 'Failed to update complaint',
+      details: errorMessage
+    });
+  }
+});
+
+// Delete a complaint
+app.delete('/api/complaints/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const pool = getPool();
+    const result = await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .query('DELETE FROM Complains WHERE Id = @id');
+
+    if (result.rowsAffected[0] === 0) {
+      return res.status(404).json({ error: 'Complaint not found' });
+    }
+
+    res.json({ message: 'Complaint deleted successfully' });
+  } catch (error) {
+    console.error('Delete complaint error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({
+      error: 'Failed to delete complaint',
+      details: errorMessage
+    });
+  }
+});
+
 // Get all rooms
 app.get('/api/rooms', async (req: Request, res: Response) => {
   try {

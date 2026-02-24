@@ -1,15 +1,15 @@
 .tenant-management-container {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 2rem;
+  padding: clamp(1rem, 5vw, 2rem);
   background: #f5f7fa;
   min-height: 100vh;
 }
 
 .tenant-management-container h1 {
   color: #1a202c;
-  margin-bottom: 2rem;
-  font-size: 2rem;
+  margin-bottom: clamp(1rem, 5vw, 2rem);
+  font-size: clamp(1.5rem, 5vw, 2rem);
   font-weight: 600;
 }
 
@@ -18,16 +18,17 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  gap: 2rem;
-  margin-bottom: 2rem;
+  gap: clamp(1rem, 3vw, 2rem);
+  margin-bottom: clamp(1rem, 5vw, 2rem);
   flex-wrap: wrap;
 }
 
 .tenant-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: clamp(0.75rem, 2vw, 1rem);
   flex: 1;
+  width: 100%;
 }
 
 .stat-card {
@@ -66,13 +67,17 @@
   background: #4299e1;
   color: white;
   border: none;
-  padding: 0.75rem 1.5rem;
+  padding: clamp(0.6rem, 2vw, 0.75rem) clamp(1rem, 3vw, 1.5rem);
   border-radius: 6px;
-  font-size: 1rem;
+  font-size: clamp(0.85rem, 2vw, 1rem);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -90,12 +95,16 @@
   background: #e2e8f0;
   color: #2d3748;
   border: none;
-  padding: 0.75rem 1.5rem;
+  padding: clamp(0.6rem, 2vw, 0.75rem) clamp(1rem, 3vw, 1.5rem);
   border-radius: 6px;
-  font-size: 1rem;
+  font-size: clamp(0.85rem, 2vw, 1rem);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-secondary:hover:not(:disabled) {
@@ -112,12 +121,16 @@
   background: #fc8181;
   color: white;
   border: none;
-  padding: 0.75rem 1.5rem;
+  padding: clamp(0.6rem, 2vw, 0.75rem) clamp(1rem, 3vw, 1.5rem);
   border-radius: 6px;
-  font-size: 1rem;
+  font-size: clamp(0.85rem, 2vw, 1rem);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-danger:hover:not(:disabled) {
@@ -630,7 +643,7 @@
 /* Responsive Design */
 @media (max-width: 1024px) {
   .tenants-grid {
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   }
 
   .tenant-header {
@@ -639,30 +652,33 @@
   }
 
   .tenant-stats {
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   }
 
   .btn-create {
     align-self: flex-start;
+    width: 100%;
   }
 }
 
 @media (max-width: 768px) {
   .tenant-management-container {
-    padding: 1rem;
+    padding: clamp(0.75rem, 3vw, 1rem);
   }
 
   .tenant-management-container h1 {
-    font-size: 1.5rem;
-    margin-bottom: 1.5rem;
+    font-size: clamp(1.2rem, 4vw, 1.5rem);
+    margin-bottom: 1rem;
   }
 
   .search-section {
     flex-direction: column;
+    gap: 0.75rem;
   }
 
   .search-container {
     min-width: auto;
+    width: 100%;
   }
 
   .filter-container {
@@ -671,6 +687,7 @@
 
   .search-field-select {
     flex: 1;
+    min-width: auto;
   }
 
   .tenants-grid {
@@ -678,7 +695,7 @@
   }
 
   .tenant-image-container {
-    height: 150px;
+    height: 120px;
   }
 
   .room-info {
@@ -692,24 +709,47 @@
   .btn-edit,
   .btn-delete {
     width: 100%;
+    min-height: 44px;
   }
 
   .payment-row {
     grid-template-columns: 1fr;
   }
+
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger {
+    width: 100%;
+    font-size: 0.9rem;
+  }
+
+  .modal-content {
+    max-width: 95%;
+    margin: 0 auto;
+  }
 }
 
 @media (max-width: 480px) {
   .stat-value {
-    font-size: 1.5rem;
+    font-size: clamp(1.2rem, 3vw, 1.5rem);
   }
 
   .tenant-name {
-    font-size: 1rem;
+    font-size: clamp(0.9rem, 2vw, 1rem);
   }
 
   .detail-label {
     min-width: auto;
-    margin-right: 0.5rem;
+    margin-right: 0.25rem;
+    font-size: 0.85rem;
+  }
+
+  .search-section {
+    gap: 0.5rem;
+  }
+
+  .btn-create {
+    font-size: 0.85rem;
+    padding: 0.6rem 1rem;
   }
 }

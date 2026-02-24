@@ -123,6 +123,24 @@ export const ComplaintsManagement: React.FC = () => {
   const [statuses, setStatuses] = useState<ComplaintStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Modal and form states
+  const [showFormModal, setShowFormModal] = useState(false);
+  const [editingComplaintId, setEditingComplaintId] = useState<number | null>(null);
+  const [formData, setFormData] = useState({
+    description: '',
+    complaintTypeId: '',
+    complaintStatusId: '',
+    roomId: '',
+    charges: '',
+    chargesDetails: '',
+    proof1Url: '',
+    proof2Url: '',
+    videoUrl: '',
+    closedDate: '',
+    closureComments: ''
+  });
 
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
@@ -166,6 +184,105 @@ export const ComplaintsManagement: React.FC = () => {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      description: '',
+      complaintTypeId: '',
+      complaintStatusId: '',
+      roomId: '',
+      charges: '',
+      chargesDetails: '',
+      proof1Url: '',
+      proof2Url: '',
+      videoUrl: '',
+      closedDate: '',
+      closureComments: ''
+    });
+    setEditingComplaintId(null);
+  };
+
+  const openCreateModal = () => {
+    resetForm();
+    setShowFormModal(true);
+  };
+
+  const openEditModal = (complaint: Complaint) => {
+    setFormData({
+      description: complaint.description,
+      complaintTypeId: complaint.complaintTypeId.toString(),
+      complaintStatusId: complaint.complaintStatusId.toString(),
+      roomId: complaint.roomId.toString(),
+      charges: complaint.charges?.toString() || '',
+      chargesDetails: complaint.chargesDetails || '',
+      proof1Url: complaint.proof1Url || '',
+      proof2Url: complaint.proof2Url || '',
+      videoUrl: complaint.videoUrl || '',
+      closedDate: complaint.closedDate || '',
+      closureComments: complaint.closureComments || ''
+    });
+    setEditingComplaintId(complaint.id);
+    setShowFormModal(true);
+  };
+
+  const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const submitData = {
+        description: formData.description,
+        complaintTypeId: parseInt(formData.complaintTypeId),
+        complaintStatusId: parseInt(formData.complaintStatusId),
+        roomId: parseInt(formData.roomId),
+        charges: formData.charges ? parseFloat(formData.charges) : 0,
+        chargesDetails: formData.chargesDetails || null,
+        proof1Url: formData.proof1Url || null,
+        proof2Url: formData.proof2Url || null,
+        videoUrl: formData.videoUrl || null,
+        closedDate: formData.closedDate || null,
+        closureComments: formData.closureComments || null
+      };
+
+      if (editingComplaintId) {
+        await apiService.updateComplaint(editingComplaintId, submitData);
+        setSuccessMessage('Complaint updated successfully');
+      } else {
+        await apiService.createComplaint(submitData);
+        setSuccessMessage('Complaint created successfully');
+      }
+
+      setShowFormModal(false);
+      resetForm();
+      await fetchData();
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError(editingComplaintId ? 'Failed to update complaint' : 'Failed to create complaint');
+      console.error(err);
+    }
+  };
+
+  const handleDelete = async (complaintId: number) => {
+    if (window.confirm('Are you sure you want to delete this complaint?')) {
+      try {
+        await apiService.deleteComplaint(complaintId);
+        setSuccessMessage('Complaint deleted successfully');
+        await fetchData();
+        setTimeout(() => setSuccessMessage(null), 3000);
+      } catch (err) {
+        setError('Failed to delete complaint');
+        console.error(err);
+      }
     }
   };
 
@@ -244,6 +361,18 @@ export const ComplaintsManagement: React.FC = () => {
 
   return (
     <div className="complaints-container">
+      {successMessage && (
+        <div className="success-message">
+          {successMessage}
+        </div>
+      )}
+
+      <div className="complaints-header">
+        <h2>Complaints Management</h2>
+        <button className="btn-primary" onClick={openCreateModal}>
+          ➕ Create New Complaint
+        </button>
+      </div>
       <div className="complaints-stats">
         <div className="stat-card">
           <div className="stat-value">{stats.total}</div>
@@ -345,6 +474,7 @@ export const ComplaintsManagement: React.FC = () => {
               <th>Closed Date</th>
               <th>Charges</th>
               <th>Details</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -372,11 +502,27 @@ export const ComplaintsManagement: React.FC = () => {
                       {complaint.videoUrl && <span title="Video">🎥</span>}
                     </div>
                   </td>
+                  <td className="actions-cell">
+                    <button
+                      className="btn-action btn-edit"
+                      onClick={() => openEditModal(complaint)}
+                      title="Edit complaint"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      className="btn-action btn-delete"
+                      onClick={() => handleDelete(complaint.id)}
+                      title="Delete complaint"
+                    >
+                      🗑️
+                    </button>
+                  </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={9} className="no-data">
+                <td colSpan={10} className="no-data">
                   No complaints found matching your criteria
                 </td>
               </tr>
@@ -402,6 +548,190 @@ export const ComplaintsManagement: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {showFormModal && (
+        <div className="modal-overlay" onClick={() => setShowFormModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>{editingComplaintId ? 'Edit Complaint' : 'Create New Complaint'}</h3>
+              <button className="modal-close" onClick={() => setShowFormModal(false)}>✕</button>
+            </div>
+            
+            <form onSubmit={handleFormSubmit} className="complaint-form">
+              <div className="form-grid">
+                <div className="form-group">
+                  <label htmlFor="roomId">Room *</label>
+                  <select
+                    id="roomId"
+                    name="roomId"
+                    value={formData.roomId}
+                    onChange={handleFormChange}
+                    required
+                  >
+                    <option value="">Select a room</option>
+                    {rooms.map(room => (
+                      <option key={room.id} value={room.id}>
+                        Room {room.number}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="complaintTypeId">Complaint Type *</label>
+                  <select
+                    id="complaintTypeId"
+                    name="complaintTypeId"
+                    value={formData.complaintTypeId}
+                    onChange={handleFormChange}
+                    required
+                  >
+                    <option value="">Select type</option>
+                    {types.map(type => (
+                      <option key={type.id} value={type.id}>
+                        {type.type}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="complaintStatusId">Status *</label>
+                  <select
+                    id="complaintStatusId"
+                    name="complaintStatusId"
+                    value={formData.complaintStatusId}
+                    onChange={handleFormChange}
+                    required
+                  >
+                    <option value="">Select status</option>
+                    {statuses.map(status => (
+                      <option key={status.id} value={status.id}>
+                        {status.status}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group full-width">
+                <label htmlFor="description">Description *</label>
+                <textarea
+                  id="description"
+                  name="description"
+                  value={formData.description}
+                  onChange={handleFormChange}
+                  placeholder="Enter detailed complaint description"
+                  rows={4}
+                  required
+                />
+              </div>
+
+              <div className="form-grid">
+                <div className="form-group">
+                  <label htmlFor="charges">Charges ($)</label>
+                  <input
+                    type="number"
+                    id="charges"
+                    name="charges"
+                    value={formData.charges}
+                    onChange={handleFormChange}
+                    placeholder="0.00"
+                    step="0.01"
+                    min="0"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="closedDate">Closed Date</label>
+                  <input
+                    type="date"
+                    id="closedDate"
+                    name="closedDate"
+                    value={formData.closedDate}
+                    onChange={handleFormChange}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group full-width">
+                <label htmlFor="chargesDetails">Charges Details</label>
+                <textarea
+                  id="chargesDetails"
+                  name="chargesDetails"
+                  value={formData.chargesDetails}
+                  onChange={handleFormChange}
+                  placeholder="Enter details about charges"
+                  rows={2}
+                />
+              </div>
+
+              <div className="form-group full-width">
+                <label htmlFor="closureComments">Closure Comments</label>
+                <textarea
+                  id="closureComments"
+                  name="closureComments"
+                  value={formData.closureComments}
+                  onChange={handleFormChange}
+                  placeholder="Enter closure comments if complaint is closed"
+                  rows={2}
+                />
+              </div>
+
+              <div className="form-grid">
+                <div className="form-group">
+                  <label htmlFor="proof1Url">Proof 1 URL</label>
+                  <input
+                    type="url"
+                    id="proof1Url"
+                    name="proof1Url"
+                    value={formData.proof1Url}
+                    onChange={handleFormChange}
+                    placeholder="https://example.com/proof1.jpg"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="proof2Url">Proof 2 URL</label>
+                  <input
+                    type="url"
+                    id="proof2Url"
+                    name="proof2Url"
+                    value={formData.proof2Url}
+                    onChange={handleFormChange}
+                    placeholder="https://example.com/proof2.jpg"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="videoUrl">Video URL</label>
+                  <input
+                    type="url"
+                    id="videoUrl"
+                    name="videoUrl"
+                    value={formData.videoUrl}
+                    onChange={handleFormChange}
+                    placeholder="https://example.com/video.mp4"
+                  />
+                </div>
+              </div>
+
+              <div className="form-actions">
+                <button type="submit" className="btn-submit">
+                  {editingComplaintId ? 'Update Complaint' : 'Create Complaint'}
+                </button>
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  onClick={() => setShowFormModal(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
