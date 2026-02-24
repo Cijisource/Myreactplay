@@ -18,19 +18,91 @@ const api: AxiosInstance = axios.create({
   },
 });
 
+// Add token to requests if available
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('authToken');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 export const apiService = {
   getHealth: () => api.get('/health'),
   getDatabaseStatus: () => api.get('/database/status'),
   getTables: () => api.get('/tables'),
   
+  // Authentication APIs
+  login: (username: string, password: string) => 
+    api.post('/auth/login', { username, password }),
+  
+  // Tenant Management APIs
+  getAllTenantsWithOccupancy: () => api.get('/tenants/with-occupancy'),
+  getTenantById: (tenantId: number) => api.get(`/tenants/${tenantId}`),
+  createTenant: (data: any) => api.post('/tenants', data),
+  updateTenant: (tenantId: number, data: any) => api.put(`/tenants/${tenantId}`, data),
+  deleteTenant: (tenantId: number) => api.delete(`/tenants/${tenantId}`),
+  searchTenants: (field: string, query: string) => 
+    api.get(`/tenants/search?field=${field}&query=${query}`),
+  
   // Rental Collection APIs
   getRentalSummary: () => api.get('/rental/summary'),
   getUnpaidTenants: () => api.get('/rental/unpaid-tenants'),
   getUnpaidDetails: (month: string) => api.get(`/rental/unpaid-details/${month}`),
+  getPaymentsByMonth: (monthYear: string) => api.get(`/rental/payments/${monthYear}`),
+  
+  // Room Occupancy APIs
+  getRoomOccupancyData: () => api.get('/rooms/occupancy'),
+  getOccupancyLinks: () => api.get('/occupancy/links'),  // Explicit room-tenant linking
+  
+  // Complaints Management APIs
+  getComplaints: () => api.get('/complaints'),
+  getComplaintTypes: () => api.get('/complaints/types'),
+  getComplaintStatuses: () => api.get('/complaints/statuses'),
+  createComplaint: (data: any) => api.post('/complaints', data),
+  updateComplaint: (complaintId: number, data: any) => api.put(`/complaints/${complaintId}`, data),
+  deleteComplaint: (complaintId: number) => api.delete(`/complaints/${complaintId}`),
+  getRooms: () => api.get('/rooms'),
   
   // Diagnostic APIs
   getRentalSchema: () => api.get('/diagnostic/rental-schema'),
   getRentalSample: () => api.get('/diagnostic/rental-sample'),
+};
+
+// Helper functions
+export const login = async (username: string, password: string) => {
+  const response = await apiService.login(username, password);
+  return response.data;
+};
+
+export const getRoomOccupancyData = async () => {
+  const response = await apiService.getRoomOccupancyData();
+  return response.data;
+};
+
+export const getOccupancyLinks = async () => {
+  const response = await apiService.getOccupancyLinks();
+  return response.data;
+};
+
+export const getComplaints = async () => {
+  const response = await apiService.getComplaints();
+  return response.data;
+};
+
+export const getComplaintTypes = async () => {
+  const response = await apiService.getComplaintTypes();
+  return response.data;
+};
+
+export const getComplaintStatuses = async () => {
+  const response = await apiService.getComplaintStatuses();
+  return response.data;
+};
+
+export const getRooms = async () => {
+  const response = await apiService.getRooms();
+  return response.data;
 };
 
 export default api;

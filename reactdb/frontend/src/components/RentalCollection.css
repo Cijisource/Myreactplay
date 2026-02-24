@@ -1,25 +1,25 @@
 .rental-container {
   width: 100%;
-  padding: 30px 20px;
+  padding: clamp(1.5rem, 5vw, 30px);
   background: #f5f7fa;
   min-height: 100vh;
 }
 
 .rental-header {
   max-width: 1200px;
-  margin: 0 auto 40px;
+  margin: 0 auto clamp(2rem, 5vw, 40px);
   text-align: center;
 }
 
 .rental-header h1 {
   color: #1a202c;
-  font-size: 2.5em;
-  margin: 0 0 10px;
+  font-size: clamp(1.5rem, 5vw, 2.5em);
+  margin: 0 0 clamp(0.5rem, 2vw, 10px);
 }
 
 .rental-header p {
   color: #666;
-  font-size: 1.1em;
+  font-size: clamp(0.9rem, 2vw, 1.1em);
   margin: 0;
 }
 
@@ -206,34 +206,117 @@
 }
 
 /* Responsive */
+@media (max-width: 1024px) {
+  .summary-cards {
+    grid-template-columns: repeat(2, 1fr);
+    gap: clamp(1rem, 3vw, 20px);
+  }
+
+  .section {
+    margin: 0 auto clamp(2rem, 3vw, 40px);
+  }
+}
+
 @media (max-width: 768px) {
+  .rental-container {
+    padding: clamp(1rem, 3vw, 2rem);
+  }
+
   .rental-header h1 {
-    font-size: 1.8em;
+    font-size: clamp(1.3rem, 4vw, 1.8em);
+  }
+
+  .rental-header p {
+    font-size: clamp(0.85rem, 2vw, 1em);
   }
 
   .summary-cards {
     grid-template-columns: 1fr;
-    gap: 15px;
+    gap: clamp(1rem, 2vw, 15px);
+  }
+
+  .card {
+    padding: clamp(1.5rem, 3vw, 25px);
+    border-radius: 8px;
+  }
+
+  .card-content .amount {
+    font-size: clamp(1rem, 3vw, 2em);
   }
 
   .summary-table th,
   .summary-table td,
   .details-table th,
   .details-table td {
-    padding: 12px 8px;
-    font-size: 0.85em;
+    padding: clamp(0.75rem, 1vw, 12px) clamp(0.5rem, 1vw, 8px);
+    font-size: clamp(0.75rem, 1.5vw, 0.95em);
+    word-break: break-word;
   }
 
-  .card-content .amount {
-    font-size: 1.5em;
+  .table-wrapper {
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .section {
+    padding: clamp(1.5rem, 3vw, 30px);
+    margin: 0 auto clamp(1.5rem, 3vw, 40px);
+  }
+
+  .section h2 {
+    font-size: clamp(1.2rem, 3vw, 1.8em);
+    margin-bottom: clamp(1rem, 2vw, 25px);
   }
 
   .month-selector {
     flex-direction: column;
     align-items: flex-start;
+    gap: 0.75rem;
   }
 
-  .month-selector select {
+  .month-selector select,
+  .month-selector input {
     width: 100%;
+    font-size: 16px;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 480px) {
+  .rental-container {
+    padding: clamp(0.75rem, 2vw, 1rem);
+  }
+
+  .rental-header {
+    margin-bottom: clamp(1.5rem, 3vw, 2rem);
+  }
+
+  .rental-header h1 {
+    font-size: clamp(1.2rem, 3vw, 1.5em);
+  }
+
+  .summary-table th,
+  .summary-table td,
+  .details-table th,
+  .details-table td {
+    padding: 0.5rem 0.25rem;
+    font-size: 0.7em;
+  }
+
+  .card {
+    padding: clamp(1rem, 2vw, 1.5rem);
+  }
+
+  .card-content h3 {
+    font-size: clamp(0.75rem, 1.5vw, 0.9em);
+  }
+
+  .section {
+    padding: clamp(1rem, 2vw, 1.5rem);
+  }
+
+  .section h2 {
+    font-size: clamp(1rem, 2.5vw, 1.2em);
+    margin-bottom: 1rem;
   }
 }
