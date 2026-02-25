@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react';
 import { apiService } from './api';
 import './App.css';
-import RentalCollection from './components/RentalCollection';
+//import RentalCollection from './components/RentalCollection';
 import Diagnostic from './components/Diagnostic';
 import PaymentTracking from './components/PaymentTracking';
 import TenantManagement from './components/TenantManagement';
 import RoomOccupancy from './components/RoomOccupancy';
 import OccupancyLinks from './components/OccupancyLinks';
 import ComplaintsManagement from './components/ComplaintsManagement';
+import ServiceDetailsManagement from './components/ServiceDetailsManagement';
+import EBServicePaymentsManagement from './components/EBServicePaymentsManagement';
 import LoginScreen from './components/LoginScreen';
 import { AuthProvider, useAuth } from './components/AuthContext';
 
-type Page = 'home' | 'rental' | 'diagnostic' | 'payment' | 'tenants' | 'occupancy' | 'occupancy-links' | 'complaints';
+type Page = 'home' | 'rental' | 'diagnostic' | 'payment' | 'tenants' | 'occupancy' | 'occupancy-links' | 'complaints' | 'services' | 'eb-payments';
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
@@ -61,9 +63,9 @@ function AppContent() {
   }
 
   const renderPage = () => {
-    if (currentPage === 'rental') {
-      return <RentalCollection />;
-    }
+    //if (currentPage === 'rental') {
+      //return <RentalCollection />;
+    //}
     
     if (currentPage === 'diagnostic') {
       return <Diagnostic />;
@@ -87,6 +89,14 @@ function AppContent() {
 
     if (currentPage === 'complaints') {
       return <ComplaintsManagement />;
+    }
+
+    if (currentPage === 'services') {
+      return <ServiceDetailsManagement />;
+    }
+
+    if (currentPage === 'eb-payments') {
+      return <EBServicePaymentsManagement />;
     }
 
     return (
@@ -148,6 +158,18 @@ function AppContent() {
             Complaints Management
           </button>
           <button 
+            className="nav-btn"
+            onClick={() => setCurrentPage('services')}
+          >
+            Service Details
+          </button>
+          <button 
+            className="nav-btn"
+            onClick={() => setCurrentPage('eb-payments')}
+          >
+            EB Payments
+          </button>
+          <button 
             className="nav-btn diagnostic"
             onClick={() => setCurrentPage('diagnostic')}
           >
@@ -203,7 +225,16 @@ function AppContent() {
           >
             ← Back to Home
           </button>
-          <div className="page-title">{currentPage.charAt(0).toUpperCase() + currentPage.slice(1).replace('-', ' ')}</div>
+          <div className="page-title">
+            {(() => {
+              const pageNames: { [key in Page]?: string } = {
+                'eb-payments': 'EB Payments',
+                'services': 'Service Details',
+                'occupancy-links': 'Occupancy Links'
+              };
+              return pageNames[currentPage] || (currentPage.charAt(0).toUpperCase() + currentPage.slice(1).replace('-', ' '));
+            })()}
+          </div>
         </div>
       )}
       {renderPage()}

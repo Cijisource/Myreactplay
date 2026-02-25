@@ -63,6 +63,24 @@ export const apiService = {
   updateComplaint: (complaintId: number, data: any) => api.put(`/complaints/${complaintId}`, data),
   deleteComplaint: (complaintId: number) => api.delete(`/complaints/${complaintId}`),
   getRooms: () => api.get('/rooms'),
+
+  // Service Details APIs
+  getServiceDetails: () => api.get('/services/details'),
+  getServiceDetailById: (serviceId: number) => api.get(`/services/details/${serviceId}`),
+  createServiceDetail: (data: any) => api.post('/services/details', data),
+  updateServiceDetail: (serviceId: number, data: any) => api.put(`/services/details/${serviceId}`, data),
+  deleteServiceDetail: (serviceId: number) => api.delete(`/services/details/${serviceId}`),
+  searchServiceDetails: (field: string, query: string) => 
+    api.get(`/services/details/search?field=${field}&query=${query}`),
+
+  // EB Service Payments APIs
+  getEBServicePayments: () => api.get('/services/payments'),
+  getEBServicePaymentById: (paymentId: number) => api.get(`/services/payments/${paymentId}`),
+  createEBServicePayment: (data: any) => api.post('/services/payments', data),
+  updateEBServicePayment: (paymentId: number, data: any) => api.put(`/services/payments/${paymentId}`, data),
+  deleteEBServicePayment: (paymentId: number) => api.delete(`/services/payments/${paymentId}`),
+  searchEBServicePayments: (field: string, query: string) => 
+    api.get(`/services/payments/search?field=${field}&query=${query}`),
   
   // Diagnostic APIs
   getRentalSchema: () => api.get('/diagnostic/rental-schema'),

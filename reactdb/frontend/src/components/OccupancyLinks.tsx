@@ -106,7 +106,7 @@ export default function OccupancyLinks(): JSX.Element {
   const formatCurrency = (value: number | undefined): string => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'INR',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     }).format(value || 0);

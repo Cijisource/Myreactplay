@@ -316,7 +316,7 @@ app.get('/api/occupancy/links', async (req: Request, res: Response) => {
         o.CheckInDate as checkInDate,
         o.CheckOutDate as checkOutDate,
         ISNULL(CAST(o.RentFixed AS FLOAT), 0) as rentFixed,
-        CASE WHEN o.CheckOutDate IS NULL THEN 1 ELSE 0 END as isActive,
+        CASE WHEN o.CheckOutDate > CAST(GETDATE() AS DATE) THEN 1 ELSE 0 END as isActive,
         ISNULL(CAST(COALESCE(
           (SELECT TOP 1 CAST(RentReceived AS FLOAT) 
            FROM RentalCollection 
@@ -366,7 +366,7 @@ app.get('/api/rooms/occupancy', async (req: Request, res: Response) => {
         rd.Number as roomNumber,
         ISNULL(CAST(rd.Rent AS FLOAT), 0) as roomRent,
         ISNULL(rd.Beds, 0) as beds,
-        CASE WHEN o.Id IS NOT NULL AND o.CheckOutDate IS NULL THEN 1 ELSE 0 END as isOccupied,
+        CASE WHEN o.Id IS NOT NULL AND o.CheckOutDate > CAST(GETDATE() AS DATE) THEN 1 ELSE 0 END as isOccupied,
         o.TenantId as tenantId,
         t.Name as tenantName,
         t.Phone as tenantPhone,
@@ -396,7 +396,7 @@ app.get('/api/rooms/occupancy', async (req: Request, res: Response) => {
            AND MONTH(RentReceivedOn) = MONTH(GETDATE())
            ORDER BY RentReceivedOn DESC), NULL) AS NVARCHAR(10)), NULL) as lastPaymentDate
       FROM RoomDetail rd
-      LEFT JOIN Occupancy o ON rd.Id = o.RoomId AND o.CheckOutDate IS NULL
+      LEFT JOIN Occupancy o ON rd.Id = o.RoomId AND o.CheckOutDate > CAST(GETDATE() AS DATE)
       LEFT JOIN Tenant t ON o.TenantId = t.Id
       ORDER BY rd.Number ASC
     `);
@@ -434,7 +434,7 @@ app.get('/api/tenants/with-occupancy', async (req: Request, res: Response) => {
         o.CheckInDate as checkInDate,
         o.CheckOutDate as checkOutDate,
         ISNULL(o.RentFixed, rd.Rent) as rentFixed,
-        CASE WHEN o.CheckOutDate IS NULL THEN 1 ELSE 0 END as isCurrentlyOccupied,
+        CASE WHEN o.CheckOutDate > CAST(GETDATE() AS DATE) THEN 1 ELSE 0 END as isCurrentlyOccupied,
         ISNULL(CAST(COALESCE(
           (SELECT TOP 1 CAST(RentBalance AS FLOAT) 
            FROM RentalCollection 
@@ -459,7 +459,7 @@ app.get('/api/tenants/with-occupancy', async (req: Request, res: Response) => {
            AND MONTH(RentReceivedOn) = MONTH(GETDATE())
            ORDER BY RentReceivedOn DESC), NULL) AS NVARCHAR(10)), NULL) as lastPaymentDate
       FROM Tenant t
-      LEFT JOIN Occupancy o ON t.Id = o.TenantId AND o.CheckOutDate IS NULL
+      LEFT JOIN Occupancy o ON t.Id = o.TenantId AND o.CheckOutDate > CAST(GETDATE() AS DATE)
       LEFT JOIN RoomDetail rd ON o.RoomId = rd.Id
       ORDER BY t.Name ASC
     `);
@@ -946,8 +946,355 @@ app.delete('/api/complaints/:id', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Delete complaint error:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
-    res.status(500).json({
-      error: 'Failed to delete complaint',
+  }
+});
+
+// Service Details Management Endpoints
+
+// Get all service details
+app.get('/api/services/details', async (req: Request, res: Response) => {
+  try {
+    const pool = getPool();
+    const result = await pool.request().query(`
+      SELECT 
+        Id as id,
+        ConsumerNo as consumerNo,
+        MeterNo as meterNo,
+        Load as load,
+        ServiceCategory as serviceCategory,
+        ConsumerName as consumerName,
+        CreatedDate as createdDate,
+        UpdatedDate as updatedDate
+      FROM ServiceDetails
+      ORDER BY ConsumerName ASC
+    `);
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Get service details error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve service details',
+      details: errorMessage
+    });
+  }
+});
+
+// Get single service detail
+app.get('/api/services/details/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    const result = await pool
+      .request()
+      .input('id', sql.Int, parseInt(id))
+      .query(`
+        SELECT 
+          Id as id,
+          ConsumerNo as consumerNo,
+          MeterNo as meterNo,
+          Load as load,
+          ServiceCategory as serviceCategory,
+          ConsumerName as consumerName,
+          CreatedDate as createdDate,
+          UpdatedDate as updatedDate
+        FROM ServiceDetails
+        WHERE Id = @id
+      `);
+    
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Service detail not found' });
+    }
+    
+    res.json(result.recordset[0]);
+  } catch (error) {
+    console.error('Get service detail error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve service detail',
+      details: errorMessage
+    });
+  }
+});
+
+// Create service detail
+app.post('/api/services/details', async (req: Request, res: Response) => {
+  try {
+    const { consumerNo, meterNo, load, serviceCategory, consumerName } = req.body;
+    
+    if (!consumerNo || !meterNo || !load || !serviceCategory || !consumerName) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    const pool = getPool();
+    const result = await pool
+      .request()
+      .input('consumerNo', sql.NVarChar(50), consumerNo)
+      .input('meterNo', sql.Int, meterNo)
+      .input('load', sql.NVarChar(10), load)
+      .input('serviceCategory', sql.NVarChar(50), serviceCategory)
+      .input('consumerName', sql.NVarChar(100), consumerName)
+      .query(`
+        INSERT INTO ServiceDetails (ConsumerNo, MeterNo, Load, ServiceCategory, ConsumerName, CreatedDate, UpdatedDate)
+        VALUES (@consumerNo, @meterNo, @load, @serviceCategory, @consumerName, GETDATE(), GETDATE());
+        SELECT SCOPE_IDENTITY() as id;
+      `);
+    
+    const serviceId = result.recordset[0].id;
+    res.status(201).json({ 
+      id: serviceId, 
+      consumerNo,
+      meterNo,
+      load,
+      serviceCategory,
+      consumerName,
+      createdDate: new Date().toISOString(),
+      message: 'Service detail created successfully' 
+    });
+  } catch (error) {
+    console.error('Create service detail error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to create service detail',
+      details: errorMessage
+    });
+  }
+});
+
+// Update service detail
+app.put('/api/services/details/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { consumerNo, meterNo, load, serviceCategory, consumerName } = req.body;
+    
+    if (!consumerNo || !meterNo || !load || !serviceCategory || !consumerName) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    const pool = getPool();
+    const result = await pool
+      .request()
+      .input('id', sql.Int, parseInt(id))
+      .input('consumerNo', sql.NVarChar(50), consumerNo)
+      .input('meterNo', sql.Int, meterNo)
+      .input('load', sql.NVarChar(10), load)
+      .input('serviceCategory', sql.NVarChar(50), serviceCategory)
+      .input('consumerName', sql.NVarChar(100), consumerName)
+      .query(`
+        UPDATE ServiceDetails 
+        SET ConsumerNo = @consumerNo, MeterNo = @meterNo, Load = @load, 
+            ServiceCategory = @serviceCategory, ConsumerName = @consumerName, UpdatedDate = GETDATE()
+        WHERE Id = @id
+      `);
+    
+    if (result.rowsAffected[0] === 0) {
+      return res.status(404).json({ error: 'Service detail not found' });
+    }
+    
+    res.json({ message: 'Service detail updated successfully' });
+  } catch (error) {
+    console.error('Update service detail error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to update service detail',
+      details: errorMessage
+    });
+  }
+});
+
+// Delete service detail
+app.delete('/api/services/details/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    
+    const result = await pool
+      .request()
+      .input('id', sql.Int, parseInt(id))
+      .query(`DELETE FROM ServiceDetails WHERE Id = @id`);
+    
+    if (result.rowsAffected[0] === 0) {
+      return res.status(404).json({ error: 'Service detail not found' });
+    }
+    
+    res.json({ message: 'Service detail deleted successfully' });
+  } catch (error) {
+    console.error('Delete service detail error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to delete service detail',
+      details: errorMessage
+    });
+  }
+});
+
+// EB Service Payments Management Endpoints
+
+// Get all EB service payments
+app.get('/api/services/payments', async (req: Request, res: Response) => {
+  try {
+    const pool = getPool();
+    const result = await pool.request().query(`
+      SELECT 
+        Id as id,
+        ServiceId as serviceId,
+        ISNULL(CAST(BillAmount AS FLOAT), 0) as billAmount,
+        BillDate as billDate,
+        CreatedDate as createdDate,
+        UpdatedDate as updatedDate,
+        BilledUnits as billedUnits
+      FROM EBServicePayments
+      ORDER BY BillDate DESC
+    `);
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Get EB service payments error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve EB service payments',
+      details: errorMessage
+    });
+  }
+});
+
+// Get single EB service payment
+app.get('/api/services/payments/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    const result = await pool
+      .request()
+      .input('id', sql.Int, parseInt(id))
+      .query(`
+        SELECT 
+          Id as id,
+          ServiceId as serviceId,
+          ISNULL(CAST(BillAmount AS FLOAT), 0) as billAmount,
+          BillDate as billDate,
+          CreatedDate as createdDate,
+          UpdatedDate as updatedDate,
+          BilledUnits as billedUnits
+        FROM EBServicePayments
+        WHERE Id = @id
+      `);
+    
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'EB service payment not found' });
+    }
+    
+    res.json(result.recordset[0]);
+  } catch (error) {
+    console.error('Get EB service payment error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve EB service payment',
+      details: errorMessage
+    });
+  }
+});
+
+// Create EB service payment
+app.post('/api/services/payments', async (req: Request, res: Response) => {
+  try {
+    const { serviceId, billAmount, billDate, billedUnits } = req.body;
+    
+    if (!serviceId || billAmount === undefined || !billDate) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    const pool = getPool();
+    const result = await pool
+      .request()
+      .input('serviceId', sql.Int, serviceId)
+      .input('billAmount', sql.Money, billAmount)
+      .input('billDate', sql.DateTime, billDate)
+      .input('billedUnits', sql.Int, billedUnits || null)
+      .query(`
+        INSERT INTO EBServicePayments (ServiceId, BillAmount, BillDate, CreatedDate, UpdatedDate, BilledUnits)
+        VALUES (@serviceId, @billAmount, @billDate, GETDATE(), GETDATE(), @billedUnits);
+        SELECT SCOPE_IDENTITY() as id;
+      `);
+    
+    const paymentId = result.recordset[0].id;
+    res.status(201).json({ 
+      id: paymentId, 
+      serviceId,
+      billAmount,
+      billDate,
+      billedUnits,
+      createdDate: new Date().toISOString(),
+      message: 'EB service payment created successfully' 
+    });
+  } catch (error) {
+    console.error('Create EB service payment error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to create EB service payment',
+      details: errorMessage
+    });
+  }
+});
+
+// Update EB service payment
+app.put('/api/services/payments/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { serviceId, billAmount, billDate, billedUnits } = req.body;
+    
+    if (!serviceId || billAmount === undefined || !billDate) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    const pool = getPool();
+    const result = await pool
+      .request()
+      .input('id', sql.Int, parseInt(id))
+      .input('serviceId', sql.Int, serviceId)
+      .input('billAmount', sql.Money, billAmount)
+      .input('billDate', sql.DateTime, billDate)
+      .input('billedUnits', sql.Int, billedUnits || null)
+      .query(`
+        UPDATE EBServicePayments 
+        SET ServiceId = @serviceId, BillAmount = @billAmount, BillDate = @billDate, 
+            BilledUnits = @billedUnits, UpdatedDate = GETDATE()
+        WHERE Id = @id
+      `);
+    
+    if (result.rowsAffected[0] === 0) {
+      return res.status(404).json({ error: 'EB service payment not found' });
+    }
+    
+    res.json({ message: 'EB service payment updated successfully' });
+  } catch (error) {
+    console.error('Update EB service payment error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to update EB service payment',
+      details: errorMessage
+    });
+  }
+});
+
+// Delete EB service payment
+app.delete('/api/services/payments/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    
+    const result = await pool
+      .request()
+      .input('id', sql.Int, parseInt(id))
+      .query(`DELETE FROM EBServicePayments WHERE Id = @id`);
+    
+    if (result.rowsAffected[0] === 0) {
+      return res.status(404).json({ error: 'EB service payment not found' });
+    }
+    
+    res.json({ message: 'EB service payment deleted successfully' });
+  } catch (error) {
+    console.error('Delete EB service payment error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to delete EB service payment',
       details: errorMessage
     });
   }

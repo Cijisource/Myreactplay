@@ -93,7 +93,7 @@ export default function RoomOccupancy(): JSX.Element {
   const formatCurrency = (value: number | undefined): string => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'INR',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     }).format(value || 0);
@@ -106,6 +106,23 @@ export default function RoomOccupancy(): JSX.Element {
       month: 'short',
       day: 'numeric'
     });
+  };
+
+  const getOccupancyStatus = (checkOutDate: string | null | undefined): string => {
+    if (!checkOutDate) return 'Active';
+    
+    const checkOut = new Date(checkOutDate);
+    const today = new Date();
+    
+    // Normalize dates to compare only the date part
+    checkOut.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    
+    if (checkOut > today) {
+      return 'Active';
+    } else {
+      return 'Ended';
+    }
   };
 
   if (loading) {
@@ -253,6 +270,9 @@ export default function RoomOccupancy(): JSX.Element {
                     {room.checkOutDate && (
                       <p className="check-out">📅 Check-out: {formatDate(room.checkOutDate)}</p>
                     )}
+                    <p className={`occupancy-status ${getOccupancyStatus(room.checkOutDate).toLowerCase().replace(/ /g, '-')}`}>
+                      Status: {getOccupancyStatus(room.checkOutDate)}
+                    </p>
                   </div>
 
                   <div className="payment-section">
