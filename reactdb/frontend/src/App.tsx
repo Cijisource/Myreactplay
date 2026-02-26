@@ -12,13 +12,53 @@ import ServiceDetailsManagement from './components/ServiceDetailsManagement';
 import EBServicePaymentsManagement from './components/EBServicePaymentsManagement';
 import LoginScreen from './components/LoginScreen';
 import UserManagement from './components/UserManagement';
+import RoleManagement from './components/RoleManagement';
 import TransactionManagement from './components/TransactionManagement';
 import StockManagement from './components/StockManagement';
 import DailyStatusManagement from './components/DailyStatusManagement';
 import ServiceAllocationManagement from './components/ServiceAllocationManagement';
 import { AuthProvider, useAuth } from './components/AuthContext';
+import { ProtectedRoute } from './components/ProtectedRoute';
 
-type Page = 'home' | 'diagnostic' | 'payment' | 'tenants' | 'occupancy' | 'occupancy-links' | 'complaints' | 'services' | 'eb-payments' | 'users' | 'transactions' | 'stock' | 'daily-status' | 'service-allocation';
+type Page = 'home' | 'diagnostic' | 'payment' | 'tenants' | 'occupancy' | 'occupancy-links' | 'complaints' | 'services' | 'eb-payments' | 'users' | 'roles' | 'transactions' | 'stock' | 'daily-status' | 'service-allocation';
+
+// Role requirements for each screen
+const SCREEN_ROLES: Record<Page, string[]> = {
+  home: [],
+  diagnostic: ['admin'],
+  payment: ['admin', 'manager', 'accountant'],
+  tenants: ['admin', 'manager', 'property_manager'],
+  occupancy: ['admin', 'manager', 'property_manager'],
+  'occupancy-links': ['admin', 'manager', 'property_manager'],
+  complaints: ['admin', 'manager', 'maintenance'],
+  services: ['admin', 'manager', 'utilities_manager'],
+  'eb-payments': ['admin', 'manager', 'accountant'],
+  users: ['admin'],
+  roles: ['admin'],
+  transactions: ['admin', 'manager', 'accountant'],
+  stock: ['admin', 'manager', 'inventory_manager'],
+  'daily-status': ['admin', 'manager', 'maintenance'],
+  'service-allocation': ['admin', 'manager', 'utilities_manager']
+};
+
+// Navigation menu items with labels and required roles
+const NAV_ITEMS: Array<{ page: Page; label: string; roles: string[] }> = [
+  { page: 'home', label: 'Home', roles: [] },
+  { page: 'occupancy-links', label: 'Occupancy Links', roles: SCREEN_ROLES['occupancy-links'] },
+  { page: 'occupancy', label: 'Room Occupancy', roles: SCREEN_ROLES.occupancy },
+  { page: 'tenants', label: 'Tenant Management', roles: SCREEN_ROLES.tenants },
+  { page: 'payment', label: 'Payment Tracking', roles: SCREEN_ROLES.payment },
+  { page: 'complaints', label: 'Complaints', roles: SCREEN_ROLES.complaints },
+  { page: 'services', label: 'Service Details', roles: SCREEN_ROLES.services },
+  { page: 'eb-payments', label: 'EB Payments', roles: SCREEN_ROLES['eb-payments'] },
+  { page: 'users', label: 'Users', roles: SCREEN_ROLES.users },
+  { page: 'roles', label: 'Roles & Access', roles: SCREEN_ROLES.roles },
+  { page: 'transactions', label: 'Transactions', roles: SCREEN_ROLES.transactions },
+  { page: 'stock', label: 'Stock', roles: SCREEN_ROLES.stock },
+  { page: 'daily-status', label: 'Daily Status', roles: SCREEN_ROLES['daily-status'] },
+  { page: 'service-allocation', label: 'Service Allocation', roles: SCREEN_ROLES['service-allocation'] },
+  { page: 'diagnostic', label: 'Diagnostic', roles: SCREEN_ROLES.diagnostic }
+];
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
@@ -74,60 +114,116 @@ function AppContent() {
   }
 
   const renderPage = () => {
-    //if (currentPage === 'rental') {
-      //return <RentalCollection />;
-    //}
-    
     if (currentPage === 'diagnostic') {
-      return <Diagnostic />;
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES.diagnostic}>
+          <Diagnostic />
+        </ProtectedRoute>
+      );
     }
 
     if (currentPage === 'payment') {
-      return <PaymentTracking />;
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES.payment}>
+          <PaymentTracking />
+        </ProtectedRoute>
+      );
     }
 
     if (currentPage === 'tenants') {
-      return <TenantManagement />;
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES.tenants}>
+          <TenantManagement />
+        </ProtectedRoute>
+      );
     }
 
     if (currentPage === 'occupancy') {
-      return <RoomOccupancy />;
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES.occupancy}>
+          <RoomOccupancy />
+        </ProtectedRoute>
+      );
     }
 
     if (currentPage === 'occupancy-links') {
-      return <OccupancyLinks />;
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES['occupancy-links']}>
+          <OccupancyLinks />
+        </ProtectedRoute>
+      );
     }
 
     if (currentPage === 'complaints') {
-      return <ComplaintsManagement />;
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES.complaints}>
+          <ComplaintsManagement />
+        </ProtectedRoute>
+      );
     }
 
     if (currentPage === 'services') {
-      return <ServiceDetailsManagement />;
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES.services}>
+          <ServiceDetailsManagement />
+        </ProtectedRoute>
+      );
     }
 
     if (currentPage === 'eb-payments') {
-      return <EBServicePaymentsManagement />;
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES['eb-payments']}>
+          <EBServicePaymentsManagement />
+        </ProtectedRoute>
+      );
     }
 
     if (currentPage === 'users') {
-      return <UserManagement />;
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES.users}>
+          <UserManagement />
+        </ProtectedRoute>
+      );
+    }
+
+    if (currentPage === 'roles') {
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES.roles}>
+          <RoleManagement />
+        </ProtectedRoute>
+      );
     }
 
     if (currentPage === 'transactions') {
-      return <TransactionManagement />;
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES.transactions}>
+          <TransactionManagement />
+        </ProtectedRoute>
+      );
     }
 
     if (currentPage === 'stock') {
-      return <StockManagement />;
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES.stock}>
+          <StockManagement />
+        </ProtectedRoute>
+      );
     }
 
     if (currentPage === 'daily-status') {
-      return <DailyStatusManagement />;
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES['daily-status']}>
+          <DailyStatusManagement />
+        </ProtectedRoute>
+      );
     }
 
     if (currentPage === 'service-allocation') {
-      return <ServiceAllocationManagement />;
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES['service-allocation']}>
+          <ServiceAllocationManagement />
+        </ProtectedRoute>
+      );
     }
 
     return (
@@ -135,7 +231,8 @@ function AppContent() {
         <div className="home-header">
           <div>
             <h1>🏰 Mansion Management System</h1>
-            <p>Welcome back, {user?.username}!</p>
+            <p>Welcome back, {user?.name || user?.username}!</p>
+            <p className="user-roles">Roles: {user?.roles || 'None'}</p>
           </div>
           <button 
             className="logout-btn"
@@ -154,90 +251,22 @@ function AppContent() {
           </button>
           
           <div className={`nav-buttons ${mobileMenuOpen ? 'mobile-open' : ''}`}>
-            <button 
-              className="nav-btn active"
-              onClick={() => setCurrentPage('home')}
-            >
-              Home
-            </button>
-            <button 
-              className="nav-btn"
-              onClick={() => setCurrentPage('occupancy-links')}
-            >
-              Occupancy Links
-            </button>
-            <button 
-              className="nav-btn"
-              onClick={() => setCurrentPage('occupancy')}
-            >
-              Room Occupancy
-            </button>
-            <button 
-              className="nav-btn"
-              onClick={() => setCurrentPage('tenants')}
-            >
-              Tenant Management
-            </button>
-            <button 
-              className="nav-btn"
-              onClick={() => setCurrentPage('payment')}
-            >
-              Payment Tracking
-            </button>
-            <button 
-              className="nav-btn"
-              onClick={() => setCurrentPage('complaints')}
-            >
-              Complaints
-            </button>
-            <button 
-              className="nav-btn"
-              onClick={() => setCurrentPage('services')}
-            >
-              Service Details
-            </button>
-            <button 
-              className="nav-btn"
-              onClick={() => setCurrentPage('eb-payments')}
-            >
-              EB Payments
-            </button>
-            <button 
-              className="nav-btn"
-              onClick={() => setCurrentPage('users')}
-            >
-              Users
-            </button>
-            <button 
-              className="nav-btn"
-              onClick={() => setCurrentPage('transactions')}
-            >
-              Transactions
-            </button>
-            <button 
-              className="nav-btn"
-              onClick={() => setCurrentPage('stock')}
-            >
-              Stock
-            </button>
-            <button 
-              className="nav-btn"
-              onClick={() => setCurrentPage('daily-status')}
-            >
-              Daily Status
-            </button>
-            <button 
-              className="nav-btn"
-              onClick={() => setCurrentPage('service-allocation')}
-            >
-              Service Allocation
-            </button>
-            <button 
-              className="nav-btn diagnostic"
-              onClick={() => setCurrentPage('diagnostic')}
-            >
-              Diagnostic
-            </button>
+            {NAV_ITEMS.map(item => {
+              // Check if user has access to this page
+              const hasAccess = item.roles.length === 0 || user?.roles.split(',').some(r => item.roles.includes(r.trim()));
+              
+              if (!hasAccess) return null;
+              
+              return (
+                <button 
+                  key={item.page}
+                  className={`nav-btn ${currentPage === item.page ? 'active' : ''}`}
+                  onClick={() => setCurrentPage(item.page)}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
           </div>
         </div>
         

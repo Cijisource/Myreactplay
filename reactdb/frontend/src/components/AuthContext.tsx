@@ -4,8 +4,8 @@ import { login as apiLogin } from '../api';
 interface User {
   id: number;
   username: string;
-  email: string;
-  role: string;
+  name: string;
+  roles: string;
 }
 
 interface AuthContextType {
@@ -16,6 +16,8 @@ interface AuthContextType {
   logout: () => void;
   error: string | null;
   clearError: () => void;
+  hasRole: (role: string) => boolean;
+  hasAnyRole: (roles: string[]) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -77,6 +79,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null);
   };
 
+  const hasRole = (role: string): boolean => {
+    if (!user) return false;
+    return user.roles.split(',').map(r => r.trim()).includes(role);
+  };
+
+  const hasAnyRole = (roles: string[]): boolean => {
+    if (!user) return false;
+    const userRoles = user.roles.split(',').map(r => r.trim());
+    return roles.some(role => userRoles.includes(role));
+  };
+
   const value: AuthContextType = {
     user,
     loading,
@@ -84,7 +97,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login,
     logout,
     error,
-    clearError
+    clearError,
+    hasRole,
+    hasAnyRole
   };
 
   return (

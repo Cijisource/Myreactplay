@@ -44,21 +44,49 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
       });
     }
 
-    // Demo credentials for testing (in production, query database and hash passwords)
-    const demoUsers = [
-      { id: 1, username: 'admin', password: 'admin123', email: 'admin@mansion.com', role: 'admin' },
-      { id: 2, username: 'manager', password: 'manager123', email: 'manager@mansion.com', role: 'manager' },
-      { id: 3, username: 'user', password: 'user123', email: 'user@mansion.com', role: 'user' }
-    ];
+    const pool = getPool();
+    
+    // Query user from database
+    const userResult = await pool.request()
+      .input('username', sql.NVarChar(100), username)
+      .query(`
+        SELECT 
+          Id as id,
+          UserName as username,
+          Password as password,
+          Name as name
+        FROM [User]
+        WHERE UserName = @username
+      `);
 
-    // Find user by username
-    const user = demoUsers.find(u => u.username === username);
-
-    if (!user || user.password !== password) {
+    if (!userResult.recordset.length) {
       return res.status(401).json({ 
         error: 'Invalid username or password' 
       });
     }
+
+    const user = userResult.recordset[0];
+
+    // Check password (in production, should use hashed passwords)
+    if (user.password !== password) {
+      return res.status(401).json({ 
+        error: 'Invalid username or password' 
+      });
+    }
+
+    // Get user roles
+    const rolesResult = await pool.request()
+      .input('userId', sql.Int, user.id)
+      .query(`
+        SELECT 
+          r.RoleName as roleName,
+          r.RoleType as roleType
+        FROM UserRole ur
+        LEFT JOIN RoleDetail r ON ur.RoleId = r.Id
+        WHERE ur.UserId = @userId
+      `);
+
+    const roles = rolesResult.recordset.map(r => r.roleName).join(',') || 'user';
 
     // Generate JWT token
     const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
@@ -66,8 +94,8 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
       { 
         id: user.id, 
         username: user.username, 
-        email: user.email, 
-        role: user.role 
+        name: user.name,
+        roles: roles
       },
       jwtSecret,
       { expiresIn: '24h' }
@@ -79,8 +107,8 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
       user: {
         id: user.id,
         username: user.username,
-        email: user.email,
-        role: user.role
+        name: user.name,
+        roles: roles
       }
     });
   } catch (error) {

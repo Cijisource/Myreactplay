@@ -597,6 +597,148 @@
   margin-top: 20px;
 }
 
+/* Role Management */
+.management-section {
+  margin-bottom: 3rem;
+  padding: 2rem;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-top: 4px solid #6366f1;
+}
+
+.management-section h2 {
+  margin-top: 0;
+  color: #1e293b;
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+}
+
+.user-roles-section {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  border-left: 3px solid #6366f1;
+}
+
+.user-roles-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.user-roles-header h3 {
+  margin: 0;
+  color: #1e293b;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.role-count {
+  font-size: 0.85rem;
+  color: #64748b;
+  background: #e2e8f0;
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.375rem;
+  font-weight: 600;
+}
+
+.roles-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  background: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%);
+  color: white;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  box-shadow: 0 2px 4px rgba(99, 102, 241, 0.3);
+}
+
+.role-badge .role-name {
+  flex-grow: 1;
+}
+
+.role-badge .btn-remove {
+  background: rgba(255, 255, 255, 0.3);
+  border: none;
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  transition: all 0.2s;
+}
+
+.role-badge .btn-remove:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* Access Denied */
+.access-denied {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
+}
+
+.access-denied-content {
+  background: white;
+  border-radius: 12px;
+  padding: 3rem 2rem;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  max-width: 500px;
+}
+
+.access-denied-content h2 {
+  color: #dc2626;
+  font-size: 2rem;
+  margin: 0 0 1rem 0;
+}
+
+.access-denied-content p {
+  color: #64748b;
+  font-size: 1.05rem;
+  margin: 0.75rem 0;
+  line-height: 1.6;
+}
+
+.access-denied-content .user-info {
+  background: #f1f5f9;
+  padding: 1rem;
+  border-radius: 8px;
+  margin: 1.5rem 0;
+  font-size: 0.95rem;
+  color: #475569;
+}
+
+.access-denied-content .required-roles {
+  background: #fef2f2;
+  padding: 1rem;
+  border-radius: 8px;
+  border-left: 4px solid #dc2626;
+}
+
+.access-denied-content strong {
+  color: #1e293b;
+  font-weight: 600;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .management-container {
@@ -658,5 +800,18 @@
 
   .modal-content {
     margin: 20px;
+  }
+
+  .user-roles-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .role-count {
+    margin-left: auto;
+  }
+
+  .roles-badges {
+    width: 100%;
   }
 }
