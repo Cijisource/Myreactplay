@@ -36,18 +36,18 @@
   background: white;
   border-radius: 12px;
   padding: 25px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  border-left: 4px solid #667eea;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  border-left: 4px solid #2563eb;
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
 }
 
 .card-content h3 {
-  color: #666;
+  color: #64748b;
   font-size: 0.9em;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -58,12 +58,12 @@
 .card-content .amount {
   font-size: 2em;
   font-weight: bold;
-  color: #667eea;
+  color: #2563eb;
   margin: 0;
 }
 
 .card-content .amount.unpaid {
-  color: #e74c3c;
+  color: #dc3545;
 }
 
 /* Sections */
@@ -73,15 +73,16 @@
   background: white;
   border-radius: 12px;
   padding: 30px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
 }
 
 .section h2 {
-  color: #1a202c;
+  color: #1e293b;
   margin: 0 0 25px;
   font-size: 1.8em;
-  border-bottom: 2px solid #667eea;
+  border-bottom: 3px solid #2563eb;
   padding-bottom: 15px;
+  font-weight: 700;
 }
 
 /* Tables */

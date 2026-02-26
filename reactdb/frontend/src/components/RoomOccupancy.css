@@ -2,7 +2,7 @@
   width: 100%;
   margin: 0;
   padding: 2rem;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  background: linear-gradient(135deg, #f8fafc 0%, #e0e7ff 100%);
   min-height: 100vh;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
 }
@@ -27,11 +27,11 @@
 .spinner {
   width: 56px;
   height: 56px;
-  border: 4px solid rgba(102, 126, 234, 0.2);
-  border-top-color: #667eea;
-  border-right-color: #4299e1;
+  border: 4px solid rgba(37, 99, 235, 0.2);
+  border-top-color: #2563eb;
+  border-right-color: #1e40af;
   border-radius: 50%;
-  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.08);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.08);
   animation: spin 0.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
@@ -58,13 +58,13 @@
 }
 
 .occupancy-header h1 {
-  color: #1a202c;
+  color: #1e293b;
   font-size: 2.5rem;
   margin: 0 0 0.5rem 0;
 }
 
 .occupancy-header p {
-  color: #718096;
+  color: #64748b;
   font-size: 1rem;
   margin: 0;
 }
@@ -365,6 +365,27 @@
 .check-in,
 .check-out {
   color: #718096;
+}
+
+.aging-info {
+  color: #2563eb;
+  font-weight: 600;
+  background: #dbeafe;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+
+.vacancy-aging {
+  color: #2563eb;
+  font-weight: 600;
+  background: #dbeafe;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  text-align: center;
+  margin-top: 0.5rem;
 }
 
 .occupancy-status {

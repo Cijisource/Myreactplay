@@ -2,15 +2,15 @@
   width: 100%;
   margin: 0;
   padding: clamp(1rem, 5vw, 2rem);
-  background: #f5f7fa;
+  background: #f8fafc;
   min-height: 100vh;
 }
 
 .tenant-management-container h1 {
-  color: #1a202c;
+  color: #1e293b;
   margin-bottom: clamp(1rem, 5vw, 2rem);
   font-size: clamp(1.5rem, 5vw, 2rem);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 /* Header Section */
@@ -35,8 +35,8 @@
   background: white;
   padding: 1.5rem;
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  border-left: 4px solid #4299e1;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  border-left: 4px solid #2563eb;
 }
 
 .stat-card.occupied {
@@ -49,7 +49,7 @@
 
 .stat-label {
   font-size: 0.85rem;
-  color: #718096;
+  color: #64748b;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -59,12 +59,12 @@
 .stat-value {
   font-size: 2rem;
   font-weight: 700;
-  color: #1a202c;
+  color: #1e293b;
 }
 
 /* Buttons */
 .btn-primary {
-  background: #4299e1;
+  background: #2563eb;
   color: white;
   border: none;
   padding: clamp(0.6rem, 2vw, 0.75rem) clamp(1rem, 3vw, 1.5rem);
@@ -81,9 +81,9 @@
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #3182ce;
+  background: #1d4ed8;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(66, 153, 225, 0.4);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
 }
 
 .btn-primary:disabled {

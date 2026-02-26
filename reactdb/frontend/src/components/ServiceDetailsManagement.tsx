@@ -179,10 +179,6 @@ export default function ServiceDetailsManagement(): JSX.Element {
     <div className="service-container">
       {/* Header */}
       <div className="service-header">
-        <div>
-          <h1>⚡ Service Details Management</h1>
-          <p>Manage electricity service consumer details and meters</p>
-        </div>
         <button 
           className="btn btn-primary"
           onClick={() => {

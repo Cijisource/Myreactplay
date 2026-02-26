@@ -230,10 +230,6 @@ export default function EBServicePaymentsManagement(): JSX.Element {
     <div className="eb-container">
       {/* Header */}
       <div className="eb-header">
-        <div>
-          <h1>💡 EB Service Payments Management</h1>
-          <p>Track electricity billing and payments</p>
-        </div>
         <button 
           className="btn btn-primary"
           onClick={() => {

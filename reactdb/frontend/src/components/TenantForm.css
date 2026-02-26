@@ -57,9 +57,10 @@
 }
 
 .modal-header h2 {
-  color: #1a202c;
+  color: #1e293b;
   font-size: 1.5rem;
   margin: 0;
+  font-weight: 700;
 }
 
 .btn-close {

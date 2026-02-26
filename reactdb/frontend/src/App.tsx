@@ -11,17 +11,28 @@ import ComplaintsManagement from './components/ComplaintsManagement';
 import ServiceDetailsManagement from './components/ServiceDetailsManagement';
 import EBServicePaymentsManagement from './components/EBServicePaymentsManagement';
 import LoginScreen from './components/LoginScreen';
+import UserManagement from './components/UserManagement';
+import TransactionManagement from './components/TransactionManagement';
+import StockManagement from './components/StockManagement';
+import DailyStatusManagement from './components/DailyStatusManagement';
+import ServiceAllocationManagement from './components/ServiceAllocationManagement';
 import { AuthProvider, useAuth } from './components/AuthContext';
 
-type Page = 'home' | 'rental' | 'diagnostic' | 'payment' | 'tenants' | 'occupancy' | 'occupancy-links' | 'complaints' | 'services' | 'eb-payments';
+type Page = 'home' | 'diagnostic' | 'payment' | 'tenants' | 'occupancy' | 'occupancy-links' | 'complaints' | 'services' | 'eb-payments' | 'users' | 'transactions' | 'stock' | 'daily-status' | 'service-allocation';
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [backendStatus, setBackendStatus] = useState<string>('loading');
   const [dbStatus, setDbStatus] = useState<string>('loading');
   const [tables, setTables] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const { isAuthenticated, user, logout } = useAuth();
+
+  // Close mobile menu when page changes
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [currentPage]);
 
   useEffect(() => {
     const fetchStatus = async () => {
@@ -99,6 +110,26 @@ function AppContent() {
       return <EBServicePaymentsManagement />;
     }
 
+    if (currentPage === 'users') {
+      return <UserManagement />;
+    }
+
+    if (currentPage === 'transactions') {
+      return <TransactionManagement />;
+    }
+
+    if (currentPage === 'stock') {
+      return <StockManagement />;
+    }
+
+    if (currentPage === 'daily-status') {
+      return <DailyStatusManagement />;
+    }
+
+    if (currentPage === 'service-allocation') {
+      return <ServiceAllocationManagement />;
+    }
+
     return (
       <div className="container">
         <div className="home-header">
@@ -114,67 +145,100 @@ function AppContent() {
           </button>
         </div>
         
-        <div className="nav-buttons">
+        <div className="nav-wrapper">
           <button 
-            className="nav-btn active"
-            onClick={() => setCurrentPage('home')}
+            className="hamburger-btn"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
-            Home
+            ☰
           </button>
-          <button 
-            className="nav-btn"
-            onClick={() => setCurrentPage('occupancy-links')}
-          >
-            Occupancy Links
-          </button>
-          <button 
-            className="nav-btn"
-            onClick={() => setCurrentPage('occupancy')}
-          >
-            Room Occupancy
-          </button>
-          <button 
-            className="nav-btn"
-            onClick={() => setCurrentPage('tenants')}
-          >
-            Tenant Management
-          </button>
-          <button 
-            className="nav-btn"
-            onClick={() => setCurrentPage('rental')}
-          >
-            Rental Collection
-          </button>
-          <button 
-            className="nav-btn"
-            onClick={() => setCurrentPage('payment')}
-          >
-            Payment Tracking
-          </button>
-          <button 
-            className="nav-btn"
-            onClick={() => setCurrentPage('complaints')}
-          >
-            Complaints Management
-          </button>
-          <button 
-            className="nav-btn"
-            onClick={() => setCurrentPage('services')}
-          >
-            Service Details
-          </button>
-          <button 
-            className="nav-btn"
-            onClick={() => setCurrentPage('eb-payments')}
-          >
-            EB Payments
-          </button>
-          <button 
-            className="nav-btn diagnostic"
-            onClick={() => setCurrentPage('diagnostic')}
-          >
-            Diagnostic
-          </button>
+          
+          <div className={`nav-buttons ${mobileMenuOpen ? 'mobile-open' : ''}`}>
+            <button 
+              className="nav-btn active"
+              onClick={() => setCurrentPage('home')}
+            >
+              Home
+            </button>
+            <button 
+              className="nav-btn"
+              onClick={() => setCurrentPage('occupancy-links')}
+            >
+              Occupancy Links
+            </button>
+            <button 
+              className="nav-btn"
+              onClick={() => setCurrentPage('occupancy')}
+            >
+              Room Occupancy
+            </button>
+            <button 
+              className="nav-btn"
+              onClick={() => setCurrentPage('tenants')}
+            >
+              Tenant Management
+            </button>
+            <button 
+              className="nav-btn"
+              onClick={() => setCurrentPage('payment')}
+            >
+              Payment Tracking
+            </button>
+            <button 
+              className="nav-btn"
+              onClick={() => setCurrentPage('complaints')}
+            >
+              Complaints
+            </button>
+            <button 
+              className="nav-btn"
+              onClick={() => setCurrentPage('services')}
+            >
+              Service Details
+            </button>
+            <button 
+              className="nav-btn"
+              onClick={() => setCurrentPage('eb-payments')}
+            >
+              EB Payments
+            </button>
+            <button 
+              className="nav-btn"
+              onClick={() => setCurrentPage('users')}
+            >
+              Users
+            </button>
+            <button 
+              className="nav-btn"
+              onClick={() => setCurrentPage('transactions')}
+            >
+              Transactions
+            </button>
+            <button 
+              className="nav-btn"
+              onClick={() => setCurrentPage('stock')}
+            >
+              Stock
+            </button>
+            <button 
+              className="nav-btn"
+              onClick={() => setCurrentPage('daily-status')}
+            >
+              Daily Status
+            </button>
+            <button 
+              className="nav-btn"
+              onClick={() => setCurrentPage('service-allocation')}
+            >
+              Service Allocation
+            </button>
+            <button 
+              className="nav-btn diagnostic"
+              onClick={() => setCurrentPage('diagnostic')}
+            >
+              Diagnostic
+            </button>
+          </div>
         </div>
         
         <div className="status-section">
@@ -229,9 +293,19 @@ function AppContent() {
           {(() => {
             if (currentPage === 'home') return 'Mansion Management';
             const pageNames: { [key in Page]?: string } = {
-              'eb-payments': 'EB Payments',
-              'services': 'Service Details',
-              'occupancy-links': 'Occupancy Links'
+              'users': 'User & Role Management',
+              'transactions': 'Transaction Management',
+              'stock': 'Stock Management',
+              'daily-status': 'Daily Room Status Management',
+              'service-allocation': 'Service Room Allocation Management',
+              'tenants': 'Tenant Management',
+              'occupancy': '🏠 Room Occupancy Dashboard',
+              'occupancy-links': '🔗 Room-Tenant Occupancy Links',
+              'payment': 'Rental Payment Tracking',
+              'complaints': 'Complaints Management',
+              'services': '⚡ Service Details Management',
+              'eb-payments': '💡 EB Service Payments Management',
+              'diagnostic': 'RentalCollection Table Diagnostic'
             };
             return pageNames[currentPage] || (currentPage.charAt(0).toUpperCase() + currentPage.slice(1).replace('-', ' '));
           })()}

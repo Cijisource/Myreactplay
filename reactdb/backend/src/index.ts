@@ -1324,6 +1324,772 @@ app.get('/api/rooms', async (req: Request, res: Response) => {
   }
 });
 
+// ============ USER MANAGEMENT ENDPOINTS ============
+
+// Get all users
+app.get('/api/users', async (req: Request, res: Response) => {
+  try {
+    const pool = getPool();
+    const result = await pool.request().query(`
+      SELECT 
+        Id as id,
+        UserName as userName,
+        Name as name,
+        CreatedDate as createdDate,
+        UpdatedDate as updatedDate,
+        NextLoginDuration as nextLoginDuration
+      FROM [User]
+      ORDER BY Name ASC
+    `);
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Get users error:', error);
+    res.status(500).json({ error: 'Failed to retrieve users', details: error });
+  }
+});
+
+// Get user by ID
+app.get('/api/users/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    const result = await pool.request()
+      .input('id', sql.Int, id)
+      .query(`
+        SELECT 
+          Id as id,
+          UserName as userName,
+          Name as name,
+          CreatedDate as createdDate,
+          UpdatedDate as updatedDate,
+          NextLoginDuration as nextLoginDuration
+        FROM [User]
+        WHERE Id = @id
+      `);
+    if (!result.recordset.length) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json(result.recordset[0]);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve user', details: error });
+  }
+});
+
+// Create user
+app.post('/api/users', async (req: Request, res: Response) => {
+  try {
+    const { userName, password, name, nextLoginDuration } = req.body;
+    const pool = getPool();
+    const result = await pool.request()
+      .input('userName', sql.NVarChar(100), userName)
+      .input('password', sql.NVarChar(500), password)
+      .input('name', sql.NVarChar(500), name)
+      .input('nextLoginDuration', sql.TinyInt, nextLoginDuration || 30)
+      .query(`
+        INSERT INTO [User] (UserName, Password, Name, CreatedDate, NextLoginDuration)
+        VALUES (@userName, @password, @name, GETDATE(), @nextLoginDuration);
+        SELECT SCOPE_IDENTITY() as id;
+      `);
+    res.status(201).json({ id: result.recordset[0].id, ...req.body });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create user', details: error });
+  }
+});
+
+// Update user
+app.put('/api/users/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { userName, password, name, nextLoginDuration } = req.body;
+    const pool = getPool();
+    
+    const updateQuery = password 
+      ? `UPDATE [User] SET UserName = @userName, Password = @password, Name = @name, NextLoginDuration = @nextLoginDuration, UpdatedDate = GETDATE() WHERE Id = @id`
+      : `UPDATE [User] SET UserName = @userName, Name = @name, NextLoginDuration = @nextLoginDuration, UpdatedDate = GETDATE() WHERE Id = @id`;
+    
+    const req1 = pool.request()
+      .input('id', sql.Int, id)
+      .input('userName', sql.NVarChar(100), userName)
+      .input('name', sql.NVarChar(500), name)
+      .input('nextLoginDuration', sql.TinyInt, nextLoginDuration || 30);
+    
+    if (password) {
+      req1.input('password', sql.NVarChar(500), password);
+    }
+    
+    await req1.query(updateQuery);
+    res.json({ id, ...req.body });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update user', details: error });
+  }
+});
+
+// Delete user
+app.delete('/api/users/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    await pool.request()
+      .input('id', sql.Int, id)
+      .query('DELETE FROM [User] WHERE Id = @id');
+    res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete user', details: error });
+  }
+});
+
+// ============ ROLE MANAGEMENT ENDPOINTS ============
+
+// Get all roles
+app.get('/api/roles', async (req: Request, res: Response) => {
+  try {
+    const pool = getPool();
+    const result = await pool.request().query(`
+      SELECT 
+        Id as id,
+        RoleName as roleName,
+        RoleType as roleType
+      FROM RoleDetail
+      ORDER BY RoleName ASC
+    `);
+    res.json(result.recordset);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve roles', details: error });
+  }
+});
+
+// Get role by ID
+app.get('/api/roles/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    const result = await pool.request()
+      .input('id', sql.Int, id)
+      .query(`
+        SELECT 
+          Id as id,
+          RoleName as roleName,
+          RoleType as roleType
+        FROM RoleDetail
+        WHERE Id = @id
+      `);
+    if (!result.recordset.length) {
+      return res.status(404).json({ error: 'Role not found' });
+    }
+    res.json(result.recordset[0]);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve role', details: error });
+  }
+});
+
+// Create role
+app.post('/api/roles', async (req: Request, res: Response) => {
+  try {
+    const { roleName, roleType } = req.body;
+    const pool = getPool();
+    const result = await pool.request()
+      .input('roleName', sql.NVarChar(50), roleName)
+      .input('roleType', sql.NVarChar(50), roleType)
+      .query(`
+        INSERT INTO RoleDetail (RoleName, RoleType)
+        VALUES (@roleName, @roleType);
+        SELECT SCOPE_IDENTITY() as id;
+      `);
+    res.status(201).json({ id: result.recordset[0].id, ...req.body });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create role', details: error });
+  }
+});
+
+// Update role
+app.put('/api/roles/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { roleName, roleType } = req.body;
+    const pool = getPool();
+    await pool.request()
+      .input('id', sql.Int, id)
+      .input('roleName', sql.NVarChar(50), roleName)
+      .input('roleType', sql.NVarChar(50), roleType)
+      .query('UPDATE RoleDetail SET RoleName = @roleName, RoleType = @roleType WHERE Id = @id');
+    res.json({ id, ...req.body });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update role', details: error });
+  }
+});
+
+// Delete role
+app.delete('/api/roles/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    await pool.request()
+      .input('id', sql.Int, id)
+      .query('DELETE FROM RoleDetail WHERE Id = @id');
+    res.json({ message: 'Role deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete role', details: error });
+  }
+});
+
+// ============ USER ROLES ENDPOINTS ============
+
+// Get all user roles
+app.get('/api/user-roles', async (req: Request, res: Response) => {
+  try {
+    const pool = getPool();
+    const result = await pool.request().query(`
+      SELECT 
+        ur.Id as id,
+        ur.UserId as userId,
+        ur.RoleId as roleId,
+        ur.CreatedDate as createdDate,
+        ur.UpdatedDate as updatedDate,
+        u.Name as userName,
+        u.UserName as username,
+        r.RoleName as roleName
+      FROM UserRole ur
+      LEFT JOIN [User] u ON ur.UserId = u.Id
+      LEFT JOIN RoleDetail r ON ur.RoleId = r.Id
+      ORDER BY u.Name ASC
+    `);
+    res.json(result.recordset);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve user roles', details: error });
+  }
+});
+
+// Create user role
+app.post('/api/user-roles', async (req: Request, res: Response) => {
+  try {
+    const { userId, roleId } = req.body;
+    const pool = getPool();
+    const result = await pool.request()
+      .input('userId', sql.Int, userId)
+      .input('roleId', sql.Int, roleId)
+      .query(`
+        INSERT INTO UserRole (UserId, RoleId, CreatedDate)
+        VALUES (@userId, @roleId, GETDATE());
+        SELECT SCOPE_IDENTITY() as id;
+      `);
+    res.status(201).json({ id: result.recordset[0].id, ...req.body });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create user role', details: error });
+  }
+});
+
+// Delete user role
+app.delete('/api/user-roles/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    await pool.request()
+      .input('id', sql.Int, id)
+      .query('DELETE FROM UserRole WHERE Id = @id');
+    res.json({ message: 'User role deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete user role', details: error });
+  }
+});
+
+// ============ TRANSACTION ENDPOINTS ============
+
+// Get all transactions
+app.get('/api/transactions', async (req: Request, res: Response) => {
+  try {
+    const pool = getPool();
+    const result = await pool.request().query(`
+      SELECT 
+        t.Id as id,
+        t.Description as description,
+        t.TransactionTypeId as transactionTypeId,
+        t.TransactionDate as transactionDate,
+        t.CreatedDate as createdDate,
+        t.UpdatedDate as updatedDate,
+        CAST(t.Amount AS FLOAT) as amount,
+        t.OccupancyId as occupancyId,
+        tt.TransactionType as 'transactionType.transactionType',
+        tt.Id as 'transactionType.id'
+      FROM Transactions t
+      LEFT JOIN TransactionType tt ON t.TransactionTypeId = tt.Id
+      ORDER BY t.TransactionDate DESC
+    `);
+    const formattedResult = result.recordset.map(row => ({
+      id: row.id,
+      description: row.description,
+      transactionTypeId: row.transactionTypeId,
+      transactionDate: row.transactionDate,
+      createdDate: row.createdDate,
+      updatedDate: row.updatedDate,
+      amount: row.amount,
+      occupancyId: row.occupancyId,
+      transactionType: {
+        id: row['transactionType.id'],
+        transactionType: row['transactionType.transactionType']
+      }
+    }));
+    res.json(formattedResult);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve transactions', details: error });
+  }
+});
+
+// Get transaction by ID
+app.get('/api/transactions/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    const result = await pool.request()
+      .input('id', sql.Int, id)
+      .query(`
+        SELECT 
+          t.Id as id,
+          t.Description as description,
+          t.TransactionTypeId as transactionTypeId,
+          t.TransactionDate as transactionDate,
+          t.CreatedDate as createdDate,
+          t.UpdatedDate as updatedDate,
+          CAST(t.Amount AS FLOAT) as amount,
+          t.OccupancyId as occupancyId
+        FROM Transactions t
+        WHERE t.Id = @id
+      `);
+    if (!result.recordset.length) {
+      return res.status(404).json({ error: 'Transaction not found' });
+    }
+    res.json(result.recordset[0]);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve transaction', details: error });
+  }
+});
+
+// Create transaction
+app.post('/api/transactions', async (req: Request, res: Response) => {
+  try {
+    const { description, transactionTypeId, transactionDate, amount, occupancyId } = req.body;
+    const pool = getPool();
+    const result = await pool.request()
+      .input('description', sql.NVarChar(500), description)
+      .input('transactionTypeId', sql.Int, transactionTypeId)
+      .input('transactionDate', sql.DateTime, transactionDate)
+      .input('amount', sql.Money, amount)
+      .input('occupancyId', sql.Int, occupancyId || null)
+      .query(`
+        INSERT INTO Transactions (Description, TransactionTypeId, TransactionDate, CreatedDate, Amount, OccupancyId)
+        VALUES (@description, @transactionTypeId, @transactionDate, GETDATE(), @amount, @occupancyId);
+        SELECT SCOPE_IDENTITY() as id;
+      `);
+    res.status(201).json({ id: result.recordset[0].id, ...req.body });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create transaction', details: error });
+  }
+});
+
+// Update transaction
+app.put('/api/transactions/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { description, transactionTypeId, transactionDate, amount, occupancyId } = req.body;
+    const pool = getPool();
+    await pool.request()
+      .input('id', sql.Int, id)
+      .input('description', sql.NVarChar(500), description)
+      .input('transactionTypeId', sql.Int, transactionTypeId)
+      .input('transactionDate', sql.DateTime, transactionDate)
+      .input('amount', sql.Money, amount)
+      .input('occupancyId', sql.Int, occupancyId || null)
+      .query(`
+        UPDATE Transactions 
+        SET Description = @description, TransactionTypeId = @transactionTypeId, 
+            TransactionDate = @transactionDate, Amount = @amount, OccupancyId = @occupancyId,
+            UpdatedDate = GETDATE()
+        WHERE Id = @id
+      `);
+    res.json({ id, ...req.body });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update transaction', details: error });
+  }
+});
+
+// Delete transaction
+app.delete('/api/transactions/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    await pool.request()
+      .input('id', sql.Int, id)
+      .query('DELETE FROM Transactions WHERE Id = @id');
+    res.json({ message: 'Transaction deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete transaction', details: error });
+  }
+});
+
+// Get transaction types
+app.get('/api/transaction-types', async (req: Request, res: Response) => {
+  try {
+    const pool = getPool();
+    const result = await pool.request().query(`
+      SELECT 
+        Id as id,
+        TransactionType as transactionType
+      FROM TransactionType
+      ORDER BY TransactionType ASC
+    `);
+    res.json(result.recordset);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve transaction types', details: error });
+  }
+});
+
+// ============ STOCK MANAGEMENT ENDPOINTS ============
+
+// Get all stocks
+app.get('/api/stock', async (req: Request, res: Response) => {
+  try {
+    const pool = getPool();
+    const result = await pool.request().query(`
+      SELECT 
+        Id as id,
+        [Name] as name,
+        Description as description,
+        Quantity as quantity,
+        CreatedDate as createdDate,
+        CreatedBy as createdBy,
+        UpdatedDate as updatedDate,
+        UpdatedBy as updatedBy,
+        ImageURL as imageURL
+      FROM StockDetails
+      ORDER BY [Name] ASC
+    `);
+    res.json(result.recordset);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve stock', details: error });
+  }
+});
+
+// Get stock by ID
+app.get('/api/stock/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    const result = await pool.request()
+      .input('id', sql.Int, id)
+      .query(`
+        SELECT 
+          Id as id,
+          [Name] as name,
+          Description as description,
+          Quantity as quantity,
+          CreatedDate as createdDate,
+          CreatedBy as createdBy,
+          UpdatedDate as updatedDate,
+          UpdatedBy as updatedBy,
+          ImageURL as imageURL
+        FROM StockDetails
+        WHERE Id = @id
+      `);
+    if (!result.recordset.length) {
+      return res.status(404).json({ error: 'Stock not found' });
+    }
+    res.json(result.recordset[0]);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve stock', details: error });
+  }
+});
+
+// Create stock
+app.post('/api/stock', async (req: Request, res: Response) => {
+  try {
+    const { name, description, quantity, createdBy } = req.body;
+    const pool = getPool();
+    const result = await pool.request()
+      .input('name', sql.NVarChar(50), name)
+      .input('description', sql.NVarChar(500), description || null)
+      .input('quantity', sql.SmallInt, quantity)
+      .input('createdBy', sql.VarChar(50), createdBy)
+      .query(`
+        INSERT INTO StockDetails ([Name], Description, Quantity, CreatedDate, CreatedBy)
+        VALUES (@name, @description, @quantity, GETDATE(), @createdBy);
+        SELECT SCOPE_IDENTITY() as id;
+      `);
+    res.status(201).json({ id: result.recordset[0].id, ...req.body });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create stock', details: error });
+  }
+});
+
+// Update stock
+app.put('/api/stock/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { name, description, quantity, updatedBy } = req.body;
+    const pool = getPool();
+    await pool.request()
+      .input('id', sql.Int, id)
+      .input('name', sql.NVarChar(50), name)
+      .input('description', sql.NVarChar(500), description || null)
+      .input('quantity', sql.SmallInt, quantity)
+      .input('updatedBy', sql.VarChar(50), updatedBy || 'Admin')
+      .query(`
+        UPDATE StockDetails 
+        SET [Name] = @name, Description = @description, Quantity = @quantity, 
+            UpdatedDate = GETDATE(), UpdatedBy = @updatedBy
+        WHERE Id = @id
+      `);
+    res.json({ id, ...req.body });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update stock', details: error });
+  }
+});
+
+// Delete stock
+app.delete('/api/stock/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    await pool.request()
+      .input('id', sql.Int, id)
+      .query('DELETE FROM StockDetails WHERE Id = @id');
+    res.json({ message: 'Stock deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete stock', details: error });
+  }
+});
+
+// ============ DAILY STATUS ENDPOINTS ============
+
+// Get all daily statuses
+app.get('/api/daily-status', async (req: Request, res: Response) => {
+  try {
+    const pool = getPool();
+    const result = await pool.request().query(`
+      SELECT 
+        Id as id,
+        [Date] as date,
+        RoomStatus as roomStatus,
+        WaterLevelStatus as waterLevelStatus,
+        CreatedDate as createdDate
+      FROM DailyRoomStatus
+      ORDER BY [Date] DESC
+    `);
+    res.json(result.recordset);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve daily statuses', details: error });
+  }
+});
+
+// Get daily status by ID
+app.get('/api/daily-status/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    const result = await pool.request()
+      .input('id', sql.Int, id)
+      .query(`
+        SELECT 
+          Id as id,
+          [Date] as date,
+          RoomStatus as roomStatus,
+          WaterLevelStatus as waterLevelStatus,
+          CreatedDate as createdDate
+        FROM DailyRoomStatus
+        WHERE Id = @id
+      `);
+    if (!result.recordset.length) {
+      return res.status(404).json({ error: 'Daily status not found' });
+    }
+    res.json(result.recordset[0]);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve daily status', details: error });
+  }
+});
+
+// Create daily status
+app.post('/api/daily-status', async (req: Request, res: Response) => {
+  try {
+    const { date, roomStatus, waterLevelStatus } = req.body;
+    const pool = getPool();
+    const result = await pool.request()
+      .input('date', sql.DateTime, date)
+      .input('roomStatus', sql.VarChar(1000), roomStatus || null)
+      .input('waterLevelStatus', sql.VarChar(1000), waterLevelStatus || null)
+      .query(`
+        INSERT INTO DailyRoomStatus ([Date], RoomStatus, WaterLevelStatus, CreatedDate)
+        VALUES (@date, @roomStatus, @waterLevelStatus, GETDATE());
+        SELECT SCOPE_IDENTITY() as id;
+      `);
+    res.status(201).json({ id: result.recordset[0].id, ...req.body });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create daily status', details: error });
+  }
+});
+
+// Update daily status
+app.put('/api/daily-status/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { date, roomStatus, waterLevelStatus } = req.body;
+    const pool = getPool();
+    await pool.request()
+      .input('id', sql.Int, id)
+      .input('date', sql.DateTime, date)
+      .input('roomStatus', sql.VarChar(1000), roomStatus || null)
+      .input('waterLevelStatus', sql.VarChar(1000), waterLevelStatus || null)
+      .query(`
+        UPDATE DailyRoomStatus 
+        SET [Date] = @date, RoomStatus = @roomStatus, WaterLevelStatus = @waterLevelStatus
+        WHERE Id = @id
+      `);
+    res.json({ id, ...req.body });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update daily status', details: error });
+  }
+});
+
+// Delete daily status
+app.delete('/api/daily-status/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    await pool.request()
+      .input('id', sql.Int, id)
+      .query('DELETE FROM DailyRoomStatus WHERE Id = @id');
+    res.json({ message: 'Daily status deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete daily status', details: error });
+  }
+});
+
+// ============ SERVICE ALLOCATION ENDPOINTS ============
+
+// Get all service allocations
+app.get('/api/service-allocations', async (req: Request, res: Response) => {
+  try {
+    const pool = getPool();
+    const result = await pool.request().query(`
+      SELECT 
+        sa.Id as id,
+        sa.ServiceId as serviceId,
+        sa.RoomId as roomId,
+        sd.ConsumerNo as 'service.consumerNo',
+        sd.MeterNo as 'service.meterNo',
+        sd.[Load] as 'service.load',
+        sd.ServiceCategory as 'service.serviceCategory',
+        sd.ConsumerName as 'service.consumerName',
+        sd.Id as 'service.id',
+        rd.Number as 'room.number',
+        rd.Rent as 'room.rent',
+        rd.Beds as 'room.beds',
+        rd.Id as 'room.id'
+      FROM ServiceRoomAllocation sa
+      LEFT JOIN ServiceDetails sd ON sa.ServiceId = sd.Id
+      LEFT JOIN RoomDetail rd ON sa.RoomId = rd.Id
+      ORDER BY sd.ConsumerName, rd.Number ASC
+    `);
+    const formattedResult = result.recordset.map(row => ({
+      id: row.id,
+      serviceId: row.serviceId,
+      roomId: row.roomId,
+      service: {
+        id: row['service.id'],
+        consumerNo: row['service.consumerNo'],
+        meterNo: row['service.meterNo'],
+        load: row['service.load'],
+        serviceCategory: row['service.serviceCategory'],
+        consumerName: row['service.consumerName']
+      },
+      room: {
+        id: row['room.id'],
+        number: row['room.number'],
+        rent: row['room.rent'],
+        beds: row['room.beds']
+      }
+    }));
+    res.json(formattedResult);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve service allocations', details: error });
+  }
+});
+
+// Get service allocation by ID
+app.get('/api/service-allocations/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    const result = await pool.request()
+      .input('id', sql.Int, id)
+      .query(`
+        SELECT 
+          sa.Id as id,
+          sa.ServiceId as serviceId,
+          sa.RoomId as roomId
+        FROM ServiceRoomAllocation sa
+        WHERE sa.Id = @id
+      `);
+    if (!result.recordset.length) {
+      return res.status(404).json({ error: 'Service allocation not found' });
+    }
+    res.json(result.recordset[0]);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve service allocation', details: error });
+  }
+});
+
+// Create service allocation
+app.post('/api/service-allocations', async (req: Request, res: Response) => {
+  try {
+    const { serviceId, roomId } = req.body;
+    const pool = getPool();
+    const result = await pool.request()
+      .input('serviceId', sql.Int, serviceId)
+      .input('roomId', sql.Int, roomId)
+      .query(`
+        INSERT INTO ServiceRoomAllocation (ServiceId, RoomId)
+        VALUES (@serviceId, @roomId);
+        SELECT SCOPE_IDENTITY() as id;
+      `);
+    res.status(201).json({ id: result.recordset[0].id, ...req.body });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create service allocation', details: error });
+  }
+});
+
+// Update service allocation
+app.put('/api/service-allocations/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { serviceId, roomId } = req.body;
+    const pool = getPool();
+    await pool.request()
+      .input('id', sql.Int, id)
+      .input('serviceId', sql.Int, serviceId)
+      .input('roomId', sql.Int, roomId)
+      .query(`
+        UPDATE ServiceRoomAllocation 
+        SET ServiceId = @serviceId, RoomId = @roomId
+        WHERE Id = @id
+      `);
+    res.json({ id, ...req.body });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update service allocation', details: error });
+  }
+});
+
+// Delete service allocation
+app.delete('/api/service-allocations/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    await pool.request()
+      .input('id', sql.Int, id)
+      .query('DELETE FROM ServiceRoomAllocation WHERE Id = @id');
+    res.json({ message: 'Service allocation deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete service allocation', details: error });
+  }
+});
+
 // Error handling middleware
 app.use((err: any, req: Request, res: Response) => {
   console.error(err.stack);

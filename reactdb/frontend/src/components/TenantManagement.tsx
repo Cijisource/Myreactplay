@@ -203,8 +203,6 @@ export default function TenantManagement() {
 
   return (
     <div className="tenant-management-container">
-      <h1>Tenant Management</h1>
-
       {/* Header with Stats and Create Button */}
       <div className="tenant-header">
         <div className="tenant-stats">

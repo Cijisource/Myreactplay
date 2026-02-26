@@ -2,7 +2,7 @@
   width: 100%;
   margin: 0;
   padding: clamp(1rem, 5vw, 20px);
-  background: #f8f9fa;
+  background: #f8fafc;
   min-height: 100vh;
 }
 
@@ -17,7 +17,7 @@
   background: white;
   padding: clamp(1rem, 3vw, 20px);
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
   text-align: center;
   transition: all 0.3s ease;
   min-height: 120px;
@@ -28,19 +28,19 @@
 
 .stat-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
 }
 
 .stat-value {
   font-size: clamp(1.5em, 3vw, 2em);
   font-weight: bold;
-  color: #667eea;
+  color: #2563eb;
   margin-bottom: clamp(0.5rem, 1vw, 8px);
 }
 
 .stat-label {
   font-size: clamp(0.7em, 1.5vw, 0.85em);
-  color: #666;
+  color: #64748b;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -79,8 +79,9 @@
 
 .filter-header h3 {
   margin: 0;
-  color: #333;
+  color: #1e293b;
   font-size: 1.1em;
+  font-weight: 600;
 }
 
 .clear-btn {
@@ -114,8 +115,8 @@
 
 .search-input:focus {
   outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
 .filters-grid {
@@ -133,7 +134,7 @@
 
 .searchable-dropdown-container label {
   font-weight: 600;
-  color: #333;
+  color: #1e293b;
   margin-bottom: 8px;
   font-size: 0.9em;
 }
