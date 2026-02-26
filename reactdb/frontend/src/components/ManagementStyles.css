@@ -146,6 +146,52 @@
   background: #ede9fe;
 }
 
+.consumer-bill-amount {
+  color: #dc2626;
+  background: #fee2e2;
+  font-weight: 700;
+}
+
+.consumer-payment-date {
+  color: #2563eb;
+  background: #dbeafe;
+  font-weight: 600;
+}
+
+/* Type Section (for Transaction Management) */
+.type-section {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 8px;
+  border-left: 4px solid #8b5cf6;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.type-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.type-title {
+  margin: 0;
+  color: #1e293b;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.type-total {
+  font-size: 0.95rem;
+  color: #16a34a;
+  font-weight: 700;
+  background: #dcfce7;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+}
+
 /* Date Filter Group */
 .date-filter-group {
   display: flex;
@@ -172,6 +218,12 @@
   outline: none;
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.date-filter-group label {
+  color: #64748b;
+  font-weight: 600;
+  font-size: 0.9em;
 }
 
 .date-separator {
@@ -354,6 +406,18 @@
   white-space: nowrap;
   display: flex;
   gap: 8px;
+}
+
+/* Payment Details Styling */
+.data-table .billed-units {
+  color: #7c3aed;
+  font-weight: 600;
+}
+
+.data-table .no-payment {
+  color: #94a3b8;
+  font-style: italic;
+  font-size: 0.9em;
 }
 
 /* Grid */

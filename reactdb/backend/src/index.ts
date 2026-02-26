@@ -2090,6 +2090,72 @@ app.delete('/api/service-allocations/:id', async (req: Request, res: Response) =
   }
 });
 
+// Get service allocations with last payment details
+app.get('/api/service-allocations-with-payments', async (req: Request, res: Response) => {
+  try {
+    const pool = getPool();
+    const result = await pool.request().query(`
+      SELECT 
+        sa.Id as id,
+        sa.ServiceId as serviceId,
+        sa.RoomId as roomId,
+        sd.ConsumerNo as 'service.consumerNo',
+        sd.MeterNo as 'service.meterNo',
+        sd.[Load] as 'service.load',
+        sd.ServiceCategory as 'service.serviceCategory',
+        sd.ConsumerName as 'service.consumerName',
+        sd.Id as 'service.id',
+        rd.Number as 'room.number',
+        rd.Rent as 'room.rent',
+        rd.Beds as 'room.beds',
+        rd.Id as 'room.id',
+        esp.Id as 'lastPayment.id',
+        esp.BillAmount as 'lastPayment.billAmount',
+        esp.BillDate as 'lastPayment.billDate',
+        esp.BilledUnits as 'lastPayment.billedUnits',
+        esp.CreatedDate as 'lastPayment.createdDate'
+      FROM ServiceRoomAllocation sa
+      LEFT JOIN ServiceDetails sd ON sa.ServiceId = sd.Id
+      LEFT JOIN RoomDetail rd ON sa.RoomId = rd.Id
+      LEFT JOIN (
+        SELECT Id, ServiceId, BillAmount, BillDate, BilledUnits, CreatedDate,
+               ROW_NUMBER() OVER (PARTITION BY ServiceId ORDER BY BillDate DESC) as rn
+        FROM EBServicePayments
+      ) esp ON sa.ServiceId = esp.ServiceId AND esp.rn = 1
+      ORDER BY sd.ConsumerName, rd.Number ASC
+    `);
+    const formattedResult = result.recordset.map(row => ({
+      id: row.id,
+      serviceId: row.serviceId,
+      roomId: row.roomId,
+      service: {
+        id: row['service.id'],
+        consumerNo: row['service.consumerNo'],
+        meterNo: row['service.meterNo'],
+        load: row['service.load'],
+        serviceCategory: row['service.serviceCategory'],
+        consumerName: row['service.consumerName']
+      },
+      room: {
+        id: row['room.id'],
+        number: row['room.number'],
+        rent: row['room.rent'],
+        beds: row['room.beds']
+      },
+      lastPayment: row['lastPayment.id'] ? {
+        id: row['lastPayment.id'],
+        billAmount: row['lastPayment.billAmount'],
+        billDate: row['lastPayment.billDate'],
+        billedUnits: row['lastPayment.billedUnits'],
+        createdDate: row['lastPayment.createdDate']
+      } : null
+    }));
+    res.json(formattedResult);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve service allocations with payments', details: error });
+  }
+});
+
 // Error handling middleware
 app.use((err: any, req: Request, res: Response) => {
   console.error(err.stack);

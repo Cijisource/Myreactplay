@@ -2,6 +2,14 @@ import { useState, useEffect } from 'react';
 import { apiService } from '../api';
 import './ManagementStyles.css';
 
+interface LastPayment {
+  id: number;
+  billAmount: number;
+  billDate: string;
+  billedUnits?: number;
+  createdDate: string;
+}
+
 interface ServiceAllocation {
   id: number;
   serviceId: number;
@@ -20,6 +28,7 @@ interface ServiceAllocation {
     rent: number;
     beds: number;
   };
+  lastPayment?: LastPayment | null;
 }
 
 interface Service {
@@ -63,7 +72,7 @@ export default function ServiceAllocationManagement() {
     try {
       setLoading(true);
       setError(null);
-      const response = await apiService.getServiceAllocations();
+      const response = await apiService.getServiceAllocationsWithPayments();
       setAllocations(response.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch allocations');
@@ -184,14 +193,15 @@ export default function ServiceAllocationManagement() {
   });
 
   // Group allocations by consumer number
-  const groupedByConsumer = filteredAllocations.reduce((groups: { [key: string]: { allocations: typeof filteredAllocations; consumerName?: string; serviceCategory?: string; load?: string } }, allocation) => {
+  const groupedByConsumer = filteredAllocations.reduce((groups: { [key: string]: { allocations: typeof filteredAllocations; consumerName?: string; serviceCategory?: string; load?: string; lastPayment?: LastPayment | null } }, allocation) => {
     const consumerNo = allocation.service?.consumerNo || 'Unassigned';
     if (!groups[consumerNo]) {
       groups[consumerNo] = {
         allocations: [],
         consumerName: allocation.service?.consumerName,
         serviceCategory: allocation.service?.serviceCategory,
-        load: allocation.service?.load
+        load: allocation.service?.load,
+        lastPayment: allocation.lastPayment || null
       };
     }
     groups[consumerNo].allocations.push(allocation);
@@ -329,6 +339,16 @@ export default function ServiceAllocationManagement() {
                   </h3>
                   <p className="consumer-meta">
                     <span className="consumer-no">Consumer No: {consumerNo}</span>
+                    {groupedByConsumer[consumerNo].lastPayment && (
+                      <>
+                        <span className="consumer-payment-date">
+                          Last Payment: {new Date(groupedByConsumer[consumerNo].lastPayment!.billDate).toLocaleDateString()}
+                        </span>
+                        <span className="consumer-bill-amount">
+                          Amount: ₹{parseFloat(groupedByConsumer[consumerNo].lastPayment!.billAmount.toString()).toFixed(2)}
+                        </span>
+                      </>
+                    )}
                     {groupedByConsumer[consumerNo].serviceCategory && (
                       <span className="consumer-category">Category: {groupedByConsumer[consumerNo].serviceCategory}</span>
                     )}
@@ -347,6 +367,7 @@ export default function ServiceAllocationManagement() {
                       <th>Category</th>
                       <th>Room</th>
                       <th>Meter No</th>
+                      <th>Billed Units</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
@@ -357,6 +378,15 @@ export default function ServiceAllocationManagement() {
                         <td>{allocation.service?.serviceCategory || 'N/A'}</td>
                         <td>Room {allocation.room?.number || 'N/A'}</td>
                         <td>{allocation.service?.meterNo || 'N/A'}</td>
+                        <td>
+                          {allocation.lastPayment?.billedUnits ? (
+                            <span className="billed-units">
+                              {allocation.lastPayment.billedUnits} units
+                            </span>
+                          ) : (
+                            <span className="no-payment">-</span>
+                          )}
+                        </td>
                         <td className="actions">
                           <button className="btn btn-sm btn-info" onClick={() => handleEdit(allocation)}>
                             Edit

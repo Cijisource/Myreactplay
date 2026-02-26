@@ -34,6 +34,23 @@ export default function TransactionManagement() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'date-desc' | 'amount-desc' | 'amount-asc'>('date-desc');
 
+  // Get current month date range
+  const getCurrentMonthDates = () => {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return {
+      startDate: firstDay.toISOString().split('T')[0],
+      endDate: lastDay.toISOString().split('T')[0]
+    };
+  };
+
+  const monthDates = getCurrentMonthDates();
+  const [dateRange, setDateRange] = useState({
+    startDate: monthDates.startDate,
+    endDate: monthDates.endDate
+  });
+
   const [formData, setFormData] = useState({
     description: '',
     transactionTypeId: 0,
@@ -137,9 +154,16 @@ export default function TransactionManagement() {
     setShowForm(true);
   };
 
-  const filteredTransactions = transactions.filter(t =>
-    t.description.toLowerCase().includes(searchQuery.toLowerCase())
-  ).sort((a, b) => {
+  // Filter and group transactions by type and date range
+  const filteredTransactions = transactions.filter(t => {
+    const transactionDate = new Date(t.transactionDate);
+    const startDate = new Date(dateRange.startDate);
+    const endDate = new Date(dateRange.endDate);
+    
+    return transactionDate >= startDate && 
+           transactionDate <= endDate &&
+           t.description.toLowerCase().includes(searchQuery.toLowerCase());
+  }).sort((a, b) => {
     switch (sortBy) {
       case 'date-desc':
         return new Date(b.transactionDate).getTime() - new Date(a.transactionDate).getTime();
@@ -151,6 +175,21 @@ export default function TransactionManagement() {
         return 0;
     }
   });
+
+  // Group by transaction type
+  const groupedByType = filteredTransactions.reduce((groups: { [key: number]: { type: string; transactions: Transaction[]; total: number } }, transaction) => {
+    const typeId = transaction.transactionTypeId;
+    if (!groups[typeId]) {
+      groups[typeId] = {
+        type: transaction.transactionType?.transactionType || 'Unknown',
+        transactions: [],
+        total: 0
+      };
+    }
+    groups[typeId].transactions.push(transaction);
+    groups[typeId].total += transaction.amount;
+    return groups;
+  }, {});
 
   return (
     <div className="management-container">
@@ -165,6 +204,32 @@ export default function TransactionManagement() {
           onChange={(e) => setSearchQuery(e.target.value)}
           className="search-input"
         />
+        <div className="date-filter-group">
+          <label>From:</label>
+          <input
+            type="date"
+            value={dateRange.startDate}
+            onChange={(e) => setDateRange({ ...dateRange, startDate: e.target.value })}
+            className="date-input"
+          />
+          <label>To:</label>
+          <input
+            type="date"
+            value={dateRange.endDate}
+            onChange={(e) => setDateRange({ ...dateRange, endDate: e.target.value })}
+            className="date-input"
+          />
+          <button
+            className="btn btn-sm btn-secondary"
+            onClick={() => {
+              const dates = getCurrentMonthDates();
+              setDateRange({ startDate: dates.startDate, endDate: dates.endDate });
+            }}
+            title="Reset to current month"
+          >
+            Reset
+          </button>
+        </div>
         <select
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as any)}
@@ -249,40 +314,56 @@ export default function TransactionManagement() {
 
       {loading ? (
         <div className="loading-spinner"></div>
+      ) : Object.keys(groupedByType).length === 0 ? (
+        <div className="no-results-message">
+          <p>No transactions found for the selected date range.</p>
+        </div>
       ) : (
-        <div className="table-responsive">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Description</th>
-                <th>Type</th>
-                <th>Date</th>
-                <th>Amount</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredTransactions.map((transaction) => (
-                <tr key={transaction.id}>
-                  <td>{transaction.description}</td>
-                  <td>{transaction.transactionType?.transactionType || 'N/A'}</td>
-                  <td>{new Date(transaction.transactionDate).toLocaleDateString()}</td>
-                  <td className="amount">${transaction.amount.toFixed(2)}</td>
-                  <td className="actions">
-                    <button className="btn btn-sm btn-info" onClick={() => handleEdit(transaction)}>
-                      Edit
-                    </button>
-                    <button
-                      className="btn btn-sm btn-danger"
-                      onClick={() => setShowDeleteConfirm(transaction.id)}
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div>
+          {Object.keys(groupedByType).map((typeId) => (
+            <div key={typeId} className="type-section">
+              <div className="type-header">
+                <h3 className="type-title">
+                  📊 {groupedByType[Number(typeId)].type}
+                </h3>
+                <span className="type-total">
+                  Total: ₹{groupedByType[Number(typeId)].total.toFixed(2)}
+                </span>
+              </div>
+              <div className="table-responsive">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Description</th>
+                      <th>Date</th>
+                      <th>Amount</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groupedByType[Number(typeId)].transactions.map((transaction) => (
+                      <tr key={transaction.id}>
+                        <td>{transaction.description}</td>
+                        <td>{new Date(transaction.transactionDate).toLocaleDateString()}</td>
+                        <td className="amount">₹{transaction.amount.toFixed(2)}</td>
+                        <td className="actions">
+                          <button className="btn btn-sm btn-info" onClick={() => handleEdit(transaction)}>
+                            Edit
+                          </button>
+                          <button
+                            className="btn btn-sm btn-danger"
+                            onClick={() => setShowDeleteConfirm(transaction.id)}
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

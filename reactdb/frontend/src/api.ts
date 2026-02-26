@@ -126,6 +126,7 @@ export const apiService = {
   // Service Room Allocation APIs
   getServiceAllocations: () => api.get('/service-allocations'),
   getServiceAllocationById: (allocationId: number) => api.get(`/service-allocations/${allocationId}`),
+  getServiceAllocationsWithPayments: () => api.get('/service-allocations-with-payments'),
   createServiceAllocation: (data: any) => api.post('/service-allocations', data),
   updateServiceAllocation: (allocationId: number, data: any) => api.put(`/service-allocations/${allocationId}`, data),
   deleteServiceAllocation: (allocationId: number) => api.delete(`/service-allocations/${allocationId}`),
