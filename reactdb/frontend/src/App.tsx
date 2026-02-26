@@ -217,27 +217,29 @@ function AppContent() {
 
   return (
     <>
-      {currentPage !== 'home' && (
-        <div className="top-header-bar">
-          <button 
-            className="back-home-btn"
-            onClick={() => setCurrentPage('home')}
-          >
-            ← Back to Home
-          </button>
-          <div className="page-title">
-            {(() => {
-              const pageNames: { [key in Page]?: string } = {
-                'eb-payments': 'EB Payments',
-                'services': 'Service Details',
-                'occupancy-links': 'Occupancy Links'
-              };
-              return pageNames[currentPage] || (currentPage.charAt(0).toUpperCase() + currentPage.slice(1).replace('-', ' '));
-            })()}
-          </div>
+      <div className="top-header-bar">
+        <button
+          className="back-home-btn"
+          onClick={() => setCurrentPage('home')}
+          disabled={currentPage === 'home'}
+        >
+          {currentPage === 'home' ? '🏠 Home' : '← Back to Home'}
+        </button>
+        <div className="page-title">
+          {(() => {
+            if (currentPage === 'home') return 'Mansion Management';
+            const pageNames: { [key in Page]?: string } = {
+              'eb-payments': 'EB Payments',
+              'services': 'Service Details',
+              'occupancy-links': 'Occupancy Links'
+            };
+            return pageNames[currentPage] || (currentPage.charAt(0).toUpperCase() + currentPage.slice(1).replace('-', ' '));
+          })()}
         </div>
-      )}
-      {renderPage()}
+      </div>
+      <div className={currentPage === 'home' ? '' : 'page-with-header'}>
+        {renderPage()}
+      </div>
     </>
   );
 }

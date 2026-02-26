@@ -29,6 +29,7 @@ export interface TenantWithOccupancy extends Tenant {
 }
 
 type SearchField = 'all' | 'name' | 'phone' | 'city' | 'address';
+type SortOption = 'name-asc' | 'name-desc' | 'phone-asc' | 'city-asc' | 'recently-added';
 
 export default function TenantManagement() {
   const [tenants, setTenants] = useState<TenantWithOccupancy[]>([]);
@@ -37,10 +38,17 @@ export default function TenantManagement() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchField, setSearchField] = useState<SearchField>('all');
+  const [sortBy, setSortBy] = useState<SortOption>('name-asc');
   const [showForm, setShowForm] = useState(false);
   const [editingTenant, setEditingTenant] = useState<TenantWithOccupancy | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Helper function to normalize phone numbers
+  const normalizePhone = (phone: string): string => {
+    if (!phone) return '';
+    return phone.replace(/[\s\-()+.]/g, '').toLowerCase();
+  };
 
   // Fetch tenants with occupancy details
   useEffect(() => {
@@ -50,29 +58,69 @@ export default function TenantManagement() {
   // Filter tenants based on search query
   useEffect(() => {
     const filtered = tenants.filter((tenant) => {
-      const query = searchQuery.toLowerCase();
+      if (!searchQuery.trim()) return true;
+      
+      const query = searchQuery.trim();
+      const lowerQuery = query.toLowerCase();
+      const normalizedQuery = normalizePhone(query);
       
       switch (searchField) {
         case 'name':
-          return tenant.name.toLowerCase().includes(query);
-        case 'phone':
-          return tenant.phone.includes(query);
+          return tenant.name.toLowerCase().includes(lowerQuery);
+        case 'phone': {
+          // Phone search: both normalized (digits only) and as-is with case-insensitive
+          const tenantPhone = tenant.phone || '';
+          const normalizedPhone = normalizePhone(tenantPhone);
+          
+          // Try normalized search if query contains mostly digits
+          if (/^\d+/.test(query)) {
+            if (normalizedPhone.includes(normalizedQuery)) return true;
+          }
+          
+          // Also try case-insensitive literal search
+          return tenantPhone.toLowerCase().includes(lowerQuery);
+        }
         case 'city':
-          return tenant.city.toLowerCase().includes(query);
+          return tenant.city.toLowerCase().includes(lowerQuery);
         case 'address':
-          return tenant.address.toLowerCase().includes(query);
+          return tenant.address.toLowerCase().includes(lowerQuery);
         case 'all':
-        default:
+        default: {
+          const tenantPhone = tenant.phone || '';
+          const normalizedPhone = normalizePhone(tenantPhone);
+          
           return (
-            tenant.name.toLowerCase().includes(query) ||
-            tenant.phone.includes(query) ||
-            tenant.city.toLowerCase().includes(query) ||
-            tenant.address.toLowerCase().includes(query)
+            tenant.name.toLowerCase().includes(lowerQuery) ||
+            tenantPhone.toLowerCase().includes(lowerQuery) ||
+            (/^\d+/.test(query) && normalizedPhone.includes(normalizedQuery)) ||
+            tenant.city.toLowerCase().includes(lowerQuery) ||
+            tenant.address.toLowerCase().includes(lowerQuery)
           );
+        }
       }
     });
     setFilteredTenants(filtered);
   }, [searchQuery, searchField, tenants]);
+
+  // Sort filtered tenants
+  const sortedAndFilteredTenants = useMemo(() => {
+    const sorted = [...filteredTenants];
+    
+    switch (sortBy) {
+      case 'name-asc':
+        return sorted.sort((a, b) => a.name.localeCompare(b.name));
+      case 'name-desc':
+        return sorted.sort((a, b) => b.name.localeCompare(a.name));
+      case 'phone-asc':
+        return sorted.sort((a, b) => a.phone.localeCompare(b.phone));
+      case 'city-asc':
+        return sorted.sort((a, b) => a.city.localeCompare(b.city));
+      case 'recently-added':
+        return sorted;
+      default:
+        return sorted;
+    }
+  }, [filteredTenants, sortBy]);
 
   const fetchTenants = async () => {
     setLoading(true);
@@ -199,7 +247,7 @@ export default function TenantManagement() {
         <div className="search-container">
           <input
             type="text"
-            placeholder="Search tenants..."
+            placeholder={searchField === 'phone' ? 'Search phone numbers...' : 'Search tenants...'}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="search-input"
@@ -221,6 +269,21 @@ export default function TenantManagement() {
             ))}
           </select>
         </div>
+        <div className="sort-container">
+          <label htmlFor="sort-by">Sort by:</label>
+          <select
+            id="sort-by"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortOption)}
+            className="sort-select"
+          >
+            <option value="name-asc">Name (A→Z)</option>
+            <option value="name-desc">Name (Z→A)</option>
+            <option value="phone-asc">Phone Number</option>
+            <option value="city-asc">City</option>
+            <option value="recently-added">Recently Added</option>
+          </select>
+        </div>
         {searchQuery && (
           <button
             className="btn-secondary btn-clear"
@@ -240,9 +303,9 @@ export default function TenantManagement() {
       )}
 
       {/* Tenants Grid */}
-      {!loading && filteredTenants.length > 0 && (
+      {!loading && sortedAndFilteredTenants.length > 0 && (
         <div className="tenants-grid">
-          {filteredTenants.map((tenant) => (
+          {sortedAndFilteredTenants.map((tenant) => (
             <div key={tenant.id} className="tenant-card">
               {/* Tenant Image */}
               <div className="tenant-image-container">
@@ -383,7 +446,7 @@ export default function TenantManagement() {
       )}
 
       {/* Empty State */}
-      {!loading && filteredTenants.length === 0 && tenants.length > 0 && (
+      {!loading && sortedAndFilteredTenants.length === 0 && tenants.length > 0 && (
         <div className="empty-state">
           <p>No tenants found matching your search criteria</p>
           <button

@@ -28,7 +28,64 @@ export default function Diagnostic() {
     fetchData();
   }, []);
 
-  if (loading) return <div style={{ padding: '20px' }}>Loading...</div>;
+  if (loading) {
+    return (
+      <div style={{ 
+        position: 'fixed', 
+        top: '50%', 
+        left: '50%', 
+        transform: 'translate(-50%, -50%)', 
+        background: 'white', 
+        padding: '3rem', 
+        borderRadius: '12px', 
+        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)', 
+        zIndex: 10000, 
+        textAlign: 'center',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '1.5rem',
+        minWidth: '300px'
+      }}>
+        <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true">
+          <circle
+            cx="28"
+            cy="28"
+            r="24"
+            fill="none"
+            stroke="rgba(102, 126, 234, 0.2)"
+            strokeWidth="4"
+          />
+          <circle
+            cx="28"
+            cy="28"
+            r="24"
+            fill="none"
+            stroke="#667eea"
+            strokeWidth="4"
+            strokeLinecap="round"
+            strokeDasharray="96 60"
+          >
+            <animateTransform
+              attributeName="transform"
+              type="rotate"
+              from="0 28 28"
+              to="360 28 28"
+              dur="0.9s"
+              repeatCount="indefinite"
+            />
+          </circle>
+        </svg>
+        <p style={{ 
+          color: '#4a5568', 
+          fontSize: '1.1rem', 
+          fontWeight: 500, 
+          margin: 0 
+        }}>Loading...</p>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>

@@ -1,6 +1,6 @@
 .tenant-management-container {
-  max-width: 1400px;
-  margin: 0 auto;
+  width: 100%;
+  margin: 0;
   padding: clamp(1rem, 5vw, 2rem);
   background: #f5f7fa;
   min-height: 100vh;
@@ -270,24 +270,68 @@
   box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
 }
 
+.sort-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sort-container label {
+  font-weight: 600;
+  color: #2d3748;
+  white-space: nowrap;
+}
+
+.sort-select {
+  padding: 0.75rem 1rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 1rem;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #2d3748;
+}
+
+.sort-select:hover {
+  border-color: #cbd5e0;
+  background: #f7fafc;
+}
+
+.sort-select:focus {
+  outline: none;
+  border-color: #4299e1;
+  box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+}
+
 /* Loading State */
 .loading-state {
-  text-align: center;
-  padding: 3rem;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
   background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 3rem;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  z-index: 10000;
 }
 
 .loading-spinner {
   display: inline-block;
-  width: 40px;
-  height: 40px;
-  border: 4px solid #e2e8f0;
+  width: 56px;
+  height: 56px;
+  border: 4px solid rgba(66, 153, 225, 0.2);
   border-top-color: #4299e1;
+  border-right-color: #667eea;
   border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
+  box-shadow: 0 0 0 4px rgba(66, 153, 225, 0.08);
+  animation: spin 0.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
 @keyframes spin {
@@ -298,7 +342,9 @@
 
 .loading-state p {
   color: #718096;
-  font-size: 1rem;
+  font-size: 1.1rem;
+  margin: 0;
+  font-weight: 500;
 }
 
 /* Empty State */
@@ -685,9 +731,28 @@
     width: 100%;
   }
 
+  .filter-container label {
+    margin-bottom: 0.5rem;
+    display: block;
+  }
+
   .search-field-select {
+    width: 100%;
     flex: 1;
     min-width: auto;
+  }
+
+  .sort-container {
+    width: 100%;
+  }
+
+  .sort-container label {
+    margin-bottom: 0.5rem;
+    display: block;
+  }
+
+  .sort-select {
+    width: 100%;
   }
 
   .tenants-grid {
