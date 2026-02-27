@@ -130,6 +130,19 @@ export const apiService = {
   createServiceAllocation: (data: any) => api.post('/service-allocations', data),
   updateServiceAllocation: (allocationId: number, data: any) => api.put(`/service-allocations/${allocationId}`, data),
   deleteServiceAllocation: (allocationId: number) => api.delete(`/service-allocations/${allocationId}`),
+
+  // Service Consumption APIs
+  getServiceConsumption: (filters?: any) => {
+    const params = new URLSearchParams();
+    if (filters?.serviceAllocId) params.append('serviceAllocId', filters.serviceAllocId);
+    if (filters?.roomId) params.append('roomId', filters.roomId);
+    if (filters?.startDate) params.append('startDate', filters.startDate);
+    if (filters?.endDate) params.append('endDate', filters.endDate);
+    return api.get(`/service-consumption${params.toString() ? '?' + params.toString() : ''}`);
+  },
+  getServiceConsumptionById: (consumptionId: number) => api.get(`/service-consumption/${consumptionId}`),
+  createServiceConsumption: (data: any) => api.post('/service-consumption', data),
+  deleteServiceConsumption: (consumptionId: number) => api.delete(`/service-consumption/${consumptionId}`),
   
   // Diagnostic APIs
   getRentalSchema: () => api.get('/diagnostic/rental-schema'),

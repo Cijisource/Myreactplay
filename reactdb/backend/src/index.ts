@@ -1,4 +1,4 @@
-import express, { Express, Request, Response } from 'express';
+import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { initializeDatabase, closeDatabase, getPool } from './database';
 import sql from 'mssql';
@@ -2185,9 +2185,272 @@ app.get('/api/service-allocations-with-payments', async (req: Request, res: Resp
 });
 
 // Error handling middleware
-app.use((err: any, req: Request, res: Response) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Internal Server Error' });
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  console.error('Unhandled error:', err);
+  if (!res.headersSent) {
+    res.status(500).json({ error: 'Internal Server Error', message: err.message });
+  }
+});
+
+// Service Consumption endpoints
+app.get('/api/service-consumption', async (req: Request, res: Response) => {
+  try {
+    const { serviceAllocId, startDate, endDate, roomId } = req.query;
+    const pool = getPool();
+    
+    let query = `
+      SELECT 
+        scd.Id as id,
+        scd.ServiceAllocId as serviceAllocId,
+        sra.ServiceId as serviceId,
+        sra.RoomId as roomId,
+        rd.Number as roomNumber,
+        sd.ConsumerNo as consumerNo,
+        sd.ConsumerName as consumerName,
+        sd.MeterNo as meterNo,
+        scd.ReadingTakenDate as readingTakenDate,
+        scd.StartingMeterReading as startingMeterReading,
+        scd.EndingMeterReading as endingMeterReading,
+        scd.UnitsConsumed as unitsConsumed,
+        scd.AmountToBeCollected as amountToBeCollected,
+        scd.UnitRate as unitRate,
+        scd.CreatedDate as createdDate,
+        scd.UpdatedDate as updatedDate
+      FROM ServiceConsumptionDetails scd
+      LEFT JOIN ServiceRoomAllocation sra ON scd.ServiceAllocId = sra.Id
+      LEFT JOIN RoomDetail rd ON sra.RoomId = rd.Id
+      LEFT JOIN ServiceDetails sd ON sra.ServiceId = sd.Id
+      WHERE 1=1
+    `;
+    
+    const request = pool.request();
+    
+    if (serviceAllocId) {
+      query += ` AND scd.ServiceAllocId = @serviceAllocId`;
+      request.input('serviceAllocId', sql.Int, parseInt(serviceAllocId as string));
+    }
+    
+    if (roomId) {
+      query += ` AND sra.RoomId = @roomId`;
+      request.input('roomId', sql.Int, parseInt(roomId as string));
+    }
+    
+    if (startDate) {
+      query += ` AND scd.ReadingTakenDate >= @startDate`;
+      request.input('startDate', sql.DateTime, new Date(startDate as string));
+    }
+    
+    if (endDate) {
+      query += ` AND scd.ReadingTakenDate <= @endDate`;
+      request.input('endDate', sql.DateTime, new Date(endDate as string));
+    }
+    
+    query += ` ORDER BY scd.ReadingTakenDate DESC`;
+    
+    const result = await request.query(query);
+    if (!res.headersSent) {
+      res.json(result.recordset);
+    }
+  } catch (error) {
+    console.error('Get service consumption error:', error);
+    if (!res.headersSent) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ 
+        error: 'Failed to retrieve service consumption details',
+        details: errorMessage
+      });
+    }
+  }
+});
+
+// Get service consumption by ID
+app.get('/api/service-consumption/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    
+    const result = await pool
+      .request()
+      .input('id', sql.Int, parseInt(id))
+      .query(`
+        SELECT 
+          scd.Id as id,
+          scd.ServiceAllocId as serviceAllocId,
+          sra.ServiceId as serviceId,
+          sra.RoomId as roomId,
+          rd.Number as roomNumber,
+          sd.ConsumerNo as consumerNo,
+          sd.ConsumerName as consumerName,
+          sd.MeterNo as meterNo,
+          scd.ReadingTakenDate as readingTakenDate,
+          scd.StartingMeterReading as startingMeterReading,
+          scd.EndingMeterReading as endingMeterReading,
+          scd.UnitsConsumed as unitsConsumed,
+          scd.AmountToBeCollected as amountToBeCollected,
+          scd.UnitRate as unitRate,
+          scd.CreatedDate as createdDate,
+          scd.UpdatedDate as updatedDate
+        FROM ServiceConsumptionDetails scd
+        LEFT JOIN ServiceRoomAllocation sra ON scd.ServiceAllocId = sra.Id
+        LEFT JOIN RoomDetail rd ON sra.RoomId = rd.Id
+        LEFT JOIN ServiceDetails sd ON sra.ServiceId = sd.Id
+        WHERE scd.Id = @id
+      `);
+    
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Service consumption detail not found' });
+    }
+    
+    if (!res.headersSent) {
+      res.json(result.recordset[0]);
+    }
+  } catch (error) {
+    console.error('Get service consumption detail error:', error);
+    if (!res.headersSent) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ 
+        error: 'Failed to retrieve service consumption detail',
+        details: errorMessage
+      });
+    }
+  }
+});
+
+// Create service consumption
+app.post('/api/service-consumption', async (req: Request, res: Response) => {
+  try {
+    const { 
+      serviceAllocId, 
+      readingTakenDate, 
+      startingMeterReading, 
+      endingMeterReading, 
+      unitRate 
+    } = req.body;
+    
+    // Validation
+    if (!serviceAllocId || !readingTakenDate || startingMeterReading === undefined || endingMeterReading === undefined) {
+      return res.status(400).json({ 
+        error: 'Missing required fields' 
+      });
+    }
+    
+    const pool = getPool();
+    
+    // Calculate units consumed
+    const unitsConsumed = parseInt(endingMeterReading) - parseInt(startingMeterReading);
+    const amountToBeCollected = unitsConsumed * (unitRate || 10);
+    
+    const result = await pool
+      .request()
+      .input('serviceAllocId', sql.Int, parseInt(serviceAllocId))
+      .input('readingTakenDate', sql.DateTime, new Date(readingTakenDate))
+      .input('startingMeterReading', sql.Int, parseInt(startingMeterReading))
+      .input('endingMeterReading', sql.NVarChar(10), String(endingMeterReading))
+      .input('unitsConsumed', sql.Int, unitsConsumed)
+      .input('amountToBeCollected', sql.Money, amountToBeCollected)
+      .input('unitRate', sql.Money, unitRate || 10)
+      .input('createdDate', sql.DateTime, new Date())
+      .query(`
+        INSERT INTO ServiceConsumptionDetails (
+          ServiceAllocId,
+          ReadingTakenDate,
+          StartingMeterReading,
+          EndingMeterReading,
+          UnitsConsumed,
+          AmountToBeCollected,
+          UnitRate,
+          CreatedDate
+        )
+        VALUES (
+          @serviceAllocId,
+          @readingTakenDate,
+          @startingMeterReading,
+          @endingMeterReading,
+          @unitsConsumed,
+          @amountToBeCollected,
+          @unitRate,
+          @createdDate
+        );
+        SELECT SCOPE_IDENTITY() as id;
+      `);
+    
+    const consumptionId = result.recordset[0].id;
+    
+    // Fetch the created record with all details
+    const fetchResult = await pool
+      .request()
+      .input('id', sql.Int, consumptionId)
+      .query(`
+        SELECT 
+          scd.Id as id,
+          scd.ServiceAllocId as serviceAllocId,
+          sra.ServiceId as serviceId,
+          sra.RoomId as roomId,
+          rd.Number as roomNumber,
+          sd.ConsumerNo as consumerNo,
+          sd.ConsumerName as consumerName,
+          sd.MeterNo as meterNo,
+          scd.ReadingTakenDate as readingTakenDate,
+          scd.StartingMeterReading as startingMeterReading,
+          scd.EndingMeterReading as endingMeterReading,
+          scd.UnitsConsumed as unitsConsumed,
+          scd.AmountToBeCollected as amountToBeCollected,
+          scd.UnitRate as unitRate,
+          scd.CreatedDate as createdDate,
+          scd.UpdatedDate as updatedDate
+        FROM ServiceConsumptionDetails scd
+        LEFT JOIN ServiceRoomAllocation sra ON scd.ServiceAllocId = sra.Id
+        LEFT JOIN RoomDetail rd ON sra.RoomId = rd.Id
+        LEFT JOIN ServiceDetails sd ON sra.ServiceId = sd.Id
+        WHERE scd.Id = @id
+      `);
+    
+    if (!res.headersSent) {
+      res.status(201).json(fetchResult.recordset[0]);
+    }
+  } catch (error) {
+    console.error('Create service consumption error:', error);
+    if (!res.headersSent) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ 
+        error: 'Failed to create service consumption detail',
+        details: errorMessage
+      });
+    }
+  }
+});
+
+// Delete service consumption
+app.delete('/api/service-consumption/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    
+    const result = await pool
+      .request()
+      .input('id', sql.Int, parseInt(id))
+      .query(`
+        DELETE FROM ServiceConsumptionDetails
+        WHERE Id = @id
+      `);
+    
+    if (result.rowsAffected[0] === 0) {
+      return res.status(404).json({ error: 'Service consumption detail not found' });
+    }
+    
+    if (!res.headersSent) {
+      res.json({ message: 'Service consumption detail deleted successfully' });
+    }
+  } catch (error) {
+    console.error('Delete service consumption error:', error);
+    if (!res.headersSent) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ 
+        error: 'Failed to delete service consumption detail',
+        details: errorMessage
+      });
+    }
+  }
 });
 
 // Start server

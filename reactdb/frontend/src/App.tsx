@@ -17,10 +17,11 @@ import TransactionManagement from './components/TransactionManagement';
 import StockManagement from './components/StockManagement';
 import DailyStatusManagement from './components/DailyStatusManagement';
 import ServiceAllocationManagement from './components/ServiceAllocationManagement';
+import ServiceConsumptionDetails from './components/ServiceConsumptionDetails';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
-type Page = 'home' | 'diagnostic' | 'payment' | 'tenants' | 'occupancy' | 'occupancy-links' | 'complaints' | 'services' | 'eb-payments' | 'users' | 'roles' | 'transactions' | 'stock' | 'daily-status' | 'service-allocation';
+type Page = 'home' | 'diagnostic' | 'payment' | 'tenants' | 'occupancy' | 'occupancy-links' | 'complaints' | 'services' | 'eb-payments' | 'users' | 'roles' | 'transactions' | 'stock' | 'daily-status' | 'service-allocation' | 'consumption';
 
 // Role requirements for each screen
 const SCREEN_ROLES: Record<Page, string[]> = {
@@ -38,7 +39,8 @@ const SCREEN_ROLES: Record<Page, string[]> = {
   transactions: ['admin', 'manager', 'accountant'],
   stock: ['admin', 'manager', 'inventory_manager'],
   'daily-status': ['admin', 'manager', 'maintenance'],
-  'service-allocation': ['admin', 'manager', 'utilities_manager']
+  'service-allocation': ['admin', 'manager', 'utilities_manager'],
+  consumption: ['admin', 'manager', 'utilities_manager']
 };
 
 // Navigation menu items with labels and required roles
@@ -50,6 +52,7 @@ const NAV_ITEMS: Array<{ page: Page; label: string; roles: string[] }> = [
   { page: 'payment', label: 'Payment Tracking', roles: SCREEN_ROLES.payment },
   { page: 'complaints', label: 'Complaints', roles: SCREEN_ROLES.complaints },
   { page: 'services', label: 'Service Details', roles: SCREEN_ROLES.services },
+  { page: 'consumption', label: 'Service Consumption', roles: SCREEN_ROLES.consumption },
   { page: 'eb-payments', label: 'EB Payments', roles: SCREEN_ROLES['eb-payments'] },
   { page: 'users', label: 'Users', roles: SCREEN_ROLES.users },
   { page: 'roles', label: 'Roles & Access', roles: SCREEN_ROLES.roles },
@@ -222,6 +225,14 @@ function AppContent() {
       return (
         <ProtectedRoute requiredRoles={SCREEN_ROLES['service-allocation']}>
           <ServiceAllocationManagement />
+        </ProtectedRoute>
+      );
+    }
+
+    if (currentPage === 'consumption') {
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES.consumption}>
+          <ServiceConsumptionDetails />
         </ProtectedRoute>
       );
     }
