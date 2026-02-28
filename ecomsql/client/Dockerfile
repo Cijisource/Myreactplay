@@ -41,11 +41,11 @@ RUN npm install -g serve
 # Copy built application from builder stage
 COPY --from=builder /app/build build/
 
-# Expose port 3000
-EXPOSE 3000
+# Expose port 3002
+EXPOSE 3002
 
 # Set environment to production
 ENV NODE_ENV=production
 
 # Start the application
-CMD ["serve", "-s", "build", "-l", "3000"]
+CMD ["serve", "-s", "build", "-l", "3002"]
