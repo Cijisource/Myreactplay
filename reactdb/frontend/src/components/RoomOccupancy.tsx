@@ -93,7 +93,7 @@ export default function RoomOccupancy(): JSX.Element {
   const formatCurrency = (value: number | undefined): string => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'INR',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     }).format(value || 0);
@@ -106,6 +106,59 @@ export default function RoomOccupancy(): JSX.Element {
       month: 'short',
       day: 'numeric'
     });
+  };
+
+  const calculateOccupancyAging = (checkInDate: string | undefined): string => {
+    if (!checkInDate) return 'N/A';
+    const checkIn = new Date(checkInDate);
+    const today = new Date();
+    
+    // Normalize to date only (remove time component for accurate day counting)
+    checkIn.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    
+    const days = Math.floor((today.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (days === 0) return 'Today';
+    if (days === 1) return '1 day';
+    if (days < 30) return `${days} days`;
+    if (days < 365) return `${Math.floor(days / 30)} months`;
+    return `${Math.floor(days / 365)} years`;
+  };
+
+  const calculateVacancyAging = (checkOutDate: string | null | undefined): string => {
+    if (!checkOutDate) return 'N/A';
+    const checkOut = new Date(checkOutDate);
+    const today = new Date();
+    
+    // Normalize to date only (remove time component for accurate day counting)
+    checkOut.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    
+    const days = Math.floor((today.getTime() - checkOut.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (days < 0) return 'Not yet vacant';
+    if (days === 0) return 'Today';
+    if (days === 1) return '1 day';
+    if (days < 30) return `${days} days`;
+    return `${Math.floor(days / 30)} months`;
+  };
+
+  const getOccupancyStatus = (checkOutDate: string | null | undefined): string => {
+    if (!checkOutDate) return 'Active';
+    
+    const checkOut = new Date(checkOutDate);
+    const today = new Date();
+    
+    // Normalize dates to compare only the date part
+    checkOut.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    
+    if (checkOut > today) {
+      return 'Active';
+    } else {
+      return 'Ended';
+    }
   };
 
   if (loading) {
@@ -121,14 +174,6 @@ export default function RoomOccupancy(): JSX.Element {
 
   return (
     <div className="occupancy-container">
-      {/* Header */}
-      <div className="occupancy-header">
-        <div>
-          <h1>🏠 Room Occupancy Dashboard</h1>
-          <p>Track room status and tenant information</p>
-        </div>
-      </div>
-
       {/* Error Message */}
       {error && (
         <div className="error-card">
@@ -250,9 +295,13 @@ export default function RoomOccupancy(): JSX.Element {
                     <p className="tenant-name">👤 {room.tenantName}</p>
                     <p className="tenant-contact">📱 {room.tenantPhone}</p>
                     <p className="check-in">📅 Check-in: {formatDate(room.checkInDate)}</p>
+                    <p className="aging-info">⏱️ Occupancy Aging: {calculateOccupancyAging(room.checkInDate)}</p>
                     {room.checkOutDate && (
                       <p className="check-out">📅 Check-out: {formatDate(room.checkOutDate)}</p>
                     )}
+                    <p className={`occupancy-status ${getOccupancyStatus(room.checkOutDate).toLowerCase().replace(/ /g, '-')}`}>
+                      Status: {getOccupancyStatus(room.checkOutDate)}
+                    </p>
                   </div>
 
                   <div className="payment-section">
@@ -278,6 +327,7 @@ export default function RoomOccupancy(): JSX.Element {
                 <div className="room-vacant-info">
                   <p className="vacant-message">No tenant assigned</p>
                   <p className="vacant-action">Ready for new occupant</p>
+                  <p className="vacancy-aging">⏱️ Vacancy Aging: {calculateVacancyAging(null)} (No previous checkout data)</p>
                 </div>
               )}
             </div>

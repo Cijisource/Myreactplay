@@ -106,7 +106,7 @@ export default function OccupancyLinks(): JSX.Element {
   const formatCurrency = (value: number | undefined): string => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'INR',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     }).format(value || 0);
@@ -134,14 +134,6 @@ export default function OccupancyLinks(): JSX.Element {
 
   return (
     <div className="occupancy-links-container">
-      {/* Header */}
-      <div className="links-header">
-        <div>
-          <h1>🔗 Room-Tenant Occupancy Links</h1>
-          <p>View active tenant assignments to rooms and payment status</p>
-        </div>
-      </div>
-
       {/* Error Message */}
       {error && (
         <div className="error-card">

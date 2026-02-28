@@ -1,25 +1,81 @@
 import { useState, useEffect } from 'react';
 import { apiService } from './api';
 import './App.css';
-import RentalCollection from './components/RentalCollection';
+//import RentalCollection from './components/RentalCollection';
 import Diagnostic from './components/Diagnostic';
 import PaymentTracking from './components/PaymentTracking';
 import TenantManagement from './components/TenantManagement';
 import RoomOccupancy from './components/RoomOccupancy';
 import OccupancyLinks from './components/OccupancyLinks';
 import ComplaintsManagement from './components/ComplaintsManagement';
+import ServiceDetailsManagement from './components/ServiceDetailsManagement';
+import EBServicePaymentsManagement from './components/EBServicePaymentsManagement';
 import LoginScreen from './components/LoginScreen';
+import UserManagement from './components/UserManagement';
+import RoleManagement from './components/RoleManagement';
+import TransactionManagement from './components/TransactionManagement';
+import StockManagement from './components/StockManagement';
+import DailyStatusManagement from './components/DailyStatusManagement';
+import ServiceAllocationManagement from './components/ServiceAllocationManagement';
+import ServiceConsumptionDetails from './components/ServiceConsumptionDetails';
 import { AuthProvider, useAuth } from './components/AuthContext';
+import { ProtectedRoute } from './components/ProtectedRoute';
 
-type Page = 'home' | 'rental' | 'diagnostic' | 'payment' | 'tenants' | 'occupancy' | 'occupancy-links' | 'complaints';
+type Page = 'home' | 'diagnostic' | 'payment' | 'tenants' | 'occupancy' | 'occupancy-links' | 'complaints' | 'services' | 'eb-payments' | 'users' | 'roles' | 'transactions' | 'stock' | 'daily-status' | 'service-allocation' | 'consumption';
+
+// Role requirements for each screen
+const SCREEN_ROLES: Record<Page, string[]> = {
+  home: [],
+  diagnostic: ['admin'],
+  payment: ['admin', 'manager', 'accountant'],
+  tenants: ['admin', 'manager', 'property_manager'],
+  occupancy: ['admin', 'manager', 'property_manager'],
+  'occupancy-links': ['admin', 'manager', 'property_manager'],
+  complaints: ['admin', 'manager', 'maintenance'],
+  services: ['admin', 'manager', 'utilities_manager'],
+  'eb-payments': ['admin', 'manager', 'accountant'],
+  users: ['admin'],
+  roles: ['admin'],
+  transactions: ['admin', 'manager', 'accountant'],
+  stock: ['admin', 'manager', 'inventory_manager'],
+  'daily-status': ['admin', 'manager', 'maintenance'],
+  'service-allocation': ['admin', 'manager', 'utilities_manager'],
+  consumption: ['admin', 'manager', 'utilities_manager']
+};
+
+// Navigation menu items with labels and required roles
+const NAV_ITEMS: Array<{ page: Page; label: string; roles: string[] }> = [
+  { page: 'home', label: 'Home', roles: [] },
+  { page: 'occupancy-links', label: 'Occupancy Links', roles: SCREEN_ROLES['occupancy-links'] },
+  { page: 'occupancy', label: 'Room Occupancy', roles: SCREEN_ROLES.occupancy },
+  { page: 'tenants', label: 'Tenant Management', roles: SCREEN_ROLES.tenants },
+  { page: 'payment', label: 'Payment Tracking', roles: SCREEN_ROLES.payment },
+  { page: 'complaints', label: 'Complaints', roles: SCREEN_ROLES.complaints },
+  { page: 'services', label: 'Service Details', roles: SCREEN_ROLES.services },
+  { page: 'consumption', label: 'Service Consumption', roles: SCREEN_ROLES.consumption },
+  { page: 'eb-payments', label: 'EB Payments', roles: SCREEN_ROLES['eb-payments'] },
+  { page: 'users', label: 'Users', roles: SCREEN_ROLES.users },
+  { page: 'roles', label: 'Roles & Access', roles: SCREEN_ROLES.roles },
+  { page: 'transactions', label: 'Transactions', roles: SCREEN_ROLES.transactions },
+  { page: 'stock', label: 'Stock', roles: SCREEN_ROLES.stock },
+  { page: 'daily-status', label: 'Daily Status', roles: SCREEN_ROLES['daily-status'] },
+  { page: 'service-allocation', label: 'Service Allocation', roles: SCREEN_ROLES['service-allocation'] },
+  { page: 'diagnostic', label: 'Diagnostic', roles: SCREEN_ROLES.diagnostic }
+];
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [backendStatus, setBackendStatus] = useState<string>('loading');
   const [dbStatus, setDbStatus] = useState<string>('loading');
   const [tables, setTables] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const { isAuthenticated, user, logout } = useAuth();
+
+  // Close mobile menu when page changes
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [currentPage]);
 
   useEffect(() => {
     const fetchStatus = async () => {
@@ -61,32 +117,124 @@ function AppContent() {
   }
 
   const renderPage = () => {
-    if (currentPage === 'rental') {
-      return <RentalCollection />;
-    }
-    
     if (currentPage === 'diagnostic') {
-      return <Diagnostic />;
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES.diagnostic}>
+          <Diagnostic />
+        </ProtectedRoute>
+      );
     }
 
     if (currentPage === 'payment') {
-      return <PaymentTracking />;
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES.payment}>
+          <PaymentTracking />
+        </ProtectedRoute>
+      );
     }
 
     if (currentPage === 'tenants') {
-      return <TenantManagement />;
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES.tenants}>
+          <TenantManagement />
+        </ProtectedRoute>
+      );
     }
 
     if (currentPage === 'occupancy') {
-      return <RoomOccupancy />;
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES.occupancy}>
+          <RoomOccupancy />
+        </ProtectedRoute>
+      );
     }
 
     if (currentPage === 'occupancy-links') {
-      return <OccupancyLinks />;
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES['occupancy-links']}>
+          <OccupancyLinks />
+        </ProtectedRoute>
+      );
     }
 
     if (currentPage === 'complaints') {
-      return <ComplaintsManagement />;
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES.complaints}>
+          <ComplaintsManagement />
+        </ProtectedRoute>
+      );
+    }
+
+    if (currentPage === 'services') {
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES.services}>
+          <ServiceDetailsManagement />
+        </ProtectedRoute>
+      );
+    }
+
+    if (currentPage === 'eb-payments') {
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES['eb-payments']}>
+          <EBServicePaymentsManagement />
+        </ProtectedRoute>
+      );
+    }
+
+    if (currentPage === 'users') {
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES.users}>
+          <UserManagement />
+        </ProtectedRoute>
+      );
+    }
+
+    if (currentPage === 'roles') {
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES.roles}>
+          <RoleManagement />
+        </ProtectedRoute>
+      );
+    }
+
+    if (currentPage === 'transactions') {
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES.transactions}>
+          <TransactionManagement />
+        </ProtectedRoute>
+      );
+    }
+
+    if (currentPage === 'stock') {
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES.stock}>
+          <StockManagement />
+        </ProtectedRoute>
+      );
+    }
+
+    if (currentPage === 'daily-status') {
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES['daily-status']}>
+          <DailyStatusManagement />
+        </ProtectedRoute>
+      );
+    }
+
+    if (currentPage === 'service-allocation') {
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES['service-allocation']}>
+          <ServiceAllocationManagement />
+        </ProtectedRoute>
+      );
+    }
+
+    if (currentPage === 'consumption') {
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES.consumption}>
+          <ServiceConsumptionDetails />
+        </ProtectedRoute>
+      );
     }
 
     return (
@@ -94,7 +242,8 @@ function AppContent() {
         <div className="home-header">
           <div>
             <h1>🏰 Mansion Management System</h1>
-            <p>Welcome back, {user?.username}!</p>
+            <p>Welcome back, {user?.name || user?.username}!</p>
+            <p className="user-roles">Roles: {user?.roles || 'None'}</p>
           </div>
           <button 
             className="logout-btn"
@@ -104,55 +253,32 @@ function AppContent() {
           </button>
         </div>
         
-        <div className="nav-buttons">
+        <div className="nav-wrapper">
           <button 
-            className="nav-btn active"
-            onClick={() => setCurrentPage('home')}
+            className="hamburger-btn"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
-            Home
+            ☰
           </button>
-          <button 
-            className="nav-btn"
-            onClick={() => setCurrentPage('occupancy-links')}
-          >
-            Occupancy Links
-          </button>
-          <button 
-            className="nav-btn"
-            onClick={() => setCurrentPage('occupancy')}
-          >
-            Room Occupancy
-          </button>
-          <button 
-            className="nav-btn"
-            onClick={() => setCurrentPage('tenants')}
-          >
-            Tenant Management
-          </button>
-          <button 
-            className="nav-btn"
-            onClick={() => setCurrentPage('rental')}
-          >
-            Rental Collection
-          </button>
-          <button 
-            className="nav-btn"
-            onClick={() => setCurrentPage('payment')}
-          >
-            Payment Tracking
-          </button>
-          <button 
-            className="nav-btn"
-            onClick={() => setCurrentPage('complaints')}
-          >
-            Complaints Management
-          </button>
-          <button 
-            className="nav-btn diagnostic"
-            onClick={() => setCurrentPage('diagnostic')}
-          >
-            Diagnostic
-          </button>
+          
+          <div className={`nav-buttons ${mobileMenuOpen ? 'mobile-open' : ''}`}>
+            {NAV_ITEMS.map(item => {
+              // Check if user has access to this page
+              const hasAccess = item.roles.length === 0 || user?.roles.split(',').some(r => item.roles.includes(r.trim()));
+              
+              if (!hasAccess) return null;
+              
+              return (
+                <button 
+                  key={item.page}
+                  className={`nav-btn ${currentPage === item.page ? 'active' : ''}`}
+                  onClick={() => setCurrentPage(item.page)}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
         
         <div className="status-section">
@@ -195,18 +321,39 @@ function AppContent() {
 
   return (
     <>
-      {currentPage !== 'home' && (
-        <div className="top-header-bar">
-          <button 
-            className="back-home-btn"
-            onClick={() => setCurrentPage('home')}
-          >
-            ← Back to Home
-          </button>
-          <div className="page-title">{currentPage.charAt(0).toUpperCase() + currentPage.slice(1).replace('-', ' ')}</div>
+      <div className="top-header-bar">
+        <button
+          className="back-home-btn"
+          onClick={() => setCurrentPage('home')}
+          disabled={currentPage === 'home'}
+        >
+          {currentPage === 'home' ? '🏠 Home' : '← Back to Home'}
+        </button>
+        <div className="page-title">
+          {(() => {
+            if (currentPage === 'home') return 'Mansion Management';
+            const pageNames: { [key in Page]?: string } = {
+              'users': 'User & Role Management',
+              'transactions': 'Transaction Management',
+              'stock': 'Stock Management',
+              'daily-status': 'Daily Room Status Management',
+              'service-allocation': 'Service Room Allocation Management',
+              'tenants': 'Tenant Management',
+              'occupancy': '🏠 Room Occupancy Dashboard',
+              'occupancy-links': '🔗 Room-Tenant Occupancy Links',
+              'payment': 'Rental Payment Tracking',
+              'complaints': 'Complaints Management',
+              'services': '⚡ Service Details Management',
+              'eb-payments': '💡 EB Service Payments Management',
+              'diagnostic': 'RentalCollection Table Diagnostic'
+            };
+            return pageNames[currentPage] || (currentPage.charAt(0).toUpperCase() + currentPage.slice(1).replace('-', ' '));
+          })()}
         </div>
-      )}
-      {renderPage()}
+      </div>
+      <div className={currentPage === 'home' ? '' : 'page-with-header'}>
+        {renderPage()}
+      </div>
     </>
   );
 }
