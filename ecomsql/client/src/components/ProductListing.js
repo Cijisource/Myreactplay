@@ -3,14 +3,35 @@ import { getProducts, getCategories, addToCart, API_BASE_URL } from '../api';
 import './ProductListing.css';
 
 // Memoized product card component
-const ProductCard = React.memo(({ product, onAddToCart }) => (
+const ProductCard = React.memo(({ product, onAddToCart }) => {
+  // Build image URL - works in both local dev and Docker
+  const getImageUrl = () => {
+    if (!product.image_url) {
+      return 'https://via.placeholder.com/200?text=No+Image';
+    }
+    
+    // If it's an absolute URL, use it as-is
+    if (product.image_url.startsWith('http')) {
+      return product.image_url;
+    }
+    
+    // If API_BASE_URL is set (local dev), use it
+    if (API_BASE_URL) {
+      return `${API_BASE_URL}${product.image_url}`;
+    }
+    
+    // In Docker with relative paths, use /uploads directly
+    return product.image_url;
+  };
+  
+  return (
   <div className="product-card">
     <div className="product-image">
       <img 
-        src={product.image_url ? `${API_BASE_URL}${product.image_url}` : 'https://via.placeholder.com/200'} 
+        src={getImageUrl()}
         alt={product.name}
         loading="lazy"
-        onError={(e) => { e.target.src = 'https://via.placeholder.com/200'; }}
+        onError={(e) => { e.target.src = 'https://via.placeholder.com/200?text=No+Image'; }}
       />
     </div>
     <div className="product-info">
@@ -30,7 +51,8 @@ const ProductCard = React.memo(({ product, onAddToCart }) => (
       </button>
     </div>
   </div>
-));
+);
+});
 
 ProductCard.displayName = 'ProductCard';
 
