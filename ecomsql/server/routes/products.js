@@ -31,11 +31,33 @@ router.get('/', async (req, res) => {
     
     query += ` ORDER BY p.created_at DESC`;
     
+    console.log('[DEBUG] Fetching products with query:', query);
+    console.log('[DEBUG] Parameters:', { categoryId, search });
+    
     const result = await request.query(query);
+    
+    console.log('[DEBUG] Products query returned:', result.recordset.length, 'records');
+    
+    if (result.recordset.length === 0) {
+      console.log('[DEBUG] No products found');
+      // Test connection by querying count
+      const countResult = await pool.request().query('SELECT COUNT(*) as count FROM products');
+      console.log('[DEBUG] Total products in database:', countResult.recordset[0].count);
+    }
+    
     res.json(result.recordset);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: error.message });
+    console.error('[ERROR] Products endpoint error:', error);
+    console.error('[ERROR] Error details:', {
+      code: error.code,
+      number: error.number,
+      message: error.message
+    });
+    res.status(500).json({ 
+      error: error.message,
+      code: error.code,
+      details: 'Check server logs for more information'
+    });
   }
 });
 

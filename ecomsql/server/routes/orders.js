@@ -11,6 +11,9 @@ function generateOrderNumber() {
 router.get('/', async (req, res) => {
   try {
     const pool = await getConnection();
+    
+    console.log('[DEBUG] Fetching all orders...');
+    
     const result = await pool.request()
       .query(`
         SELECT id, order_number, total_amount, status, customer_email, customer_name, 
@@ -19,10 +22,28 @@ router.get('/', async (req, res) => {
         ORDER BY created_at DESC
       `);
     
+    console.log('[DEBUG] Orders query returned:', result.recordset.length, 'records');
+    
+    if (result.recordset.length === 0) {
+      console.log('[DEBUG] No orders found');
+      // Test connection by querying count
+      const countResult = await pool.request().query('SELECT COUNT(*) as count FROM orders');
+      console.log('[DEBUG] Total orders in database:', countResult.recordset[0].count);
+    }
+    
     res.json(result.recordset);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: error.message });
+    console.error('[ERROR] Orders endpoint error:', error);
+    console.error('[ERROR] Error details:', {
+      code: error.code,
+      number: error.number,
+      message: error.message
+    });
+    res.status(500).json({ 
+      error: error.message,
+      code: error.code,
+      details: 'Check server logs for more information'
+    });
   }
 });
 

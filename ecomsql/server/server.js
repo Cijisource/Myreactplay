@@ -56,6 +56,61 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'Server is running' });
 });
 
+// Debug endpoint to check database and data
+app.get('/api/debug', async (req, res) => {
+  try {
+    const pool = await getConnection();
+    const { sql: SqlClient } = require('mssql');
+    
+    // Check if pool is connected
+    const connectionStatus = pool.connected ? 'Connected' : 'Not Connected';
+    
+    // Count records in each table
+    const categoryCount = await pool.request().query('SELECT COUNT(*) as count FROM categories');
+    const productCount = await pool.request().query('SELECT COUNT(*) as count FROM products');
+    const orderCount = await pool.request().query('SELECT COUNT(*) as count FROM orders');
+    const cartCount = await pool.request().query('SELECT COUNT(*) as count FROM cart_items');
+    
+    // Get sample product
+    const sampleProduct = await pool.request().query('SELECT TOP 5 id, name, price, stock FROM products');
+    
+    // Get sample order
+    const sampleOrder = await pool.request().query('SELECT TOP 5 id, order_number, total_amount, status FROM orders');
+    
+    res.json({
+      status: 'Success',
+      database: {
+        connectionStatus,
+        dbServer: process.env.DB_SERVER,
+        dbName: process.env.DB_NAME,
+        dbUser: process.env.DB_USER
+      },
+      tables: {
+        categories: categoryCount.recordset[0].count,
+        products: productCount.recordset[0].count,
+        orders: orderCount.recordset[0].count,
+        cart_items: cartCount.recordset[0].count
+      },
+      sampleProducts: sampleProduct.recordset,
+      sampleOrders: sampleOrder.recordset,
+      timestamp: new Date()
+    });
+  } catch (error) {
+    res.json({
+      status: 'Error',
+      error: error.message,
+      details: {
+        code: error.code,
+        number: error.number,
+        originalError: error.originalError?.message
+      },
+      dbServer: process.env.DB_SERVER,
+      dbName: process.env.DB_NAME,
+      timestamp: new Date()
+    });
+  }
+});
+
 // Start server
 initializeDB().then(() => {
   app.listen(PORT, () => {

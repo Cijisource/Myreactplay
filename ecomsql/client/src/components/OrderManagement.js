@@ -16,7 +16,7 @@ const OrderManagement = () => {
     try {
       setLoading(true);
       const response = await getOrders();
-      setOrders(response.data);
+      setOrders(Array.isArray(response.data) ? response.data : []);
       setError('');
     } catch (err) {
       setError('Failed to load orders');

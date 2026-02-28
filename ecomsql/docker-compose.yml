@@ -1,0 +1,57 @@
+services:
+  # Frontend application
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: ecommerce-client
+    ports:
+      - "3000:3000"
+    environment:
+      # API URL for the client - configured from .env file
+      # Default for Docker: http://server:5000/api (container-to-container)
+      # Override in .env: REACT_APP_API_URL=http://localhost:5000/api (for localhost access)
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://server:5000/api}
+    depends_on:
+      - server
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+
+  # Backend API server
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: ecommerce-server
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - CLIENT_URL=http://localhost:3000
+      # Database configuration - Update these with your database details
+      - DB_SERVER=${DB_SERVER:-gnanabi.database.windows.net}
+      - DB_NAME=${DB_NAME:-ecommerce}
+      - DB_USER=${DB_USER:-servergnanaabi}
+      - DB_PASSWORD=${DB_PASSWORD:-serverpassword@123}
+      - DB_PORT=${DB_PORT:-1433}
+    volumes:
+      - ./server/uploads:/app/uploads
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  ecommerce-network:
+    driver: bridge
+
+volumes:
+  server-uploads:
+    driver: local

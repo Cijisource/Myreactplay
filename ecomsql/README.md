@@ -50,6 +50,31 @@ ecomsql/
 ```
 
 
+## Quick Start with Docker
+
+For the fastest setup, use Docker and Docker Compose:
+
+```bash
+# 1. Copy and configure environment variables
+cp .env.example .env
+# Edit .env with your database credentials
+
+# 2. Start all services
+docker-compose up
+```
+
+The application will be available at:
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:5000/api
+
+**⚠️ Having issues?** See troubleshooting guides:
+- [DEBUGGING.md](DEBUGGING.md) - Database and product loading issues
+- [ENV_SETUP.md](ENV_SETUP.md) - Environment variable configuration
+- [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md) - Docker build and runtime errors
+- [NPM_TROUBLESHOOTING.md](NPM_TROUBLESHOOTING.md) - NPM install and dependency issues
+- [DOCKERFILE_GUIDE.md](DOCKERFILE_GUIDE.md) - Choosing between Dockerfiles
+
+For detailed Docker instructions, see [DOCKER.md](DOCKER.md).
 
 ## Backend Setup
 
@@ -76,8 +101,32 @@ npm install
    DB_TRUST_SERVER_CERTIFICATE=true
    ```
 
-3. **Create database**:
-   - Run the SQL scripts in SQL Server Management Studio:
+3. **Create database and seed data**:
+   
+   **On Windows:**
+   ```bash
+   # Set environment variables first (in PowerShell):
+   $env:DB_SERVER = "your-server.database.windows.net"
+   $env:DB_NAME = "your-database"
+   $env:DB_USER = "your-username"
+   $env:DB_PASSWORD = "your-password"
+   
+   # Then run the setup script:
+   .\db-setup.bat init
+   ```
+   
+   **On Linux/Mac:**
+   ```bash
+   export DB_SERVER="your-server.database.windows.net"
+   export DB_NAME="your-database"
+   export DB_USER="your-username"
+   export DB_PASSWORD="your-password"
+   
+   chmod +x db-setup.sh
+   ./db-setup.sh init
+   ```
+   
+   **Or manually in SQL Server Management Studio:**
    ```sql
    -- First run ecommerce.sql to create tables
    -- Then run ecommerce_seed.sql to add sample data
@@ -236,17 +285,49 @@ Both should be running for the full application to work:
 
 ## Troubleshooting
 
+### No Products or Orders Showing
+If the frontend shows "No products found" or no orders:
+
+1. **Check database connection:**
+   ```bash
+   curl http://localhost:5000/api/debug
+   ```
+   This will show database status and record counts.
+
+2. **Verify database has data:**
+   - If tables are empty, run the seed script:
+   ```bash
+   # Windows:
+   .\db-setup.bat init
+   
+   # Linux/Mac:
+   ./db-setup.sh init
+   ```
+
+3. **Check server logs for errors:**
+   Look for `[DEBUG]` and `[ERROR]` messages in the server console.
+
+For detailed debugging, see [DEBUGGING.md](DEBUGGING.md).
+
 ### Database Connection Error
 - Verify SQL Server is running
 - Check credentials in `.env` file
 - Ensure database `ecommerce` exists
 - Check SQL Server authentication is enabled
+- Test connection with debug endpoint: `curl http://localhost:5000/api/debug`
 
 ### File Upload Error
 - Ensure `server/uploads/` directory exists
 - Check file permissions on uploads folder
 - Verify file size is under 5MB
 - Check file format is supported (JPEG, PNG, GIF, WebP)
+
+### Database Not Initialized
+If you see "Invalid object name" errors:
+1. Run the database setup script:
+   - Windows: `.\db-setup.bat init`
+   - Linux/Mac: `./db-setup.sh init`
+2. Or manually run the SQL scripts in your database client
 
 ### CORS Error
 - Verify server is running on port 5000

@@ -6,12 +6,31 @@ const router = express.Router();
 router.get('/', async (req, res) => {
   try {
     const pool = await getConnection();
+    
+    console.log('[DEBUG] Fetching all categories...');
+    
     const result = await pool.request()
       .query('SELECT id, name, description, created_at, updated_at FROM categories ORDER BY name');
+    
+    console.log('[DEBUG] Categories query returned:', result.recordset.length, 'records');
+    
+    if (result.recordset.length === 0) {
+      console.log('[DEBUG] No categories found - database may not be seeded');
+    }
+    
     res.json(result.recordset);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: error.message });
+    console.error('[ERROR] Categories endpoint error:', error);
+    console.error('[ERROR] Error details:', {
+      code: error.code,
+      number: error.number,
+      message: error.message
+    });
+    res.status(500).json({ 
+      error: error.message,
+      code: error.code,
+      details: 'Check server logs for more information'
+    });
   }
 });
 

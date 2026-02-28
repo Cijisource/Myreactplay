@@ -50,9 +50,10 @@ const ProductListing = () => {
   const loadCategories = useCallback(async () => {
     try {
       const response = await getCategories();
-      setCategories(response.data);
+      setCategories(Array.isArray(response.data) ? response.data : []);
     } catch (err) {
       console.error('Error loading categories:', err);
+      setCategories([]);
     }
   }, []);
 
@@ -64,7 +65,7 @@ const ProductListing = () => {
       if (searchQuery) params.search = searchQuery;
       
       const response = await getProducts(params);
-      setProducts(response.data);
+      setProducts(Array.isArray(response.data) ? response.data : []);
       setError(null);
     } catch (err) {
       setError('Failed to load products');
