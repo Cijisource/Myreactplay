@@ -1,0 +1,123 @@
+/* Order Confirmation Styles */
+.confirmation-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: calc(100vh - 150px);
+  padding: 2rem 1rem;
+}
+
+.confirmation-card {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 3rem;
+  max-width: 600px;
+  text-align: center;
+}
+
+.success-icon {
+  width: 80px;
+  height: 80px;
+  background-color: #d4edda;
+  color: #155724;
+  font-size: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 2rem;
+  font-weight: bold;
+}
+
+.confirmation-card h1 {
+  color: #2c3e50;
+  margin-bottom: 0.5rem;
+}
+
+.thank-you {
+  color: #7f8c8d;
+  font-size: 16px;
+  margin-bottom: 2rem;
+}
+
+.order-details {
+  background-color: #f8f9fa;
+  border-left: 4px solid #27ae60;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  border-radius: 4px;
+  text-align: left;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.detail-row:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.label {
+  color: #7f8c8d;
+  font-weight: 600;
+}
+
+.value {
+  color: #2c3e50;
+  font-weight: 700;
+}
+
+.info-box {
+  background-color: #e3f2fd;
+  border-left: 4px solid #2196f3;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  border-radius: 4px;
+  text-align: left;
+}
+
+.info-box h3 {
+  color: #1565c0;
+  margin-bottom: 1rem;
+}
+
+.info-box ul {
+  list-style: none;
+  padding: 0;
+}
+
+.info-box li {
+  color: #1565c0;
+  margin-bottom: 0.75rem;
+  padding-left: 1.5rem;
+  position: relative;
+}
+
+.info-box li:before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  font-weight: bold;
+}
+
+.confirmation-card > button {
+  padding: 12px 32px;
+  font-size: 16px;
+}
+
+@media (max-width: 768px) {
+  .confirmation-card {
+    padding: 2rem 1.5rem;
+  }
+
+  .order-details {
+    padding: 1rem;
+  }
+}

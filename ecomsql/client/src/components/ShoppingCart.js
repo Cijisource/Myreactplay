@@ -28,7 +28,7 @@ const ShoppingCart = () => {
       }
 
       const response = await getCartItems(sessionId);
-      setItems(response.data);
+      setItems(Array.isArray(response.data) ? response.data : []);
     } catch (err) {
       setMessage('Error loading cart');
       console.error(err);

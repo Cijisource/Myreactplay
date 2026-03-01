@@ -1,0 +1,63 @@
+version: '3.8'
+
+# Development Docker Compose Configuration
+# Includes hot-reload and debugging features
+
+services:
+  # Frontend with hot-reload
+  frontend-dev:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    container_name: ecommerce-frontend-dev
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:5000/api
+      - REACT_APP_DEBUG=true
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+    depends_on:
+      - backend-dev
+    networks:
+      - ecommerce-dev
+    restart: unless-stopped
+
+  # Backend with hot-reload (requires nodemon)
+  backend-dev:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ecommerce-backend-dev
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - NODE_ENV=development
+      - CORS_ORIGIN=http://localhost:3000
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/database:/app/database
+      - ecommerce-db-dev:/app/data
+      - ecommerce-uploads-dev:/app/uploads
+    networks:
+      - ecommerce-dev
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  ecommerce-db-dev:
+    driver: local
+  ecommerce-uploads-dev:
+    driver: local
+
+networks:
+  ecommerce-dev:
+    driver: bridge

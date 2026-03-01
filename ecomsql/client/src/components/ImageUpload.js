@@ -18,9 +18,10 @@ const ImageUpload = () => {
   const loadProducts = async () => {
     try {
       const response = await getProducts();
-      setProducts(response.data);
+      setProducts(Array.isArray(response.data) ? response.data : []);
     } catch (err) {
       console.error('Error loading products:', err);
+      setProducts([]);
     }
   };
 
@@ -46,9 +47,10 @@ const ImageUpload = () => {
   const loadImages = async (id) => {
     try {
       const response = await getProductImages(id);
-      setImages(response.data);
+      setImages(Array.isArray(response.data) ? response.data : []);
     } catch (err) {
       console.error('Error loading images:', err);
+      setImages([]);
     }
   };
 

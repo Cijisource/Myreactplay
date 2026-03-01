@@ -1,0 +1,15 @@
+{
+  "pages": {
+    "index": true,
+    "install": "/docs/getting-started",
+    "deploy": "/docs/deploy",
+    "api": "/docs/api"
+  },
+  "printWidth": 100,
+  "semi": true,
+  "singleQuote": true,
+  "trailingComma": "es5",
+  "useTabs": false,
+  "tabWidth": 2,
+  "bracketSpacing": true
+}
