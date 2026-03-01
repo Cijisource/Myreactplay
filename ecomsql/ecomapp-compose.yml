@@ -1,36 +1,36 @@
 services:
   # Nginx reverse proxy (main entry point)
-  nginx:
-    build:
-      context: .
-      dockerfile: Dockerfile.nginx
-    container_name: ecommerce-nginx
-    ports:
-      - "80:80"
-    deploy:
-      resources:
-        limits:
-          cpus: '0.1'
-          memory: 32M
-    depends_on:
-      - client
-      - server
-    networks:
-      - ecommerce-network
-    restart: on-failure
+  # nginx:
+  #   image: 555cijaiz555/nginx:v1
+  #   container_name: ecommerce-nginx
+  #   ports:
+  #     - "90:80"
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '0.1'
+  #         memory: 32M
+  #   depends_on:
+  #     - client
+  #     - server
+  #   networks:
+  #     - ecommerce-network
+  #   restart: on-failure
+  #   healthcheck:
+  #     test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://140.245.238.26/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 10s
 
-  # Frontend application (served through nginx)
+  # Frontend application
   client:
-    build:
-      context: ./client
-      dockerfile: Dockerfile.alpine
+    image: 555cijaiz555/ecomc:v2
     container_name: ecommerce-client
     ports:
       - "3002:3002"
     environment:
-      # API URL for the client - served through nginx
-      # http://localhost/api gets proxied to server:5002/api
-      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost/api}
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://140.245.238.26/api}
       - PORT=3002
     expose:
       - 3002
@@ -48,17 +48,14 @@ services:
       - ecommerce-network
     restart: on-failure
 
-  # Backend API server (served through nginx)
+  # Backend API server
   server:
-    build:
-      context: ./server
-      dockerfile: Dockerfile.alpine
+    image: 555cijaiz555/ecoms:v2
     container_name: ecommerce-server
     environment:
       - NODE_ENV=production
       - PORT=5002
-      - CLIENT_URL=http://localhost
-      # Database configuration - Update these with your database details
+      - CLIENT_URL=http://140.245.238.26
       - DB_SERVER=${DB_SERVER:-gnanabi.database.windows.net}
       - DB_NAME=${DB_NAME:-ecommerce}
       - DB_USER=${DB_USER:-servergnanaabi}
