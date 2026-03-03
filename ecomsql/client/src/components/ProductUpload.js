@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { createProduct, createCategory, getCategories } from '../api';
+import { createProduct, createCategory, getCategories, uploadProductImages } from '../api';
 import './ProductUpload.css';
 
 const ProductUpload = () => {
@@ -7,6 +7,7 @@ const ProductUpload = () => {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const [productForm, setProductForm] = useState({
     name: '',
@@ -16,6 +17,9 @@ const ProductUpload = () => {
     stock: '',
     sku: ''
   });
+
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [filePreview, setFilePreview] = useState([]);
 
   const [categoryForm, setCategoryForm] = useState({
     name: '',
@@ -52,18 +56,61 @@ const ProductUpload = () => {
     }));
   };
 
+  const handleFileSelect = (e) => {
+    const files = Array.from(e.target.files);
+    
+    // Validate file count (max 10)
+    if (files.length > 10) {
+      setMessage('Maximum 10 images allowed');
+      return;
+    }
+
+    // Create preview URLs
+    const previews = files.map(file => {
+      const reader = new FileReader();
+      const preview = {
+        file,
+        url: null,
+        name: file.name
+      };
+
+      reader.onload = (event) => {
+        preview.url = event.target.result;
+        setFilePreview(prev => [...prev]);
+      };
+
+      reader.readAsDataURL(file);
+      return preview;
+    });
+
+    setSelectedFiles(files);
+    setFilePreview(previews);
+    setMessage('');
+  };
+
+  const handleRemoveFile = (index) => {
+    const newFiles = selectedFiles.filter((_, i) => i !== index);
+    const newPreviews = filePreview.filter((_, i) => i !== index);
+    setSelectedFiles(newFiles);
+    setFilePreview(newPreviews);
+  };
+
   const handleCreateProduct = async (e) => {
     e.preventDefault();
     try {
       setLoading(true);
       setMessage('');
+      setUploadProgress(0);
 
       if (!productForm.name || !productForm.category_id || !productForm.price) {
         setMessage('Please fill in all required fields');
+        setLoading(false);
         return;
       }
 
-      await createProduct({
+      // Step 1: Create product
+      setUploadProgress(20);
+      const productResponse = await createProduct({
         name: productForm.name,
         description: productForm.description,
         category_id: parseInt(productForm.category_id),
@@ -72,7 +119,19 @@ const ProductUpload = () => {
         sku: productForm.sku || null
       });
 
-      setMessage('Product created successfully!');
+      const productId = productResponse.data.id;
+
+      // Step 2: Upload images if any are selected
+      if (selectedFiles.length > 0) {
+        setUploadProgress(40);
+        await uploadProductImages(productId, selectedFiles);
+        setUploadProgress(80);
+      }
+
+      setUploadProgress(100);
+      setMessage(`Product created successfully${selectedFiles.length > 0 ? ` with ${selectedFiles.length} image(s)` : ''}!`);
+      
+      // Reset form
       setProductForm({
         name: '',
         description: '',
@@ -81,8 +140,15 @@ const ProductUpload = () => {
         stock: '',
         sku: ''
       });
+      setSelectedFiles([]);
+      setFilePreview([]);
+      setUploadProgress(0);
+
+      // Auto-refresh categories
+      await loadCategories();
     } catch (err) {
       setMessage('Error creating product: ' + err.message);
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -135,6 +201,15 @@ const ProductUpload = () => {
         {message && (
           <div className={`message ${message.includes('Error') ? 'error' : 'success'}`}>
             {message}
+          </div>
+        )}
+
+        {uploadProgress > 0 && uploadProgress < 100 && (
+          <div className="progress-container">
+            <div className="progress-bar">
+              <div className="progress-fill" style={{ width: `${uploadProgress}%` }}></div>
+            </div>
+            <p className="progress-text">Uploading... {uploadProgress}%</p>
           </div>
         )}
 
@@ -219,8 +294,29 @@ const ProductUpload = () => {
               />
             </div>
 
-            <button type="submit" disabled={loading} className="submit-btn">
-              {loading ? 'Creating...' : 'Create Product'}
+            {/* Image Upload Section */}
+            <div className="form-group">
+              <label>Product Images (Optional - Max 10)</label>
+              <div className="file-input-wrapper">
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={handleFileSelect}
+                  disabled={loading}
+                  id="file-input"
+                />
+                <label htmlFor="file-input" className="file-input-label">
+                  📸 Click to select images or drag & drop
+                </label>
+              </div>
+              <p className="file-info">
+                Upload up to 10 images. Supported formats: JPG, PNG, GIF, WebP
+              </p>
+            </div>
+
+<button type="submit" disabled={loading} className="submit-btn">
+              {loading ? `Creating... ${uploadProgress > 0 ? uploadProgress + '%' : ''}` : 'Create Product'}
             </button>
           </form>
         )}

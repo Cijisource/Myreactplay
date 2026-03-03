@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { getProducts, getCategories, addToCart, API_BASE_URL } from '../api';
+import ViewPhotos from './ViewPhotos';
 import './ProductListing.css';
 
 // Memoized product card component
-const ProductCard = React.memo(({ product, onAddToCart }) => {
+const ProductCard = React.memo(({ product, onAddToCart, onViewPhotos }) => {
   // Build image URL - works in both local dev and Docker
   const getImageUrl = () => {
     if (!product.image_url) {
@@ -42,13 +43,22 @@ const ProductCard = React.memo(({ product, onAddToCart }) => {
         <span className="price">${product.price.toFixed(2)}</span>
         <span className="stock">Stock: {product.stock}</span>
       </div>
-      <button
-        className="add-to-cart-btn"
-        onClick={() => onAddToCart(product)}
-        disabled={product.stock === 0}
-      >
-        {product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
-      </button>
+      <div className="product-actions">
+        <button
+          className="add-to-cart-btn"
+          onClick={() => onAddToCart(product)}
+          disabled={product.stock === 0}
+        >
+          {product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
+        </button>
+        <button
+          className="view-photos-btn"
+          onClick={() => onViewPhotos(product)}
+          title="View all product photos"
+        >
+          📸 Photos
+        </button>
+      </div>
     </div>
   </div>
 );
@@ -63,6 +73,7 @@ const ProductListing = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedProduct, setSelectedProduct] = useState(null);
 
   useEffect(() => {
     loadCategories();
@@ -114,56 +125,71 @@ const ProductListing = () => {
     }
   }, []);
 
+  const handleViewPhotos = useCallback((product) => {
+    setSelectedProduct(product);
+  }, []);
+
   const memoizedProducts = useMemo(() => 
     products.map(product => (
       <ProductCard 
         key={product.id} 
         product={product} 
         onAddToCart={handleAddToCart}
+        onViewPhotos={handleViewPhotos}
       />
     )), 
-    [products, handleAddToCart]
+    [products, handleAddToCart, handleViewPhotos]
   );
 
   return (
-    <div className="product-listing">
-      <div className="filters">
-        <div className="search-bar">
-          <input
-            type="text"
-            placeholder="Search products..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+    <>
+      <div className="product-listing">
+        <div className="filters">
+          <div className="search-bar">
+            <input
+              type="text"
+              placeholder="Search products..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          
+          <div className="category-filter">
+            <select 
+              value={selectedCategory} 
+              onChange={(e) => setSelectedCategory(e.target.value)}
+            >
+              <option value="">All Categories</option>
+              {categories.map(cat => (
+                <option key={cat.id} value={cat.id}>{cat.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
-        
-        <div className="category-filter">
-          <select 
-            value={selectedCategory} 
-            onChange={(e) => setSelectedCategory(e.target.value)}
-          >
-            <option value="">All Categories</option>
-            {categories.map(cat => (
-              <option key={cat.id} value={cat.id}>{cat.name}</option>
-            ))}
-          </select>
-        </div>
+
+        {error && <div className="error">{error}</div>}
+
+        {loading ? (
+          <div className="loading">Loading products...</div>
+        ) : (
+          <div className="products-grid">
+            {products.length === 0 ? (
+              <div className="no-products">No products found</div>
+            ) : (
+              memoizedProducts
+            )}
+          </div>
+        )}
       </div>
 
-      {error && <div className="error">{error}</div>}
-
-      {loading ? (
-        <div className="loading">Loading products...</div>
-      ) : (
-        <div className="products-grid">
-          {products.length === 0 ? (
-            <div className="no-products">No products found</div>
-          ) : (
-            memoizedProducts
-          )}
-        </div>
+      {selectedProduct && (
+        <ViewPhotos
+          productId={selectedProduct.id}
+          productName={selectedProduct.name}
+          onClose={() => setSelectedProduct(null)}
+        />
       )}
-    </div>
+    </>
   );
 };
 
