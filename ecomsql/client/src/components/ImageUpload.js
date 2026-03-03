@@ -2,6 +2,80 @@ import React, { useState, useEffect } from 'react';
 import { getProducts, getProductById, uploadProductImage, getProductImages, deleteProductImage, API_BASE_URL } from '../api';
 import './ImageUpload.css';
 
+const SearchableDropdown = ({ products, value, onChange, placeholder }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const dropdownRef = React.useRef(null);
+
+  const filteredProducts = searchTerm.trim() === '' 
+    ? products 
+    : products.filter(product =>
+        product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (product.sku && product.sku.toLowerCase().includes(searchTerm.toLowerCase()))
+      );
+
+  const selectedProductObj = products.find(p => p.id === parseInt(value));
+
+  const handleSelect = (productId) => {
+    onChange({ target: { value: productId } });
+    setIsOpen(false);
+    setSearchTerm('');
+  };
+
+  const handleInputChange = (e) => {
+    setSearchTerm(e.target.value);
+    setIsOpen(true);
+  };
+
+  const handleInputFocus = () => {
+    setIsOpen(true);
+  };
+
+  // Close dropdown when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className="searchable-dropdown" ref={dropdownRef}>
+      <input
+        type="text"
+        value={isOpen ? searchTerm : (selectedProductObj ? selectedProductObj.name : '')}
+        onChange={handleInputChange}
+        onFocus={handleInputFocus}
+        placeholder={placeholder}
+        className="dropdown-input"
+        autoComplete="off"
+      />
+      {isOpen && (
+        <div className="dropdown-menu">
+          {filteredProducts.length > 0 ? (
+            filteredProducts.map(product => (
+              <div
+                key={product.id}
+                className={`dropdown-item ${value === String(product.id) ? 'selected' : ''}`}
+                onClick={() => handleSelect(product.id)}
+              >
+                <div className="product-name">{product.name}</div>
+                {product.sku && <div className="product-sku">SKU: {product.sku}</div>}
+              </div>
+            ))
+          ) : (
+            <div className="dropdown-no-results">No products found</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ImageUpload = () => {
   const [products, setProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -119,12 +193,12 @@ const ImageUpload = () => {
         
         <div className="form-group">
           <label>Select Product *</label>
-          <select value={productId} onChange={handleProductSelect}>
-            <option value="">Choose a product...</option>
-            {products.map(product => (
-              <option key={product.id} value={product.id}>{product.name}</option>
-            ))}
-          </select>
+          <SearchableDropdown 
+            products={products}
+            value={productId}
+            onChange={handleProductSelect}
+            placeholder="Search by product name or SKU..."
+          />
         </div>
 
         {selectedProduct && (

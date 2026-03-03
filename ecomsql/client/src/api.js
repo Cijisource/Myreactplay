@@ -46,6 +46,9 @@ export const deleteProduct = (id) => apiClient.delete(`/products/${id}`);
 
 // Product Images
 export const getProductImages = (productId) => apiClient.get(`/product-images/product/${productId}`);
+
+export const getPrimaryImage = (productId) => apiClient.get(`/product-images/primary/${productId}`);
+
 export const uploadProductImage = (productId, file) => {
   const formData = new FormData();
   formData.append('image', file);
@@ -53,7 +56,24 @@ export const uploadProductImage = (productId, file) => {
     headers: { 'Content-Type': 'multipart/form-data' }
   });
 };
+
+export const uploadProductImages = (productId, files) => {
+  const formData = new FormData();
+  files.forEach((file) => {
+    formData.append('images', file);
+  });
+  return apiClient.post(`/product-images/bulk-upload/${productId}`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+};
+
 export const deleteProductImage = (imageId) => apiClient.delete(`/product-images/${imageId}`);
+
+export const setProductImagePrimary = (imageId) => apiClient.put(`/product-images/${imageId}/set-primary`);
+
+export const reorderProductImages = (productId, imageOrder) => 
+  apiClient.put(`/product-images/reorder/${productId}`, { imageOrder });
+
 
 // Cart
 export const getCartItems = (sessionId) => apiClient.get(`/cart/${sessionId}`);
