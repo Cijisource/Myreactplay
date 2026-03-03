@@ -72,7 +72,7 @@ services:
 
   # Frontend application
   client:
-    image: 555cijaiz555/ecomc:v3
+    image: 555cijaiz555/ecomc:v4
     ports:
       - "3002:3002"
     environment:
