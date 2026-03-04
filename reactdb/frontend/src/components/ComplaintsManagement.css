@@ -990,3 +990,70 @@
     font-size: clamp(0.75em, 1.5vw, 0.9em);
   }
 }
+
+/* File Upload Styles */
+.file-preview {
+  margin-top: 8px;
+  padding: 8px;
+  background: #f0f0f0;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.file-preview img,
+.file-preview video {
+  max-width: 100px;
+  max-height: 100px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.proof-icons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.proof-link {
+  background: none;
+  border: none;
+  font-size: 1.5em;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.proof-link:hover {
+  background-color: #e0e0e0;
+  transform: scale(1.1);
+}
+
+/* Preview Modal Styles */
+.preview-modal {
+  max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  overflow: auto;
+  background: #f5f5f5;
+  border-radius: 4px;
+}
+
+.preview-container img,
+.preview-container video {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}

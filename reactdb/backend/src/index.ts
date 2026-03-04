@@ -3,17 +3,115 @@ import cors from 'cors';
 import { initializeDatabase, closeDatabase, getPool } from './database';
 import sql from 'mssql';
 import jwt from 'jsonwebtoken';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
 const app: Express = express();
 const PORT: number = parseInt(process.env.EXPRESS_PORT || '5000');
 
+// Determine complains directory based on environment
+// In Docker: /app/complains (or use env variable if provided)
+// In local development: process.cwd()/complains
+const isDocker = process.env.NODE_ENV === 'production';
+const complainsDir = process.env.COMPLAINS_DIR || 
+  (isDocker ? '/app/complains' : path.resolve(process.cwd(), 'complains'));
+
+console.log('Environment:', { NODE_ENV: process.env.NODE_ENV, isDocker });
+console.log('Complains directory:', complainsDir);
+
+if (!fs.existsSync(complainsDir)) {
+  fs.mkdirSync(complainsDir, { recursive: true });
+  console.log('Created complains directory:', complainsDir);
+} else {
+  console.log('Complains directory already exists');
+}
+
+// Verify directory is readable/writable
+try {
+  fs.accessSync(complainsDir, fs.constants.R_OK | fs.constants.W_OK);
+  console.log('Complains directory is readable and writable');
+} catch (err) {
+  console.error('ERROR: Complains directory is not accessible:', err);
+}
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, complainsDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB max file size
+  fileFilter: (req, file, cb) => {
+    // Allow images and videos
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime'];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only images and videos are allowed.'));
+    }
+  }
+});
+
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
 app.use(express.json());
+// Serve static files from complains folder via API path and direct path
+app.use('/api/complains', express.static(complainsDir));
+app.use('/complains', express.static(complainsDir));
+console.log('Static file serving enabled at /api/complains and /complains from:', complainsDir);
 
 // Routes
 app.get('/api/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', message: 'Backend is running' });
+});
+
+// Test endpoint to check upload directory
+app.get('/api/complaints/test-upload', (req: Request, res: Response) => {
+  try {
+    const files = fs.readdirSync(complainsDir);
+    const stats = fs.statSync(complainsDir);
+    const fileDetails = files.map(f => {
+      const filePath = path.join(complainsDir, f);
+      const fileStats = fs.statSync(filePath);
+      return {
+        name: f,
+        size: fileStats.size,
+        mode: '0o' + fileStats.mode.toString(8).slice(-3),
+        accessible: true
+      };
+    });
+    
+    res.json({
+      uploadDirectory: complainsDir,
+      directoryExists: fs.existsSync(complainsDir),
+      directoryMode: '0o' + stats.mode.toString(8).slice(-3),
+      directorySize: stats.size,
+      filesInDirectory: files,
+      fileDetails: fileDetails,
+      totalFiles: files.length,
+      servingAt: ['/api/complains', '/complains']
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({
+      error: 'Failed to read upload directory',
+      details: errorMessage,
+      uploadDirectory: complainsDir
+    });
+  }
 });
 
 app.get('/api/database/status', async (req: Request, res: Response) => {
@@ -288,27 +386,32 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
       .input('month', sql.Int, month)
       .query(`
         SELECT 
-          rc.OccupancyId as occupancyId,
+          o.Id as occupancyId,
           t.Id as tenantId,
           t.Name as tenantName,
           rd.Number as roomNumber,
           ISNULL(o.RentFixed, rd.Rent) as rentFixed,
-          rc.RentReceivedOn as rentReceivedOn,
+          ISNULL(CAST(rc.RentReceivedOn AS NVARCHAR), NULL) as rentReceivedOn,
           ISNULL(CAST(rc.RentReceived AS FLOAT), 0) as rentReceived,
-          ISNULL(CAST(rc.RentBalance AS FLOAT), 0) as rentBalance,
-          MONTH(CAST(rc.RentReceivedOn AS DATE)) as [month],
-          YEAR(CAST(rc.RentReceivedOn AS DATE)) as [year],
+          ISNULL(CAST(o.RentFixed AS FLOAT), CAST(rd.Rent AS FLOAT)) - ISNULL(CAST(rc.RentReceived AS FLOAT), 0) as rentBalance,
+          @month as [month],
+          @year as [year],
           CASE 
+            WHEN rc.Id IS NULL THEN 'pending'
             WHEN ISNULL(CAST(rc.RentBalance AS FLOAT), 0) = 0 THEN 'paid'
             WHEN ISNULL(CAST(rc.RentReceived AS FLOAT), 0) > 0 THEN 'partial'
             ELSE 'pending'
           END as paymentStatus
-        FROM RentalCollection rc
-        INNER JOIN Occupancy o ON rc.OccupancyId = o.Id
+        FROM Occupancy o
         INNER JOIN Tenant t ON o.TenantId = t.Id
         INNER JOIN RoomDetail rd ON o.RoomId = rd.Id
-        WHERE YEAR(CAST(rc.RentReceivedOn AS DATE)) = @year
+        LEFT JOIN RentalCollection rc ON rc.OccupancyId = o.Id
+          AND YEAR(CAST(rc.RentReceivedOn AS DATE)) = @year
           AND MONTH(CAST(rc.RentReceivedOn AS DATE)) = @month
+        WHERE 
+          -- Occupancy is active during this month
+          CAST(o.CheckInDate AS DATE) <= EOMONTH(DATEFROMPARTS(@year, @month, 1))
+          AND (o.CheckOutDate IS NULL OR CAST(o.CheckOutDate AS DATE) > DATEFROMPARTS(@year, @month, 1))
         ORDER BY t.Name ASC
       `);
     res.json(result.recordset);
@@ -974,6 +1077,82 @@ app.delete('/api/complaints/:id', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Delete complaint error:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
+  }
+});
+
+// Upload complaint files
+app.post('/api/complaints/upload', upload.fields([
+  { name: 'proof1', maxCount: 1 },
+  { name: 'proof2', maxCount: 1 },
+  { name: 'video', maxCount: 1 }
+]), (req: Request, res: Response) => {
+  try {
+    console.log('\n========== FILE UPLOAD REQUEST ==========');
+    console.log('Complains directory:', complainsDir);
+    console.log('Files received:', req.files);
+    
+    const uploadedFiles: { [key: string]: string | null } = {
+      proof1Url: null,
+      proof2Url: null,
+      videoUrl: null
+    };
+
+    if (req.files && typeof req.files === 'object') {
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+      
+      if (files.proof1 && files.proof1[0]) {
+        const filename = files.proof1[0].filename;
+        uploadedFiles.proof1Url = filename;
+        const proof1Path = path.join(complainsDir, filename);
+        console.log('Proof1 file saved at:', proof1Path);
+        console.log('Proof1 file exists:', fs.existsSync(proof1Path));
+        fs.chmod(proof1Path, 0o644, (err) => {
+          if (err) console.error('Failed to chmod proof1:', err);
+          else console.log('Proof1 permissions set to 644');
+        });
+      }
+      if (files.proof2 && files.proof2[0]) {
+        const filename = files.proof2[0].filename;
+        uploadedFiles.proof2Url = filename;
+        const proof2Path = path.join(complainsDir, filename);
+        console.log('Proof2 file saved at:', proof2Path);
+        console.log('Proof2 file exists:', fs.existsSync(proof2Path));
+        fs.chmod(proof2Path, 0o644, (err) => {
+          if (err) console.error('Failed to chmod proof2:', err);
+          else console.log('Proof2 permissions set to 644');
+        });
+      }
+      if (files.video && files.video[0]) {
+        const filename = files.video[0].filename;
+        uploadedFiles.videoUrl = filename;
+        const videoPath = path.join(complainsDir, filename);
+        console.log('Video file saved at:', videoPath);
+        console.log('Video file exists:', fs.existsSync(videoPath));
+        fs.chmod(videoPath, 0o644, (err) => {
+          if (err) console.error('Failed to chmod video:', err);
+          else console.log('Video permissions set to 644');
+        });
+      }
+    }
+
+    console.log('Upload response:', uploadedFiles);
+    console.log('=========================================\n');
+    res.json({
+      message: 'Files uploaded successfully',
+      files: uploadedFiles,
+      servingUrls: {
+        proof1: uploadedFiles.proof1Url ? `/api/complains/${uploadedFiles.proof1Url}` : null,
+        proof2: uploadedFiles.proof2Url ? `/api/complains/${uploadedFiles.proof2Url}` : null,
+        video: uploadedFiles.videoUrl ? `/api/complains/${uploadedFiles.videoUrl}` : null
+      }
+    });
+  } catch (error) {
+    console.error('File upload error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({
+      error: 'Failed to upload files',
+      details: errorMessage
+    });
   }
 });
 
@@ -2184,6 +2363,50 @@ app.get('/api/service-allocations-with-payments', async (req: Request, res: Resp
   }
 });
 
+// Get service allocations for meter reading (searchable)
+app.get('/api/service-allocations-for-reading', async (req: Request, res: Response) => {
+  try {
+    const { search } = req.query;
+    const pool = getPool();
+    
+    let query = `
+      SELECT 
+        sra.Id as id,
+        sra.ServiceId as serviceId,
+        sra.RoomId as roomId,
+        rd.Number as roomNumber,
+        sd.ConsumerNo as consumerNo,
+        sd.ConsumerName as consumerName,
+        sd.MeterNo as meterNo,
+        CONCAT(rd.Number, ' - ', sd.ConsumerName, ' (', sd.ConsumerNo, ')') as displayName
+      FROM ServiceRoomAllocation sra
+      INNER JOIN ServiceDetails sd ON sra.ServiceId = sd.Id
+      INNER JOIN RoomDetail rd ON sra.RoomId = rd.Id
+    `;
+    
+    const request = pool.request();
+    
+    if (search) {
+      query += ` WHERE rd.Number LIKE @search
+                    OR sd.ConsumerName LIKE @search
+                    OR sd.ConsumerNo LIKE @search`;
+      request.input('search', sql.NVarChar(100), `%${search}%`);
+    }
+    
+    query += ` ORDER BY rd.Number ASC, sd.ConsumerName ASC`;
+    
+    const result = await request.query(query);
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Get service allocations for reading error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve service allocations',
+      details: errorMessage
+    });
+  }
+});
+
 // Error handling middleware
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   console.error('Unhandled error:', err);
@@ -2193,6 +2416,53 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 });
 
 // Service Consumption endpoints
+
+// Get previous month's ending meter reading for a service allocation
+app.get('/api/service-consumption/previous-month-reading/:serviceAllocId/:month/:year', async (req: Request, res: Response) => {
+  try {
+    const { serviceAllocId, month, year } = req.params;
+    const pool = getPool();
+    
+    // Calculate previous month
+    let prevMonth = parseInt(month) - 1;
+    let prevYear = parseInt(year);
+    if (prevMonth < 1) {
+      prevMonth = 12;
+      prevYear -= 1;
+    }
+    
+    const result = await pool
+      .request()
+      .input('serviceAllocId', sql.Int, parseInt(serviceAllocId))
+      .input('prevYear', sql.Int, prevYear)
+      .input('prevMonth', sql.Int, prevMonth)
+      .query(`
+        SELECT TOP 1
+          scd.EndingMeterReading as endingMeterReading,
+          scd.ReadingTakenDate as readingTakenDate
+        FROM ServiceConsumptionDetails scd
+        WHERE scd.ServiceAllocId = @serviceAllocId
+          AND YEAR(scd.ReadingTakenDate) = @prevYear
+          AND MONTH(scd.ReadingTakenDate) = @prevMonth
+        ORDER BY scd.ReadingTakenDate DESC
+      `);
+    
+    if (!res.headersSent) {
+      res.json(result.recordset);
+    }
+  } catch (error) {
+    console.error('Get previous month reading error:', error);
+    if (!res.headersSent) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ 
+        error: 'Failed to retrieve previous month reading',
+        details: errorMessage
+      });
+    }
+  }
+});
+
+// Get service consumption details
 app.get('/api/service-consumption', async (req: Request, res: Response) => {
   try {
     const { serviceAllocId, startDate, endDate, roomId } = req.query;
@@ -2214,6 +2484,9 @@ app.get('/api/service-consumption', async (req: Request, res: Response) => {
         scd.UnitsConsumed as unitsConsumed,
         scd.AmountToBeCollected as amountToBeCollected,
         scd.UnitRate as unitRate,
+        scd.MeterPhoto1Url as meterPhoto1Url,
+        scd.MeterPhoto2Url as meterPhoto2Url,
+        scd.MeterPhoto3Url as meterPhoto3Url,
         scd.CreatedDate as createdDate,
         scd.UpdatedDate as updatedDate
       FROM ServiceConsumptionDetails scd
@@ -2263,6 +2536,7 @@ app.get('/api/service-consumption', async (req: Request, res: Response) => {
   }
 });
 
+
 // Get service consumption by ID
 app.get('/api/service-consumption/:id', async (req: Request, res: Response) => {
   try {
@@ -2288,6 +2562,9 @@ app.get('/api/service-consumption/:id', async (req: Request, res: Response) => {
           scd.UnitsConsumed as unitsConsumed,
           scd.AmountToBeCollected as amountToBeCollected,
           scd.UnitRate as unitRate,
+          scd.MeterPhoto1Url as meterPhoto1Url,
+          scd.MeterPhoto2Url as meterPhoto2Url,
+          scd.MeterPhoto3Url as meterPhoto3Url,
           scd.CreatedDate as createdDate,
           scd.UpdatedDate as updatedDate
         FROM ServiceConsumptionDetails scd
@@ -2324,7 +2601,8 @@ app.post('/api/service-consumption', async (req: Request, res: Response) => {
       readingTakenDate, 
       startingMeterReading, 
       endingMeterReading, 
-      unitRate 
+      unitRate,
+      isAutoFilledStartingReading
     } = req.body;
     
     // Validation
@@ -2340,8 +2618,13 @@ app.post('/api/service-consumption', async (req: Request, res: Response) => {
     const unitsConsumed = parseInt(endingMeterReading) - parseInt(startingMeterReading);
     const amountToBeCollected = unitsConsumed * (unitRate || 10);
     
-    const result = await pool
-      .request()
+    // Handle photo uploads - store photo URLs from request body
+    const photoUrls: (string | null)[] = [null, null, null];
+    if (req.body.meterPhoto1) photoUrls[0] = req.body.meterPhoto1;
+    if (req.body.meterPhoto2) photoUrls[1] = req.body.meterPhoto2;
+    if (req.body.meterPhoto3) photoUrls[2] = req.body.meterPhoto3;
+    
+    const request = pool.request()
       .input('serviceAllocId', sql.Int, parseInt(serviceAllocId))
       .input('readingTakenDate', sql.DateTime, new Date(readingTakenDate))
       .input('startingMeterReading', sql.Int, parseInt(startingMeterReading))
@@ -2350,29 +2633,42 @@ app.post('/api/service-consumption', async (req: Request, res: Response) => {
       .input('amountToBeCollected', sql.Money, amountToBeCollected)
       .input('unitRate', sql.Money, unitRate || 10)
       .input('createdDate', sql.DateTime, new Date())
-      .query(`
-        INSERT INTO ServiceConsumptionDetails (
-          ServiceAllocId,
-          ReadingTakenDate,
-          StartingMeterReading,
-          EndingMeterReading,
-          UnitsConsumed,
-          AmountToBeCollected,
-          UnitRate,
-          CreatedDate
-        )
-        VALUES (
-          @serviceAllocId,
-          @readingTakenDate,
-          @startingMeterReading,
-          @endingMeterReading,
-          @unitsConsumed,
-          @amountToBeCollected,
-          @unitRate,
-          @createdDate
-        );
-        SELECT SCOPE_IDENTITY() as id;
-      `);
+      .input('meterPhoto1Url', sql.NVarChar(sql.MAX), photoUrls[0] || null)
+      .input('meterPhoto2Url', sql.NVarChar(sql.MAX), photoUrls[1] || null)
+      .input('meterPhoto3Url', sql.NVarChar(sql.MAX), photoUrls[2] || null)
+      .input('isAutoFilledStartingReading', sql.Bit, isAutoFilledStartingReading ? 1 : 0);
+    
+    const result = await request.query(`
+      INSERT INTO ServiceConsumptionDetails (
+        ServiceAllocId,
+        ReadingTakenDate,
+        StartingMeterReading,
+        EndingMeterReading,
+        UnitsConsumed,
+        AmountToBeCollected,
+        UnitRate,
+        MeterPhoto1Url,
+        MeterPhoto2Url,
+        MeterPhoto3Url,
+        IsAutoFilledStartingReading,
+        CreatedDate
+      )
+      VALUES (
+        @serviceAllocId,
+        @readingTakenDate,
+        @startingMeterReading,
+        @endingMeterReading,
+        @unitsConsumed,
+        @amountToBeCollected,
+        @unitRate,
+        @meterPhoto1Url,
+        @meterPhoto2Url,
+        @meterPhoto3Url,
+        @isAutoFilledStartingReading,
+        @createdDate
+      );
+      SELECT SCOPE_IDENTITY() as id;
+    `);
     
     const consumptionId = result.recordset[0].id;
     
@@ -2396,6 +2692,10 @@ app.post('/api/service-consumption', async (req: Request, res: Response) => {
           scd.UnitsConsumed as unitsConsumed,
           scd.AmountToBeCollected as amountToBeCollected,
           scd.UnitRate as unitRate,
+          scd.MeterPhoto1Url as meterPhoto1Url,
+          scd.MeterPhoto2Url as meterPhoto2Url,
+          scd.MeterPhoto3Url as meterPhoto3Url,
+          scd.IsAutoFilledStartingReading as isAutoFilledStartingReading,
           scd.CreatedDate as createdDate,
           scd.UpdatedDate as updatedDate
         FROM ServiceConsumptionDetails scd

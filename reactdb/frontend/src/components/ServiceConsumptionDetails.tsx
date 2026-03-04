@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../api';
+import SearchableDropdown from './SearchableDropdown';
 import '../components/ManagementStyles.css';
 
 interface ConsumptionDetail {
@@ -17,9 +18,9 @@ interface ConsumptionDetail {
   unitsConsumed: number;
   amountToBeCollected: number;
   unitRate: number;
-  photo1Url?: string;
-  photo2Url?: string;
-  photo3Url?: string;
+  meterPhoto1Url?: string;
+  meterPhoto2Url?: string;
+  meterPhoto3Url?: string;
   createdDate: string;
 }
 
@@ -31,9 +32,12 @@ interface RoomOption {
 interface ServiceAllocation {
   id: number;
   roomNumber: string;
+  roomId: number;
   consumerNo: string;
   consumerName: string;
+  meterNo: string;
   serviceId: number;
+  displayName: string;
 }
 
 interface BillSummary {
@@ -64,9 +68,11 @@ export default function ServiceConsumptionDetails() {
   const [filteredDetails, setFilteredDetails] = useState<ConsumptionDetail[]>([]);
   const [rooms, setRooms] = useState<RoomOption[]>([]);
   const [serviceAllocations, setServiceAllocations] = useState<ServiceAllocation[]>([]);
+  const [filteredServiceAllocations, setFilteredServiceAllocations] = useState<ServiceAllocation[]>([]);
   const [paymentDataMap, setPaymentDataMap] = useState<Map<string, PaymentData>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [formSubmitting, setFormSubmitting] = useState(false);
 
   // Filter states
   const [selectedRoom, setSelectedRoom] = useState<number>(0);
@@ -81,6 +87,9 @@ export default function ServiceConsumptionDetails() {
     endingMeterReading: 0,
   });
 
+  // const [previousMonthReading, setPreviousMonthReading] = useState<number | null>(null); // Not used
+  const [isAutoFilledStarting, setIsAutoFilledStarting] = useState(false);
+  // const [searchTerm, setSearchTerm] = useState(''); // Not used
   const [photos, setPhotos] = useState<File[]>([]);
   const [photoPreview, setPhotoPreview] = useState<string[]>([]);
 
@@ -155,33 +164,88 @@ export default function ServiceConsumptionDetails() {
 
   async function fetchServiceAllocations() {
     try {
-      const response = await apiService.getServiceAllocationsWithPayments();
-      // Transform the data to get service allocations with room and consumer details
+      const response = await apiService.getServiceAllocationsForReading();
+      // Transform and set the allocations
       const allocations = response.data.map((item: any) => ({
         id: item.id,
-        roomNumber: item.room?.number,
-        consumerNo: item.service?.consumerNo,
-        consumerName: item.service?.consumerName,
+        roomId: item.roomId,
+        roomNumber: item.roomNumber,
+        consumerNo: item.consumerNo,
+        consumerName: item.consumerName,
+        meterNo: item.meterNo,
         serviceId: item.serviceId,
+        displayName: item.displayName || `Room ${item.roomNumber} - ${item.consumerName} (${item.consumerNo})`,
       }));
       setServiceAllocations(allocations);
+      setFilteredServiceAllocations(allocations);
 
       // Build payment data map
       const paymentMap = new Map<string, PaymentData>();
       response.data.forEach((item: any) => {
-        const consumerNo = item.service?.consumerNo;
+        const consumerNo = item.consumerNo;
         if (consumerNo && !paymentMap.has(consumerNo)) {
           paymentMap.set(consumerNo, {
             consumerNo: consumerNo,
-            consumerName: item.service?.consumerName || 'N/A',
-            lastPaymentDate: item.lastPayment?.billDate || null,
-            billAmount: item.lastPayment?.billAmount || null,
+            consumerName: item.consumerName || 'N/A',
+            lastPaymentDate: null,
+            billAmount: null,
           });
         }
       });
       setPaymentDataMap(paymentMap);
     } catch (err) {
       console.error('Error fetching service allocations:', err);
+    }
+  }
+
+  async function fetchPreviousMonthReading(serviceAllocId: number) {
+    try {
+      const today = new Date();
+      const currentMonth = today.getMonth() + 1;
+      const currentYear = today.getFullYear();
+      
+      const response = await apiService.getPreviousMonthEndingReading(
+        serviceAllocId,
+        currentMonth,
+        currentYear
+      );
+      
+      if (response.data && response.data.length > 0) {
+        const reading = parseInt(response.data[0].endingMeterReading) || 0;
+        // setPreviousMonthReading(reading); // Not used
+        setFormData(prev => ({
+          ...prev,
+          startingMeterReading: reading,
+        }));
+        setIsAutoFilledStarting(true);
+      } else {
+        // setPreviousMonthReading(null); // Not used
+        setFormData(prev => ({
+          ...prev,
+          startingMeterReading: 0,
+        }));
+        setIsAutoFilledStarting(false);
+      }
+    } catch (err) {
+      console.error('Error fetching previous month reading:', err);
+      // setPreviousMonthReading(null); // Not used
+      setIsAutoFilledStarting(false);
+    }
+  }
+
+  function handleSearchServiceAllocations(term: string) {
+    // setSearchTerm(term); // Not used
+    if (!term) {
+      setFilteredServiceAllocations(serviceAllocations);
+    } else {
+      const searchTerm = term.toLowerCase();
+      const filtered = serviceAllocations.filter(alloc =>
+        alloc.displayName.toLowerCase().includes(searchTerm) ||
+        alloc.roomNumber.toLowerCase().includes(searchTerm) ||
+        alloc.consumerName.toLowerCase().includes(searchTerm) ||
+        alloc.consumerNo.toLowerCase().includes(searchTerm)
+      );
+      setFilteredServiceAllocations(filtered);
     }
   }
 
@@ -211,13 +275,25 @@ export default function ServiceConsumptionDetails() {
       return;
     }
 
+    if (formData.endingMeterReading <= formData.startingMeterReading) {
+      setError('Ending meter reading must be greater than starting meter reading');
+      return;
+    }
+
     try {
+      setFormSubmitting(true);
+      
+      // Create submission data with photo data URLs
       const submitData = {
         serviceAllocId: formData.serviceAllocId,
         startingMeterReading: formData.startingMeterReading,
         endingMeterReading: formData.endingMeterReading,
         readingTakenDate: new Date().toISOString(),
-        unitRate: 10, // Default unit rate, can be made configurable
+        unitRate: 10,
+        isAutoFilledStartingReading: isAutoFilledStarting,
+        meterPhoto1: photoPreview[0] || null,
+        meterPhoto2: photoPreview[1] || null,
+        meterPhoto3: photoPreview[2] || null,
       };
 
       const response = await apiService.createServiceConsumption(submitData);
@@ -228,12 +304,16 @@ export default function ServiceConsumptionDetails() {
         setFormData({ serviceAllocId: 0, startingMeterReading: 0, endingMeterReading: 0 });
         setPhotos([]);
         setPhotoPreview([]);
+        // setPreviousMonthReading(null); // Not used
+        setIsAutoFilledStarting(false);
         setError(null);
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to save consumption details';
       setError(errorMsg);
       console.error('Error saving consumption details:', err);
+    } finally {
+      setFormSubmitting(false);
     }
   }
 
@@ -385,34 +465,50 @@ export default function ServiceConsumptionDetails() {
           <h3>📝 Add New Reading</h3>
 
           <div className="form-row">
-            <div className="form-group">
-              <label>Service/Room:</label>
-              <select
+            <div className="form-group" style={{ flex: 1 }}>
+              <SearchableDropdown
+                options={filteredServiceAllocations.map(alloc => ({
+                  label: alloc.displayName,
+                  value: alloc.id,
+                  ...alloc
+                }))}
                 value={formData.serviceAllocId}
-                onChange={(e) =>
-                  setFormData({ ...formData, serviceAllocId: parseInt(e.target.value) })
-                }
-                className="form-input"
-              >
-                <option value={0}>Select Service</option>
-                {serviceAllocations.map((alloc) => (
-                  <option key={alloc.id} value={alloc.id}>
-                    Room {alloc.roomNumber} - {alloc.consumerName} ({alloc.consumerNo})
-                  </option>
-                ))}
-              </select>
+                onChange={(option: any) => {
+                  setFormData({ ...formData, serviceAllocId: option.id });
+                  fetchPreviousMonthReading(option.id);
+                }}
+                placeholder="Select a service/room"
+                searchPlaceholder="Search by room, consumer name, or consumer number..."
+                label="Service/Room:"
+                onSearch={handleSearchServiceAllocations}
+              />
             </div>
+          </div>
 
+          <div className="form-row">
             <div className="form-group">
               <label>Starting Meter Reading:</label>
-              <input
-                type="number"
-                value={formData.startingMeterReading}
-                onChange={(e) =>
-                  setFormData({ ...formData, startingMeterReading: parseInt(e.target.value) })
-                }
-                className="form-input"
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="number"
+                  value={formData.startingMeterReading}
+                  onChange={(e) => {
+                    setFormData({ ...formData, startingMeterReading: parseInt(e.target.value) || 0 });
+                    setIsAutoFilledStarting(false);
+                  }}
+                  className="form-input"
+                />
+                {isAutoFilledStarting && (
+                  <span style={{
+                    fontSize: '0.75rem',
+                    color: '#28a745',
+                    marginTop: '0.25rem',
+                    display: 'block'
+                  }}>
+                    ✓ Auto-filled from previous month
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="form-group">
@@ -421,7 +517,7 @@ export default function ServiceConsumptionDetails() {
                 type="number"
                 value={formData.endingMeterReading}
                 onChange={(e) =>
-                  setFormData({ ...formData, endingMeterReading: parseInt(e.target.value) })
+                  setFormData({ ...formData, endingMeterReading: parseInt(e.target.value) || 0 })
                 }
                 className="form-input"
               />
@@ -443,6 +539,7 @@ export default function ServiceConsumptionDetails() {
                     accept="image/*"
                     onChange={(e) => handlePhotoUpload(e, index)}
                     className="photo-input"
+                    disabled={formSubmitting}
                   />
                   {photos[index] && (
                     <span className="photo-filename">{photos[index].name}</span>
@@ -452,8 +549,8 @@ export default function ServiceConsumptionDetails() {
             </div>
           </div>
 
-          <button type="submit" className="submit-btn">
-            Save Reading & Photos
+          <button type="submit" className="submit-btn" disabled={formSubmitting}>
+            {formSubmitting ? '⟳ Saving...' : 'Save Reading & Photos'}
           </button>
         </form>
       )}
@@ -552,7 +649,7 @@ export default function ServiceConsumptionDetails() {
                   <td className="amount-cell">₹{detail.amountToBeCollected.toFixed(2)}</td>
                   <td>
                     <div className="photo-count">
-                      {[detail.photo1Url, detail.photo2Url, detail.photo3Url].filter(Boolean).length}/3
+                      {[detail.meterPhoto1Url, detail.meterPhoto2Url, detail.meterPhoto3Url].filter(Boolean).length}/3
                     </div>
                   </td>
                   <td>
