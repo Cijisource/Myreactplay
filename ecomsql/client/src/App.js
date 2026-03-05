@@ -4,7 +4,6 @@ import ProductUpload from './components/ProductUpload';
 import ImageUpload from './components/ImageUpload';
 import ShoppingCart from './components/ShoppingCart';
 import OrderManagement from './components/OrderManagement';
-import HealthCheck from './components/HealthCheck';
 import './App.css';
 
 // Error Boundary
@@ -41,6 +40,7 @@ class ErrorBoundary extends React.Component {
 
 function App() {
   const [currentPage, setCurrentPage] = useState('products');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const renderPage = () => {
     switch (currentPage) {
@@ -65,41 +65,49 @@ function App() {
         <header className="app-header">
           <div className="header-container">
             <div className="header-content">
-              <h1>E-Commerce Store</h1>
-              <nav className="main-nav">
-                <button
-                  className={`nav-link ${currentPage === 'products' ? 'active' : ''}`}
-                  onClick={() => setCurrentPage('products')}
-                >
-                  Products
-                </button>
-                <button
-                  className={`nav-link ${currentPage === 'upload' ? 'active' : ''}`}
-                  onClick={() => setCurrentPage('upload')}
-                >
-                  Add Products
-                </button>
-                <button
-                  className={`nav-link ${currentPage === 'images' ? 'active' : ''}`}
-                  onClick={() => setCurrentPage('images')}
-                >
-                  Upload Images
-                </button>
-                <button
-                  className={`nav-link ${currentPage === 'cart' ? 'active' : ''}`}
-                  onClick={() => setCurrentPage('cart')}
-                >
-                  Cart
-                </button>
-                <button
-                  className={`nav-link ${currentPage === 'orders' ? 'active' : ''}`}
-                  onClick={() => setCurrentPage('orders')}
-                >
-                  Orders
-                </button>
-              </nav>
+              <h1>🛍️ ShopHub</h1>
             </div>
-            <HealthCheck />
+
+            <div className="header-search">
+              <input
+                type="text"
+                placeholder="Search for products..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              <button>Search</button>
+            </div>
+
+            <div className="header-icons">
+              <div className="header-icon" onClick={() => setCurrentPage('cart')} style={{ cursor: 'pointer' }}>
+                🛒 Cart
+                {/* {cartCount > 0 && <span className="cart-badge">{cartCount}</span>} */}
+              </div>
+              <div className="header-icon" onClick={() => setCurrentPage('orders')} style={{ cursor: 'pointer' }}>
+                📦 Orders
+              </div>
+            </div>
+
+            <nav className="main-nav">
+              <button
+                className={`nav-link ${currentPage === 'products' ? 'active' : ''}`}
+                onClick={() => setCurrentPage('products')}
+              >
+                Browse
+              </button>
+              <button
+                className={`nav-link ${currentPage === 'upload' ? 'active' : ''}`}
+                onClick={() => setCurrentPage('upload')}
+              >
+                Sell
+              </button>
+              <button
+                className={`nav-link ${currentPage === 'images' ? 'active' : ''}`}
+                onClick={() => setCurrentPage('images')}
+              >
+                Media
+              </button>
+            </nav>
           </div>
         </header>
 
@@ -108,7 +116,7 @@ function App() {
         </main>
 
         <footer className="app-footer">
-          <p>&copy; 2026 E-Commerce Store. All rights reserved.</p>
+          <p>&copy; 2026 ShopHub. Unique Products Under One Roof. | Free Shipping on orders above ₹1000</p>
         </footer>
       </div>
     </ErrorBoundary>
