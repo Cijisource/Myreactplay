@@ -59,7 +59,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - VITE_API_URL=http://localhost/api
+        - VITE_API_URL=http://mansion.gnanabi.info/api
     ports:
       - "3000:3000"
     deploy:
