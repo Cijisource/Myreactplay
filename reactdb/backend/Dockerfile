@@ -22,6 +22,19 @@ RUN npm install --only=production
 
 COPY --from=builder /app/dist ./dist
 
+# Create complains directory with proper permissions before app starts
+RUN mkdir -p /app/complains && \
+    chmod 755 /app/complains && \
+    chmod 755 /app
+
+RUN mkdir -p /app/dailystatus && \
+    chmod 755 /app/dailystatus && \
+    chmod 755 /app
+
+# Set environment variable for complains directory
+ENV COMPLAINS_DIR=/app/complains
+ENV DAILY_STATUS_DIR=/app/dailystatus
+
 EXPOSE 5000
 
 CMD ["npm", "start"]

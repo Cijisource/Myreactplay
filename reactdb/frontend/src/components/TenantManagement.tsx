@@ -28,7 +28,7 @@ export interface TenantWithOccupancy extends Tenant {
   lastPaymentDate?: string;
 }
 
-type SearchField = 'all' | 'name' | 'phone' | 'city' | 'address';
+type SearchField = 'all' | 'name' | 'phone' | 'city' | 'address' | 'room';
 type SortOption = 'name-asc' | 'name-desc' | 'phone-asc' | 'city-asc' | 'recently-added';
 
 export default function TenantManagement() {
@@ -84,17 +84,21 @@ export default function TenantManagement() {
           return tenant.city.toLowerCase().includes(lowerQuery);
         case 'address':
           return tenant.address.toLowerCase().includes(lowerQuery);
+        case 'room':
+          return (tenant.roomNumber || '').toLowerCase().includes(lowerQuery);
         case 'all':
         default: {
           const tenantPhone = tenant.phone || '';
           const normalizedPhone = normalizePhone(tenantPhone);
+          const roomNumber = tenant.roomNumber || '';
           
           return (
             tenant.name.toLowerCase().includes(lowerQuery) ||
             tenantPhone.toLowerCase().includes(lowerQuery) ||
             (/^\d+/.test(query) && normalizedPhone.includes(normalizedQuery)) ||
             tenant.city.toLowerCase().includes(lowerQuery) ||
-            tenant.address.toLowerCase().includes(lowerQuery)
+            tenant.address.toLowerCase().includes(lowerQuery) ||
+            roomNumber.toLowerCase().includes(lowerQuery)
           );
         }
       }
@@ -191,6 +195,7 @@ export default function TenantManagement() {
     { value: 'phone', label: 'Phone Number' },
     { value: 'city', label: 'City' },
     { value: 'address', label: 'Address' },
+    { value: 'room', label: 'Room Number' },
   ];
 
   const stats = useMemo(() => {

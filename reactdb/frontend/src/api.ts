@@ -1,6 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || '/apisdd';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 // Log API configuration
 console.log('[API Config]', {
@@ -26,6 +26,47 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+// Get the base API URL for file serving
+const getApiBaseUrl = (): string => {
+  if (!API_URL) return window.location.origin;
+  
+  // If API_URL is absolute, extract the base
+  if (API_URL.startsWith('http://') || API_URL.startsWith('https://')) {
+    const base = API_URL.replace(/\/api\/?$/, ''); // Remove /api suffix
+    console.log('[File URL] Using absolute API base:', base);
+    return base;
+  }
+  
+  // If API_URL is relative, use the current origin
+  console.log('[File URL] Using relative API, origin:', window.location.origin);
+  return window.location.origin;
+};
+
+// Helper function to construct file URLs
+export const getFileUrl = (filePath: string): string => {
+  if (!filePath) return '';
+  
+  // If it's already an absolute URL, return as is
+  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+    console.log('[File URL] Already absolute:', filePath);
+    return filePath;
+  }
+  
+  // If it's a path with /, use the API base URL
+  if (filePath.startsWith('/')) {
+    const baseUrl = getApiBaseUrl();
+    const fullUrl = `${baseUrl}${filePath}`;
+    console.log('[File URL] Constructed URL from path:', { filePath, baseUrl, fullUrl });
+    return fullUrl;
+  }
+  
+  // For plain filenames, prepend the API complains path
+  const baseUrl = getApiBaseUrl();
+  const fullUrl = `${baseUrl}/api/complains/${filePath}`;
+  console.log('[File URL] Constructed URL from filename:', { filePath, baseUrl, fullUrl });
+  return fullUrl;
+};
 
 export const apiService = {
   getHealth: () => api.get('/health'),
@@ -62,6 +103,38 @@ export const apiService = {
   createComplaint: (data: any) => api.post('/complaints', data),
   updateComplaint: (complaintId: number, data: any) => api.put(`/complaints/${complaintId}`, data),
   deleteComplaint: (complaintId: number) => api.delete(`/complaints/${complaintId}`),
+  uploadComplaintFiles: (formData: FormData) => {
+    // Use fetch instead of axios for FormData to avoid header issues
+    const token = localStorage.getItem('authToken');
+    const headers: any = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    
+    // Remove Content-Type header - browser will set it with boundary for FormData
+    console.log('[Upload] Starting file upload with FormData');
+    
+    return fetch(`${API_URL}/complaints/upload`, {
+      method: 'POST',
+      headers: headers,
+      body: formData
+    })
+    .then(response => {
+      console.log('[Upload] Response status:', response.status);
+      if (!response.ok) {
+        throw new Error(`Upload failed with status ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log('[Upload] Response data:', data);
+      return { data };
+    })
+    .catch(error => {
+      console.error('[Upload] Error:', error);
+      throw error;
+    });
+  },
   getRooms: () => api.get('/rooms'),
 
   // Service Details APIs
@@ -122,11 +195,47 @@ export const apiService = {
   createDailyStatus: (data: any) => api.post('/daily-status', data),
   updateDailyStatus: (statusId: number, data: any) => api.put(`/daily-status/${statusId}`, data),
   deleteDailyStatus: (statusId: number) => api.delete(`/daily-status/${statusId}`),
+  getDailyStatusMedia: (statusId: number) => api.get(`/daily-status/${statusId}/media`),
+  getDailyStatusAllMedia: () => api.get('/all-media/'), // New endpoint to fetch all media files
+  uploadDailyStatusMedia: (formData: FormData) => {
+    // Use fetch instead of axios for FormData to avoid header issues
+    const token = localStorage.getItem('authToken');
+    const headers: any = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    
+    // Remove Content-Type header - browser will set it with boundary for FormData
+    console.log('[Upload] Starting daily status media upload with FormData');
+    
+    return fetch(`${API_URL}/daily-status/upload`, {
+      method: 'POST',
+      headers: headers,
+      body: formData
+    })
+    .then(response => {
+      console.log('[Upload] Response status:', response.status);
+      if (!response.ok) {
+        throw new Error(`Upload failed with status ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log('[Upload] Response data:', data);
+      return { data };
+    })
+    .catch(error => {
+      console.error('[Upload] Error:', error);
+      throw error;
+    });
+  },
+  deleteDailyStatusMedia: (mediaId: number) => api.delete(`/daily-status/media/${mediaId}`),
 
   // Service Room Allocation APIs
   getServiceAllocations: () => api.get('/service-allocations'),
   getServiceAllocationById: (allocationId: number) => api.get(`/service-allocations/${allocationId}`),
   getServiceAllocationsWithPayments: () => api.get('/service-allocations-with-payments'),
+  getServiceAllocationsForReading: () => api.get('/service-allocations-for-reading'),
   createServiceAllocation: (data: any) => api.post('/service-allocations', data),
   updateServiceAllocation: (allocationId: number, data: any) => api.put(`/service-allocations/${allocationId}`, data),
   deleteServiceAllocation: (allocationId: number) => api.delete(`/service-allocations/${allocationId}`),
@@ -141,6 +250,8 @@ export const apiService = {
     return api.get(`/service-consumption${params.toString() ? '?' + params.toString() : ''}`);
   },
   getServiceConsumptionById: (consumptionId: number) => api.get(`/service-consumption/${consumptionId}`),
+  getPreviousMonthEndingReading: (serviceAllocId: number, month: number, year: number) =>
+    api.get(`/service-consumption/previous-month-reading/${serviceAllocId}/${month}/${year}`),
   createServiceConsumption: (data: any) => api.post('/service-consumption', data),
   deleteServiceConsumption: (consumptionId: number) => api.delete(`/service-consumption/${consumptionId}`),
   

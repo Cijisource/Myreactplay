@@ -1,6 +1,6 @@
 services:
   backend:
-    image: 555cijaiz555/rback:v4
+    image: 555cijaiz555/rback:v6
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -14,6 +14,9 @@ services:
       - DB_PASSWORD=serverpassword@123
       - EXPRESS_PORT=5000
       - NODE_ENV=production
+    volumes:
+      - ./mansion/photos/complains:/app/complains
+      - ./mansion/photos/daily-status:/app/dailystatus
     deploy:
       replicas: 3   # Run 3 containers for the API service
       restart_policy:
@@ -34,10 +37,11 @@ services:
     container_name: nginx_proxy
     ports:
       - "80:90"   # host:container mapping
-      - "443:443"   # HTTPS port
+      - "443:443"
     volumes:
       - /home/ubuntu/config/nginx.conf:/etc/nginx/nginx.conf:ro
-      - /home/ubuntu/config/ssl:/etc/nginx/ssl:ro  # Mount SSL certificates
+      - /home/ubuntu/config/certs:/etc/letsencrypt:ro
+      - /home/ubuntu/config/html:/var/www/html
     depends_on:
       - frontend
       - backend
@@ -52,30 +56,17 @@ services:
     networks:
       - mansion-network
 
-  certbot:
-    image: certbot/certbot
-    volumes:
-    - /home/ubuntu/config/data/certbot/conf:/etc/letsencrypt
-    - /home/ubuntu/config/data/certbot/www:/var/www/certbot
-    entrypoint: >
-      sh -c "trap exit TERM;
-            while :; do
-              certbot renew --webroot -w /var/www/certbot;
-              nginx -s reload;
-              sleep 12h & wait $!;
-            done"
-       
   frontend:
-    image: 555cijaiz555/rfront:v4
+    image: 555cijaiz555/rfront:v6
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - VITE_API_URL=http://68.233.119.219/api
+        - VITE_API_URL=http://mansion.gnanabi.info/api
     ports:
       - "3000:3000"
     environment:
-      - VITE_API_URL=http://68.233.119.219/api
+      - VITE_API_URL=http://mansion.gnanabi.info/api
     deploy:
       resources:
         limits:
@@ -85,6 +76,69 @@ services:
       - mansion-network
     restart: unless-stopped
 
+  # # Frontend application
+  # client:
+  #   image: 555cijaiz555/ecomc:v4
+  #   ports:
+  #     - "3002:3002"
+  #   environment:
+  #     - REACT_APP_API_URL=${REACT_APP_API_URL:-http://mansion.gnanabi.info/api}
+  #     - PORT=3002
+  #   expose:
+  #     - 3002
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '0.1'
+  #         memory: 125M
+  #   depends_on:
+  #     - server
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf
+  #     - ./app.conf:/etc/nginx/conf.d/app.conf
+  #   networks:
+  #     - mansion-network
+  #   restart: on-failure
+
+  # # Backend API server
+  # server:
+  #   image: 555cijaiz555/ecoms:v3
+  #   environment:
+  #     - NODE_ENV=production
+  #     - PORT=5002
+  #     - CLIENT_URL=http://mansion.gnanabi.info
+  #     - DB_SERVER=${DB_SERVER:-gnanabi.database.windows.net}
+  #     - DB_NAME=${DB_NAME:-ecommerce}
+  #     - DB_USER=${DB_USER:-servergnanaabi}
+  #     - DB_PASSWORD=${DB_PASSWORD:-serverpassword@123}
+  #     - DB_PORT=${DB_PORT:-1433}
+  #   volumes:
+  #     - ./server/uploads:/app/uploads
+  #   ports:
+  #     - "5002"
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '0.25'
+  #         memory: 124M
+  #   networks:
+  #     - mansion-network
+  #   restart: on-failure
+
+  #Cerbot for certificates
+  # certbot:
+  #   image: certbot/certbot
+  #   volumes:
+  #     - /home/ubuntu/config/ssl:/etc/letsencrypt
+  #     - /home/ubuntu/config/html:/var/www/html
+  #   command: certonly --webroot --webroot-path=/var/www/html \
+  #            --agree-tos --no-eff-email \
+  #            -d mansion.gnanabi.info -m cijai@gmail.com
+
 networks:
   mansion-network:
     driver: bridge
+
+volumes:
+  server-uploads:
+    driver: local
