@@ -195,6 +195,41 @@ export const apiService = {
   createDailyStatus: (data: any) => api.post('/daily-status', data),
   updateDailyStatus: (statusId: number, data: any) => api.put(`/daily-status/${statusId}`, data),
   deleteDailyStatus: (statusId: number) => api.delete(`/daily-status/${statusId}`),
+  getDailyStatusMedia: (statusId: number) => api.get(`/daily-status/${statusId}/media`),
+  getDailyStatusAllMedia: () => api.get('/all-media/'), // New endpoint to fetch all media files
+  uploadDailyStatusMedia: (formData: FormData) => {
+    // Use fetch instead of axios for FormData to avoid header issues
+    const token = localStorage.getItem('authToken');
+    const headers: any = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    
+    // Remove Content-Type header - browser will set it with boundary for FormData
+    console.log('[Upload] Starting daily status media upload with FormData');
+    
+    return fetch(`${API_URL}/daily-status/upload`, {
+      method: 'POST',
+      headers: headers,
+      body: formData
+    })
+    .then(response => {
+      console.log('[Upload] Response status:', response.status);
+      if (!response.ok) {
+        throw new Error(`Upload failed with status ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log('[Upload] Response data:', data);
+      return { data };
+    })
+    .catch(error => {
+      console.error('[Upload] Error:', error);
+      throw error;
+    });
+  },
+  deleteDailyStatusMedia: (mediaId: number) => api.delete(`/daily-status/media/${mediaId}`),
 
   // Service Room Allocation APIs
   getServiceAllocations: () => api.get('/service-allocations'),

@@ -17,8 +17,13 @@ const isDocker = process.env.NODE_ENV === 'production';
 const complainsDir = process.env.COMPLAINS_DIR || 
   (isDocker ? '/app/complains' : path.resolve(process.cwd(), 'complains'));
 
+// Determine daily status media directory
+const dailyStatusMediaDir = process.env.DAILY_STATUS_MEDIA_DIR || 
+  (isDocker ? '/app/daily-status-media' : path.resolve(process.cwd(), 'daily-status-media'));
+
 console.log('Environment:', { NODE_ENV: process.env.NODE_ENV, isDocker });
 console.log('Complains directory:', complainsDir);
+console.log('Daily Status Media directory:', dailyStatusMediaDir);
 
 if (!fs.existsSync(complainsDir)) {
   fs.mkdirSync(complainsDir, { recursive: true });
@@ -27,12 +32,26 @@ if (!fs.existsSync(complainsDir)) {
   console.log('Complains directory already exists');
 }
 
-// Verify directory is readable/writable
+if (!fs.existsSync(dailyStatusMediaDir)) {
+  fs.mkdirSync(dailyStatusMediaDir, { recursive: true });
+  console.log('Created daily status media directory:', dailyStatusMediaDir);
+} else {
+  console.log('Daily status media directory already exists');
+}
+
+// Verify directories are readable/writable
 try {
   fs.accessSync(complainsDir, fs.constants.R_OK | fs.constants.W_OK);
   console.log('Complains directory is readable and writable');
 } catch (err) {
   console.error('ERROR: Complains directory is not accessible:', err);
+}
+
+try {
+  fs.accessSync(dailyStatusMediaDir, fs.constants.R_OK | fs.constants.W_OK);
+  console.log('Daily status media directory is readable and writable');
+} catch (err) {
+  console.error('ERROR: Daily status media directory is not accessible:', err);
 }
 
 // Configure multer for file uploads
@@ -46,8 +65,33 @@ const storage = multer.diskStorage({
   }
 });
 
+// Configure multer for daily status media uploads
+const dailyStatusMediaStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, dailyStatusMediaDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
 const upload = multer({
   storage: storage,
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB max file size
+  fileFilter: (req, file, cb) => {
+    // Allow images and videos
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime'];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only images and videos are allowed.'));
+    }
+  }
+});
+
+const uploadDailyStatusMedia = multer({
+  storage: dailyStatusMediaStorage,
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB max file size
   fileFilter: (req, file, cb) => {
     // Allow images and videos
@@ -72,6 +116,11 @@ app.use(express.json());
 app.use('/api/complains', express.static(complainsDir));
 app.use('/complains', express.static(complainsDir));
 console.log('Static file serving enabled at /api/complains and /complains from:', complainsDir);
+
+// Serve static files from daily status media folder
+app.use('/api/daily-status-media', express.static(dailyStatusMediaDir));
+app.use('/daily-status-media', express.static(dailyStatusMediaDir));
+console.log('Static file serving enabled at /api/daily-status-media and /daily-status-media from:', dailyStatusMediaDir);
 
 // Routes
 app.get('/api/health', (req: Request, res: Response) => {
@@ -2165,6 +2214,175 @@ app.delete('/api/daily-status/:id', async (req: Request, res: Response) => {
     res.json({ message: 'Daily status deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete daily status', details: error });
+  }
+});
+
+// ============ DAILY STATUS MEDIA ENDPOINTS ============
+
+// Get media for a daily status
+app.get('/api/daily-status/:id/media', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    const result = await pool.request()
+      .input('dailyStatusId', sql.Int, id)
+      .query(`
+        SELECT 
+          Id as id,
+          DailyStatusId as dailyStatusId,
+          MediaType as mediaType,
+          SequenceNumber as sequenceNumber,
+          FileName as fileName,
+          FilePath as filePath,
+          FileSize as fileSize,
+          MimeType as mimeType,
+          UploadedDate as uploadedDate,
+          CreatedBy as createdBy
+        FROM DailyRoomStatusMedia
+        WHERE DailyStatusId = @dailyStatusId
+        ORDER BY MediaType ASC, SequenceNumber ASC
+      `);
+    res.json(result.recordset);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve media', details: error });
+  }
+});
+
+// Get media for a daily status
+app.get('/api/all-media/', async (req: Request, res: Response) => {
+  try {
+    const pool = getPool();
+    const result = await pool.request()
+      .query(`
+        SELECT 
+          Id as id,
+          DailyStatusId as dailyStatusId,
+          MediaType as mediaType,
+          SequenceNumber as sequenceNumber,
+          FileName as fileName,
+          FilePath as filePath,
+          FileSize as fileSize,
+          MimeType as mimeType,
+          UploadedDate as uploadedDate,
+          CreatedBy as createdBy
+        FROM DailyRoomStatusMedia
+        ORDER BY MediaType ASC, SequenceNumber ASC
+      `);
+    res.json(result.recordset);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve media', details: error });
+  }
+});
+
+// Upload media for a daily status
+app.post('/api/daily-status/upload', uploadDailyStatusMedia.array('files', 4), async (req: Request, res: Response) => {
+  try {
+    const { dailyStatusId, mediaType } = req.body;
+    
+    if (!dailyStatusId || !mediaType) {
+      return res.status(400).json({ error: 'dailyStatusId and mediaType are required' });
+    }
+
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No files uploaded' });
+    }
+
+    const pool = getPool();
+    const uploadedMedia = [];
+
+    // Get the current max sequence number for this media type
+    const seqResult = await pool.request()
+      .input('dailyStatusId', sql.Int, dailyStatusId)
+      .input('mediaType', sql.VarChar(50), mediaType)
+      .query(`
+        SELECT ISNULL(MAX(SequenceNumber), 0) as maxSeq
+        FROM DailyRoomStatusMedia
+        WHERE DailyStatusId = @dailyStatusId AND MediaType = @mediaType
+      `);
+
+    let sequenceNumber = (seqResult.recordset[0]?.maxSeq || 0) + 1;
+
+    for (const file of req.files as Express.Multer.File[]) {
+      // Limit to 2 per type
+      if (sequenceNumber > 2) {
+        // Delete the extra file
+        fs.unlinkSync(file.path);
+        continue;
+      }
+
+      const filePath = `/daily-status-media/${path.basename(file.path)}`;
+      
+      const insertResult = await pool.request()
+        .input('dailyStatusId', sql.Int, dailyStatusId)
+        .input('mediaType', sql.VarChar(50), mediaType)
+        .input('sequenceNumber', sql.Int, sequenceNumber)
+        .input('fileName', sql.VarChar(500), file.originalname)
+        .input('filePath', sql.VarChar(1000), filePath)
+        .input('fileSize', sql.BigInt, file.size)
+        .input('mimeType', sql.VarChar(100), file.mimetype)
+        .query(`
+          INSERT INTO DailyRoomStatusMedia (DailyStatusId, MediaType, SequenceNumber, FileName, FilePath, FileSize, MimeType, UploadedDate)
+          VALUES (@dailyStatusId, @mediaType, @sequenceNumber, @fileName, @filePath, @fileSize, @mimeType, GETDATE());
+          SELECT SCOPE_IDENTITY() as id;
+        `);
+
+      uploadedMedia.push({
+        id: insertResult.recordset[0].id,
+        dailyStatusId,
+        mediaType,
+        sequenceNumber,
+        fileName: file.originalname,
+        filePath,
+        fileSize: file.size,
+        mimeType: file.mimetype
+      });
+
+      sequenceNumber++;
+    }
+
+    res.status(201).json({
+      message: 'Media uploaded successfully',
+      uploadedMedia
+    });
+  } catch (error) {
+    console.error('Media upload error:', error);
+    res.status(500).json({ error: 'Failed to upload media', details: error });
+  }
+});
+
+// Delete media file
+app.delete('/api/daily-status/media/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+
+    // Get the file path first
+    const mediaResult = await pool.request()
+      .input('id', sql.Int, id)
+      .query(`
+        SELECT FilePath FROM DailyRoomStatusMedia WHERE Id = @id
+      `);
+
+    if (!mediaResult.recordset.length) {
+      return res.status(404).json({ error: 'Media not found' });
+    }
+
+    const filePath = mediaResult.recordset[0].FilePath;
+    
+    // Delete from database
+    await pool.request()
+      .input('id', sql.Int, id)
+      .query('DELETE FROM DailyRoomStatusMedia WHERE Id = @id');
+
+    // Delete the file from disk
+    const fullPath = path.join(dailyStatusMediaDir, path.basename(filePath));
+    if (fs.existsSync(fullPath)) {
+      fs.unlinkSync(fullPath);
+    }
+
+    res.json({ message: 'Media deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete media', details: error });
   }
 });
 

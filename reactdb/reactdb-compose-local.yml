@@ -17,6 +17,7 @@ services:
       - COMPLAINS_DIR=/app/complains
     volumes:
       - complains-data:/app/complains
+      - daily-status-data:/app/daily-status
     deploy:
       replicas: 1   # Run 1 container for the API service
       restart_policy:
@@ -49,18 +50,18 @@ services:
     networks:
       - mansion-network
 
-  certbot:
-    image: certbot/certbot
-    volumes:
-    - /home/ubuntu/config/data/certbot/conf:/etc/letsencrypt
-    - /home/ubuntu/config/data/certbot/www:/var/www/certbot
-    entrypoint: >
-      sh -c "trap exit TERM;
-            while :; do
-              certbot renew --webroot -w /var/www/certbot;
-              nginx -s reload;
-              sleep 12h & wait $!;
-            done"
+  # certbot:
+  #   image: certbot/certbot
+  #   volumes:
+  #   - /home/ubuntu/config/data/certbot/conf:/etc/letsencrypt
+  #   - /home/ubuntu/config/data/certbot/www:/var/www/certbot
+  #   entrypoint: >
+  #     sh -c "trap exit TERM;
+  #           while :; do
+  #             certbot renew --webroot -w /var/www/certbot;
+  #             nginx -s reload;
+  #             sleep 12h & wait $!;
+  #           done"
        
   frontend:
     #image: 555cijaiz555/rfront:v4
@@ -68,11 +69,11 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - VITE_API_URL=http://68.233.119.219/api
+        - VITE_API_URL=http://localhost:5000/api
     ports:
       - "3000:3000"
     environment:
-      - VITE_API_URL=http://68.233.119.219/api
+      - VITE_API_URL=http://localhost:5000/api
     deploy:
       resources:
         limits:
@@ -87,3 +88,4 @@ networks:
     driver: bridge
 volumes:
   complains-data:
+  daily-status-data:
