@@ -1,6 +1,6 @@
 services:
   backend:
-    image: 555cijaiz555/rback:v6
+    image: 555cijaiz555/rback:v7
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -16,7 +16,7 @@ services:
       - NODE_ENV=production
     volumes:
       - ./mansion/photos/complains:/app/complains
-      - ./mansion/photos/daily-status:/app/dailystatus
+      - ./mansion/photos/daily-status:/app/daily-status-media
     deploy:
       replicas: 3   # Run 3 containers for the API service
       restart_policy:
@@ -57,7 +57,7 @@ services:
       - mansion-network
 
   frontend:
-    image: 555cijaiz555/rfront:v6
+    image: 555cijaiz555/rfront:v7
     build:
       context: ./frontend
       dockerfile: Dockerfile

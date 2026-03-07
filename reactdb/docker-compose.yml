@@ -18,7 +18,7 @@ services:
       - DAILY_STATUS_DIR=/app/dailystatus
     volumes:
       - complains-data:/app/complains
-      - daily-status-media:/app/dailystatus
+      - daily-status-media:/app/daily-status-media
     deploy:
       replicas: 3   # Run 3 containers for the API service
       restart_policy:
