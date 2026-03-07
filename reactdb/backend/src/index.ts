@@ -78,7 +78,7 @@ const dailyStatusMediaStorage = multer.diskStorage({
 
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB max file size
+  limits: { fileSize: 500 * 1024 * 1024 }, // 500MB max file size
   fileFilter: (req, file, cb) => {
     // Allow images and videos
     const allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime'];
@@ -92,7 +92,7 @@ const upload = multer({
 
 const uploadDailyStatusMedia = multer({
   storage: dailyStatusMediaStorage,
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB max file size
+  limits: { fileSize: 500 * 1024 * 1024 }, // 500MB max file size
   fileFilter: (req, file, cb) => {
     // Allow images and videos
     const allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime'];
