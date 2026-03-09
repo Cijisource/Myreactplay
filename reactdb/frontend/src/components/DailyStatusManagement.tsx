@@ -265,10 +265,13 @@ export default function DailyStatusManagement() {
       }
     };
     if (fullscreenOpen) {
+      // Prevent body scroll on mobile when fullscreen is open
+      document.body.style.overflow = 'hidden';
       document.addEventListener('keydown', handleKeyDown);
     }
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = 'unset';
     };
   }, [fullscreenOpen]);
 
@@ -461,8 +464,18 @@ export default function DailyStatusManagement() {
                 <p><strong>Water Level:</strong> {status.waterLevelStatus}</p>
               )}
               {status.createdDate && (
-                // <p><strong>Created:</strong> {new Date(status.createdDate).toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}</p>
-                <p>{status.createdDate}</p>
+                <p>
+                {new Intl.DateTimeFormat("en-US", {
+                  timeZone: "UTC",   // keep UTC, don’t convert
+                  year: "numeric",
+                  month: "2-digit",
+                  day: "2-digit",
+                  hour: "numeric",
+                  minute: "2-digit",
+                  second: "2-digit",
+                  hour12: true       // enable AM/PM
+                }).format(new Date(status.createdDate))}
+              </p>
               )}
 
               {/* Media Section */}
@@ -613,7 +626,12 @@ export default function DailyStatusManagement() {
       {fullscreenOpen && fullscreenMedia && (
         <div className="fullscreen-overlay" onClick={handleCloseFullscreen}>
           <div className="fullscreen-modal" onClick={(e) => e.stopPropagation()}>
-            <button className="fullscreen-close" onClick={handleCloseFullscreen} title="Close (or press ESC)">
+            <button 
+              className="fullscreen-close" 
+              onClick={handleCloseFullscreen} 
+              title="Close (or press ESC)"
+              aria-label="Close fullscreen"
+            >
               ✕
             </button>
             {fullscreenMedia.mediaType === 'photo' ? (
@@ -621,14 +639,17 @@ export default function DailyStatusManagement() {
                 src={getFileUrl(fullscreenMedia.filePath)} 
                 alt={fullscreenMedia.fileName}
                 className="fullscreen-content"
+                loading="lazy"
               />
             ) : (
               <video 
                 className="fullscreen-content"
                 controls
                 autoPlay
+                controlsList="nodownload"
               >
                 <source src={getFileUrl(fullscreenMedia.filePath)} type={fullscreenMedia.mimeType || 'video/mp4'} />
+                Your browser does not support the video tag.
               </video>
             )}
             <div className="fullscreen-info">
