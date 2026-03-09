@@ -18,10 +18,6 @@ export default function LoginScreen() {
       setFormError('Password is required');
       return false;
     }
-    if (password.length < 6) {
-      setFormError('Password must be at least 6 characters');
-      return false;
-    }
     return true;
   };
 
@@ -56,7 +52,7 @@ export default function LoginScreen() {
             <p>Property Management System</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="login-form">
+          <form onSubmit={handleSubmit} className="login-form" autoComplete="on">
             {error && (
               <div className="error-message">
                 <span>⚠️</span>
@@ -81,6 +77,7 @@ export default function LoginScreen() {
               </label>
               <input
                 id="username"
+                name="username"
                 type="text"
                 value={username}
                 onChange={(e) => {
@@ -90,6 +87,7 @@ export default function LoginScreen() {
                 placeholder="Enter your username"
                 disabled={loading}
                 required
+                autoComplete="username"
               />
             </div>
 
@@ -101,6 +99,7 @@ export default function LoginScreen() {
               <div className="password-input-wrapper">
                 <input
                   id="password"
+                  name="password"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => {
@@ -110,6 +109,7 @@ export default function LoginScreen() {
                   placeholder="Enter your password"
                   disabled={loading}
                   required
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"

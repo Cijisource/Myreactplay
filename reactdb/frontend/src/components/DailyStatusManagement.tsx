@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiService, getFileUrl } from '../api';
+import { useAuth } from './AuthContext';
 import './ManagementStyles.css';
 
 interface DailyStatus {
@@ -23,6 +24,9 @@ interface MediaFile {
 }
 
 export default function DailyStatusManagement() {
+  const { hasRole } = useAuth();
+  const isAdmin = hasRole('admin');
+
   const [statuses, setStatuses] = useState<DailyStatus[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +46,12 @@ export default function DailyStatusManagement() {
   const [mediaFiles, setMediaFiles] = useState<Record<number, MediaFile[]>>({});
   const [selectedMediaType, setSelectedMediaType] = useState<'photo' | 'video'>('photo');
   const [uploadingMedia, setUploadingMedia] = useState<Record<number, boolean>>({});
+  const [uploadProgress, setUploadProgress] = useState<Record<number, number>>({});
   const [deletingMedia, setDeletingMedia] = useState<Record<number, boolean>>({});
+  
+  // Fullscreen view states
+  const [fullscreenMedia, setFullscreenMedia] = useState<MediaFile | null>(null);
+  const [fullscreenOpen, setFullscreenOpen] = useState(false);
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -62,15 +71,15 @@ export default function DailyStatusManagement() {
   }, [successMessage]);
 
   // Auto-dismiss error message after 5 seconds
-  useEffect(() => {
-    if (error) {
-      const timer = setTimeout(() => {
-        setError(null);
-        setErrorStatusId(null);
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [error]);
+  // useEffect(() => {
+  //   if (error) {
+  //     const timer = setTimeout(() => {
+  //       setError(null);
+  //       setErrorStatusId(null);
+  //     }, 5000);
+  //     return () => clearTimeout(timer);
+  //   }
+  // }, [error]);
 
   // Fetch statuses
   const fetchStatuses = async () => {
@@ -181,6 +190,7 @@ export default function DailyStatusManagement() {
 
     try {
       setUploadingMedia(prev => ({ ...prev, [statusId]: true }));
+      setUploadProgress(prev => ({ ...prev, [statusId]: 0 }));
       setError(null);
       setErrorStatusId(null);
 
@@ -192,7 +202,11 @@ export default function DailyStatusManagement() {
         formData.append('files', files[i]);
       }
 
-      await apiService.uploadDailyStatusMedia(formData);
+      // Pass progress callback
+      await apiService.uploadDailyStatusMedia(formData, (progress) => {
+        setUploadProgress(prev => ({ ...prev, [statusId]: progress }));
+      });
+      
       setSuccessMessage(`${selectedMediaType}(s) uploaded successfully!`);
       setSuccessStatusId(statusId);
       
@@ -205,6 +219,7 @@ export default function DailyStatusManagement() {
       setErrorStatusId(statusId);
     } finally {
       setUploadingMedia(prev => ({ ...prev, [statusId]: false }));
+      setUploadProgress(prev => ({ ...prev, [statusId]: 0 }));
     }
   };
 
@@ -229,6 +244,33 @@ export default function DailyStatusManagement() {
       setDeletingMedia(prev => ({ ...prev, [mediaId]: false }));
     }
   };
+
+  // Open fullscreen view
+  const handleOpenFullscreen = (media: MediaFile) => {
+    setFullscreenMedia(media);
+    setFullscreenOpen(true);
+  };
+
+  // Close fullscreen view
+  const handleCloseFullscreen = () => {
+    setFullscreenOpen(false);
+    setFullscreenMedia(null);
+  };
+
+  // Handle keyboard close for fullscreen (ESC key)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && fullscreenOpen) {
+        handleCloseFullscreen();
+      }
+    };
+    if (fullscreenOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [fullscreenOpen]);
 
   // Delete status
   const handleDelete = async (id: number) => {
@@ -401,12 +443,14 @@ export default function DailyStatusManagement() {
                   <button className="btn btn-sm btn-info" onClick={() => handleEdit(status)}>
                     Edit
                   </button>
-                  <button
-                    className="btn btn-sm btn-danger"
-                    onClick={() => setShowDeleteConfirm(status.id)}
-                  >
-                    Delete
-                  </button>
+                  {isAdmin && (
+                    <button
+                      className="btn btn-sm btn-danger"
+                      onClick={() => setShowDeleteConfirm(status.id)}
+                    >
+                      Delete
+                    </button>
+                  )}
                 </div>
               </div>
               
@@ -417,7 +461,8 @@ export default function DailyStatusManagement() {
                 <p><strong>Water Level:</strong> {status.waterLevelStatus}</p>
               )}
               {status.createdDate && (
-                <p><strong>Created:</strong> {new Date(status.createdDate).toLocaleDateString()}</p>
+                // <p><strong>Created:</strong> {new Date(status.createdDate).toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}</p>
+                <p>{status.createdDate}</p>
               )}
 
               {/* Media Section */}
@@ -434,17 +479,25 @@ export default function DailyStatusManagement() {
                       .map(media => (
                         <div key={media.id} className="media-item">
                           {isImageFile(media.mimeType) ? (
-                            <img src={getFileUrl(media.filePath)} alt={media.fileName} className="media-thumbnail" />
+                            <img 
+                              src={getFileUrl(media.filePath)} 
+                              alt={media.fileName} 
+                              className="media-thumbnail" 
+                              onClick={() => handleOpenFullscreen(media)}
+                              style={{ cursor: 'pointer' }}
+                            />
                           ) : (
                             <div className="media-placeholder">{media.fileName}</div>
                           )}
-                          <button
-                            className="btn btn-sm btn-danger"
-                            onClick={() => handleDeleteMedia(media.id, status.id)}
-                            disabled={deletingMedia[media.id]}
-                          >
-                            {deletingMedia[media.id] ? 'Deleting...' : 'Delete'}
-                          </button>
+                          {isAdmin && (
+                            <button
+                              className="btn btn-sm btn-danger"
+                              onClick={() => handleDeleteMedia(media.id, status.id)}
+                              disabled={deletingMedia[media.id]}
+                            >
+                              {deletingMedia[media.id] ? 'Deleting...' : 'Delete'}
+                            </button>
+                          )}
                         </div>
                       ))}
                   </div>
@@ -459,16 +512,22 @@ export default function DailyStatusManagement() {
                       .sort((a, b) => a.sequenceNumber - b.sequenceNumber)
                       .map(media => (
                         <div key={media.id} className="media-item">
-                          <video className="media-thumbnail" controls>
+                          <video 
+                            className="media-thumbnail" 
+                            onClick={() => handleOpenFullscreen(media)}
+                            style={{ cursor: 'pointer' }}
+                          >
                             <source src={getFileUrl(media.filePath)} type={media.mimeType || 'video/mp4'} />
                           </video>
-                          <button
-                            className="btn btn-sm btn-danger"
-                            onClick={() => handleDeleteMedia(media.id, status.id)}
-                            disabled={deletingMedia[media.id]}
-                          >
-                            {deletingMedia[media.id] ? 'Deleting...' : 'Delete'}
-                          </button>
+                          {isAdmin && (
+                            <button
+                              className="btn btn-sm btn-danger"
+                              onClick={() => handleDeleteMedia(media.id, status.id)}
+                              disabled={deletingMedia[media.id]}
+                            >
+                              {deletingMedia[media.id] ? 'Deleting...' : 'Delete'}
+                            </button>
+                          )}
                         </div>
                       ))}
                   </div>
@@ -497,6 +556,17 @@ export default function DailyStatusManagement() {
                         disabled={uploadingMedia[status.id]}
                       />
                     </div>
+                    {uploadingMedia[status.id] && (
+                      <div className="progress-container">
+                        <div className="progress-bar">
+                          <div 
+                            className="progress-fill" 
+                            style={{ width: `${uploadProgress[status.id] || 0}%` }}
+                          ></div>
+                        </div>
+                        <p className="progress-text">{uploadProgress[status.id] || 0}% Uploaded</p>
+                      </div>
+                    )}
                     <button
                       className="btn btn-sm btn-secondary"
                       onClick={() => setShowMediaUpload(null)}
@@ -534,6 +604,35 @@ export default function DailyStatusManagement() {
               <button className="btn btn-secondary" onClick={() => setShowDeleteConfirm(null)}>
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen Media Modal */}
+      {fullscreenOpen && fullscreenMedia && (
+        <div className="fullscreen-overlay" onClick={handleCloseFullscreen}>
+          <div className="fullscreen-modal" onClick={(e) => e.stopPropagation()}>
+            <button className="fullscreen-close" onClick={handleCloseFullscreen} title="Close (or press ESC)">
+              ✕
+            </button>
+            {fullscreenMedia.mediaType === 'photo' ? (
+              <img 
+                src={getFileUrl(fullscreenMedia.filePath)} 
+                alt={fullscreenMedia.fileName}
+                className="fullscreen-content"
+              />
+            ) : (
+              <video 
+                className="fullscreen-content"
+                controls
+                autoPlay
+              >
+                <source src={getFileUrl(fullscreenMedia.filePath)} type={fullscreenMedia.mimeType || 'video/mp4'} />
+              </video>
+            )}
+            <div className="fullscreen-info">
+              <p>{fullscreenMedia.fileName}</p>
             </div>
           </div>
         </div>

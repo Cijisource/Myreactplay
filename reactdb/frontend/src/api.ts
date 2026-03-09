@@ -197,36 +197,58 @@ export const apiService = {
   deleteDailyStatus: (statusId: number) => api.delete(`/daily-status/${statusId}`),
   getDailyStatusMedia: (statusId: number) => api.get(`/daily-status/${statusId}/media`),
   getDailyStatusAllMedia: () => api.get('/all-media/'), // New endpoint to fetch all media files
-  uploadDailyStatusMedia: (formData: FormData) => {
-    // Use fetch instead of axios for FormData to avoid header issues
-    const token = localStorage.getItem('authToken');
-    const headers: any = {};
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
-    
-    // Remove Content-Type header - browser will set it with boundary for FormData
-    console.log('[Upload] Starting daily status media upload with FormData');
-    
-    return fetch(`${API_URL}/daily-status/upload`, {
-      method: 'POST',
-      headers: headers,
-      body: formData
-    })
-    .then(response => {
-      console.log('[Upload] Response status:', response.status);
-      if (!response.ok) {
-        throw new Error(`Upload failed with status ${response.status}`);
+  uploadDailyStatusMedia: (formData: FormData, onProgress?: (progress: number) => void) => {
+    return new Promise((resolve, reject) => {
+      const token = localStorage.getItem('authToken');
+      const xhr = new XMLHttpRequest();
+
+      // Track upload progress
+      if (onProgress) {
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percentComplete = Math.round((e.loaded / e.total) * 100);
+            console.log(`[Upload] Progress: ${percentComplete}%`);
+            onProgress(percentComplete);
+          }
+        });
       }
-      return response.json();
-    })
-    .then(data => {
-      console.log('[Upload] Response data:', data);
-      return { data };
-    })
-    .catch(error => {
-      console.error('[Upload] Error:', error);
-      throw error;
+
+      // Handle completion
+      xhr.addEventListener('load', () => {
+        console.log('[Upload] Upload completed, status:', xhr.status);
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            console.log('[Upload] Response data:', response);
+            resolve({ data: response });
+          } catch (error) {
+            console.error('[Upload] Error parsing response:', error);
+            reject(new Error('Failed to parse upload response'));
+          }
+        } else {
+          reject(new Error(`Upload failed with status ${xhr.status}`));
+        }
+      });
+
+      // Handle errors
+      xhr.addEventListener('error', () => {
+        console.error('[Upload] Network error during upload');
+        reject(new Error('Network error during upload'));
+      });
+
+      xhr.addEventListener('abort', () => {
+        console.log('[Upload] Upload aborted');
+        reject(new Error('Upload was aborted'));
+      });
+
+      // Setup request
+      xhr.open('POST', `${API_URL}/daily-status/upload`, true);
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
+
+      console.log('[Upload] Starting daily status media upload');
+      xhr.send(formData);
     });
   },
   deleteDailyStatusMedia: (mediaId: number) => api.delete(`/daily-status/media/${mediaId}`),

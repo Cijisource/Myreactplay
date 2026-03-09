@@ -201,21 +201,26 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
           Id as id,
           UserName as username,
           Password as password,
-          Name as name
+          Name as name,
+          NextLoginDuration as nextLoginDuration,
+          LastLogin as lastLogin
         FROM [User]
         WHERE UserName = @username
       `);
 
     if (!userResult.recordset.length) {
+      console.log(`[Login] User not found: ${username}`);
       return res.status(401).json({ 
         error: 'Invalid username or password' 
       });
     }
 
     const user = userResult.recordset[0];
+    console.log(`[Login] User found: ${username} (ID: ${user.id})`);
 
     // Check password (in production, should use hashed passwords)
     if (user.password !== password) {
+      console.log(`[Login] Invalid password for user: ${username}`);
       return res.status(401).json({ 
         error: 'Invalid username or password' 
       });
@@ -229,11 +234,34 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
           r.RoleName as roleName,
           r.RoleType as roleType
         FROM UserRole ur
-        LEFT JOIN RoleDetail r ON ur.RoleId = r.Id
+        INNER JOIN RoleDetail r ON ur.RoleId = r.Id
         WHERE ur.UserId = @userId
       `);
 
-    const roles = rolesResult.recordset.map(r => r.roleName).join(',') || 'user';
+    const roles = rolesResult.recordset
+      .map(r => r.roleName)
+      .filter(r => r && r.trim() !== '') // Filter out null/empty values
+      .join(',') || 'user';
+    
+    console.log(`[Login] User roles for ${username}: ${roles}`);
+
+    // Update LastLogin timestamp and fetch the updated value
+    const updateResult = await pool.request()
+      .input('userId', sql.Int, user.id)
+      .query(`
+        UPDATE [User]
+        SET LastLogin = GETUTCDATE()
+        WHERE Id = @userId;
+        
+        SELECT LastLogin
+        FROM [User]
+        WHERE Id = @userId
+      `);
+
+    // Get the newly updated LastLogin
+    const updatedLastLogin = updateResult.recordset.length > 0 
+      ? updateResult.recordset[0].LastLogin 
+      : user.lastLogin;
 
     // Generate JWT token
     const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
@@ -248,6 +276,16 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
       { expiresIn: '24h' }
     );
 
+    console.log(`[Login] Successful login for user: ${username}`);
+    console.log(`[Login] Response user object:`, {
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      roles: roles,
+      nextLoginDuration: user.nextLoginDuration,
+      lastLogin: updatedLastLogin
+    });
+
     // Return token and user info
     res.json({
       token,
@@ -255,7 +293,9 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
         id: user.id,
         username: user.username,
         name: user.name,
-        roles: roles
+        roles: roles,
+        nextLoginDuration: user.nextLoginDuration || null,
+        lastLogin: updatedLastLogin || null
       }
     });
   } catch (error) {

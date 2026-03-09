@@ -72,6 +72,15 @@ function AppContent() {
   const [error, setError] = useState<string | null>(null);
   const { isAuthenticated, user, logout } = useAuth();
 
+  // Debug logging for authentication state
+  useEffect(() => {
+    console.log('[AppContent] Auth state changed:', {
+      isAuthenticated,
+      user: user ? { id: user.id, username: user.username, roles: user.roles } : null,
+      timestamp: new Date().toISOString()
+    });
+  }, [isAuthenticated, user]);
+
   // Close mobile menu when page changes
   useEffect(() => {
     setMobileMenuOpen(false);
@@ -113,8 +122,11 @@ function AppContent() {
 
   // If not authenticated, show login screen
   if (!isAuthenticated) {
+    console.log('[AppContent] Not authenticated, showing login screen');
     return <LoginScreen />;
   }
+
+  console.log('[AppContent] Authenticated, rendering app with currentPage:', currentPage);
 
   const renderPage = () => {
     if (currentPage === 'diagnostic') {
@@ -237,6 +249,7 @@ function AppContent() {
       );
     }
 
+    console.log('[AppContent] Rendering home page for user:', user?.username);
     return (
       <div className="container">
         <div className="home-header">
@@ -244,6 +257,16 @@ function AppContent() {
             <h1>🏰 Mansion Management System</h1>
             <p>Welcome back, {user?.name || user?.username}!</p>
             <p className="user-roles">Roles: {user?.roles || 'None'}</p>
+            {user?.lastLogin && (
+              <p className="last-login">
+                Last Login: {new Date(user.lastLogin).toLocaleString()}
+              </p>
+            )}
+            {user?.nextLoginDuration && (
+              <p className="next-login-duration">
+                Session expires in: {user.nextLoginDuration} day(s)
+              </p>
+            )}
           </div>
           <button 
             className="logout-btn"
@@ -264,7 +287,8 @@ function AppContent() {
           <div className={`nav-buttons ${mobileMenuOpen ? 'mobile-open' : ''}`}>
             {NAV_ITEMS.map(item => {
               // Check if user has access to this page
-              const hasAccess = item.roles.length === 0 || user?.roles.split(',').some(r => item.roles.includes(r.trim()));
+              const userRoles = user?.roles?.split(',').map(r => r.trim()).filter(r => r) || [];
+              const hasAccess = item.roles.length === 0 || userRoles.some(r => item.roles.includes(r));
               
               if (!hasAccess) return null;
               
