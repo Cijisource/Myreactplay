@@ -21,9 +21,14 @@ const complainsDir = process.env.COMPLAINS_DIR ||
 const dailyStatusMediaDir = process.env.DAILY_STATUS_MEDIA_DIR || 
   (isDocker ? '/app/daily-status-media' : path.resolve(process.cwd(), 'daily-status-media'));
 
+// Determine tenant photos directory
+const tenantPhotosDir = process.env.TENANT_PHOTOS_DIR || 
+  (isDocker ? '/app/tenantphotos' : path.resolve(process.cwd(), 'tenantphotos'));
+
 console.log('Environment:', { NODE_ENV: process.env.NODE_ENV, isDocker });
 console.log('Complains directory:', complainsDir);
 console.log('Daily Status Media directory:', dailyStatusMediaDir);
+console.log('Tenant Photos directory:', tenantPhotosDir);
 
 if (!fs.existsSync(complainsDir)) {
   fs.mkdirSync(complainsDir, { recursive: true });
@@ -39,6 +44,13 @@ if (!fs.existsSync(dailyStatusMediaDir)) {
   console.log('Daily status media directory already exists');
 }
 
+if (!fs.existsSync(tenantPhotosDir)) {
+  fs.mkdirSync(tenantPhotosDir, { recursive: true });
+  console.log('Created tenant photos directory:', tenantPhotosDir);
+} else {
+  console.log('Tenant photos directory already exists');
+}
+
 // Verify directories are readable/writable
 try {
   fs.accessSync(complainsDir, fs.constants.R_OK | fs.constants.W_OK);
@@ -52,6 +64,13 @@ try {
   console.log('Daily status media directory is readable and writable');
 } catch (err) {
   console.error('ERROR: Daily status media directory is not accessible:', err);
+}
+
+try {
+  fs.accessSync(tenantPhotosDir, fs.constants.R_OK | fs.constants.W_OK);
+  console.log('Tenant photos directory is readable and writable');
+} catch (err) {
+  console.error('ERROR: Tenant photos directory is not accessible:', err);
 }
 
 // Configure multer for file uploads
@@ -121,6 +140,11 @@ console.log('Static file serving enabled at /api/complains and /complains from:'
 app.use('/api/daily-status-media', express.static(dailyStatusMediaDir));
 app.use('/daily-status-media', express.static(dailyStatusMediaDir));
 console.log('Static file serving enabled at /api/daily-status-media and /daily-status-media from:', dailyStatusMediaDir);
+
+// Serve static files from tenant photos folder
+app.use('/api/tenantphotos', express.static(tenantPhotosDir));
+app.use('/tenantphotos', express.static(tenantPhotosDir));
+console.log('Static file serving enabled at /api/tenantphotos and /tenantphotos from:', tenantPhotosDir);
 
 // Routes
 app.get('/api/health', (req: Request, res: Response) => {
@@ -742,7 +766,11 @@ app.get('/api/tenants/:id', async (req: Request, res: Response) => {
 // Create tenant
 app.post('/api/tenants', async (req: Request, res: Response) => {
   try {
-    const { name, phone, address, city, photoUrl, proof1Url, proof2Url, proof3Url } = req.body;
+    const { 
+      name, phone, address, city, 
+      photoUrl, photo2Url, photo3Url, photo4Url, photo5Url, photo6Url, photo7Url, photo8Url, photo9Url, photo10Url,
+      proof1Url, proof2Url, proof3Url, proof4Url, proof5Url, proof6Url, proof7Url, proof8Url, proof9Url, proof10Url
+    } = req.body;
     
     if (!name || !phone || !address || !city) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -756,12 +784,28 @@ app.post('/api/tenants', async (req: Request, res: Response) => {
       .input('address', sql.NChar(100), address)
       .input('city', sql.NChar(50), city)
       .input('photoUrl', sql.NVarChar(sql.MAX), photoUrl || null)
+      .input('photo2Url', sql.NVarChar(sql.MAX), photo2Url || null)
+      .input('photo3Url', sql.NVarChar(sql.MAX), photo3Url || null)
+      .input('photo4Url', sql.NVarChar(sql.MAX), photo4Url || null)
+      .input('photo5Url', sql.NVarChar(sql.MAX), photo5Url || null)
+      .input('photo6Url', sql.NVarChar(sql.MAX), photo6Url || null)
+      .input('photo7Url', sql.NVarChar(sql.MAX), photo7Url || null)
+      .input('photo8Url', sql.NVarChar(sql.MAX), photo8Url || null)
+      .input('photo9Url', sql.NVarChar(sql.MAX), photo9Url || null)
+      .input('photo10Url', sql.NVarChar(sql.MAX), photo10Url || null)
       .input('proof1Url', sql.NVarChar(sql.MAX), proof1Url || null)
       .input('proof2Url', sql.NVarChar(sql.MAX), proof2Url || null)
       .input('proof3Url', sql.NVarChar(sql.MAX), proof3Url || null)
+      .input('proof4Url', sql.NVarChar(sql.MAX), proof4Url || null)
+      .input('proof5Url', sql.NVarChar(sql.MAX), proof5Url || null)
+      .input('proof6Url', sql.NVarChar(sql.MAX), proof6Url || null)
+      .input('proof7Url', sql.NVarChar(sql.MAX), proof7Url || null)
+      .input('proof8Url', sql.NVarChar(sql.MAX), proof8Url || null)
+      .input('proof9Url', sql.NVarChar(sql.MAX), proof9Url || null)
+      .input('proof10Url', sql.NVarChar(sql.MAX), proof10Url || null)
       .query(`
-        INSERT INTO Tenant (Name, Phone, Address, City, PhotoUrl, Proof1Url, Proof2Url, Proof3Url)
-        VALUES (@name, @phone, @address, @city, @photoUrl, @proof1Url, @proof2Url, @proof3Url);
+        INSERT INTO Tenant (Name, Phone, Address, City, PhotoUrl, Photo2Url, Photo3Url, Photo4Url, Photo5Url, Photo6Url, Photo7Url, Photo8Url, Photo9Url, Photo10Url, Proof1Url, Proof2Url, Proof3Url, Proof4Url, Proof5Url, Proof6Url, Proof7Url, Proof8Url, Proof9Url, Proof10Url)
+        VALUES (@name, @phone, @address, @city, @photoUrl, @photo2Url, @photo3Url, @photo4Url, @photo5Url, @photo6Url, @photo7Url, @photo8Url, @photo9Url, @photo10Url, @proof1Url, @proof2Url, @proof3Url, @proof4Url, @proof5Url, @proof6Url, @proof7Url, @proof8Url, @proof9Url, @proof10Url);
         SELECT SCOPE_IDENTITY() as id;
       `);
     
@@ -777,11 +821,90 @@ app.post('/api/tenants', async (req: Request, res: Response) => {
   }
 });
 
+// Configure multer for tenant file uploads (supports up to 10 photos and 10 proofs)
+const tenantUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, tenantPhotosDir);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    }
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max file size
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only images are allowed.'));
+    }
+  }
+});
+
+// Tenant file upload endpoint
+app.post('/api/tenants/upload', tenantUpload.fields([
+  { name: 'photos', maxCount: 10 },
+  { name: 'proofs', maxCount: 10 }
+]), async (req: Request, res: Response) => {
+  try {
+    const files = req.files as any;
+    
+    if (!files || (!files.photos && !files.proofs)) {
+      return res.status(400).json({ error: 'No files uploaded' });
+    }
+
+    const photoUrls: string[] = [];
+    const proofUrls: string[] = [];
+
+    // Process photos
+    if (files.photos && Array.isArray(files.photos)) {
+      for (const file of files.photos) {
+        const fileUrl = `tenantphotos/${path.basename(file.path)}`;
+        photoUrls.push(fileUrl);
+      }
+    }
+
+    // Process proofs
+    if (files.proofs && Array.isArray(files.proofs)) {
+      for (const file of files.proofs) {
+        const fileUrl = `tenantphotos/${path.basename(file.path)}`;
+        proofUrls.push(fileUrl);
+      }
+    }
+
+    console.log('[Tenant Upload] Files uploaded successfully:', {
+      photoCount: photoUrls.length,
+      proofCount: proofUrls.length,
+      photoUrls,
+      proofUrls
+    });
+
+    res.status(200).json({ 
+      message: 'Files uploaded successfully',
+      photoUrls,
+      proofUrls
+    });
+  } catch (error) {
+    console.error('Tenant file upload error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to upload files',
+      details: errorMessage
+    });
+  }
+});
+
 // Update tenant
 app.put('/api/tenants/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, phone, address, city, photoUrl, proof1Url, proof2Url, proof3Url } = req.body;
+    const { 
+      name, phone, address, city, 
+      photoUrl, photo2Url, photo3Url, photo4Url, photo5Url, photo6Url, photo7Url, photo8Url, photo9Url, photo10Url,
+      proof1Url, proof2Url, proof3Url, proof4Url, proof5Url, proof6Url, proof7Url, proof8Url, proof9Url, proof10Url
+    } = req.body;
     
     if (!name || !phone || !address || !city) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -796,13 +919,30 @@ app.put('/api/tenants/:id', async (req: Request, res: Response) => {
       .input('address', sql.NChar(100), address)
       .input('city', sql.NChar(50), city)
       .input('photoUrl', sql.NVarChar(sql.MAX), photoUrl || null)
+      .input('photo2Url', sql.NVarChar(sql.MAX), photo2Url || null)
+      .input('photo3Url', sql.NVarChar(sql.MAX), photo3Url || null)
+      .input('photo4Url', sql.NVarChar(sql.MAX), photo4Url || null)
+      .input('photo5Url', sql.NVarChar(sql.MAX), photo5Url || null)
+      .input('photo6Url', sql.NVarChar(sql.MAX), photo6Url || null)
+      .input('photo7Url', sql.NVarChar(sql.MAX), photo7Url || null)
+      .input('photo8Url', sql.NVarChar(sql.MAX), photo8Url || null)
+      .input('photo9Url', sql.NVarChar(sql.MAX), photo9Url || null)
+      .input('photo10Url', sql.NVarChar(sql.MAX), photo10Url || null)
       .input('proof1Url', sql.NVarChar(sql.MAX), proof1Url || null)
       .input('proof2Url', sql.NVarChar(sql.MAX), proof2Url || null)
       .input('proof3Url', sql.NVarChar(sql.MAX), proof3Url || null)
+      .input('proof4Url', sql.NVarChar(sql.MAX), proof4Url || null)
+      .input('proof5Url', sql.NVarChar(sql.MAX), proof5Url || null)
+      .input('proof6Url', sql.NVarChar(sql.MAX), proof6Url || null)
+      .input('proof7Url', sql.NVarChar(sql.MAX), proof7Url || null)
+      .input('proof8Url', sql.NVarChar(sql.MAX), proof8Url || null)
+      .input('proof9Url', sql.NVarChar(sql.MAX), proof9Url || null)
+      .input('proof10Url', sql.NVarChar(sql.MAX), proof10Url || null)
       .query(`
         UPDATE Tenant 
         SET Name = @name, Phone = @phone, Address = @address, City = @city,
-            PhotoUrl = @photoUrl, Proof1Url = @proof1Url, Proof2Url = @proof2Url, Proof3Url = @proof3Url
+            PhotoUrl = @photoUrl, Photo2Url = @photo2Url, Photo3Url = @photo3Url, Photo4Url = @photo4Url, Photo5Url = @photo5Url, Photo6Url = @photo6Url, Photo7Url = @photo7Url, Photo8Url = @photo8Url, Photo9Url = @photo9Url, Photo10Url = @photo10Url,
+            Proof1Url = @proof1Url, Proof2Url = @proof2Url, Proof3Url = @proof3Url, Proof4Url = @proof4Url, Proof5Url = @proof5Url, Proof6Url = @proof6Url, Proof7Url = @proof7Url, Proof8Url = @proof8Url, Proof9Url = @proof9Url, Proof10Url = @proof10Url
         WHERE Id = @id
       `);
     
@@ -841,16 +981,62 @@ app.delete('/api/tenants/:id', async (req: Request, res: Response) => {
         error: 'Cannot delete tenant with active occupancy. Check out the tenant first.' 
       });
     }
-    
-    const result = await pool
+
+    // Fetch tenant record to get all photo and proof URLs
+    const tenantResult = await pool
+      .request()
+      .input('id', sql.Int, parseInt(id))
+      .query(`
+        SELECT PhotoUrl, Photo2Url, Photo3Url, Photo4Url, Photo5Url, Photo6Url, Photo7Url, Photo8Url, Photo9Url, Photo10Url,
+               Proof1Url, Proof2Url, Proof3Url, Proof4Url, Proof5Url, Proof6Url, Proof7Url, Proof8Url, Proof9Url, Proof10Url
+        FROM Tenant WHERE Id = @id
+      `);
+
+    if (tenantResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Tenant not found' });
+    }
+
+    const tenant = tenantResult.recordset[0];
+
+    // Extract and delete all photo and proof files
+    const filesToDelete = [
+      tenant.PhotoUrl, tenant.Photo2Url, tenant.Photo3Url, tenant.Photo4Url, tenant.Photo5Url,
+      tenant.Photo6Url, tenant.Photo7Url, tenant.Photo8Url, tenant.Photo9Url, tenant.Photo10Url,
+      tenant.Proof1Url, tenant.Proof2Url, tenant.Proof3Url, tenant.Proof4Url, tenant.Proof5Url,
+      tenant.Proof6Url, tenant.Proof7Url, tenant.Proof8Url, tenant.Proof9Url, tenant.Proof10Url
+    ];
+
+    // Delete each file from the tenantphotos directory
+    for (const fileUrl of filesToDelete) {
+      if (fileUrl) {
+        try {
+          // Extract filename from URL (e.g., "tenantphotos/filename.jpg" -> "filename.jpg")
+          const fileName = fileUrl.split('/').pop();
+          if (fileName) {
+            const filePath = path.join(tenantPhotosDir, fileName);
+            if (fs.existsSync(filePath)) {
+              fs.unlinkSync(filePath);
+              console.log('[Tenant Delete] Deleted file:', filePath);
+            }
+          }
+        } catch (fileErr) {
+          console.warn('[Tenant Delete] Warning: Could not delete file:', fileUrl, (fileErr instanceof Error ? fileErr.message : String(fileErr)));
+          // Don't throw error, just log warning and continue
+        }
+      }
+    }
+
+    // Delete tenant from database
+    const deleteResult = await pool
       .request()
       .input('id', sql.Int, parseInt(id))
       .query(`DELETE FROM Tenant WHERE Id = @id`);
     
-    if (result.rowsAffected[0] === 0) {
+    if (deleteResult.rowsAffected[0] === 0) {
       return res.status(404).json({ error: 'Tenant not found' });
     }
-    
+
+    console.log('[Tenant Delete] Tenant deleted successfully:', id);
     res.json({ message: 'Tenant deleted successfully' });
   } catch (error) {
     console.error('Delete tenant error:', error);

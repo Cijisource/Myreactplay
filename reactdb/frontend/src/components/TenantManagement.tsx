@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { apiService } from '../api';
+import { apiService, getFileUrl } from '../api';
 import TenantForm from './TenantForm';
 import './TenantManagement.css';
 
@@ -10,9 +10,25 @@ export interface Tenant {
   address: string;
   city: string;
   photoUrl: string | null;
+  photo2Url?: string | null;
+  photo3Url?: string | null;
+  photo4Url?: string | null;
+  photo5Url?: string | null;
+  photo6Url?: string | null;
+  photo7Url?: string | null;
+  photo8Url?: string | null;
+  photo9Url?: string | null;
+  photo10Url?: string | null;
   proof1Url: string | null;
   proof2Url: string | null;
   proof3Url: string | null;
+  proof4Url?: string | null;
+  proof5Url?: string | null;
+  proof6Url?: string | null;
+  proof7Url?: string | null;
+  proof8Url?: string | null;
+  proof9Url?: string | null;
+  proof10Url?: string | null;
 }
 
 export interface TenantWithOccupancy extends Tenant {
@@ -43,6 +59,7 @@ export default function TenantManagement() {
   const [editingTenant, setEditingTenant] = useState<TenantWithOccupancy | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [fullScreenTenant, setFullScreenTenant] = useState<TenantWithOccupancy | null>(null);
 
   // Helper function to normalize phone numbers
   const normalizePhone = (phone: string): string => {
@@ -132,6 +149,7 @@ export default function TenantManagement() {
     try {
       const response = await apiService.getAllTenantsWithOccupancy();
       setTenants(response.data);
+      console.log('Fetched tenants with occupancy details:', response.data);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to fetch tenants';
       setError(errorMsg);
@@ -314,9 +332,10 @@ export default function TenantManagement() {
               <div className="tenant-image-container">
                 {tenant.photoUrl ? (
                   <img
-                    src={tenant.photoUrl}
+                    src={getFileUrl(tenant.photoUrl)}
                     alt={tenant.name}
                     className="tenant-image"
+                    loading="lazy"
                     onError={(e) => {
                       (e.target as HTMLImageElement).src =
                         'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"%3E%3Ccircle cx="100" cy="70" r="40" fill="%23ccc"/%3E%3Cpath d="M20 200 Q20 140 100 140 Q180 140 180 200" fill="%23ccc"/%3E%3C/svg%3E';
@@ -352,6 +371,354 @@ export default function TenantManagement() {
                   <span className="detail-value">{tenant.address}</span>
                 </div>
               </div>
+
+              {/* Tenant Photos Gallery */}
+              {(tenant.photoUrl || tenant.photo2Url || tenant.photo3Url || tenant.photo4Url || tenant.photo5Url || tenant.photo6Url || tenant.photo7Url || tenant.photo8Url || tenant.photo9Url || tenant.photo10Url) && (
+                <div className="tenant-photos-section">
+                  <div className="section-title-row">
+                    <h4>Photos</h4>
+                    <span className="file-count-badge">
+                      {[tenant.photoUrl, tenant.photo2Url, tenant.photo3Url, tenant.photo4Url, tenant.photo5Url, tenant.photo6Url, tenant.photo7Url, tenant.photo8Url, tenant.photo9Url, tenant.photo10Url].filter(Boolean).length}
+                    </span>
+                  </div>
+                  <div className="photos-gallery">
+                    {tenant.photoUrl && (
+                      <div className="photo-item-with-label">
+                        <img
+                          src={getFileUrl(tenant.photoUrl)}
+                          alt="Photo 1"
+                          className="gallery-photo"
+                          loading="lazy"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src =
+                              'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"%3E%3Crect width="200" height="200" fill="%23f0f0f0"/%3E%3Ctext x="100" y="100" text-anchor="middle" dy=".3em" fill="%23999" font-size="12"%3EPhoto 1%3C/text%3E%3C/svg%3E';
+                          }}
+                        />
+                        <span className="photo-label">Photo 1</span>
+                      </div>
+                    )}
+                    {tenant.photo2Url && (
+                      <div className="photo-item-with-label">
+                        <img
+                          src={getFileUrl(tenant.photo2Url)}
+                          alt="Photo 2"
+                          className="gallery-photo"
+                          loading="lazy"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src =
+                              'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"%3E%3Crect width="200" height="200" fill="%23f0f0f0"/%3E%3Ctext x="100" y="100" text-anchor="middle" dy=".3em" fill="%23999" font-size="12"%3EPhoto 2%3C/text%3E%3C/svg%3E';
+                          }}
+                        />
+                        <span className="photo-label">Photo 2</span>
+                      </div>
+                    )}
+                    {tenant.photo3Url && (
+                      <div className="photo-item-with-label">
+                        <img
+                          src={getFileUrl(tenant.photo3Url)}
+                          alt="Photo 3"
+                          className="gallery-photo"
+                          loading="lazy"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src =
+                              'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"%3E%3Crect width="200" height="200" fill="%23f0f0f0"/%3E%3Ctext x="100" y="100" text-anchor="middle" dy=".3em" fill="%23999" font-size="12"%3EPhoto 3%3C/text%3E%3C/svg%3E';
+                          }}
+                        />
+                        <span className="photo-label">Photo 3</span>
+                      </div>
+                    )}
+                    {tenant.photo4Url && (
+                      <div className="photo-item-with-label">
+                        <img
+                          src={getFileUrl(tenant.photo4Url)}
+                          alt="Photo 4"
+                          className="gallery-photo"
+                          loading="lazy"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src =
+                              'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"%3E%3Crect width="200" height="200" fill="%23f0f0f0"/%3E%3Ctext x="100" y="100" text-anchor="middle" dy=".3em" fill="%23999" font-size="12"%3EPhoto 4%3C/text%3E%3C/svg%3E';
+                          }}
+                        />
+                        <span className="photo-label">Photo 4</span>
+                      </div>
+                    )}
+                    {tenant.photo5Url && (
+                      <div className="photo-item-with-label">
+                        <img
+                          src={getFileUrl(tenant.photo5Url)}
+                          alt="Photo 5"
+                          className="gallery-photo"
+                          loading="lazy"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src =
+                              'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"%3E%3Crect width="200" height="200" fill="%23f0f0f0"/%3E%3Ctext x="100" y="100" text-anchor="middle" dy=".3em" fill="%23999" font-size="12"%3EPhoto 5%3C/text%3E%3C/svg%3E';
+                          }}
+                        />
+                        <span className="photo-label">Photo 5</span>
+                      </div>
+                    )}
+                    {tenant.photo6Url && (
+                      <div className="photo-item-with-label">
+                        <img
+                          src={getFileUrl(tenant.photo6Url)}
+                          alt="Photo 6"
+                          className="gallery-photo"
+                          loading="lazy"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src =
+                              'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"%3E%3Crect width="200" height="200" fill="%23f0f0f0"/%3E%3Ctext x="100" y="100" text-anchor="middle" dy=".3em" fill="%23999" font-size="12"%3EPhoto 6%3C/text%3E%3C/svg%3E';
+                          }}
+                        />
+                        <span className="photo-label">Photo 6</span>
+                      </div>
+                    )}
+                    {tenant.photo7Url && (
+                      <div className="photo-item-with-label">
+                        <img
+                          src={getFileUrl(tenant.photo7Url)}
+                          alt="Photo 7"
+                          className="gallery-photo"
+                          loading="lazy"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src =
+                              'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"%3E%3Crect width="200" height="200" fill="%23f0f0f0"/%3E%3Ctext x="100" y="100" text-anchor="middle" dy=".3em" fill="%23999" font-size="12"%3EPhoto 7%3C/text%3E%3C/svg%3E';
+                          }}
+                        />
+                        <span className="photo-label">Photo 7</span>
+                      </div>
+                    )}
+                    {tenant.photo8Url && (
+                      <div className="photo-item-with-label">
+                        <img
+                          src={getFileUrl(tenant.photo8Url)}
+                          alt="Photo 8"
+                          className="gallery-photo"
+                          loading="lazy"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src =
+                              'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"%3E%3Crect width="200" height="200" fill="%23f0f0f0"/%3E%3Ctext x="100" y="100" text-anchor="middle" dy=".3em" fill="%23999" font-size="12"%3EPhoto 8%3C/text%3E%3C/svg%3E';
+                          }}
+                        />
+                        <span className="photo-label">Photo 8</span>
+                      </div>
+                    )}
+                    {tenant.photo9Url && (
+                      <div className="photo-item-with-label">
+                        <img
+                          src={getFileUrl(tenant.photo9Url)}
+                          alt="Photo 9"
+                          className="gallery-photo"
+                          loading="lazy"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src =
+                              'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"%3E%3Crect width="200" height="200" fill="%23f0f0f0"/%3E%3Ctext x="100" y="100" text-anchor="middle" dy=".3em" fill="%23999" font-size="12"%3EPhoto 9%3C/text%3E%3C/svg%3E';
+                          }}
+                        />
+                        <span className="photo-label">Photo 9</span>
+                      </div>
+                    )}
+                    {tenant.photo10Url && (
+                      <div className="photo-item-with-label">
+                        <img
+                          src={getFileUrl(tenant.photo10Url)}
+                          alt="Photo 10"
+                          className="gallery-photo"
+                          loading="lazy"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src =
+                              'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"%3E%3Crect width="200" height="200" fill="%23f0f0f0"/%3E%3Ctext x="100" y="100" text-anchor="middle" dy=".3em" fill="%23999" font-size="12"%3EPhoto 10%3C/text%3E%3C/svg%3E';
+                          }}
+                        />
+                        <span className="photo-label">Photo 10</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Tenant Documents/Proofs */}
+              {(tenant.proof1Url || tenant.proof2Url || tenant.proof3Url || tenant.proof4Url || tenant.proof5Url || tenant.proof6Url || tenant.proof7Url || tenant.proof8Url || tenant.proof9Url || tenant.proof10Url) && (
+                <div className="tenant-documents">
+                  <div className="section-title-row">
+                    <h4>Documents & Proof</h4>
+                    <span className="file-count-badge">
+                      {[tenant.proof1Url, tenant.proof2Url, tenant.proof3Url, tenant.proof4Url, tenant.proof5Url, tenant.proof6Url, tenant.proof7Url, tenant.proof8Url, tenant.proof9Url, tenant.proof10Url].filter(Boolean).length}
+                    </span>
+                  </div>
+                  <div className="documents-gallery">
+                    {tenant.proof1Url && (
+                      <div className="document-item">
+                        <div className="document-image-wrapper">
+                          <img
+                            src={getFileUrl(tenant.proof1Url)}
+                            alt="Proof Document 1"
+                            className="document-image"
+                            loading="lazy"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src =
+                                'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"%3E%3Crect width="200" height="200" fill="%23e0e0e0"/%3E%3Ctext x="100" y="100" text-anchor="middle" dy=".3em" fill="%23999" font-size="14"%3EDocument 1%3C/text%3E%3C/svg%3E';
+                            }}
+                          />
+                        </div>
+                        <span className="document-label">Proof 1</span>
+                      </div>
+                    )}
+                    {tenant.proof2Url && (
+                      <div className="document-item">
+                        <div className="document-image-wrapper">
+                          <img
+                            src={getFileUrl(tenant.proof2Url)}
+                            alt="Proof Document 2"
+                            className="document-image"
+                            loading="lazy"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src =
+                                'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"%3E%3Crect width="200" height="200" fill="%23e0e0e0"/%3E%3Ctext x="100" y="100" text-anchor="middle" dy=".3em" fill="%23999" font-size="14"%3EDocument 2%3C/text%3E%3C/svg%3E';
+                            }}
+                          />
+                        </div>
+                        <span className="document-label">Proof 2</span>
+                      </div>
+                    )}
+                    {tenant.proof3Url && (
+                      <div className="document-item">
+                        <div className="document-image-wrapper">
+                          <img
+                            src={getFileUrl(tenant.proof3Url)}
+                            alt="Proof Document 3"
+                            className="document-image"
+                            loading="lazy"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src =
+                                'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"%3E%3Crect width="200" height="200" fill="%23e0e0e0"/%3E%3Ctext x="100" y="100" text-anchor="middle" dy=".3em" fill="%23999" font-size="14"%3EDocument 3%3C/text%3E%3C/svg%3E';
+                            }}
+                          />
+                        </div>
+                        <span className="document-label">Proof 3</span>
+                      </div>
+                    )}
+                    {tenant.proof4Url && (
+                      <div className="document-item">
+                        <div className="document-image-wrapper">
+                          <img
+                            src={getFileUrl(tenant.proof4Url)}
+                            alt="Proof Document 4"
+                            className="document-image"
+                            loading="lazy"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src =
+                                'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"%3E%3Crect width="200" height="200" fill="%23e0e0e0"/%3E%3Ctext x="100" y="100" text-anchor="middle" dy=".3em" fill="%23999" font-size="14"%3EDocument 4%3C/text%3E%3C/svg%3E';
+                            }}
+                          />
+                        </div>
+                        <span className="document-label">Proof 4</span>
+                      </div>
+                    )}
+                    {tenant.proof5Url && (
+                      <div className="document-item">
+                        <div className="document-image-wrapper">
+                          <img
+                            src={getFileUrl(tenant.proof5Url)}
+                            alt="Proof Document 5"
+                            className="document-image"
+                            loading="lazy"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src =
+                                'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"%3E%3Crect width="200" height="200" fill="%23e0e0e0"/%3E%3Ctext x="100" y="100" text-anchor="middle" dy=".3em" fill="%23999" font-size="14"%3EDocument 5%3C/text%3E%3C/svg%3E';
+                            }}
+                          />
+                        </div>
+                        <span className="document-label">Proof 5</span>
+                      </div>
+                    )}
+                    {tenant.proof6Url && (
+                      <div className="document-item">
+                        <div className="document-image-wrapper">
+                          <img
+                            src={getFileUrl(tenant.proof6Url)}
+                            alt="Proof Document 6"
+                            className="document-image"
+                            loading="lazy"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src =
+                                'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"%3E%3Crect width="200" height="200" fill="%23e0e0e0"/%3E%3Ctext x="100" y="100" text-anchor="middle" dy=".3em" fill="%23999" font-size="14"%3EDocument 6%3C/text%3E%3C/svg%3E';
+                            }}
+                          />
+                        </div>
+                        <span className="document-label">Proof 6</span>
+                      </div>
+                    )}
+                    {tenant.proof7Url && (
+                      <div className="document-item">
+                        <div className="document-image-wrapper">
+                          <img
+                            src={getFileUrl(tenant.proof7Url)}
+                            alt="Proof Document 7"
+                            className="document-image"
+                            loading="lazy"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src =
+                                'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"%3E%3Crect width="200" height="200" fill="%23e0e0e0"/%3E%3Ctext x="100" y="100" text-anchor="middle" dy=".3em" fill="%23999" font-size="14"%3EDocument 7%3C/text%3E%3C/svg%3E';
+                            }}
+                          />
+                        </div>
+                        <span className="document-label">Proof 7</span>
+                      </div>
+                    )}
+                    {tenant.proof8Url && (
+                      <div className="document-item">
+                        <div className="document-image-wrapper">
+                          <img
+                            src={getFileUrl(tenant.proof8Url)}
+                            alt="Proof Document 8"
+                            className="document-image"
+                            loading="lazy"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src =
+                                'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"%3E%3Crect width="200" height="200" fill="%23e0e0e0"/%3E%3Ctext x="100" y="100" text-anchor="middle" dy=".3em" fill="%23999" font-size="14"%3EDocument 8%3C/text%3E%3C/svg%3E';
+                            }}
+                          />
+                        </div>
+                        <span className="document-label">Proof 8</span>
+                      </div>
+                    )}
+                    {tenant.proof9Url && (
+                      <div className="document-item">
+                        <div className="document-image-wrapper">
+                          <img
+                            src={getFileUrl(tenant.proof9Url)}
+                            alt="Proof Document 9"
+                            className="document-image"
+                            loading="lazy"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src =
+                                'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"%3E%3Crect width="200" height="200" fill="%23e0e0e0"/%3E%3Ctext x="100" y="100" text-anchor="middle" dy=".3em" fill="%23999" font-size="14"%3EDocument 9%3C/text%3E%3C/svg%3E';
+                            }}
+                          />
+                        </div>
+                        <span className="document-label">Proof 9</span>
+                      </div>
+                    )}
+                    {tenant.proof10Url && (
+                      <div className="document-item">
+                        <div className="document-image-wrapper">
+                          <img
+                            src={getFileUrl(tenant.proof10Url)}
+                            alt="Proof Document 10"
+                            className="document-image"
+                            loading="lazy"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src =
+                                'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"%3E%3Crect width="200" height="200" fill="%23e0e0e0"/%3E%3Ctext x="100" y="100" text-anchor="middle" dy=".3em" fill="%23999" font-size="14"%3EDocument 10%3C/text%3E%3C/svg%3E';
+                            }}
+                          />
+                        </div>
+                        <span className="document-label">Proof 10</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Room Details (if occupied) */}
               {tenant.isCurrentlyOccupied && (
@@ -409,6 +776,12 @@ export default function TenantManagement() {
 
               {/* Action Buttons */}
               <div className="tenant-actions">
+                <button
+                  className="btn-primary"
+                  onClick={() => setFullScreenTenant(tenant)}
+                >
+                  👁 View
+                </button>
                 <button
                   className="btn-secondary btn-edit"
                   onClick={() => handleEditTenant(tenant)}
@@ -481,6 +854,192 @@ export default function TenantManagement() {
           onSubmit={handleFormSubmit}
           onCancel={handleFormClose}
         />
+      )}
+
+      {/* Full Screen Tenant View */}
+      {fullScreenTenant && (
+        <div className="fullscreen-overlay" onClick={() => setFullScreenTenant(null)}>
+          <div className="fullscreen-content" onClick={(e) => e.stopPropagation()}>
+            <button 
+              className="fullscreen-close-btn"
+              onClick={() => setFullScreenTenant(null)}
+              title="Close (ESC)"
+            >
+              ✕
+            </button>
+
+            <div className="fullscreen-header">
+              <div className="fullscreen-title-section">
+                <h1>{fullScreenTenant.name}</h1>
+                {fullScreenTenant.photoUrl && (
+                  <div className="fullscreen-main-photo">
+                    <img
+                      src={getFileUrl(fullScreenTenant.photoUrl)}
+                      alt={fullScreenTenant.name}
+                      loading="lazy"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="fullscreen-body">
+              {/* Basic Information */}
+              <div className="fullscreen-section">
+                <h3>Personal Information</h3>
+                <div className="fullscreen-grid">
+                  <div className="fullscreen-field">
+                    <label>Phone</label>
+                    <p>{fullScreenTenant.phone}</p>
+                  </div>
+                  <div className="fullscreen-field">
+                    <label>City</label>
+                    <p>{fullScreenTenant.city}</p>
+                  </div>
+                  <div className="fullscreen-field">
+                    <label>Address</label>
+                    <p>{fullScreenTenant.address}</p>
+                  </div>
+                  {fullScreenTenant.isCurrentlyOccupied && (
+                    <>
+                      <div className="fullscreen-field">
+                        <label>Room Number</label>
+                        <p>{fullScreenTenant.roomNumber || 'N/A'}</p>
+                      </div>
+                      <div className="fullscreen-field">
+                        <label>Check-in Date</label>
+                        <p>{fullScreenTenant.checkInDate ? new Date(fullScreenTenant.checkInDate).toLocaleDateString() : 'N/A'}</p>
+                      </div>
+                      {fullScreenTenant.rentFixed && (
+                        <div className="fullscreen-field">
+                          <label>Rent Fixed</label>
+                          <p>₹{fullScreenTenant.rentFixed.toLocaleString()}</p>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* All Photos Gallery */}
+              {(fullScreenTenant.photoUrl || fullScreenTenant.photo2Url || fullScreenTenant.photo3Url || fullScreenTenant.photo4Url || fullScreenTenant.photo5Url || fullScreenTenant.photo6Url || fullScreenTenant.photo7Url || fullScreenTenant.photo8Url || fullScreenTenant.photo9Url || fullScreenTenant.photo10Url) && (
+                <div className="fullscreen-section">
+                  <h3>Photos</h3>
+                  <div className="fullscreen-photos-grid">
+                    {fullScreenTenant.photoUrl && (
+                      <img src={getFileUrl(fullScreenTenant.photoUrl)} alt="Photo 1" loading="lazy" />
+                    )}
+                    {fullScreenTenant.photo2Url && (
+                      <img src={getFileUrl(fullScreenTenant.photo2Url)} alt="Photo 2" loading="lazy" />
+                    )}
+                    {fullScreenTenant.photo3Url && (
+                      <img src={getFileUrl(fullScreenTenant.photo3Url)} alt="Photo 3" loading="lazy" />
+                    )}
+                    {fullScreenTenant.photo4Url && (
+                      <img src={getFileUrl(fullScreenTenant.photo4Url)} alt="Photo 4" loading="lazy" />
+                    )}
+                    {fullScreenTenant.photo5Url && (
+                      <img src={getFileUrl(fullScreenTenant.photo5Url)} alt="Photo 5" loading="lazy" />
+                    )}
+                    {fullScreenTenant.photo6Url && (
+                      <img src={getFileUrl(fullScreenTenant.photo6Url)} alt="Photo 6" loading="lazy" />
+                    )}
+                    {fullScreenTenant.photo7Url && (
+                      <img src={getFileUrl(fullScreenTenant.photo7Url)} alt="Photo 7" loading="lazy" />
+                    )}
+                    {fullScreenTenant.photo8Url && (
+                      <img src={getFileUrl(fullScreenTenant.photo8Url)} alt="Photo 8" loading="lazy" />
+                    )}
+                    {fullScreenTenant.photo9Url && (
+                      <img src={getFileUrl(fullScreenTenant.photo9Url)} alt="Photo 9" loading="lazy" />
+                    )}
+                    {fullScreenTenant.photo10Url && (
+                      <img src={getFileUrl(fullScreenTenant.photo10Url)} alt="Photo 10" loading="lazy" />
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* All Proofs Gallery */}
+              {(fullScreenTenant.proof1Url || fullScreenTenant.proof2Url || fullScreenTenant.proof3Url || fullScreenTenant.proof4Url || fullScreenTenant.proof5Url || fullScreenTenant.proof6Url || fullScreenTenant.proof7Url || fullScreenTenant.proof8Url || fullScreenTenant.proof9Url || fullScreenTenant.proof10Url) && (
+                <div className="fullscreen-section">
+                  <h3>Documents & Proofs</h3>
+                  <div className="fullscreen-proofs-grid">
+                    {fullScreenTenant.proof1Url && (
+                      <div className="proof-item">
+                        <img src={getFileUrl(fullScreenTenant.proof1Url)} alt="Proof 1" loading="lazy" />
+                        <span>Proof 1</span>
+                      </div>
+                    )}
+                    {fullScreenTenant.proof2Url && (
+                      <div className="proof-item">
+                        <img src={getFileUrl(fullScreenTenant.proof2Url)} alt="Proof 2" loading="lazy" />
+                        <span>Proof 2</span>
+                      </div>
+                    )}
+                    {fullScreenTenant.proof3Url && (
+                      <div className="proof-item">
+                        <img src={getFileUrl(fullScreenTenant.proof3Url)} alt="Proof 3" loading="lazy" />
+                        <span>Proof 3</span>
+                      </div>
+                    )}
+                    {fullScreenTenant.proof4Url && (
+                      <div className="proof-item">
+                        <img src={getFileUrl(fullScreenTenant.proof4Url)} alt="Proof 4" loading="lazy" />
+                        <span>Proof 4</span>
+                      </div>
+                    )}
+                    {fullScreenTenant.proof5Url && (
+                      <div className="proof-item">
+                        <img src={getFileUrl(fullScreenTenant.proof5Url)} alt="Proof 5" loading="lazy" />
+                        <span>Proof 5</span>
+                      </div>
+                    )}
+                    {fullScreenTenant.proof6Url && (
+                      <div className="proof-item">
+                        <img src={getFileUrl(fullScreenTenant.proof6Url)} alt="Proof 6" loading="lazy" />
+                        <span>Proof 6</span>
+                      </div>
+                    )}
+                    {fullScreenTenant.proof7Url && (
+                      <div className="proof-item">
+                        <img src={getFileUrl(fullScreenTenant.proof7Url)} alt="Proof 7" loading="lazy" />
+                        <span>Proof 7</span>
+                      </div>
+                    )}
+                    {fullScreenTenant.proof8Url && (
+                      <div className="proof-item">
+                        <img src={getFileUrl(fullScreenTenant.proof8Url)} alt="Proof 8" loading="lazy" />
+                        <span>Proof 8</span>
+                      </div>
+                    )}
+                    {fullScreenTenant.proof9Url && (
+                      <div className="proof-item">
+                        <img src={getFileUrl(fullScreenTenant.proof9Url)} alt="Proof 9" loading="lazy" />
+                        <span>Proof 9</span>
+                      </div>
+                    )}
+                    {fullScreenTenant.proof10Url && (
+                      <div className="proof-item">
+                        <img src={getFileUrl(fullScreenTenant.proof10Url)} alt="Proof 10" loading="lazy" />
+                        <span>Proof 10</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="fullscreen-footer">
+              <button 
+                className="btn-secondary"
+                onClick={() => setFullScreenTenant(null)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

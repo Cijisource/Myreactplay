@@ -61,9 +61,17 @@ export const getFileUrl = (filePath: string): string => {
     return fullUrl;
   }
   
-  // For plain filenames, prepend the API complains path
+  // Check if the path contains tenantphotos
+  if (filePath.includes('tenantphotos')) {
+    const baseUrl = getApiBaseUrl();
+    const fullUrl = `${baseUrl}/api/${filePath}`;
+    console.log('[File URL] Constructed URL from tenantphotos path:', { filePath, baseUrl, fullUrl });
+    return fullUrl;
+  }
+  
+  // For plain filenames, prepend the API tenantphotos path
   const baseUrl = getApiBaseUrl();
-  const fullUrl = `${baseUrl}/api/complains/${filePath}`;
+  const fullUrl = `${baseUrl}/api/tenantphotos/${filePath}`;
   console.log('[File URL] Constructed URL from filename:', { filePath, baseUrl, fullUrl });
   return fullUrl;
 };
@@ -85,6 +93,37 @@ export const apiService = {
   deleteTenant: (tenantId: number) => api.delete(`/tenants/${tenantId}`),
   searchTenants: (field: string, query: string) => 
     api.get(`/tenants/search?field=${field}&query=${query}`),
+  uploadTenantFiles: (formData: FormData) => {
+    // Use fetch for FormData to handle multiple files
+    const token = localStorage.getItem('authToken');
+    const headers: any = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    console.log('[Tenant Upload] Starting multi-file upload');
+
+    return fetch(`${API_URL}/tenants/upload`, {
+      method: 'POST',
+      headers: headers,
+      body: formData
+    })
+    .then(response => {
+      console.log('[Tenant Upload] Response status:', response.status);
+      if (!response.ok) {
+        throw new Error(`Upload failed with status ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log('[Tenant Upload] Response data:', data);
+      return { data };
+    })
+    .catch(error => {
+      console.error('[Tenant Upload] Error:', error);
+      throw error;
+    });
+  },
   
   // Rental Collection APIs
   getRentalSummary: () => api.get('/rental/summary'),
