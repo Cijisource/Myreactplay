@@ -3,10 +3,12 @@ import { getFileUrl } from '../api';
 
 interface TenantFullScreenViewProps {
   tenant: TenantWithOccupancy;
+  onClose?: () => void;
 }
 
 export default function TenantFullScreenView({
   tenant,
+  onClose,
 }: TenantFullScreenViewProps) {
 
   const getTenantPhotos = (tenant: TenantWithOccupancy): string[] => {
@@ -55,6 +57,14 @@ export default function TenantFullScreenView({
               </div>
             )}
           </div>
+          <button
+            type="button"
+            className="fullscreen-close-btn"
+            aria-label="Close full screen view"
+            onClick={() => onClose?.()}
+          >
+            ✕
+          </button>
         </div>
 
         <div className="fullscreen-body">

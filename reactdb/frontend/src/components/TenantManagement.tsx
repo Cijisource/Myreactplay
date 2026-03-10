@@ -334,6 +334,7 @@ export default function TenantManagement() {
           {/* Main Tenant View */}
           <TenantFullScreenView
             tenant={fullScreenTenant}
+            onClose={handleCloseFullscreen}
           />
 
           {/* Photo Gallery Modal (overlays on top) */}

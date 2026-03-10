@@ -34,12 +34,12 @@ const getApiBaseUrl = (): string => {
   // If API_URL is absolute, extract the base
   if (API_URL.startsWith('http://') || API_URL.startsWith('https://')) {
     const base = API_URL.replace(/\/api\/?$/, ''); // Remove /api suffix
-    console.log('[File URL] Using absolute API base:', base);
+    // console.log('[File URL] Using absolute API base:', base);
     return base;
   }
   
   // If API_URL is relative, use the current origin
-  console.log('[File URL] Using relative API, origin:', window.location.origin);
+  // console.log('[File URL] Using relative API, origin:', window.location.origin);
   return window.location.origin;
 };
 
@@ -49,7 +49,7 @@ export const getFileUrl = (filePath: string): string => {
   
   // If it's already an absolute URL, return as is
   if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
-    console.log('[File URL] Already absolute:', filePath);
+    // console.log('[File URL] Already absolute:', filePath);
     return filePath;
   }
   
@@ -57,7 +57,7 @@ export const getFileUrl = (filePath: string): string => {
   if (filePath.startsWith('/')) {
     const baseUrl = getApiBaseUrl();
     const fullUrl = `${baseUrl}${filePath}`;
-    console.log('[File URL] Constructed URL from path:', { filePath, baseUrl, fullUrl });
+    // console.log('[File URL] Constructed URL from path:', { filePath, baseUrl, fullUrl });
     return fullUrl;
   }
   
@@ -65,14 +65,14 @@ export const getFileUrl = (filePath: string): string => {
   if (filePath.includes('tenantphotos')) {
     const baseUrl = getApiBaseUrl();
     const fullUrl = `${baseUrl}/api/${filePath}`;
-    console.log('[File URL] Constructed URL from tenantphotos path:', { filePath, baseUrl, fullUrl });
+    // console.log('[File URL] Constructed URL from tenantphotos path:', { filePath, baseUrl, fullUrl });
     return fullUrl;
   }
   
   // For plain filenames, prepend the API tenantphotos path
   const baseUrl = getApiBaseUrl();
   const fullUrl = `${baseUrl}/api/tenantphotos/${filePath}`;
-  console.log('[File URL] Constructed URL from filename:', { filePath, baseUrl, fullUrl });
+  // console.log('[File URL] Constructed URL from filename:', { filePath, baseUrl, fullUrl });
   return fullUrl;
 };
 
