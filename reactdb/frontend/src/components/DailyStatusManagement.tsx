@@ -51,7 +51,16 @@ export default function DailyStatusManagement() {
   
   // Fullscreen view states
   const [fullscreenMedia, setFullscreenMedia] = useState<MediaFile | null>(null);
+  const [fullscreenStatusId, setFullscreenStatusId] = useState<number | null>(null);
+  const [fullscreenMediaType, setFullscreenMediaType] = useState<'photo' | 'video' | null>(null);
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
+  
+  // Edit mode media states
+  const [editMediaType, setEditMediaType] = useState<'photo' | 'video'>('photo');
+  const [editUploadingMedia, setEditUploadingMedia] = useState<Record<number, boolean>>({});
+  const [editUploadProgress, setEditUploadProgress] = useState<Record<number, number>>({});
+  const [editDeletingMedia, setEditDeletingMedia] = useState<Record<number, boolean>>({});
+  const [replacingMediaId, setReplacingMediaId] = useState<number | null>(null);
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -175,7 +184,7 @@ export default function DailyStatusManagement() {
     }
   };
 
-  // Handle media file upload
+  // Handle media file upload (list view)
   const handleMediaUpload = async (statusId: number, files: FileList | null) => {
     if (!files || files.length === 0) return;
 
@@ -188,15 +197,64 @@ export default function DailyStatusManagement() {
       return;
     }
 
+    await performMediaUpload(statusId, files, selectedMediaType, setUploadingMedia, setUploadProgress);
+  };
+
+  // Handle media file upload (edit mode)
+  const handleEditMediaUpload = async (statusId: number, files: FileList | null, replaceMediaId?: number) => {
+    if (!files || files.length === 0) return;
+
+    const existingMedia = mediaFiles[statusId] || [];
+    let existingCount = existingMedia.filter(m => m.mediaType === editMediaType).length;
+    
+    // If replacing, don't count the replaced media
+    if (replaceMediaId) {
+      existingCount = Math.max(0, existingCount - 1);
+    }
+
+    if (existingCount + files.length > 2) {
+      setError(`Cannot have more than 2 ${editMediaType}s per status. Current: ${existingCount}`);
+      setErrorStatusId(statusId);
+      return;
+    }
+
+    // If replacing, first delete the old media
+    if (replaceMediaId) {
+      try {
+        setEditDeletingMedia(prev => ({ ...prev, [replaceMediaId]: true }));
+        await apiService.deleteDailyStatusMedia(replaceMediaId);
+        await fetchMediaForStatus(statusId);
+      } catch (err) {
+        console.error('Error deleting media for replacement:', err);
+        setEditDeletingMedia(prev => ({ ...prev, [replaceMediaId]: false }));
+        return;
+      } finally {
+        setEditDeletingMedia(prev => ({ ...prev, [replaceMediaId]: false }));
+      }
+    }
+
+    await performMediaUpload(statusId, files, editMediaType, setEditUploadingMedia, setEditUploadProgress);
+    setReplacingMediaId(null);
+  };
+
+  // Perform actual media upload
+  const performMediaUpload = async (
+    statusId: number,
+    files: FileList,
+    mediaType: 'photo' | 'video',
+    setUploading: React.Dispatch<React.SetStateAction<Record<number, boolean>>>,
+    setProgress: React.Dispatch<React.SetStateAction<Record<number, number>>>
+  ) => {
+
     try {
-      setUploadingMedia(prev => ({ ...prev, [statusId]: true }));
-      setUploadProgress(prev => ({ ...prev, [statusId]: 0 }));
+      setUploading((prev: Record<number, boolean>) => ({ ...prev, [statusId]: true }));
+      setProgress((prev: Record<number, number>) => ({ ...prev, [statusId]: 0 }));
       setError(null);
       setErrorStatusId(null);
 
       const formData = new FormData();
       formData.append('dailyStatusId', statusId.toString());
-      formData.append('mediaType', selectedMediaType);
+      formData.append('mediaType', mediaType);
 
       for (let i = 0; i < files.length; i++) {
         formData.append('files', files[i]);
@@ -204,10 +262,10 @@ export default function DailyStatusManagement() {
 
       // Pass progress callback
       await apiService.uploadDailyStatusMedia(formData, (progress) => {
-        setUploadProgress(prev => ({ ...prev, [statusId]: progress }));
+        setProgress((prev: Record<number, number>) => ({ ...prev, [statusId]: progress }));
       });
       
-      setSuccessMessage(`${selectedMediaType}(s) uploaded successfully!`);
+      setSuccessMessage(`${mediaType}(s) uploaded successfully!`);
       setSuccessStatusId(statusId);
       
       // Refresh media for this status
@@ -218,8 +276,8 @@ export default function DailyStatusManagement() {
       setError(errorMsg);
       setErrorStatusId(statusId);
     } finally {
-      setUploadingMedia(prev => ({ ...prev, [statusId]: false }));
-      setUploadProgress(prev => ({ ...prev, [statusId]: 0 }));
+      setUploading((prev: Record<number, boolean>) => ({ ...prev, [statusId]: false }));
+      setProgress((prev: Record<number, number>) => ({ ...prev, [statusId]: 0 }));
     }
   };
 
@@ -246,8 +304,10 @@ export default function DailyStatusManagement() {
   };
 
   // Open fullscreen view
-  const handleOpenFullscreen = (media: MediaFile) => {
+  const handleOpenFullscreen = (media: MediaFile, statusId: number) => {
     setFullscreenMedia(media);
+    setFullscreenStatusId(statusId);
+    setFullscreenMediaType(media.mediaType as 'photo' | 'video');
     setFullscreenOpen(true);
   };
 
@@ -255,13 +315,43 @@ export default function DailyStatusManagement() {
   const handleCloseFullscreen = () => {
     setFullscreenOpen(false);
     setFullscreenMedia(null);
+    setFullscreenStatusId(null);
+    setFullscreenMediaType(null);
   };
 
-  // Handle keyboard close for fullscreen (ESC key)
+  // Navigate to previous media in fullscreen
+  const handlePreviousMedia = () => {
+    if (!fullscreenMedia || !fullscreenStatusId || !fullscreenMediaType) return;
+    const allMedia = (mediaFiles[fullscreenStatusId] || []).filter(m => m.mediaType === fullscreenMediaType);
+    const currentIndex = allMedia.findIndex(m => m.id === fullscreenMedia.id);
+    if (currentIndex > 0) {
+      setFullscreenMedia(allMedia[currentIndex - 1]);
+    }
+  };
+
+  // Navigate to next media in fullscreen
+  const handleNextMedia = () => {
+    if (!fullscreenMedia || !fullscreenStatusId || !fullscreenMediaType) return;
+    const allMedia = (mediaFiles[fullscreenStatusId] || []).filter(m => m.mediaType === fullscreenMediaType);
+    const currentIndex = allMedia.findIndex(m => m.id === fullscreenMedia.id);
+    if (currentIndex < allMedia.length - 1) {
+      setFullscreenMedia(allMedia[currentIndex + 1]);
+    }
+  };
+
+  // Handle keyboard for fullscreen (ESC, arrows)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && fullscreenOpen) {
+      if (!fullscreenOpen) return;
+      
+      if (e.key === 'Escape') {
         handleCloseFullscreen();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        handlePreviousMedia();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        handleNextMedia();
       }
     };
     if (fullscreenOpen) {
@@ -273,7 +363,7 @@ export default function DailyStatusManagement() {
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = 'unset';
     };
-  }, [fullscreenOpen]);
+  }, [fullscreenOpen, fullscreenMedia, fullscreenStatusId, fullscreenMediaType]);
 
   // Delete status
   const handleDelete = async (id: number) => {
@@ -412,6 +502,199 @@ export default function DailyStatusManagement() {
               onChange={(e) => setFormData({ ...formData, waterLevelStatus: e.target.value })}
               rows={3}
             />
+
+            {/* Media Management Section in Edit Form */}
+            {editingStatus && (
+              <div className="edit-media-section">
+                <h4>📷 Photos & Videos</h4>
+                
+                {/* Existing Media Display */}
+                {(() => {
+                  const existingMedia = mediaFiles[editingStatus.id] || [];
+                  return existingMedia.length > 0 ? (
+                    <div className="edit-existing-media">
+                      <div className="media-type-group">
+                        <div className="media-type-header">Photos</div>
+                        <div className="edit-media-grid">
+                          {existingMedia
+                            .filter(m => m.mediaType === 'photo')
+                            .sort((a, b) => a.sequenceNumber - b.sequenceNumber)
+                            .map(media => (
+                              <div key={media.id} className="edit-media-item">
+                                {isImageFile(media.mimeType) ? (
+                                  <img
+                                    src={getFileUrl(media.filePath)}
+                                    alt={media.fileName}
+                                    className="edit-media-thumbnail"
+                                  />
+                                ) : (
+                                  <div className="edit-media-placeholder">{media.fileName}</div>
+                                )}
+                                <div className="edit-media-actions">
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-info"
+                                    onClick={() => setReplacingMediaId(media.id)}
+                                    disabled={editDeletingMedia[media.id] || replacingMediaId === media.id}
+                                  >
+                                    {replacingMediaId === media.id ? 'Choose File...' : 'Replace'}
+                                  </button>
+                                  {replacingMediaId === media.id && (
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      onChange={(e) => handleEditMediaUpload(editingStatus.id, e.target.files, media.id)}
+                                      style={{ display: 'none' }}
+                                      id={`replace-photo-${media.id}`}
+                                    />
+                                  )}
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-danger"
+                                    onClick={() => {
+                                      setReplacingMediaId(null);
+                                      handleDeleteMedia(media.id, editingStatus.id);
+                                    }}
+                                    disabled={editDeletingMedia[media.id]}
+                                  >
+                                    {editDeletingMedia[media.id] ? 'Deleting...' : 'Delete'}
+                                  </button>
+                                </div>
+                                {replacingMediaId === media.id && (
+                                  <label htmlFor={`replace-photo-${media.id}`} className="edit-media-upload-btn">
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      onChange={(e) => handleEditMediaUpload(editingStatus.id, e.target.files, media.id)}
+                                      id={`replace-photo-${media.id}`}
+                                    />
+                                    Select File
+                                  </label>
+                                )}
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+
+                      <div className="media-type-group">
+                        <div className="media-type-header">Videos</div>
+                        <div className="edit-media-grid">
+                          {existingMedia
+                            .filter(m => m.mediaType === 'video')
+                            .sort((a, b) => a.sequenceNumber - b.sequenceNumber)
+                            .map(media => (
+                              <div key={media.id} className="edit-media-item">
+                                <video className="edit-media-thumbnail">
+                                  <source src={getFileUrl(media.filePath)} type={media.mimeType || 'video/mp4'} />
+                                </video>
+                                <div className="edit-media-actions">
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-info"
+                                    onClick={() => setReplacingMediaId(media.id)}
+                                    disabled={editDeletingMedia[media.id] || replacingMediaId === media.id}
+                                  >
+                                    {replacingMediaId === media.id ? 'Choose File...' : 'Replace'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-danger"
+                                    onClick={() => {
+                                      setReplacingMediaId(null);
+                                      handleDeleteMedia(media.id, editingStatus.id);
+                                    }}
+                                    disabled={editDeletingMedia[media.id]}
+                                  >
+                                    {editDeletingMedia[media.id] ? 'Deleting...' : 'Delete'}
+                                  </button>
+                                </div>
+                                {replacingMediaId === media.id && (
+                                  <label htmlFor={`replace-video-${media.id}`} className="edit-media-upload-btn">
+                                    <input
+                                      type="file"
+                                      accept="video/*"
+                                      onChange={(e) => handleEditMediaUpload(editingStatus.id, e.target.files, media.id)}
+                                      id={`replace-video-${media.id}`}
+                                    />
+                                    Select File
+                                  </label>
+                                )}
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="edit-no-media">No media files yet</p>
+                  );
+                })()}
+
+                {/* Add New Media */}
+                {(() => {
+                  const existingMedia = mediaFiles[editingStatus.id] || [];
+                  const photoCount = existingMedia.filter(m => m.mediaType === 'photo').length;
+                  const videoCount = existingMedia.filter(m => m.mediaType === 'video').length;
+                  
+                  return (
+                    <div className="edit-add-media">
+                      {photoCount < 2 && (
+                        <div className="edit-media-upload-item">
+                          <label htmlFor={`add-photo-${editingStatus.id}`} className="edit-media-upload-btn-primary">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              onChange={(e) => {
+                                setEditMediaType('photo');
+                                handleEditMediaUpload(editingStatus.id, e.target.files);
+                              }}
+                              id={`add-photo-${editingStatus.id}`}
+                              disabled={editUploadingMedia[editingStatus.id]}
+                            />
+                            {editUploadingMedia[editingStatus.id] ? '⏳ Adding Photos...' : '➕ Add Photos'}
+                          </label>
+                          {editUploadProgress[editingStatus.id] > 0 && (
+                            <div className="progress-bar">
+                              <div
+                                className="progress-fill"
+                                style={{ width: `${editUploadProgress[editingStatus.id]}%` }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {videoCount < 2 && (
+                        <div className="edit-media-upload-item">
+                          <label htmlFor={`add-video-${editingStatus.id}`} className="edit-media-upload-btn-primary">
+                            <input
+                              type="file"
+                              accept="video/*"
+                              multiple
+                              onChange={(e) => {
+                                setEditMediaType('video');
+                                handleEditMediaUpload(editingStatus.id, e.target.files);
+                              }}
+                              id={`add-video-${editingStatus.id}`}
+                              disabled={editUploadingMedia[editingStatus.id]}
+                            />
+                            {editUploadingMedia[editingStatus.id] ? '⏳ Adding Videos...' : '➕ Add Videos'}
+                          </label>
+                          {editUploadProgress[editingStatus.id] > 0 && (
+                            <div className="progress-bar">
+                              <div
+                                className="progress-fill"
+                                style={{ width: `${editUploadProgress[editingStatus.id]}%` }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+            
             <div className="form-buttons">
               <button type="submit" className="btn btn-success" disabled={loading}>
                 {loading ? 'Saving...' : 'Save Status'}
@@ -496,7 +779,7 @@ export default function DailyStatusManagement() {
                               src={getFileUrl(media.filePath)} 
                               alt={media.fileName} 
                               className="media-thumbnail" 
-                              onClick={() => handleOpenFullscreen(media)}
+                              onClick={() => handleOpenFullscreen(media, status.id)}
                               style={{ cursor: 'pointer' }}
                             />
                           ) : (
@@ -527,7 +810,7 @@ export default function DailyStatusManagement() {
                         <div key={media.id} className="media-item">
                           <video 
                             className="media-thumbnail" 
-                            onClick={() => handleOpenFullscreen(media)}
+                            onClick={() => handleOpenFullscreen(media, status.id)}
                             style={{ cursor: 'pointer' }}
                           >
                             <source src={getFileUrl(media.filePath)} type={media.mimeType || 'video/mp4'} />
@@ -622,8 +905,8 @@ export default function DailyStatusManagement() {
         </div>
       )}
 
-      {/* Fullscreen Media Modal */}
-      {fullscreenOpen && fullscreenMedia && (
+      {/* Fullscreen Media Modal with Thumbnails */}
+      {fullscreenOpen && fullscreenMedia && fullscreenStatusId && fullscreenMediaType && (
         <div className="fullscreen-overlay" onClick={handleCloseFullscreen}>
           <div className="fullscreen-modal" onClick={(e) => e.stopPropagation()}>
             <button 
@@ -634,27 +917,86 @@ export default function DailyStatusManagement() {
             >
               ✕
             </button>
-            {fullscreenMedia.mediaType === 'photo' ? (
-              <img 
-                src={getFileUrl(fullscreenMedia.filePath)} 
-                alt={fullscreenMedia.fileName}
-                className="fullscreen-content"
-                loading="lazy"
-              />
-            ) : (
-              <video 
-                className="fullscreen-content"
-                controls
-                autoPlay
-                controlsList="nodownload"
-              >
-                <source src={getFileUrl(fullscreenMedia.filePath)} type={fullscreenMedia.mimeType || 'video/mp4'} />
-                Your browser does not support the video tag.
-              </video>
-            )}
+            
+            {/* Main Media Display */}
+            <div className="fullscreen-main-container">
+              {fullscreenMedia.mediaType === 'photo' ? (
+                <img 
+                  src={getFileUrl(fullscreenMedia.filePath)} 
+                  alt={fullscreenMedia.fileName}
+                  className="fullscreen-content"
+                  loading="lazy"
+                />
+              ) : (
+                <video 
+                  className="fullscreen-content"
+                  controls
+                  autoPlay
+                  controlsList="nodownload"
+                >
+                  <source src={getFileUrl(fullscreenMedia.filePath)} type={fullscreenMedia.mimeType || 'video/mp4'} />
+                  Your browser does not support the video tag.
+                </video>
+              )}
+              
+              {/* Navigation Arrows */}
+              {(() => {
+                const allMedia = (mediaFiles[fullscreenStatusId] || []).filter(m => m.mediaType === fullscreenMediaType);
+                return allMedia.length > 1 ? (
+                  <>
+                    <button 
+                      className="fullscreen-nav-prev" 
+                      onClick={handlePreviousMedia}
+                      title="Previous (or ← arrow key)"
+                      aria-label="Previous media"
+                    >
+                      ‹
+                    </button>
+                    <button 
+                      className="fullscreen-nav-next" 
+                      onClick={handleNextMedia}
+                      title="Next (or → arrow key)"
+                      aria-label="Next media"
+                    >
+                      ›
+                    </button>
+                  </>
+                ) : null;
+              })()}
+            </div>
+            
+            {/* Info Section */}
             <div className="fullscreen-info">
               <p>{fullscreenMedia.fileName}</p>
             </div>
+
+            {/* Thumbnail Gallery */}
+            {(() => {
+              const allMedia = (mediaFiles[fullscreenStatusId] || []).filter(m => m.mediaType === fullscreenMediaType);
+              return allMedia.length > 1 ? (
+                <div className="fullscreen-thumbnails">
+                  {allMedia.map(media => (
+                    <div
+                      key={media.id}
+                      className={`fullscreen-thumbnail ${media.id === fullscreenMedia.id ? 'active' : ''}`}
+                      onClick={() => setFullscreenMedia(media)}
+                      title={media.fileName}
+                    >
+                      {media.mediaType === 'photo' && isImageFile(media.mimeType) ? (
+                        <img 
+                          src={getFileUrl(media.filePath)} 
+                          alt={media.fileName}
+                        />
+                      ) : (
+                        <video>
+                          <source src={getFileUrl(media.filePath)} type={media.mimeType || 'video/mp4'} />
+                        </video>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : null;
+            })()}
           </div>
         </div>
       )}
