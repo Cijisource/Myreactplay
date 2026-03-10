@@ -396,6 +396,18 @@ h2 {
   margin-top: 8px;
 }
 
+.last-login {
+  margin-top: 8px !important;
+  color: #2563eb !important;
+  font-weight: 500;
+}
+
+.next-login-duration {
+  margin-top: 8px !important;
+  color: #0891b2 !important;
+  font-weight: 500;
+}
+
 .user-roles-label {
   font-weight: 600;
   color: #4a5568;
