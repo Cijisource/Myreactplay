@@ -18,6 +18,17 @@ export const apiClient = axios.create({
   }
 });
 
+// Add request interceptor to include auth token
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('authToken');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+}, (error) => {
+  return Promise.reject(error);
+});
+
 // Add response interceptor for caching
 apiClient.interceptors.response.use((response) => {
   if (response.config.method === 'get') {
@@ -37,7 +48,34 @@ export const createCategory = (data) => apiClient.post('/categories', data);
 export const updateCategory = (id, data) => apiClient.put(`/categories/${id}`, data);
 export const deleteCategory = (id) => apiClient.delete(`/categories/${id}`);
 
-// Products
+// Authentication
+export const registerUser = (userName, password, name) => 
+  apiClient.post('/auth/register', { userName, password, name });
+
+export const loginUser = (userName, password) => 
+  apiClient.post('/auth/login', { userName, password });
+
+export const getCurrentUser = () => 
+  apiClient.get('/auth/me');
+
+export const getUserRoles = () => 
+  apiClient.get('/auth/roles');
+
+export const logout = () => {
+  localStorage.removeItem('authToken');
+  localStorage.removeItem('user');
+};
+
+// Admin - User & Role Management
+export const getAllUsers = () => 
+  apiClient.get('/auth/users');
+
+export const getAdminUserById = (userId) => 
+  apiClient.get(`/auth/users/${userId}`);
+
+export const updateUserRole = (userId, roleId) => 
+  apiClient.put(`/auth/users/${userId}/role`, { roleId });
+
 export const getProducts = (params) => apiClient.get('/products', { params });
 export const getProductById = (id) => apiClient.get(`/products/${id}`);
 export const createProduct = (data) => apiClient.post('/products', data);

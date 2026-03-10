@@ -155,6 +155,23 @@
   border-color: #ff6b6b;
 }
 
+.nav-link.admin-link {
+  border-color: #667eea;
+  color: #667eea;
+}
+
+.nav-link.admin-link:hover {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+}
+
+.nav-link.admin-link.active {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+}
+
 .app-main {
   flex: 1;
   padding: 20px 0;

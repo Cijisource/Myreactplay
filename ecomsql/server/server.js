@@ -6,6 +6,7 @@ const path = require('path');
 const { getConnection } = require('./config');
 
 // Import routes
+const authRoutes = require('./routes/auth');
 const categoryRoutes = require('./routes/categories');
 const productRoutes = require('./routes/products');
 const productImageRoutes = require('./routes/productImages');
@@ -45,6 +46,7 @@ async function initializeDB() {
 }
 
 // Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/product-images', productImageRoutes);

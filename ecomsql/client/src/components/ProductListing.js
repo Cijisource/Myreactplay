@@ -93,14 +93,20 @@ const ProductCard = React.memo(({ product, onAddToCart, onViewPhotos }) => {
 
 ProductCard.displayName = 'ProductCard';
 
-const ProductListing = () => {
+const ProductListing = ({ searchQuery: externalSearchQuery, setSearchQuery: externalSetSearchQuery }) => {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(externalSearchQuery || '');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
+
+  // Use external search query if provided
+  useEffect(() => {
+    console.log('[ProductListing] External search query changed:', externalSearchQuery);
+    setSearchQuery(externalSearchQuery || '');
+  }, [externalSearchQuery]);
 
   const loadCategories = useCallback(async () => {
     try {
@@ -119,18 +125,21 @@ const ProductListing = () => {
       if (selectedCategory) params.categoryId = selectedCategory;
       if (searchQuery) params.search = searchQuery;
       
+      console.log('[ProductListing] Loading products with params:', params);
       const response = await getProducts(params);
+      console.log('[ProductListing] Products loaded:', response.data?.length, 'items');
       setProducts(Array.isArray(response.data) ? response.data : []);
       setError(null);
     } catch (err) {
       setError('Failed to load products');
-      console.error(err);
+      console.error('[ProductListing] Error loading products:', err);
     } finally {
       setLoading(false);
     }
   }, [selectedCategory, searchQuery]);
 
   useEffect(() => {
+    console.log('[ProductListing] Dependency changed - loading products');
     loadCategories();
     loadProducts();
   }, [selectedCategory, searchQuery, loadCategories, loadProducts]);
@@ -172,16 +181,6 @@ const ProductListing = () => {
     <>
       <div className="product-listing">
         <div className="filters">
-          <div className="search-bar">
-            <label>Search</label>
-            <input
-              type="text"
-              placeholder="Search products..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-          
           <div className="category-filter">
             <label>Category</label>
             <select 

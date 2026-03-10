@@ -34,6 +34,7 @@ COPY server.js ./
 COPY config.js ./
 COPY routes ./routes
 COPY middleware ./middleware
+COPY services ./services
 
 # Create uploads directory
 RUN mkdir -p uploads
