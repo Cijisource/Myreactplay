@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { getCartItems, updateCartItem, removeFromCart, createOrder } from '../api';
+import { getCartItems, updateCartItem, removeFromCart } from '../api';
+import Checkout from './Checkout';
 import './ShoppingCart.css';
 
 const ShoppingCart = () => {
@@ -7,11 +8,6 @@ const ShoppingCart = () => {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [showCheckout, setShowCheckout] = useState(false);
-  const [checkoutForm, setCheckoutForm] = useState({
-    customerName: '',
-    customerEmail: '',
-    shippingAddress: ''
-  });
 
   const sessionId = localStorage.getItem('sessionId');
 
@@ -59,46 +55,9 @@ const ShoppingCart = () => {
     }
   };
 
-  const handleCheckoutChange = (e) => {
-    const { name, value } = e.target;
-    setCheckoutForm(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const handleCheckout = async (e) => {
-    e.preventDefault();
-    try {
-      if (!checkoutForm.customerName || !checkoutForm.customerEmail) {
-        setMessage('Please fill in all required fields');
-        return;
-      }
-
-      const totalAmount = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-
-      await createOrder({
-        sessionId,
-        customerName: checkoutForm.customerName,
-        customerEmail: checkoutForm.customerEmail,
-        shippingAddress: checkoutForm.shippingAddress,
-        items: items.map(item => ({
-          productId: item.product_id,
-          productName: item.product_name,
-          quantity: item.quantity,
-          price: item.price
-        })),
-        totalAmount
-      });
-
-      setMessage('Order created successfully!');
-      setShowCheckout(false);
-      setCheckoutForm({ customerName: '', customerEmail: '', shippingAddress: '' });
-      await loadCart();
-    } catch (err) {
-      setMessage('Error creating order: ' + err.message);
-      console.error(err);
-    }
+  const handleCheckoutClose = () => {
+    setShowCheckout(false);
+    loadCart(); // Reload cart in case order was created
   };
 
   const totalAmount = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -175,49 +134,11 @@ const ShoppingCart = () => {
           </div>
 
           {showCheckout && (
-            <div className="checkout-form">
-              <h3>Checkout</h3>
-              <form onSubmit={handleCheckout}>
-                <div className="form-group">
-                  <label>Name *</label>
-                  <input
-                    type="text"
-                    name="customerName"
-                    value={checkoutForm.customerName}
-                    onChange={handleCheckoutChange}
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Email *</label>
-                  <input
-                    type="email"
-                    name="customerEmail"
-                    value={checkoutForm.customerEmail}
-                    onChange={handleCheckoutChange}
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Shipping Address</label>
-                  <textarea
-                    name="shippingAddress"
-                    value={checkoutForm.shippingAddress}
-                    onChange={handleCheckoutChange}
-                    rows={3}
-                  />
-                </div>
-
-                <div className="form-actions">
-                  <button type="submit" className="submit-btn">Place Order</button>
-                  <button type="button" className="cancel-btn" onClick={() => setShowCheckout(false)}>
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
+            <Checkout 
+              cartItems={items}
+              totalAmount={totalAmount}
+              onClose={handleCheckoutClose}
+            />
           )}
         </div>
       )}
