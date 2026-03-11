@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { apiService, getFileUrl } from '../api';
+import SearchableDropdown from './SearchableDropdown';
 import './ComplaintsManagement.css';
 
 interface Room {
@@ -37,84 +38,6 @@ interface Complaint {
   proof2Url: string | null;
   videoUrl: string | null;
 }
-
-interface SearchableDropdownProps {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: Array<{ id: number; name: string }>;
-  placeholder?: string;
-}
-
-const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
-  label,
-  value,
-  onChange,
-  options,
-  placeholder = 'Select...'
-}) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-
-  const filteredOptions = useMemo(() => {
-    return options.filter(opt =>
-      opt.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [options, searchTerm]);
-
-  const selectedOption = options.find(opt => opt.id.toString() === value);
-
-  const handleSelect = (optionId: number) => {
-    onChange(optionId.toString());
-    setIsOpen(false);
-    setSearchTerm('');
-  };
-
-  return (
-    <div className="searchable-dropdown-container">
-      <label>{label}</label>
-      <div className="dropdown-wrapper">
-        <button
-          className="dropdown-trigger"
-          onClick={() => setIsOpen(!isOpen)}
-        >
-          {selectedOption ? selectedOption.name : placeholder}
-          <span className="dropdown-arrow">{isOpen ? '▲' : '▼'}</span>
-        </button>
-
-        {isOpen && (
-          <div className="dropdown-content">
-            <input
-              type="text"
-              className="dropdown-search"
-              placeholder={`Search ${label.toLowerCase()}...`}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              autoFocus
-            />
-            <div className="dropdown-options">
-              {filteredOptions.length > 0 ? (
-                filteredOptions.map((option) => (
-                  <button
-                    key={option.id}
-                    className={`dropdown-option ${
-                      selectedOption?.id === option.id ? 'selected' : ''
-                    }`}
-                    onClick={() => handleSelect(option.id)}
-                  >
-                    {option.name}
-                  </button>
-                ))
-              ) : (
-                <div className="no-options">No results found</div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
 
 export const ComplaintsManagement: React.FC = () => {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
@@ -392,17 +315,17 @@ export const ComplaintsManagement: React.FC = () => {
   };
 
   const roomOptions = useMemo(
-    () => rooms.map(r => ({ id: r.id, name: `Room ${r.number}` })),
+    () => rooms.map(r => ({ id: r.id, label: `Room ${r.number}` })),
     [rooms]
   );
 
   const typeOptions = useMemo(
-    () => types.map(t => ({ id: t.id, name: t.type })),
+    () => types.map(t => ({ id: t.id, label: t.type })),
     [types]
   );
 
   const statusOptions = useMemo(
-    () => statuses.map(s => ({ id: s.id, name: s.status })),
+    () => statuses.map(s => ({ id: s.id, label: s.status })),
     [statuses]
   );
 
@@ -520,24 +443,24 @@ export const ComplaintsManagement: React.FC = () => {
         <div className="filters-grid">
           <SearchableDropdown
             label="Room"
-            value={filterRoomId}
-            onChange={setFilterRoomId}
+            value={filterRoomId ? parseInt(filterRoomId) : null}
+            onChange={(option) => setFilterRoomId(option.id.toString())}
             options={roomOptions}
             placeholder="All Rooms"
           />
 
           <SearchableDropdown
             label="Complaint Type"
-            value={filterTypeId}
-            onChange={setFilterTypeId}
+            value={filterTypeId ? parseInt(filterTypeId) : null}
+            onChange={(option) => setFilterTypeId(option.id.toString())}
             options={typeOptions}
             placeholder="All Types"
           />
 
           <SearchableDropdown
             label="Status"
-            value={filterStatusId}
-            onChange={setFilterStatusId}
+            value={filterStatusId ? parseInt(filterStatusId) : null}
+            onChange={(option) => setFilterStatusId(option.id.toString())}
             options={statusOptions}
             placeholder="All Statuses"
           />
@@ -688,59 +611,29 @@ export const ComplaintsManagement: React.FC = () => {
             
             <form onSubmit={handleFormSubmit} className="complaint-form">
               <div className="form-grid">
-                <div className="form-group">
-                  <label htmlFor="roomId">Room *</label>
-                  <select
-                    id="roomId"
-                    name="roomId"
-                    value={formData.roomId}
-                    onChange={handleFormChange}
-                    required
-                  >
-                    <option value="">Select a room</option>
-                    {rooms.map(room => (
-                      <option key={room.id} value={room.id}>
-                        Room {room.number}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <SearchableDropdown
+                  label="Room"
+                  value={formData.roomId ? parseInt(formData.roomId) : null}
+                  onChange={(option) => setFormData(prev => ({ ...prev, roomId: option.id.toString() }))}
+                  options={roomOptions}
+                  placeholder="Select a room"
+                />
 
-                <div className="form-group">
-                  <label htmlFor="complaintTypeId">Complaint Type *</label>
-                  <select
-                    id="complaintTypeId"
-                    name="complaintTypeId"
-                    value={formData.complaintTypeId}
-                    onChange={handleFormChange}
-                    required
-                  >
-                    <option value="">Select type</option>
-                    {types.map(type => (
-                      <option key={type.id} value={type.id}>
-                        {type.type}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <SearchableDropdown
+                  label="Complaint Type"
+                  value={formData.complaintTypeId ? parseInt(formData.complaintTypeId) : null}
+                  onChange={(option) => setFormData(prev => ({ ...prev, complaintTypeId: option.id.toString() }))}
+                  options={typeOptions}
+                  placeholder="Select type"
+                />
 
-                <div className="form-group">
-                  <label htmlFor="complaintStatusId">Status *</label>
-                  <select
-                    id="complaintStatusId"
-                    name="complaintStatusId"
-                    value={formData.complaintStatusId}
-                    onChange={handleFormChange}
-                    required
-                  >
-                    <option value="">Select status</option>
-                    {statuses.map(status => (
-                      <option key={status.id} value={status.id}>
-                        {status.status}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <SearchableDropdown
+                  label="Status"
+                  value={formData.complaintStatusId ? parseInt(formData.complaintStatusId) : null}
+                  onChange={(option) => setFormData(prev => ({ ...prev, complaintStatusId: option.id.toString() }))}
+                  options={statusOptions}
+                  placeholder="Select status"
+                />
               </div>
 
               <div className="form-group full-width">

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../api';
+import SearchableDropdown from './SearchableDropdown';
 import './ManagementStyles.css';
 
 interface LastPayment {
@@ -163,7 +164,7 @@ export default function ServiceAllocationManagement() {
 
   // Get unique categories and rooms for filter dropdowns
   const uniqueCategories = Array.from(new Set(services.map(s => s.serviceCategory))).sort();
-  const uniqueRooms = Array.from(new Set(allocations.map(a => a.room?.number))).filter(Boolean).sort();
+  const uniqueRooms = (Array.from(new Set(allocations.map(a => a.room?.number))).filter(Boolean) as (string | number)[]).sort();
 
   const filteredAllocations = allocations.filter(a => {
     // Search filter
@@ -223,35 +224,34 @@ export default function ServiceAllocationManagement() {
           onChange={(e) => setSearchQuery(e.target.value)}
           className="search-input"
         />
-        <select
-          value={filterCategory}
-          onChange={(e) => setFilterCategory(e.target.value)}
-          className="sort-select"
-        >
-          <option value="">All Categories</option>
-          {uniqueCategories.map(cat => (
-            <option key={cat} value={cat}>{cat}</option>
-          ))}
-        </select>
-        <select
-          value={filterRoom}
-          onChange={(e) => setFilterRoom(e.target.value)}
-          className="sort-select"
-        >
-          <option value="">All Rooms</option>
-          {uniqueRooms.map(room => (
-            <option key={room} value={room}>Room {room}</option>
-          ))}
-        </select>
-        <select
+        <SearchableDropdown
+          value={filterCategory || null}
+          onChange={(option) => setFilterCategory(option.id.toString())}
+          options={[
+            { id: '', label: 'All Categories' },
+            ...uniqueCategories.map(cat => ({ id: cat, label: cat }))
+          ]}
+          placeholder="Filter by category..."
+        />
+        <SearchableDropdown
+          value={filterRoom || null}
+          onChange={(option) => setFilterRoom(option.id.toString())}
+          options={[
+            { id: '', label: 'All Rooms' },
+            ...uniqueRooms.map(room => ({ id: room, label: `Room ${room}` }))
+          ]}
+          placeholder="Filter by room..."
+        />
+        <SearchableDropdown
           value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as any)}
-          className="sort-select"
-        >
-          <option value="service">Sort by Service</option>
-          <option value="room">Sort by Room</option>
-          <option value="category">Sort by Category</option>
-        </select>
+          onChange={(option) => setSortBy(option.id as any)}
+          options={[
+            { id: 'service', label: 'Sort by Service' },
+            { id: 'room', label: 'Sort by Room' },
+            { id: 'category', label: 'Sort by Category' }
+          ]}
+          placeholder="Sort by..."
+        />
         {(filterCategory || filterRoom) && (
           <button
             className="btn btn-sm btn-secondary"
@@ -280,30 +280,24 @@ export default function ServiceAllocationManagement() {
         <div className="form-container">
           <h3>{editingAllocation ? 'Edit Service Allocation' : 'Add New Service Allocation'}</h3>
           <form onSubmit={handleSubmit}>
-            <select
-              value={formData.serviceId}
-              onChange={(e) => setFormData({ ...formData, serviceId: parseInt(e.target.value) })}
-              required
-            >
-              <option value={0}>Select Service</option>
-              {services.map((service) => (
-                <option key={service.id} value={service.id}>
-                  {service.consumerName} - {service.serviceCategory} (Meter: {service.meterNo})
-                </option>
-              ))}
-            </select>
-            <select
-              value={formData.roomId}
-              onChange={(e) => setFormData({ ...formData, roomId: parseInt(e.target.value) })}
-              required
-            >
-              <option value={0}>Select Room</option>
-              {rooms.map((room) => (
-                <option key={room.id} value={room.id}>
-                  Room {room.number} (Rent: ${room.rent}, Beds: {room.beds})
-                </option>
-              ))}
-            </select>
+            <SearchableDropdown
+              value={formData.serviceId || null}
+              onChange={(option) => setFormData({ ...formData, serviceId: option.id as number })}
+              options={services.map((service) => ({
+                id: service.id,
+                label: `${service.consumerName} - ${service.serviceCategory} (Meter: ${service.meterNo})`
+              }))}
+              placeholder="Select Service"
+            />
+            <SearchableDropdown
+              value={formData.roomId || null}
+              onChange={(option) => setFormData({ ...formData, roomId: option.id as number })}
+              options={rooms.map((room) => ({
+                id: room.id,
+                label: `Room ${room.number} (Rent: $${room.rent}, Beds: ${room.beds})`
+              }))}
+              placeholder="Select Room"
+            />
             <div className="form-buttons">
               <button type="submit" className="btn btn-success" disabled={loading}>
                 {loading ? 'Saving...' : 'Save Allocation'}

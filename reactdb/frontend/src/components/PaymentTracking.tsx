@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { apiService } from '../api';
+import SearchableDropdown from './SearchableDropdown';
 import './PaymentTracking.css';
 
 interface PaymentRecord {
@@ -27,8 +28,6 @@ export default function PaymentTracking() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>('');
-  const [searchInput, setSearchInput] = useState<string>('');
-  const [showDropdown, setShowDropdown] = useState(false);
 
   // Generate available month-year options (current month and last 12 months)
   const monthYearOptions = useMemo(() => {
@@ -48,14 +47,6 @@ export default function PaymentTracking() {
     }
     return options;
   }, []);
-
-  // Filter dropdown options based on search input
-  const filteredOptions = useMemo(() => {
-    if (!searchInput) return monthYearOptions;
-    return monthYearOptions.filter((option) =>
-      option.label.toLowerCase().includes(searchInput.toLowerCase())
-    );
-  }, [searchInput, monthYearOptions]);
 
   // Calculate summary statistics
   const summary = useMemo(() => {
@@ -95,18 +86,6 @@ export default function PaymentTracking() {
     fetchPayments();
   }, [selectedMonth]);
 
-  const handleSelectMonth = (option: MonthYearOption) => {
-    setSelectedMonth(`${option.year}-${String(option.month).padStart(2, '0')}`);
-    setSearchInput('');
-    setShowDropdown(false);
-  };
-
-  const selectedLabel = monthYearOptions.find(
-    (opt) =>
-      selectedMonth ===
-      `${opt.year}-${String(opt.month).padStart(2, '0')}`
-  )?.label;
-
   const getStatusBadgeClass = (status: string): string => {
     switch (status) {
       case 'paid':
@@ -125,49 +104,16 @@ export default function PaymentTracking() {
       {/* Month/Year Selection */}
       <div className="month-selector-wrapper">
         <div className="month-selector">
-          <label htmlFor="month-search">Select Month & Year</label>
-          <div className="dropdown-container">
-            <div
-              className="dropdown-input"
-              onClick={() => setShowDropdown(!showDropdown)}
-            >
-              <input
-                id="month-search"
-                type="text"
-                placeholder="Search month and year..."
-                value={searchInput || selectedLabel || ''}
-                onChange={(e) => {
-                  setSearchInput(e.target.value);
-                  setShowDropdown(true);
-                }}
-                onFocus={() => setShowDropdown(true)}
-              />
-              <span className="dropdown-arrow">▼</span>
-            </div>
-
-            {showDropdown && (
-              <div className="dropdown-list">
-                {filteredOptions.length > 0 ? (
-                  filteredOptions.map((option) => (
-                    <div
-                      key={`${option.year}-${option.month}`}
-                      className={`dropdown-item ${
-                        selectedMonth ===
-                        `${option.year}-${String(option.month).padStart(2, '0')}`
-                          ? 'selected'
-                          : ''
-                      }`}
-                      onClick={() => handleSelectMonth(option)}
-                    >
-                      {option.label}
-                    </div>
-                  ))
-                ) : (
-                  <div className="dropdown-empty">No results found</div>
-                )}
-              </div>
-            )}
-          </div>
+          <SearchableDropdown
+            label="Select Month & Year"
+            value={selectedMonth}
+            onChange={(option) => setSelectedMonth(option.id.toString())}
+            options={monthYearOptions.map(opt => ({
+              id: `${opt.year}-${String(opt.month).padStart(2, '0')}`,
+              label: opt.label
+            }))}
+            placeholder="Search month and year..."
+          />
         </div>
       </div>
 
