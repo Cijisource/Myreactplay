@@ -34,7 +34,15 @@ export default function TransactionManagement() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'date-desc' | 'amount-desc' | 'amount-asc'>('date-desc');
-  const [viewMode, setViewMode] = useState<'list' | 'category'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'category'>('category');
+
+  // Helper to format date as YYYY-MM-DD using local date (no timezone conversion)
+  const formatLocalDate = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   // Get current month date range
   const getCurrentMonthDates = () => {
@@ -42,8 +50,8 @@ export default function TransactionManagement() {
     const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
     const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     return {
-      startDate: firstDay.toISOString().split('T')[0],
-      endDate: lastDay.toISOString().split('T')[0]
+      startDate: formatLocalDate(firstDay),
+      endDate: formatLocalDate(lastDay)
     };
   };
 
@@ -56,7 +64,7 @@ export default function TransactionManagement() {
   const [formData, setFormData] = useState({
     description: '',
     transactionTypeId: 0,
-    transactionDate: new Date().toISOString().split('T')[0],
+    transactionDate: formatLocalDate(new Date()),
     amount: 0,
     occupancyId: ''
   });
@@ -116,7 +124,7 @@ export default function TransactionManagement() {
       setFormData({
         description: '',
         transactionTypeId: 0,
-        transactionDate: new Date().toISOString().split('T')[0],
+        transactionDate: formatLocalDate(new Date()),
         amount: 0,
         occupancyId: ''
       });
@@ -250,7 +258,7 @@ export default function TransactionManagement() {
             setFormData({
               description: '',
               transactionTypeId: 0,
-              transactionDate: new Date().toISOString().split('T')[0],
+              transactionDate: formatLocalDate(new Date()),
               amount: 0,
               occupancyId: ''
             });
@@ -412,6 +420,22 @@ export default function TransactionManagement() {
               </div>
             </div>
           ))}
+          {filteredTransactions.length > 0 && (
+            <div className="net-balance-summary">
+              <div className="net-balance-content">
+                <span className="net-balance-label">Net Balance (Total Amount):</span>
+                <span className="net-balance-value">₹{filteredTransactions.reduce((sum, t) => {
+                  const transactionType = t.transactionType?.transactionType;
+                  if (transactionType === 'Income' || transactionType === 'CashDep') {
+                    return sum + t.amount;
+                  } else if (transactionType === 'Expense') {
+                    return sum - t.amount;
+                  }
+                  return sum;
+                }, 0).toFixed(2)}</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
