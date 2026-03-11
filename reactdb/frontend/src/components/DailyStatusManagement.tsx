@@ -1,15 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React from 'react';
 import { apiService, getFileUrl } from '../api';
 import { useAuth } from './AuthContext';
 import './ManagementStyles.css';
-
-interface DailyStatus {
-  id: number;
-  date: string;
-  roomStatus?: string;
-  waterLevelStatus?: string;
-  createdDate?: string;
-}
 
 interface MediaFile {
   id: number;
@@ -21,6 +14,491 @@ interface MediaFile {
   fileSize?: number;
   mimeType?: string;
   uploadedDate?: string;
+}
+
+// Memoized component for form media display (edit mode)
+const FormMediaSection = React.memo(({ 
+  editingStatus, 
+  mediaFiles, 
+  editDeletingMedia, 
+  replacingMediaId,
+  editUploadingMedia,
+  editUploadProgress,
+  onReplacingMediaIdChange,
+  onDeleteMedia,
+  onEditMediaUpload,
+  isImageFile 
+}: any) => {
+  if (!editingStatus) return null;
+  
+  const existingMedia = mediaFiles[editingStatus.id] || [];
+  const photoCount = useMemo(() => existingMedia.filter((m: MediaFile) => m.mediaType === 'photo').length, [existingMedia]);
+  const videoCount = useMemo(() => existingMedia.filter((m: MediaFile) => m.mediaType === 'video').length, [existingMedia]);
+
+  return (
+    <div className="edit-media-section">
+      <h4>📷 Photos & Videos</h4>
+      
+      {/* Existing Media Display */}
+      {existingMedia.length > 0 ? (
+        <div className="edit-existing-media">
+          <div className="media-type-group">
+            <div className="media-type-header">Photos</div>
+            <div className="edit-media-grid">
+              {existingMedia
+                .filter((m: MediaFile) => m.mediaType === 'photo')
+                .sort((a: MediaFile, b: MediaFile) => a.sequenceNumber - b.sequenceNumber)
+                .map((media: MediaFile) => (
+                  <div key={media.id} className="edit-media-item">
+                    {isImageFile(media.mimeType) ? (
+                      <img
+                        src={getFileUrl(media.filePath)}
+                        alt={media.fileName}
+                        className="edit-media-thumbnail"
+                      />
+                    ) : (
+                      <div className="edit-media-placeholder">{media.fileName}</div>
+                    )}
+                    <div className="edit-media-actions">
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-info"
+                        onClick={() => onReplacingMediaIdChange(media.id)}
+                        disabled={editDeletingMedia[media.id] || replacingMediaId === media.id}
+                      >
+                        {replacingMediaId === media.id ? 'Choose File...' : 'Replace'}
+                      </button>
+                      {replacingMediaId === media.id && (
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => onEditMediaUpload(editingStatus.id, e.target.files, media.id)}
+                          style={{ display: 'none' }}
+                          id={`replace-photo-${media.id}`}
+                        />
+                      )}
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-danger"
+                        onClick={() => {
+                          onReplacingMediaIdChange(null);
+                          onDeleteMedia(media.id, editingStatus.id);
+                        }}
+                        disabled={editDeletingMedia[media.id]}
+                      >
+                        {editDeletingMedia[media.id] ? 'Deleting...' : 'Delete'}
+                      </button>
+                    </div>
+                    {replacingMediaId === media.id && (
+                      <label htmlFor={`replace-photo-${media.id}`} className="edit-media-upload-btn">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => onEditMediaUpload(editingStatus.id, e.target.files, media.id)}
+                          id={`replace-photo-${media.id}`}
+                        />
+                        Select File
+                      </label>
+                    )}
+                  </div>
+                ))}
+            </div>
+          </div>
+
+          <div className="media-type-group">
+            <div className="media-type-header">Videos</div>
+            <div className="edit-media-grid">
+              {existingMedia
+                .filter((m: MediaFile) => m.mediaType === 'video')
+                .sort((a: MediaFile, b: MediaFile) => a.sequenceNumber - b.sequenceNumber)
+                .map((media: MediaFile) => (
+                  <div key={media.id} className="edit-media-item">
+                    <video className="edit-media-thumbnail">
+                      <source src={getFileUrl(media.filePath)} type={media.mimeType || 'video/mp4'} />
+                    </video>
+                    <div className="edit-media-actions">
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-info"
+                        onClick={() => onReplacingMediaIdChange(media.id)}
+                        disabled={editDeletingMedia[media.id] || replacingMediaId === media.id}
+                      >
+                        {replacingMediaId === media.id ? 'Choose File...' : 'Replace'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-danger"
+                        onClick={() => {
+                          onReplacingMediaIdChange(null);
+                          onDeleteMedia(media.id, editingStatus.id);
+                        }}
+                        disabled={editDeletingMedia[media.id]}
+                      >
+                        {editDeletingMedia[media.id] ? 'Deleting...' : 'Delete'}
+                      </button>
+                    </div>
+                    {replacingMediaId === media.id && (
+                      <label htmlFor={`replace-video-${media.id}`} className="edit-media-upload-btn">
+                        <input
+                          type="file"
+                          accept="video/*"
+                          onChange={(e) => onEditMediaUpload(editingStatus.id, e.target.files, media.id)}
+                          id={`replace-video-${media.id}`}
+                        />
+                        Select File
+                      </label>
+                    )}
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <p className="edit-no-media">No media files yet</p>
+      )}
+
+      {/* Add New Media */}
+      <div className="edit-add-media">
+        {photoCount < 2 && (
+          <div className="edit-media-upload-item">
+            <label htmlFor={`add-photo-${editingStatus.id}`} className="edit-media-upload-btn-primary">
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(e) => onEditMediaUpload(editingStatus.id, e.target.files, undefined, 'photo')}
+                id={`add-photo-${editingStatus.id}`}
+                disabled={editUploadingMedia[editingStatus.id]}
+              />
+              {editUploadingMedia[editingStatus.id] ? '⏳ Adding Photos...' : '➕ Add Photos'}
+            </label>
+            {editUploadProgress[editingStatus.id] > 0 && (
+              <div className="progress-bar">
+                <div
+                  className="progress-fill"
+                  style={{ width: `${editUploadProgress[editingStatus.id]}%` }}
+                />
+              </div>
+            )}
+          </div>
+        )}
+        {videoCount < 2 && (
+          <div className="edit-media-upload-item">
+            <label htmlFor={`add-video-${editingStatus.id}`} className="edit-media-upload-btn-primary">
+              <input
+                type="file"
+                accept="video/*"
+                multiple
+                onChange={(e) => onEditMediaUpload(editingStatus.id, e.target.files, undefined, 'video')}
+                id={`add-video-${editingStatus.id}`}
+                disabled={editUploadingMedia[editingStatus.id]}
+              />
+              {editUploadingMedia[editingStatus.id] ? '⏳ Adding Videos...' : '➕ Add Videos'}
+            </label>
+            {editUploadProgress[editingStatus.id] > 0 && (
+              <div className="progress-bar">
+                <div
+                  className="progress-fill"
+                  style={{ width: `${editUploadProgress[editingStatus.id]}%` }}
+                />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}, (prevProps: any, nextProps: any) => {
+  // Custom comparison for better performance
+  return (
+    prevProps.editingStatus?.id === nextProps.editingStatus?.id &&
+    prevProps.mediaFiles === nextProps.mediaFiles &&
+    prevProps.replacingMediaId === nextProps.replacingMediaId &&
+    prevProps.editDeletingMedia === nextProps.editDeletingMedia &&
+    prevProps.editUploadingMedia === nextProps.editUploadingMedia &&
+    prevProps.editUploadProgress === nextProps.editUploadProgress
+  );
+});
+
+// Memoized component for media display in list view
+const ListMediaSection = React.memo(({ 
+  status, 
+  mediaFiles, 
+  deletingMedia, 
+  uploadingMedia, 
+  uploadProgress,
+  selectedMediaType,
+  showMediaUpload,
+  onMediaTypeChange,
+  onMediaUpload,
+  onShowMediaUpload,
+  onDeleteMedia,
+  onOpenFullscreen,
+  isImageFile,
+  isAdmin
+}: any) => {
+  return (
+    <div className="media-section">
+      <h5>Media Files</h5>
+      
+      {/* Photos */}
+      <div className="media-type-group">
+        <div className="media-type-header">📷 Photos ({(mediaFiles[status.id] || []).filter((m: MediaFile) => m.mediaType === 'photo').length}/2)</div>
+        <div className="media-gallery">
+          {(mediaFiles[status.id] || [])
+            .filter((m: MediaFile) => m.mediaType === 'photo')
+            .sort((a: MediaFile, b: MediaFile) => a.sequenceNumber - b.sequenceNumber)
+            .map((media: MediaFile) => (
+              <div key={media.id} className="media-item">
+                {isImageFile(media.mimeType) ? (
+                  <img 
+                    src={getFileUrl(media.filePath)} 
+                    alt={media.fileName} 
+                    className="media-thumbnail" 
+                    onClick={() => onOpenFullscreen(media, status.id)}
+                    style={{ cursor: 'pointer' }}
+                  />
+                ) : (
+                  <div className="media-placeholder">{media.fileName}</div>
+                )}
+                {isAdmin && (
+                  <button
+                    className="btn btn-sm btn-danger"
+                    onClick={() => onDeleteMedia(media.id, status.id)}
+                    disabled={deletingMedia[media.id]}
+                  >
+                    {deletingMedia[media.id] ? 'Deleting...' : 'Delete'}
+                  </button>
+                )}
+              </div>
+            ))}
+        </div>
+      </div>
+
+      {/* Videos */}
+      <div className="media-type-group">
+        <div className="media-type-header">🎥 Videos ({(mediaFiles[status.id] || []).filter((m: MediaFile) => m.mediaType === 'video').length}/2)</div>
+        <div className="media-gallery">
+          {(mediaFiles[status.id] || [])
+            .filter((m: MediaFile) => m.mediaType === 'video')
+            .sort((a: MediaFile, b: MediaFile) => a.sequenceNumber - b.sequenceNumber)
+            .map((media: MediaFile) => (
+              <div key={media.id} className="media-item">
+                <video 
+                  className="media-thumbnail" 
+                  onClick={() => onOpenFullscreen(media, status.id)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <source src={getFileUrl(media.filePath)} type={media.mimeType || 'video/mp4'} />
+                </video>
+                {isAdmin && (
+                  <button
+                    className="btn btn-sm btn-danger"
+                    onClick={() => onDeleteMedia(media.id, status.id)}
+                    disabled={deletingMedia[media.id]}
+                  >
+                    {deletingMedia[media.id] ? 'Deleting...' : 'Delete'}
+                  </button>
+                )}
+              </div>
+            ))}
+        </div>
+      </div>
+
+      {/* Upload Section */}
+      {showMediaUpload === status.id ? (
+        <div className="media-upload-form">
+          <div className="form-group">
+            <label>Media Type:</label>
+            <select
+              value={selectedMediaType}
+              onChange={(e) => onMediaTypeChange(e.target.value as 'photo' | 'video')}
+            >
+              <option value="photo">Photo</option>
+              <option value="video">Video</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Select Files (max 2 per type):</label>
+            <input
+              type="file"
+              multiple
+              accept={selectedMediaType === 'photo' ? 'image/*' : 'video/*'}
+              onChange={(e) => onMediaUpload(status.id, e.target.files)}
+              disabled={uploadingMedia[status.id]}
+            />
+          </div>
+          {uploadingMedia[status.id] && (
+            <div className="progress-container">
+              <div className="progress-bar">
+                <div 
+                  className="progress-fill" 
+                  style={{ width: `${uploadProgress[status.id] || 0}%` }}
+                ></div>
+              </div>
+              <p className="progress-text">{uploadProgress[status.id] || 0}% Uploaded</p>
+            </div>
+          )}
+          <button
+            className="btn btn-sm btn-secondary"
+            onClick={() => onShowMediaUpload(null)}
+            disabled={uploadingMedia[status.id]}
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <button
+          className="btn btn-sm btn-primary"
+          onClick={() => onShowMediaUpload(status.id)}
+        >
+          + Upload Media
+        </button>
+      )}
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  // Custom comparison for better performance
+  return (
+    prevProps.status.id === nextProps.status.id &&
+    prevProps.mediaFiles === nextProps.mediaFiles &&
+    prevProps.deletingMedia === nextProps.deletingMedia &&
+    prevProps.uploadingMedia === nextProps.uploadingMedia &&
+    prevProps.uploadProgress === nextProps.uploadProgress &&
+    prevProps.selectedMediaType === nextProps.selectedMediaType &&
+    prevProps.showMediaUpload === nextProps.showMediaUpload
+  );
+});
+
+// Memoized component for status list display
+const StatusList = React.memo(({
+  filteredStatuses,
+  loading,
+  mediaFiles,
+  successMessage,
+  successStatusId,
+  error,
+  errorStatusId,
+  deletingMedia,
+  uploadingMedia,
+  uploadProgress,
+  selectedMediaType,
+  showMediaUpload,
+  isAdmin,
+  onMediaTypeChange,
+  onMediaUpload,
+  onShowMediaUpload,
+  onDeleteMedia,
+  onEdit,
+  onDelete,
+  onOpenFullscreen,
+  isImageFile
+}: any) => {
+  if (loading) {
+    return <div className="loading-spinner"></div>;
+  }
+
+  if (filteredStatuses.length === 0) {
+    return (
+      <div className="no-results-message">
+        <p>No daily statuses found for the selected filters.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="items-grid">
+      {filteredStatuses.map((status: DailyStatus) => (
+        <div key={status.id} className="item-card">
+          {successMessage && successStatusId === status.id && (
+            <div className="success-message">{successMessage}</div>
+          )}
+          {error && errorStatusId === status.id && (
+            <div className="error-message">{error}</div>
+          )}
+          <div className="item-header">
+            <h4>{new Date(status.date).toLocaleDateString()} - Id: {status.id}</h4>
+            <div className="item-actions">
+              <button className="btn btn-sm btn-info" onClick={() => onEdit(status)}>
+                Edit
+              </button>
+              {isAdmin && (
+                <button
+                  className="btn btn-sm btn-danger"
+                  onClick={() => onDelete(status.id)}
+                >
+                  Delete
+                </button>
+              )}
+            </div>
+          </div>
+          
+          {status.roomStatus && (
+            <p><strong>Room Status:</strong> {status.roomStatus}</p>
+          )}
+          {status.waterLevelStatus && (
+            <p><strong>Water Level:</strong> {status.waterLevelStatus}</p>
+          )}
+          {status.createdDate && (
+            <p>
+            {new Intl.DateTimeFormat("en-US", {
+              timeZone: "UTC",
+              year: "numeric",
+              month: "2-digit",
+              day: "2-digit",
+              hour: "numeric",
+              minute: "2-digit",
+              second: "2-digit",
+              hour12: true
+            }).format(new Date(status.createdDate))}
+          </p>
+          )}
+
+          {/* Media Section */}
+          <ListMediaSection
+            status={status}
+            mediaFiles={mediaFiles}
+            deletingMedia={deletingMedia}
+            uploadingMedia={uploadingMedia}
+            uploadProgress={uploadProgress}
+            selectedMediaType={selectedMediaType}
+            showMediaUpload={showMediaUpload}
+            onMediaTypeChange={onMediaTypeChange}
+            onMediaUpload={onMediaUpload}
+            onShowMediaUpload={onShowMediaUpload}
+            onDeleteMedia={onDeleteMedia}
+            onOpenFullscreen={onOpenFullscreen}
+            isImageFile={isImageFile}
+            isAdmin={isAdmin}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}, (prevProps: any, nextProps: any) => {
+  // Custom comparison - only re-render if these specific props change
+  return (
+    prevProps.filteredStatuses === nextProps.filteredStatuses &&
+    prevProps.loading === nextProps.loading &&
+    prevProps.mediaFiles === nextProps.mediaFiles &&
+    prevProps.successMessage === nextProps.successMessage &&
+    prevProps.successStatusId === nextProps.successStatusId &&
+    prevProps.error === nextProps.error &&
+    prevProps.errorStatusId === nextProps.errorStatusId &&
+    prevProps.selectedMediaType === nextProps.selectedMediaType &&
+    prevProps.showMediaUpload === nextProps.showMediaUpload &&
+    prevProps.deletingMedia === nextProps.deletingMedia &&
+    prevProps.uploadingMedia === nextProps.uploadingMedia &&
+    prevProps.uploadProgress === nextProps.uploadProgress
+  );
+});
+
+interface DailyStatus {
+  id: number;
+  date: string;
+  roomStatus?: string;
+  waterLevelStatus?: string;
+  createdDate?: string;
 }
 
 export default function DailyStatusManagement() {
@@ -56,11 +534,21 @@ export default function DailyStatusManagement() {
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
   
   // Edit mode media states
-  const [editMediaType, setEditMediaType] = useState<'photo' | 'video'>('photo');
   const [editUploadingMedia, setEditUploadingMedia] = useState<Record<number, boolean>>({});
   const [editUploadProgress, setEditUploadProgress] = useState<Record<number, number>>({});
   const [editDeletingMedia, setEditDeletingMedia] = useState<Record<number, boolean>>({});
   const [replacingMediaId, setReplacingMediaId] = useState<number | null>(null);
+
+  // Lazy loading states
+  const [visibleCount, setVisibleCount] = useState(10);
+  const [itemsPerPage] = useState(10);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const visibleCountRef = useRef(10);
+  
+  // Keep ref in sync with state
+  useEffect(() => {
+    visibleCountRef.current = visibleCount;
+  }, [visibleCount]);
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -184,6 +672,32 @@ export default function DailyStatusManagement() {
     }
   };
 
+  // Memoized form input handlers
+  const handleDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData(prev => ({ ...prev, date: e.target.value }));
+  }, []);
+
+  const handleRoomStatusChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setFormData(prev => ({ ...prev, roomStatus: e.target.value }));
+  }, []);
+
+  const handleWaterLevelStatusChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setFormData(prev => ({ ...prev, waterLevelStatus: e.target.value }));
+  }, []);
+
+  // Memoized media operation handlers
+  const handleReplacingMediaIdChange = useCallback((mediaId: number | null) => {
+    setReplacingMediaId(mediaId);
+  }, []);
+
+  const handleMediaTypeChange = useCallback((mediaType: 'photo' | 'video') => {
+    setSelectedMediaType(mediaType);
+  }, []);
+
+  const handleShowMediaUpload = useCallback((statusId: number | null) => {
+    setShowMediaUpload(statusId);
+  }, []);
+
   // Handle media file upload (list view)
   const handleMediaUpload = async (statusId: number, files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -201,11 +715,12 @@ export default function DailyStatusManagement() {
   };
 
   // Handle media file upload (edit mode)
-  const handleEditMediaUpload = async (statusId: number, files: FileList | null, replaceMediaId?: number) => {
+  const handleEditMediaUpload = async (statusId: number, files: FileList | null, replaceMediaId?: number, mediaTypeOverride?: 'photo' | 'video') => {
     if (!files || files.length === 0) return;
 
+    const mediaType = mediaTypeOverride || 'photo';
     const existingMedia = mediaFiles[statusId] || [];
-    let existingCount = existingMedia.filter(m => m.mediaType === editMediaType).length;
+    let existingCount = existingMedia.filter(m => m.mediaType === mediaType).length;
     
     // If replacing, don't count the replaced media
     if (replaceMediaId) {
@@ -213,7 +728,7 @@ export default function DailyStatusManagement() {
     }
 
     if (existingCount + files.length > 2) {
-      setError(`Cannot have more than 2 ${editMediaType}s per status. Current: ${existingCount}`);
+      setError(`Cannot have more than 2 ${mediaType}s per status. Current: ${existingCount}`);
       setErrorStatusId(statusId);
       return;
     }
@@ -233,7 +748,7 @@ export default function DailyStatusManagement() {
       }
     }
 
-    await performMediaUpload(statusId, files, editMediaType, setEditUploadingMedia, setEditUploadProgress);
+    await performMediaUpload(statusId, files, mediaType, setEditUploadingMedia, setEditUploadProgress);
     setReplacingMediaId(null);
   };
 
@@ -304,40 +819,40 @@ export default function DailyStatusManagement() {
   };
 
   // Open fullscreen view
-  const handleOpenFullscreen = (media: MediaFile, statusId: number) => {
+  const handleOpenFullscreen = useCallback((media: MediaFile, statusId: number) => {
     setFullscreenMedia(media);
     setFullscreenStatusId(statusId);
     setFullscreenMediaType(media.mediaType as 'photo' | 'video');
     setFullscreenOpen(true);
-  };
+  }, []);
 
   // Close fullscreen view
-  const handleCloseFullscreen = () => {
+  const handleCloseFullscreen = useCallback(() => {
     setFullscreenOpen(false);
     setFullscreenMedia(null);
     setFullscreenStatusId(null);
     setFullscreenMediaType(null);
-  };
+  }, []);
 
   // Navigate to previous media in fullscreen
-  const handlePreviousMedia = () => {
+  const handlePreviousMedia = useCallback(() => {
     if (!fullscreenMedia || !fullscreenStatusId || !fullscreenMediaType) return;
     const allMedia = (mediaFiles[fullscreenStatusId] || []).filter(m => m.mediaType === fullscreenMediaType);
     const currentIndex = allMedia.findIndex(m => m.id === fullscreenMedia.id);
     if (currentIndex > 0) {
       setFullscreenMedia(allMedia[currentIndex - 1]);
     }
-  };
+  }, [fullscreenMedia, fullscreenStatusId, fullscreenMediaType, mediaFiles]);
 
   // Navigate to next media in fullscreen
-  const handleNextMedia = () => {
+  const handleNextMedia = useCallback(() => {
     if (!fullscreenMedia || !fullscreenStatusId || !fullscreenMediaType) return;
     const allMedia = (mediaFiles[fullscreenStatusId] || []).filter(m => m.mediaType === fullscreenMediaType);
     const currentIndex = allMedia.findIndex(m => m.id === fullscreenMedia.id);
     if (currentIndex < allMedia.length - 1) {
       setFullscreenMedia(allMedia[currentIndex + 1]);
     }
-  };
+  }, [fullscreenMedia, fullscreenStatusId, fullscreenMediaType, mediaFiles]);
 
   // Handle keyboard for fullscreen (ESC, arrows)
   useEffect(() => {
@@ -366,7 +881,7 @@ export default function DailyStatusManagement() {
   }, [fullscreenOpen, fullscreenMedia, fullscreenStatusId, fullscreenMediaType]);
 
   // Delete status
-  const handleDelete = async (id: number) => {
+  const handleDelete = useCallback(async (id: number) => {
     try {
       setLoading(true);
       await apiService.deleteDailyStatus(id);
@@ -381,10 +896,10 @@ export default function DailyStatusManagement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Edit status
-  const handleEdit = (status: DailyStatus) => {
+  const handleEdit = useCallback((status: DailyStatus) => {
     setEditingStatus(status);
     setFormData({
       date: status.date.split('T')[0],
@@ -392,30 +907,66 @@ export default function DailyStatusManagement() {
       waterLevelStatus: status.waterLevelStatus || ''
     });
     setShowForm(true);
-  };
+  }, []);
 
-  const filteredStatuses = statuses.filter(s => {
-    // Search filter
-    const searchMatch = !searchQuery || 
-      s.roomStatus?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.waterLevelStatus?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      new Date(s.date).toLocaleDateString().includes(searchQuery);
-    
-    // Date range filter
-    const statusDate = new Date(s.date).toISOString().split('T')[0];
-    const dateMatch = (!filterFromDate || statusDate >= filterFromDate) &&
-                      (!filterToDate || statusDate <= filterToDate);
-    
-    return searchMatch && dateMatch;
-  }).sort((a, b) => {
-    const dateA = new Date(a.date).getTime();
-    const dateB = new Date(b.date).getTime();
-    return sortBy === 'date-desc' ? dateB - dateA : dateA - dateB;
-  });
+  // Memoize filtered and sorted statuses
+  const filteredStatuses = useMemo(() => {
+    return statuses.filter(s => {
+      // Search filter
+      const searchMatch = !searchQuery || 
+        s.roomStatus?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        s.waterLevelStatus?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        new Date(s.date).toLocaleDateString().includes(searchQuery);
+      
+      // Date range filter
+      const statusDate = new Date(s.date).toISOString().split('T')[0];
+      const dateMatch = (!filterFromDate || statusDate >= filterFromDate) &&
+                        (!filterToDate || statusDate <= filterToDate);
+      
+      return searchMatch && dateMatch;
+    }).sort((a, b) => {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      return sortBy === 'date-desc' ? dateB - dateA : dateA - dateB;
+    });
+  }, [statuses, searchQuery, filterFromDate, filterToDate, sortBy]);
 
-  const isImageFile = (mimeType: string | undefined) => {
+  // Paginated statuses for lazy loading
+  const paginatedStatuses = useMemo(() => {
+    return filteredStatuses.slice(0, visibleCount);
+  }, [filteredStatuses, visibleCount]);
+
+  // Reset visible count when filters change
+  useEffect(() => {
+    setVisibleCount(10);
+  }, [searchQuery, filterFromDate, filterToDate, sortBy]);
+
+  // Intersection Observer for lazy loading
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && visibleCountRef.current < filteredStatuses.length) {
+          console.log('Loading more items...');
+          setVisibleCount(prev => Math.min(prev + itemsPerPage, filteredStatuses.length));
+        }
+      },
+      { threshold: 0.1, rootMargin: '50px' }
+    );
+
+    if (sentinelRef.current) {
+      observer.observe(sentinelRef.current);
+    }
+
+    return () => {
+      if (sentinelRef.current) {
+        observer.unobserve(sentinelRef.current);
+      }
+    };
+  }, [filteredStatuses.length, itemsPerPage]);
+
+  const isImageFile = useCallback((mimeType: string | undefined) => {
     return mimeType?.startsWith('image/') ?? false;
-  };
+  }, []);
 
   return (
     <div className="management-container">
@@ -487,213 +1038,35 @@ export default function DailyStatusManagement() {
             <input
               type="date"
               value={formData.date}
-              onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+              onChange={handleDateChange}
               required
             />
             <textarea
               placeholder="Room Status"
               value={formData.roomStatus}
-              onChange={(e) => setFormData({ ...formData, roomStatus: e.target.value })}
+              onChange={handleRoomStatusChange}
               rows={3}
             />
             <textarea
               placeholder="Water Level Status"
               value={formData.waterLevelStatus}
-              onChange={(e) => setFormData({ ...formData, waterLevelStatus: e.target.value })}
+              onChange={handleWaterLevelStatusChange}
               rows={3}
             />
 
             {/* Media Management Section in Edit Form */}
-            {editingStatus && (
-              <div className="edit-media-section">
-                <h4>📷 Photos & Videos</h4>
-                
-                {/* Existing Media Display */}
-                {(() => {
-                  const existingMedia = mediaFiles[editingStatus.id] || [];
-                  return existingMedia.length > 0 ? (
-                    <div className="edit-existing-media">
-                      <div className="media-type-group">
-                        <div className="media-type-header">Photos</div>
-                        <div className="edit-media-grid">
-                          {existingMedia
-                            .filter(m => m.mediaType === 'photo')
-                            .sort((a, b) => a.sequenceNumber - b.sequenceNumber)
-                            .map(media => (
-                              <div key={media.id} className="edit-media-item">
-                                {isImageFile(media.mimeType) ? (
-                                  <img
-                                    src={getFileUrl(media.filePath)}
-                                    alt={media.fileName}
-                                    className="edit-media-thumbnail"
-                                  />
-                                ) : (
-                                  <div className="edit-media-placeholder">{media.fileName}</div>
-                                )}
-                                <div className="edit-media-actions">
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-info"
-                                    onClick={() => setReplacingMediaId(media.id)}
-                                    disabled={editDeletingMedia[media.id] || replacingMediaId === media.id}
-                                  >
-                                    {replacingMediaId === media.id ? 'Choose File...' : 'Replace'}
-                                  </button>
-                                  {replacingMediaId === media.id && (
-                                    <input
-                                      type="file"
-                                      accept="image/*"
-                                      onChange={(e) => handleEditMediaUpload(editingStatus.id, e.target.files, media.id)}
-                                      style={{ display: 'none' }}
-                                      id={`replace-photo-${media.id}`}
-                                    />
-                                  )}
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-danger"
-                                    onClick={() => {
-                                      setReplacingMediaId(null);
-                                      handleDeleteMedia(media.id, editingStatus.id);
-                                    }}
-                                    disabled={editDeletingMedia[media.id]}
-                                  >
-                                    {editDeletingMedia[media.id] ? 'Deleting...' : 'Delete'}
-                                  </button>
-                                </div>
-                                {replacingMediaId === media.id && (
-                                  <label htmlFor={`replace-photo-${media.id}`} className="edit-media-upload-btn">
-                                    <input
-                                      type="file"
-                                      accept="image/*"
-                                      onChange={(e) => handleEditMediaUpload(editingStatus.id, e.target.files, media.id)}
-                                      id={`replace-photo-${media.id}`}
-                                    />
-                                    Select File
-                                  </label>
-                                )}
-                              </div>
-                            ))}
-                        </div>
-                      </div>
-
-                      <div className="media-type-group">
-                        <div className="media-type-header">Videos</div>
-                        <div className="edit-media-grid">
-                          {existingMedia
-                            .filter(m => m.mediaType === 'video')
-                            .sort((a, b) => a.sequenceNumber - b.sequenceNumber)
-                            .map(media => (
-                              <div key={media.id} className="edit-media-item">
-                                <video className="edit-media-thumbnail">
-                                  <source src={getFileUrl(media.filePath)} type={media.mimeType || 'video/mp4'} />
-                                </video>
-                                <div className="edit-media-actions">
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-info"
-                                    onClick={() => setReplacingMediaId(media.id)}
-                                    disabled={editDeletingMedia[media.id] || replacingMediaId === media.id}
-                                  >
-                                    {replacingMediaId === media.id ? 'Choose File...' : 'Replace'}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-danger"
-                                    onClick={() => {
-                                      setReplacingMediaId(null);
-                                      handleDeleteMedia(media.id, editingStatus.id);
-                                    }}
-                                    disabled={editDeletingMedia[media.id]}
-                                  >
-                                    {editDeletingMedia[media.id] ? 'Deleting...' : 'Delete'}
-                                  </button>
-                                </div>
-                                {replacingMediaId === media.id && (
-                                  <label htmlFor={`replace-video-${media.id}`} className="edit-media-upload-btn">
-                                    <input
-                                      type="file"
-                                      accept="video/*"
-                                      onChange={(e) => handleEditMediaUpload(editingStatus.id, e.target.files, media.id)}
-                                      id={`replace-video-${media.id}`}
-                                    />
-                                    Select File
-                                  </label>
-                                )}
-                              </div>
-                            ))}
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="edit-no-media">No media files yet</p>
-                  );
-                })()}
-
-                {/* Add New Media */}
-                {(() => {
-                  const existingMedia = mediaFiles[editingStatus.id] || [];
-                  const photoCount = existingMedia.filter(m => m.mediaType === 'photo').length;
-                  const videoCount = existingMedia.filter(m => m.mediaType === 'video').length;
-                  
-                  return (
-                    <div className="edit-add-media">
-                      {photoCount < 2 && (
-                        <div className="edit-media-upload-item">
-                          <label htmlFor={`add-photo-${editingStatus.id}`} className="edit-media-upload-btn-primary">
-                            <input
-                              type="file"
-                              accept="image/*"
-                              multiple
-                              onChange={(e) => {
-                                setEditMediaType('photo');
-                                handleEditMediaUpload(editingStatus.id, e.target.files);
-                              }}
-                              id={`add-photo-${editingStatus.id}`}
-                              disabled={editUploadingMedia[editingStatus.id]}
-                            />
-                            {editUploadingMedia[editingStatus.id] ? '⏳ Adding Photos...' : '➕ Add Photos'}
-                          </label>
-                          {editUploadProgress[editingStatus.id] > 0 && (
-                            <div className="progress-bar">
-                              <div
-                                className="progress-fill"
-                                style={{ width: `${editUploadProgress[editingStatus.id]}%` }}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      {videoCount < 2 && (
-                        <div className="edit-media-upload-item">
-                          <label htmlFor={`add-video-${editingStatus.id}`} className="edit-media-upload-btn-primary">
-                            <input
-                              type="file"
-                              accept="video/*"
-                              multiple
-                              onChange={(e) => {
-                                setEditMediaType('video');
-                                handleEditMediaUpload(editingStatus.id, e.target.files);
-                              }}
-                              id={`add-video-${editingStatus.id}`}
-                              disabled={editUploadingMedia[editingStatus.id]}
-                            />
-                            {editUploadingMedia[editingStatus.id] ? '⏳ Adding Videos...' : '➕ Add Videos'}
-                          </label>
-                          {editUploadProgress[editingStatus.id] > 0 && (
-                            <div className="progress-bar">
-                              <div
-                                className="progress-fill"
-                                style={{ width: `${editUploadProgress[editingStatus.id]}%` }}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
+            <FormMediaSection
+              editingStatus={editingStatus}
+              mediaFiles={mediaFiles}
+              editDeletingMedia={editDeletingMedia}
+              replacingMediaId={replacingMediaId}
+              editUploadingMedia={editUploadingMedia}
+              editUploadProgress={editUploadProgress}
+              onReplacingMediaIdChange={handleReplacingMediaIdChange}
+              onDeleteMedia={handleDeleteMedia}
+              onEditMediaUpload={handleEditMediaUpload}
+              isImageFile={isImageFile}
+            />
             
             <div className="form-buttons">
               <button type="submit" className="btn btn-success" disabled={loading}>
@@ -714,174 +1087,41 @@ export default function DailyStatusManagement() {
           <p>No daily statuses found for the selected filters.</p>
         </div>
       ) : (
-        <div className="items-grid">
-          {filteredStatuses.map((status) => (
-            <div key={status.id} className="item-card">
-              {successMessage && successStatusId === status.id && (
-                <div className="success-message">{successMessage}</div>
-              )}
-              {error && errorStatusId === status.id && (
-                <div className="error-message">{error}</div>
-              )}
-              <div className="item-header">
-                <h4>{new Date(status.date).toLocaleDateString()} - Id: {status.id}</h4>
-                <div className="item-actions">
-                  <button className="btn btn-sm btn-info" onClick={() => handleEdit(status)}>
-                    Edit
-                  </button>
-                  {isAdmin && (
-                    <button
-                      className="btn btn-sm btn-danger"
-                      onClick={() => setShowDeleteConfirm(status.id)}
-                    >
-                      Delete
-                    </button>
-                  )}
-                </div>
-              </div>
-              
-              {status.roomStatus && (
-                <p><strong>Room Status:</strong> {status.roomStatus}</p>
-              )}
-              {status.waterLevelStatus && (
-                <p><strong>Water Level:</strong> {status.waterLevelStatus}</p>
-              )}
-              {status.createdDate && (
-                <p>
-                {new Intl.DateTimeFormat("en-US", {
-                  timeZone: "UTC",   // keep UTC, don’t convert
-                  year: "numeric",
-                  month: "2-digit",
-                  day: "2-digit",
-                  hour: "numeric",
-                  minute: "2-digit",
-                  second: "2-digit",
-                  hour12: true       // enable AM/PM
-                }).format(new Date(status.createdDate))}
-              </p>
-              )}
+        <>
+          <StatusList
+            filteredStatuses={paginatedStatuses}
+            loading={loading}
+            mediaFiles={mediaFiles}
+            successMessage={successMessage}
+            successStatusId={successStatusId}
+            error={error}
+            errorStatusId={errorStatusId}
+            deletingMedia={deletingMedia}
+            uploadingMedia={uploadingMedia}
+            uploadProgress={uploadProgress}
+            selectedMediaType={selectedMediaType}
+            showMediaUpload={showMediaUpload}
+            isAdmin={isAdmin}
+            onMediaTypeChange={handleMediaTypeChange}
+            onMediaUpload={handleMediaUpload}
+            onShowMediaUpload={handleShowMediaUpload}
+            onDeleteMedia={handleDeleteMedia}
+            onEdit={handleEdit}
+            onDelete={setShowDeleteConfirm}
+            onOpenFullscreen={handleOpenFullscreen}
+            isImageFile={isImageFile}
+          />
+        </>
+      )}
 
-              {/* Media Section */}
-              <div className="media-section">
-                <h5>Media Files</h5>
-                
-                {/* Photos */}
-                <div className="media-type-group">
-                  <div className="media-type-header">📷 Photos ({(mediaFiles[status.id] || []).filter(m => m.mediaType === 'photo').length}/2)</div>
-                  <div className="media-gallery">
-                    {(mediaFiles[status.id] || [])
-                      .filter(m => m.mediaType === 'photo')
-                      .sort((a, b) => a.sequenceNumber - b.sequenceNumber)
-                      .map(media => (
-                        <div key={media.id} className="media-item">
-                          {isImageFile(media.mimeType) ? (
-                            <img 
-                              src={getFileUrl(media.filePath)} 
-                              alt={media.fileName} 
-                              className="media-thumbnail" 
-                              onClick={() => handleOpenFullscreen(media, status.id)}
-                              style={{ cursor: 'pointer' }}
-                            />
-                          ) : (
-                            <div className="media-placeholder">{media.fileName}</div>
-                          )}
-                          {isAdmin && (
-                            <button
-                              className="btn btn-sm btn-danger"
-                              onClick={() => handleDeleteMedia(media.id, status.id)}
-                              disabled={deletingMedia[media.id]}
-                            >
-                              {deletingMedia[media.id] ? 'Deleting...' : 'Delete'}
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                  </div>
-                </div>
-
-                {/* Videos */}
-                <div className="media-type-group">
-                  <div className="media-type-header">🎥 Videos ({(mediaFiles[status.id] || []).filter(m => m.mediaType === 'video').length}/2)</div>
-                  <div className="media-gallery">
-                    {(mediaFiles[status.id] || [])
-                      .filter(m => m.mediaType === 'video')
-                      .sort((a, b) => a.sequenceNumber - b.sequenceNumber)
-                      .map(media => (
-                        <div key={media.id} className="media-item">
-                          <video 
-                            className="media-thumbnail" 
-                            onClick={() => handleOpenFullscreen(media, status.id)}
-                            style={{ cursor: 'pointer' }}
-                          >
-                            <source src={getFileUrl(media.filePath)} type={media.mimeType || 'video/mp4'} />
-                          </video>
-                          {isAdmin && (
-                            <button
-                              className="btn btn-sm btn-danger"
-                              onClick={() => handleDeleteMedia(media.id, status.id)}
-                              disabled={deletingMedia[media.id]}
-                            >
-                              {deletingMedia[media.id] ? 'Deleting...' : 'Delete'}
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                  </div>
-                </div>
-
-                {/* Upload Section */}
-                {showMediaUpload === status.id ? (
-                  <div className="media-upload-form">
-                    <div className="form-group">
-                      <label>Media Type:</label>
-                      <select
-                        value={selectedMediaType}
-                        onChange={(e) => setSelectedMediaType(e.target.value as 'photo' | 'video')}
-                      >
-                        <option value="photo">Photo</option>
-                        <option value="video">Video</option>
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label>Select Files (max 2 per type):</label>
-                      <input
-                        type="file"
-                        multiple
-                        accept={selectedMediaType === 'photo' ? 'image/*' : 'video/*'}
-                        onChange={(e) => handleMediaUpload(status.id, e.target.files)}
-                        disabled={uploadingMedia[status.id]}
-                      />
-                    </div>
-                    {uploadingMedia[status.id] && (
-                      <div className="progress-container">
-                        <div className="progress-bar">
-                          <div 
-                            className="progress-fill" 
-                            style={{ width: `${uploadProgress[status.id] || 0}%` }}
-                          ></div>
-                        </div>
-                        <p className="progress-text">{uploadProgress[status.id] || 0}% Uploaded</p>
-                      </div>
-                    )}
-                    <button
-                      className="btn btn-sm btn-secondary"
-                      onClick={() => setShowMediaUpload(null)}
-                      disabled={uploadingMedia[status.id]}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    className="btn btn-sm btn-primary"
-                    onClick={() => setShowMediaUpload(status.id)}
-                  >
-                    + Upload Media
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
+      {/* Sentinel element for lazy loading - always rendered */}
+      {filteredStatuses.length > 0 && (
+        <div ref={sentinelRef} className="lazy-loading-sentinel">
+          {visibleCount < filteredStatuses.length ? (
+            <p className="lazy-loading-message">⬇️ Scroll down to load more...</p>
+          ) : (
+            <p className="lazy-loading-message">✓ All items loaded</p>
+          )}
         </div>
       )}
 
@@ -1003,3 +1243,4 @@ export default function DailyStatusManagement() {
     </div>
   );
 }
+
