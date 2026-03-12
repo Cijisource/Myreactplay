@@ -7,7 +7,7 @@ const router = express.Router();
 
 // Register endpoint
 router.post('/register', [
-  body('userName').notEmpty().trim(),
+  body('email').isEmail().normalizeEmail(),
   body('password').isLength({ min: 6 }),
   body('name').notEmpty().trim()
 ], async (req, res) => {
@@ -17,9 +17,11 @@ router.post('/register', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { userName, password, name } = req.body;
+    // Support both 'email' and 'userName' for backwards compatibility
+    const email = req.body.email || req.body.userName;
+    const { password, name } = req.body;
 
-    const user = await userService.registerUser(userName, password, name);
+    const user = await userService.registerUser(email, password, name);
 
     res.status(201).json({
       message: 'User registered successfully',
@@ -36,7 +38,7 @@ router.post('/register', [
 
 // Login endpoint
 router.post('/login', [
-  body('userName').notEmpty(),
+  body('email').isEmail().normalizeEmail(),
   body('password').notEmpty()
 ], async (req, res) => {
   try {
@@ -45,10 +47,13 @@ router.post('/login', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { userName, password } = req.body;
-    console.log('[AUTH ROUTE] Login attempt for user:', userName);
+    // Support both 'email' and 'userName' for backwards compatibility
+    const email = req.body.email || req.body.userName;
+    const { password } = req.body;
+    
+    console.log('[AUTH ROUTE] Login attempt for email:', email);
 
-    const result = await userService.loginUser(userName, password);
+    const result = await userService.loginUser(email, password);
     console.log('[AUTH ROUTE] Login successful, returning response');
 
     res.json(result);
@@ -56,8 +61,8 @@ router.post('/login', [
     console.error('[AUTH ROUTE] Login error:', error.message);
     console.error('[AUTH ROUTE] Full error:', error);
     
-    if (error.message === 'Invalid username or password') {
-      return res.status(401).json({ error: error.message });
+    if (error.message === 'Invalid username or password' || error.message === 'Invalid email or password') {
+      return res.status(401).json({ error: 'Invalid email or password' });
     }
     res.status(500).json({ error: 'Login failed', details: error.message });
   }

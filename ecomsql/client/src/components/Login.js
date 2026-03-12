@@ -4,28 +4,59 @@ import { loginUser } from '../api';
 import './Login.css';
 
 function Login() {
-  const [userName, setUserName] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  // Email validation regex
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    // Validate email
+    if (!email.trim()) {
+      setError('Email is required');
+      return;
+    }
+    if (!validateEmail(email)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+    if (!password) {
+      setError('Password is required');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const response = await loginUser(userName, password);
+      // Use email as the login credential
+      const response = await loginUser(email.trim().toLowerCase(), password);
+      
+      console.log('[Login] Login successful. Response:', {
+        hasToken: !!response.data.token,
+        tokenLength: response.data.token?.length,
+        user: response.data.user?.userName
+      });
       
       // Store token and user data
       localStorage.setItem('authToken', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
 
+      console.log('[Login] Token saved to localStorage');
+      console.log('[Login] Stored token:', localStorage.getItem('authToken')?.substring(0, 20) + '...');
+      
       // Redirect to home
       navigate('/');
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('[Login] Login error:', error);
       setError(error.response?.data?.error || 'Login failed. Please try again.');
     } finally {
       setLoading(false);
@@ -45,15 +76,15 @@ function Login() {
         
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="userName">Username:</label>
+            <label htmlFor="email">Email:</label>
             <input
-              type="text"
-              id="userName"
-              value={userName}
-              onChange={(e) => setUserName(e.target.value)}
+              type="email"
+              id="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
               disabled={loading}
-              placeholder="Enter your username"
+              placeholder="Enter your email address"
             />
           </div>
 

@@ -4,7 +4,7 @@ import { registerUser, loginUser } from '../api';
 import './Register.css';
 
 function Register() {
-  const [userName, setUserName] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
@@ -13,13 +13,19 @@ function Register() {
   const [success, setSuccess] = useState('');
   const navigate = useNavigate();
 
+  // Email validation regex
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
   const validateForm = () => {
-    if (!userName.trim()) {
-      setError('Username is required');
+    if (!email.trim()) {
+      setError('Email is required');
       return false;
     }
-    if (userName.trim().length < 3) {
-      setError('Username must be at least 3 characters');
+    if (!validateEmail(email)) {
+      setError('Please enter a valid email address');
       return false;
     }
     if (!password) {
@@ -53,15 +59,16 @@ function Register() {
     }
 
     try {
-      // Register user
-      await registerUser(userName, password, name);
+      // Register user with email
+      const normalizedEmail = email.trim().toLowerCase();
+      await registerUser(normalizedEmail, password, name);
       
       setSuccess('Registration successful! Logging you in...');
       
       // Auto-login after successful registration
       setTimeout(async () => {
         try {
-          const response = await loginUser(userName, password);
+          const response = await loginUser(normalizedEmail, password);
           localStorage.setItem('authToken', response.data.token);
           localStorage.setItem('user', JSON.stringify(response.data.user));
           navigate('/');
@@ -108,15 +115,15 @@ function Register() {
           </div>
 
           <div className="form-group">
-            <label htmlFor="userName">Username:</label>
+            <label htmlFor="email">Email:</label>
             <input
-              type="text"
-              id="userName"
-              value={userName}
-              onChange={(e) => setUserName(e.target.value)}
+              type="email"
+              id="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
               disabled={loading}
-              placeholder="Choose a username"
+              placeholder="Enter your email address"
             />
           </div>
 

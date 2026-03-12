@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import ProductListing from './components/ProductListing';
+import ProductDetail from './components/ProductDetail';
 import ProductUpload from './components/ProductUpload';
 import ImageUpload from './components/ImageUpload';
 import ShoppingCart from './components/ShoppingCart';
@@ -10,7 +11,8 @@ import Login from './components/Login';
 import Register from './components/Register';
 import UserProfile from './components/UserProfile';
 import { ProtectedRoute, RoleBasedRoute } from './components/ProtectedRoute';
-import { getUser, isAuthenticated, hasRole } from './utils/authUtils';
+import { getUser, hasRole, isAuthenticated } from './utils/authUtils';
+import { getCartItems } from './api';
 import './App.css';
 
 // Error Boundary
@@ -71,13 +73,37 @@ function MainApp() {
   const [user, setUser] = useState(null);
   const [currentPage, setCurrentPage] = useState('products');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedProductId, setSelectedProductId] = useState(null);
+  const [cartCount, setCartCount] = useState(0);
 
   useEffect(() => {
     const storedUser = getUser();
     if (storedUser) {
       setUser(storedUser);
     }
+    updateCartCount();
   }, []);
+
+  const updateCartCount = async () => {
+    try {
+      const sessionId = localStorage.getItem('sessionId');
+      if (!sessionId) {
+        setCartCount(0);
+        return;
+      }
+      const response = await getCartItems(sessionId);
+      const items = Array.isArray(response.data) ? response.data : [];
+      setCartCount(items.length);
+    } catch (err) {
+      console.error('Error fetching cart count:', err);
+      setCartCount(0);
+    }
+  };
+
+  // Update cart count after adding a product
+  const handleProductAdded = () => {
+    updateCartCount();
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('authToken');
@@ -105,7 +131,24 @@ function MainApp() {
   const renderPage = () => {
     switch (currentPage) {
       case 'products':
-        return <ProductListing searchQuery={searchQuery} setSearchQuery={setSearchQuery} />;
+        return (
+          <ProductListing 
+            searchQuery={searchQuery} 
+            setSearchQuery={setSearchQuery}
+            onViewProductDetail={(productId) => {
+              setSelectedProductId(productId);
+              setCurrentPage('productDetail');
+            }}
+            onProductAdded={updateCartCount}
+          />
+        );
+      case 'productDetail':
+        return (
+          <ProductDetail 
+            productId={selectedProductId}
+            onBackClick={() => setCurrentPage('products')}
+          />
+        );
       case 'upload':
         return (
           <RoleBasedRoute requiredRole="Seller">
@@ -119,7 +162,12 @@ function MainApp() {
           </RoleBasedRoute>
         );
       case 'cart':
-        return <ShoppingCart />;
+        return (
+          <ShoppingCart 
+            onCartCountChange={setCartCount}
+            onOrderComplete={() => setCurrentPage('orders')}
+          />
+        );
       case 'orders':
         return <OrderManagement />;
       case 'admin':
@@ -131,7 +179,17 @@ function MainApp() {
       case 'profile':
         return <UserProfile />;
       default:
-        return <ProductListing searchQuery={searchQuery} setSearchQuery={setSearchQuery} />;
+        return (
+          <ProductListing 
+            searchQuery={searchQuery} 
+            setSearchQuery={setSearchQuery}
+            onViewProductDetail={(productId) => {
+              setSelectedProductId(productId);
+              setCurrentPage('productDetail');
+            }}
+            onProductAdded={updateCartCount}
+          />
+        );
     }
   };
 
@@ -142,7 +200,84 @@ function MainApp() {
           <div className="header-content">
             <h1>� VSS-Vault</h1>
           </div>
-
+          {isAuthenticated() && (
+            <nav className="main-nav">
+              <button
+                className={`nav-link ${currentPage === 'products' ? 'active' : ''}`}
+                onClick={() => setCurrentPage('products')}
+              >
+                Browse
+              </button>
+              <button
+                className={`nav-link ${currentPage === 'orders' ? 'active' : ''}`}
+                onClick={() => setCurrentPage('orders')}
+              >
+                My Orders
+              </button>
+              <button
+                className={`nav-link ${currentPage === 'cart' ? 'active' : ''}`}
+                onClick={() => setCurrentPage('cart')}
+                style={{ position: 'relative' }}
+              >
+                Shopping Cart
+                {cartCount > 0 && (
+                  <span style={{
+                    position: 'absolute',
+                    top: '-8px',
+                    right: '-8px',
+                    background: '#ff6b6b',
+                    color: 'white',
+                    borderRadius: '50%',
+                    width: '24px',
+                    height: '24px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    border: '2px solid white'
+                  }}>
+                    {cartCount}
+                  </span>
+                )}
+              </button>
+              {user && (hasRole('Seller') || hasRole('Administrator')) && (
+                <>
+                  <button
+                    className={`nav-link ${currentPage === 'upload' ? 'active' : ''}`}
+                    onClick={() => setCurrentPage('upload')}
+                  >
+                    Sell
+                  </button>
+                  <button
+                    className={`nav-link ${currentPage === 'images' ? 'active' : ''}`}
+                    onClick={() => setCurrentPage('images')}
+                  >
+                    Media
+                  </button>
+                </>
+              )}
+              {user && hasRole('Administrator') && (
+                <button
+                  className={`nav-link admin-link ${currentPage === 'admin' ? 'active' : ''}`}
+                  onClick={() => setCurrentPage('admin')}
+                >
+                  🔐 Admin
+                </button>
+              )}
+            </nav>
+          )}
+          {!isAuthenticated() && (
+            <nav className="main-nav">
+              <button
+                className={`nav-link ${currentPage === 'products' ? 'active' : ''}`}
+                onClick={() => setCurrentPage('products')}
+              >
+                Browse
+              </button>
+            </nav>
+          )}
+          {isAuthenticated() && (
           <div className="header-search">
             <input
               type="text"
@@ -175,68 +310,24 @@ function MainApp() {
               </button>
             )}
           </div>
+          )}
 
-          <div className="header-icons">
-            <div className="header-icon" onClick={() => setCurrentPage('cart')} style={{ cursor: 'pointer' }}>
-              🛒 Cart
+          {isAuthenticated() && (
+            <div className="header-icons">
+              <div className="header-icon">
+                {user && (
+                  <div className="user-menu">
+                    <button onClick={() => setCurrentPage('profile')} className="user-button">
+                      👤 {user.name}
+                    </button>
+                    <button onClick={handleLogout} className="logout-button">
+                      Logout
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="header-icon" onClick={() => setCurrentPage('orders')} style={{ cursor: 'pointer' }}>
-              📦 Orders
-            </div>
-            <div className="header-icon">
-              {user && (
-                <div className="user-menu">
-                  <button onClick={() => setCurrentPage('profile')} className="user-button">
-                    👤 {user.name}
-                  </button>
-                  <button onClick={handleLogout} className="logout-button">
-                    Logout
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <nav className="main-nav">
-            <button
-              className={`nav-link ${currentPage === 'products' ? 'active' : ''}`}
-              onClick={() => setCurrentPage('products')}
-            >
-              Browse
-            </button>
-            <button
-              className={`nav-link ${currentPage === 'upload' ? 'active' : ''}`}
-              onClick={() => setCurrentPage('upload')}
-            >
-              Sell
-            </button>
-            <button
-              className={`nav-link ${currentPage === 'images' ? 'active' : ''}`}
-              onClick={() => setCurrentPage('images')}
-            >
-              Media
-            </button>
-            {user && hasRole('Administrator') && (
-              <button
-                className={`nav-link admin-link ${currentPage === 'admin' ? 'active' : ''}`}
-                onClick={() => setCurrentPage('admin')}
-              >
-                🔐 Admin
-              </button>
-            )}
-            <button
-              className={`nav-link ${currentPage === 'cart' ? 'active' : ''}`}
-              onClick={() => setCurrentPage('cart')}
-            >
-              Shopping Cart
-            </button>
-            <button
-              className={`nav-link ${currentPage === 'orders' ? 'active' : ''}`}
-              onClick={() => setCurrentPage('orders')}
-            >
-              My Orders
-            </button>
-          </nav>
+          )}
         </div>
       </header>
 

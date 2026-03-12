@@ -21,7 +21,7 @@ const ProductCard = React.memo(({ product, onAddToCart, onViewPhotos }) => {
     if (!product.image_url) {
       return 'https://via.placeholder.com/300?text=No+Image';
     }
-    
+    console.log('Original image URL:', product.image_url);
     // If it's an absolute URL, use it as-is
     if (product.image_url.startsWith('http')) {
       return product.image_url;
@@ -29,6 +29,7 @@ const ProductCard = React.memo(({ product, onAddToCart, onViewPhotos }) => {
     
     // If API_BASE_URL is set (local dev), use it
     if (API_BASE_URL) {
+      console.log('Using API_BASE_URL:', API_BASE_URL);
       return `${API_BASE_URL}${product.image_url}`;
     }
     
@@ -42,7 +43,15 @@ const ProductCard = React.memo(({ product, onAddToCart, onViewPhotos }) => {
   
   return (
     <div className="product-card">
-      <div className="product-image-wrapper">
+      <div 
+        className="product-image-wrapper"
+        onClick={() => {
+          if (ProductCard.onViewDetail) {
+            ProductCard.onViewDetail(product.id);
+          }
+        }}
+        style={{ cursor: 'pointer' }}
+      >
         {product.stock === 0 && <div className="out-of-stock-badge">Sold Out</div>}
         {product.stock > 0 && discountPercent > 0 && (
           <span className="sale-badge">{discountPercent}% Off</span>
@@ -79,6 +88,17 @@ const ProductCard = React.memo(({ product, onAddToCart, onViewPhotos }) => {
             {product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
           </button>
           <button
+            className="view-details-btn"
+            onClick={() => {
+              if (ProductCard.onViewDetail) {
+                ProductCard.onViewDetail(product.id);
+              }
+            }}
+            title="View product details"
+          >
+            👁️
+          </button>
+          <button
             className="view-photos-btn"
             onClick={() => onViewPhotos(product)}
             title="View all product photos"
@@ -93,11 +113,15 @@ const ProductCard = React.memo(({ product, onAddToCart, onViewPhotos }) => {
 
 ProductCard.displayName = 'ProductCard';
 
-const ProductListing = ({ searchQuery: externalSearchQuery, setSearchQuery: externalSetSearchQuery }) => {
+const ProductListing = ({ searchQuery: externalSearchQuery, setSearchQuery: externalSetSearchQuery, onViewProductDetail, onProductAdded }) => {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [searchQuery, setSearchQuery] = useState(externalSearchQuery || '');
+  const [notification, setNotification] = useState(null);
+
+  // Store the callback for ProductCard to use
+  ProductCard.onViewDetail = onViewProductDetail;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -154,12 +178,31 @@ const ProductListing = ({ searchQuery: externalSearchQuery, setSearchQuery: exte
         productId: product.id,
         quantity: 1
       });
-      alert('Product added to cart!');
+      
+      // Show notification
+      setNotification({
+        icon: '✓',
+        message: 'Product added to cart!',
+        type: 'success'
+      });
+      
+      // Auto-hide notification after 3 seconds
+      setTimeout(() => setNotification(null), 3000);
+      
+      // Notify parent component to update cart count
+      if (onProductAdded) {
+        onProductAdded();
+      }
     } catch (err) {
-      alert('Failed to add to cart');
+      setNotification({
+        icon: '✕',
+        message: 'Failed to add to cart',
+        type: 'error'
+      });
+      setTimeout(() => setNotification(null), 3000);
       console.error(err);
     }
-  }, []);
+  }, [onProductAdded]);
 
   const handleViewPhotos = useCallback((product) => {
     setSelectedProduct(product);
@@ -179,6 +222,12 @@ const ProductListing = ({ searchQuery: externalSearchQuery, setSearchQuery: exte
 
   return (
     <>
+      {notification && (
+        <div className={`notification notification-${notification.type}`}>
+          <span className="notification-icon">{notification.icon}</span>
+          <span className="notification-message">{notification.message}</span>
+        </div>
+      )}
       <div className="product-listing">
         <div className="filters">
           <div className="category-filter">

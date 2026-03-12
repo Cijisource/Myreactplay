@@ -9,7 +9,6 @@ console.log('API_BASE_URL:', API_BASE_URL);
 
 // Simple cache for GET requests
 const responseCache = new Map();
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 export const apiClient = axios.create({
   baseURL: API_URL,
@@ -23,6 +22,14 @@ apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('authToken');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+    console.log('[API Interceptor] Auth token added to request:', {
+      url: config.url,
+      method: config.method,
+      tokenPresent: !!token,
+      tokenLength: token?.length
+    });
+  } else {
+    console.warn('[API Interceptor] No auth token found in localStorage');
   }
   return config;
 }, (error) => {
@@ -39,6 +46,9 @@ apiClient.interceptors.response.use((response) => {
     });
   }
   return response;
+}, (error) => {
+  console.error('[API] Response error:', error.message, error.response?.status);
+  return Promise.reject(error);
 });
 
 // Categories
@@ -49,11 +59,11 @@ export const updateCategory = (id, data) => apiClient.put(`/categories/${id}`, d
 export const deleteCategory = (id) => apiClient.delete(`/categories/${id}`);
 
 // Authentication
-export const registerUser = (userName, password, name) => 
-  apiClient.post('/auth/register', { userName, password, name });
+export const registerUser = (email, password, name) => 
+  apiClient.post('/auth/register', { email, password, name });
 
-export const loginUser = (userName, password) => 
-  apiClient.post('/auth/login', { userName, password });
+export const loginUser = (email, password) => 
+  apiClient.post('/auth/login', { email, password });
 
 export const getCurrentUser = () => 
   apiClient.get('/auth/me');
@@ -122,6 +132,7 @@ export const clearCart = (sessionId) => apiClient.delete(`/cart/session/${sessio
 
 // Orders
 export const getOrders = () => apiClient.get('/orders');
+export const getSellerOrders = () => apiClient.get('/orders/seller/orders');
 export const getOrderById = (id) => apiClient.get(`/orders/${id}`);
 export const createOrder = (data) => apiClient.post('/orders', data);
 export const updateOrderStatus = (id, data) => apiClient.put(`/orders/${id}`, data);

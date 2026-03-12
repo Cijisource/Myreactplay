@@ -26,10 +26,10 @@
   padding: 16px 20px;
   width: 100%;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
-  gap: 30px;
-  flex-wrap: wrap;
+  gap: 20px;
+  flex-wrap: nowrap;
 }
 
 .header-content {
@@ -37,6 +37,7 @@
   display: flex;
   align-items: center;
   gap: 15px;
+  order: 1;
 }
 
 .app-header h1 {
@@ -52,6 +53,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  order: 3;
 }
 
 .header-search input {
@@ -90,6 +92,8 @@
   display: flex;
   gap: 20px;
   align-items: center;
+  order: 4;
+  margin-left: auto;
 }
 
 .header-icon {
@@ -126,9 +130,10 @@
 .main-nav {
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
-  flex: 1;
-  justify-content: flex-end;
+  flex-wrap: nowrap;
+  flex: 0 1 auto;
+  justify-content: flex-start;
+  order: 2;
 }
 
 .nav-link {
@@ -211,6 +216,14 @@
     padding: 8px 14px;
     font-size: 12px;
   }
+
+  .app-header h1 {
+    font-size: 28px;
+  }
+
+  .app-main {
+    padding: 20px 15px;
+  }
 }
 
 @media (max-width: 768px) {
@@ -225,7 +238,7 @@
   }
 
   .app-header h1 {
-    font-size: 24px;
+    font-size: 22px;
   }
 
   .header-search {
@@ -233,17 +246,166 @@
     width: 100%;
   }
 
+  .header-search input {
+    font-size: 14px;
+    padding: 10px;
+  }
+
+  .header-search button {
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+
   .header-icons {
-    gap: 15px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .header-icon {
+    font-size: 13px;
+    padding: 8px 10px;
   }
 
   .main-nav {
     width: 100%;
     justify-content: flex-start;
+    flex-wrap: wrap;
   }
 
   .nav-link {
     padding: 8px 12px;
     font-size: 11px;
+    flex-shrink: 0;
+  }
+
+  .app-main {
+    padding: 15px 10px;
+  }
+
+  .app-footer {
+    padding: 20px 10px;
+  }
+
+  .app-footer p {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 600px) {
+  .header-container {
+    padding: 10px;
+    gap: 10px;
+  }
+
+  .app-header h1 {
+    font-size: 20px;
+  }
+
+  .header-search {
+    width: 100%;
+    flex: 1;
+  }
+
+  .header-search input,
+  .header-search button {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .header-icons {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .header-icon {
+    font-size: 11px;
+    padding: 6px 8px;
+    text-align: center;
+  }
+
+  .user-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .user-button,
+  .logout-button {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+
+  .main-nav {
+    gap: 4px;
+  }
+
+  .nav-link {
+    padding: 6px 10px;
+    font-size: 10px;
+  }
+
+  .nav-link.admin-link {
+    display: none;
+  }
+
+  .app-main {
+    padding: 10px 5px;
+  }
+
+  .app-footer {
+    padding: 15px 5px;
+  }
+
+  .app-footer p {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-container {
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .app-header h1 {
+    font-size: 18px;
+  }
+
+  .header-search {
+    width: 100%;
+    flex: 1;
+  }
+
+  .header-search input,
+  .header-search button {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+
+  .header-icons {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+
+  .header-icon {
+    font-size: 10px;
+  }
+
+  .main-nav {
+    gap: 2px;
+    overflow-x: auto;
+    padding-bottom: 5px;
+  }
+
+  .nav-link {
+    padding: 5px 8px;
+    font-size: 9px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .app-main {
+    padding: 8px 4px;
   }
 }

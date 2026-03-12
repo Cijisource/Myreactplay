@@ -63,36 +63,35 @@ function generateToken(user) {
   return token;
 }
 
-// Register a new user
-async function registerUser(userName, password, name) {
+// Register a new user using email
+async function registerUser(email, password, name) {
   try {
     const pool = await getConnection();
-    console.log('[REGISTER] Starting registration for user:', userName);
+    console.log('[REGISTER] Starting registration for email:', email);
     
-    // Check if user already exists
+    // Check if user already exists (email stored in UserName field)
     const existingUser = await pool.request()
-      .input('userName', sql.NVarChar, userName)
-      .query('SELECT * FROM [User] WHERE UserName = @userName');
+      .input('email', sql.NVarChar, email)
+      .query('SELECT * FROM [User] WHERE UserName = @email');
 
     if (existingUser.recordset.length > 0) {
-      throw new Error('User already exists');
+      throw new Error('Email already registered');
     }
 
     // Hash password
     console.log('[REGISTER] Hashing password...');
     const hashedPassword = await hashPassword(password);
-    console.log('[REGISTER] Hashed password stored in variable. Length:', hashedPassword?.length);
-    console.log('[REGISTER] About to insert user with hashed password');
+    console.log('[REGISTER] Password hashed successfully. Length:', hashedPassword?.length);
 
-    // Insert new user
+    // Insert new user with email as UserName
     const result = await pool.request()
-      .input('userName', sql.NVarChar, userName)
+      .input('email', sql.NVarChar, email)      // Email stored in UserName field
       .input('password', sql.NVarChar, hashedPassword)
       .input('name', sql.NVarChar, name)
       .input('createdDate', sql.DateTime2, new Date())
       .query(`
         INSERT INTO [User] (UserName, Password, Name, CreatedDate)
-        VALUES (@userName, @password, @name, @createdDate)
+        VALUES (@email, @password, @name, @createdDate)
         SELECT SCOPE_IDENTITY() as Id
       `);
 
@@ -117,13 +116,13 @@ async function registerUser(userName, password, name) {
           INSERT INTO UserRole (UserId, RoleId, CreatedDate)
           VALUES (@userId, @roleId, @createdDate)
         `);
-      console.log('[REGISTER] Role assigned successfully');
+      console.log('[REGISTER] Role assigned successfully. User email:', email);
     } else {
       console.warn('[REGISTER] Customer role not found in RoleDetail table');
     }
 
-    console.log('[REGISTER] Registration complete for user:', userName);
-    return { userId, userName, name };
+    console.log('[REGISTER] Registration complete for user:', email);
+    return { userId, email, name };
   } catch (error) {
     console.error('[REGISTER] Registration error:', error.message);
     throw error;
@@ -131,17 +130,16 @@ async function registerUser(userName, password, name) {
 }
 
 // Login user
-async function loginUser(userName, password) {
+async function loginUser(email, password) {
   try {
     const pool = await getConnection();
     console.log('[LOGIN] Database connection established for loginUser');
-    console.log('[LOGIN] Attempting to find user:', userName);
+    console.log('[LOGIN] Attempting to find user with email:', email);
     console.log('[LOGIN] Password provided:', password ? 'Yes' : 'No');
-    console.log('[LOGIN] Password:', password);
 
-    // Get user with role information
+    // Get user with role information using email (stored in UserName field)
     const result = await pool.request()
-      .input('userName', sql.NVarChar, userName)
+      .input('email', sql.NVarChar, email)
       .query(`
         SELECT 
           u.Id,
@@ -156,32 +154,27 @@ async function loginUser(userName, password) {
         FROM [User] u
         LEFT JOIN UserRole ur ON u.Id = ur.UserId
         LEFT JOIN RoleDetail rd ON ur.RoleId = rd.Id
-        WHERE u.UserName = @userName
+        WHERE u.UserName = @email
       `);
 
-    console.log('[LOGIN] Query result received:', result);
-    console.log('[LOGIN] Result recordset:', result.recordset);
-    console.log('[LOGIN] Result recordset length:', result.recordset ? result.recordset.length : 'undefined');
+    console.log('[LOGIN] Query result received. Records found:', result.recordset ? result.recordset.length : 0);
 
     if (!result || !result.recordset || result.recordset.length === 0) {
-      console.log('[LOGIN] User not found or recordset empty');
-      throw new Error('Invalid username or password');
+      console.log('[LOGIN] User not found with email:', email);
+      throw new Error('Invalid email or password');
     }
 
     const user = result.recordset[0];
-    console.log('[LOGIN] User found:', { id: user.Id, userName: user.UserName, name: user.Name });
-    console.log('[LOGIN] Password from database length:', user.Password?.length);
-    console.log('[LOGIN] Password from database:', user.Password);
-    console.log('[LOGIN] Is password a bcrypt hash? (should start with $2a$ or $2b$):', user.Password?.startsWith('$2'));
-    console.log('[LOGIN] User object:', user);
+    console.log('[LOGIN] User found:', { id: user.Id, email: user.UserName, name: user.Name });
 
     // Compare password
-    console.log('[LOGIN] About to compare password...');
+    console.log('[LOGIN] Validating password...');
     const isPasswordValid = await comparePassword(password, user.Password);
     console.log('[LOGIN] Password validation result:', isPasswordValid);
 
     if (!isPasswordValid) {
-      throw new Error('Invalid username or password');
+      console.log('[LOGIN] Password invalid for user:', email);
+      throw new Error('Invalid email or password');
     }
 
     // Update last login
@@ -190,7 +183,7 @@ async function loginUser(userName, password) {
       .input('lastLogin', sql.DateTime2, new Date())
       .query('UPDATE [User] SET LastLogin = @lastLogin WHERE Id = @userId');
 
-    console.log('[LOGIN] Last login updated for user:', user.UserName);
+    console.log('[LOGIN] Last login updated for user:', email);
 
     // Generate token
     const token = generateToken(user);

@@ -205,7 +205,7 @@ const ImageUpload = () => {
           <div className="product-info">
             <p><strong>Product:</strong> {selectedProduct.name}</p>
             <p><strong>SKU:</strong> {selectedProduct.sku || 'N/A'}</p>
-            <p><strong>Price:</strong> ${selectedProduct.price.toFixed(2)}</p>
+            <p><strong>Price:</strong> ₹{selectedProduct.price.toFixed(2)}</p>
           </div>
         )}
 
