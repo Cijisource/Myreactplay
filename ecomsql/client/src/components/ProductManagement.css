@@ -148,7 +148,7 @@
 }
 
 .info-row .value {
-  color: #ff6b6b;
+  color: #FF9900;
   font-weight: 600;
 }
 
@@ -268,9 +268,43 @@
 
   .product-actions {
     grid-template-columns: 1fr;
+    gap: 8px;
   }
 
   .btn {
     font-size: 12px;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 12px;
+  }
+}
+
+@media (max-width: 600px) {
+  .products-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .product-card {
+    padding: 12px;
+  }
+
+  .btn {
+    min-height: 36px;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 480px) {
+  .product-card {
+    padding: 8px;
+  }
+
+  .btn {
+    min-height: 32px;
+    font-size: 10px;
+    padding: 6px 8px;
   }
 }

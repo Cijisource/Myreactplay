@@ -223,6 +223,10 @@
   .logout-button {
     padding: 8px 16px;
     font-size: 13px;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .profile-field {
@@ -240,5 +244,47 @@
 
   .roles-list {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .profile-card,
+  .roles-card {
+    padding: 15px;
+  }
+
+  .profile-header,
+  .roles-header {
+    padding: 15px;
+  }
+
+  .profile-header h2,
+  .roles-header h3 {
+    font-size: 18px;
+  }
+
+  .logout-button {
+    padding: 8px 12px;
+    font-size: 12px;
+    min-height: 40px;
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .profile-card,
+  .roles-card {
+    padding: 12px;
+  }
+
+  .profile-header h2,
+  .roles-header h3 {
+    font-size: 16px;
+  }
+
+  .logout-button {
+    padding: 6px 10px;
+    font-size: 11px;
+    min-height: 36px;
   }
 }

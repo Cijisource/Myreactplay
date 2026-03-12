@@ -297,6 +297,7 @@ const Checkout = ({ cartItems, subtotalAmount = 0, gstAmount = 0, shippingCharge
   }, [step, selectedPayment, totalAmount, formData.customerName]);
 
   // Pre-fill form data if user is logged in
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const loggedInUser = getUser();
     if (loggedInUser && loggedInUser.name) {

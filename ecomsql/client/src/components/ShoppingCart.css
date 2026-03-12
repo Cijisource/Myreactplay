@@ -9,7 +9,7 @@
   margin-bottom: 25px;
   color: #222;
   font-weight: 700;
-  border-left: 4px solid #ff6b6b;
+  border-left: 4px solid #FF9900;
   padding-left: 15px;
 }
 
@@ -99,7 +99,7 @@
 
 .quantity-control button:hover {
   background: #e8e8e8;
-  color: #ff6b6b;
+  color: #FF9900;
 }
 
 .quantity-control input {
@@ -115,7 +115,7 @@
 
 .remove-btn {
   padding: 8px 14px;
-  background: #ff6b6b;
+  background: #FF9900;
   color: white;
   border: none;
   border-radius: 6px;
@@ -126,9 +126,9 @@
 }
 
 .remove-btn:hover {
-  background: #ff5252;
+  background: #E68A00;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+  box-shadow: 0 4px 12px rgba(255, 153, 0, 0.3);
 }
 
 .cart-summary {
@@ -176,7 +176,7 @@
   margin: 0;
   font-size: 20px;
   font-weight: 700;
-  color: #ff6b6b;
+  color: #FF9900;
 }
 
 .summary-note {
@@ -199,14 +199,14 @@
 }
 
 .total .amount {
-  color: #ff6b6b;
+  color: #FF9900;
   font-size: 28px;
   font-weight: 700;
 }
 
 .checkout-btn {
   padding: 14px 36px;
-  background: #ff6b6b;
+  background: #FF9900;
   color: white;
   border: none;
   border-radius: 6px;
@@ -218,9 +218,9 @@
 }
 
 .checkout-btn:hover {
-  background: #ff5252;
+  background: #E68A00;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+  box-shadow: 0 4px 12px rgba(255, 153, 0, 0.3);
 }
 
 .checkout-btn:active {
@@ -240,7 +240,7 @@
   color: #222;
   font-size: 20px;
   font-weight: 700;
-  border-left: 3px solid #ff6b6b;
+  border-left: 3px solid #FF9900;
   padding-left: 12px;
 }
 
@@ -273,8 +273,8 @@
 .form-group input:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: #ff6b6b;
-  box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.1);
+  border-color: #FF9900;
+  box-shadow: 0 0 0 3px rgba(255, 153, 0, 0.1);
 }
 
 .form-group textarea {
@@ -303,14 +303,14 @@
 }
 
 .submit-btn {
-  background: #ff6b6b;
+  background: #FF9900;
   color: white;
 }
 
 .submit-btn:hover {
-  background: #ff5252;
+  background: #E68A00;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+  box-shadow: 0 4px 12px rgba(255, 153, 0, 0.3);
 }
 
 .cancel-btn {
@@ -341,7 +341,7 @@
 .message.error {
   background: #f8d7da;
   color: #721c24;
-  border-color: #ff6b6b;
+  border-color: #FF9900;
 }
 
 .loading {
@@ -444,10 +444,27 @@
     gap: 12px;
   }
 
+  .quantity-control button {
+    min-height: 36px;
+    min-width: 36px;
+  }
+
+  .remove-btn {
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 14px;
+  }
+
   .checkout-btn,
   .continue-shopping-btn {
     width: 100%;
     padding: 12px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .summary-item {
@@ -484,6 +501,18 @@
     font-size: 9px;
   }
 
+  .quantity-control button {
+    min-height: 34px;
+    min-width: 34px;
+  }
+
+  .remove-btn {
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
   .cart-summary {
     gap: 10px;
     padding: 12px;
@@ -502,6 +531,10 @@
   .continue-shopping-btn {
     padding: 10px;
     font-size: 12px;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 }
 
@@ -523,6 +556,18 @@
     font-size: 10px;
   }
 
+  .quantity-control button {
+    min-height: 32px;
+    min-width: 32px;
+  }
+
+  .remove-btn {
+    min-height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
   .cart-summary {
     padding: 10px;
   }
@@ -539,5 +584,9 @@
   .continue-shopping-btn {
     padding: 8px;
     font-size: 11px;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 }

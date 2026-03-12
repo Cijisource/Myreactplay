@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { getProducts, getProductById, uploadProductImage, getProductImages, deleteProductImage, API_BASE_URL } from '../api';
 import './ImageUpload.css';
 
@@ -85,9 +85,13 @@ const ImageUpload = () => {
   const [message, setMessage] = useState('');
   const [productId, setProductId] = useState('');
 
-  useEffect(() => {
+  const loadProductsMemo = useCallback(() => {
     loadProducts();
   }, []);
+
+  useEffect(() => {
+    loadProductsMemo();
+  }, [loadProductsMemo]);
 
   const loadProducts = async () => {
     try {

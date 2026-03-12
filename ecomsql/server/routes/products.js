@@ -6,8 +6,12 @@ const router = express.Router();
 // Get all products with category info and first image
 router.get('/', async (req, res) => {
   try {
-    const { categoryId, search, sellerOnly } = req.query;
+    const { categoryId, search, sellerOnly, page = 1, limit = 20 } = req.query;
     const pool = await getConnection();
+    
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(limit) || 20));
+    const offset = (pageNum - 1) * pageSize;
     
     let query = `
       SELECT p.id, p.name, p.description, p.category_id, p.price, p.stock, p.sku, p.seller_id,
@@ -31,28 +35,55 @@ router.get('/', async (req, res) => {
       request.input('categoryId', sql.Int, categoryId);
     }
     
-    if (search) {
+    // Optimize search: check if search term is at least 2 characters
+    if (search && search.trim().length >= 2) {
       query += ` AND (p.name LIKE @search OR p.description LIKE @search)`;
-      request.input('search', sql.NVarChar, `%${search}%`);
+      request.input('search', sql.NVarChar, `%${search.trim()}%`);
     }
     
-    query += ` ORDER BY p.created_at DESC`;
+    // Add pagination
+    query += ` ORDER BY p.created_at DESC OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY`;
+    request.input('offset', sql.Int, offset);
+    request.input('pageSize', sql.Int, pageSize);
     
-    console.log('[DEBUG] Fetching products with query:', query);
-    console.log('[DEBUG] Parameters:', { categoryId, search, sellerOnly });
+    console.log('[DEBUG] Fetching products - Page:', pageNum, 'Size:', pageSize);
+    console.log('[DEBUG] Parameters:', { categoryId, search: search?.trim(), sellerOnly, page: pageNum, limit: pageSize });
     
     const result = await request.query(query);
     
-    console.log('[DEBUG] Products query returned:', result.recordset.length, 'records');
+    // Get total count for pagination info
+    let countQuery = `SELECT COUNT(*) as total FROM products p WHERE 1=1`;
+    const countRequest = pool.request();
     
-    if (result.recordset.length === 0) {
-      console.log('[DEBUG] No products found');
-      // Test connection by querying count
-      const countResult = await pool.request().query('SELECT COUNT(*) as count FROM products');
-      console.log('[DEBUG] Total products in database:', countResult.recordset[0].count);
+    if (sellerOnly === 'true' && req.user?.userId) {
+      countQuery += ` AND p.seller_id = @sellerId`;
+      countRequest.input('sellerId', sql.Int, req.user.userId);
     }
     
-    res.json(result.recordset);
+    if (categoryId) {
+      countQuery += ` AND p.category_id = @categoryId`;
+      countRequest.input('categoryId', sql.Int, categoryId);
+    }
+    
+    if (search && search.trim().length >= 2) {
+      countQuery += ` AND (p.name LIKE @search OR p.description LIKE @search)`;
+      countRequest.input('search', sql.NVarChar, `%${search.trim()}%`);
+    }
+    
+    const countResult = await countRequest.query(countQuery);
+    const totalCount = countResult.recordset[0]?.total || 0;
+    
+    console.log('[DEBUG] Products query returned:', result.recordset.length, 'records, Total:', totalCount);
+    
+    res.json({
+      data: result.recordset,
+      pagination: {
+        page: pageNum,
+        limit: pageSize,
+        total: totalCount,
+        pages: Math.ceil(totalCount / pageSize)
+      }
+    });
   } catch (error) {
     console.error('[ERROR] Products endpoint error:', error);
     console.error('[ERROR] Error details:', {

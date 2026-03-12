@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { getAllUsers, getUserRoles, updateUserRole } from '../api';
 import './RoleManagement.css';
 
@@ -11,11 +11,7 @@ const RoleManagement = () => {
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [selectedRoleId, setSelectedRoleId] = useState('');
 
-  useEffect(() => {
-    fetchUsersAndRoles();
-  }, []);
-
-  const fetchUsersAndRoles = async () => {
+  const fetchUsersAndRoles = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
@@ -33,7 +29,11 @@ const RoleManagement = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchUsersAndRoles();
+  }, [fetchUsersAndRoles]);
 
   const handleRoleChange = async (userId, newRoleId) => {
     try {
