@@ -3,7 +3,7 @@ import { getCartItems, updateCartItem, removeFromCart } from '../api';
 import Checkout from './Checkout';
 import './ShoppingCart.css';
 
-const ShoppingCart = () => {
+const ShoppingCart = ({ onCartCountChange, onOrderComplete }) => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
@@ -19,15 +19,19 @@ const ShoppingCart = () => {
     try {
       if (!sessionId) {
         setItems([]);
+        onCartCountChange && onCartCountChange(0);
         setLoading(false);
         return;
       }
 
       const response = await getCartItems(sessionId);
-      setItems(Array.isArray(response.data) ? response.data : []);
+      const cartItems = Array.isArray(response.data) ? response.data : [];
+      setItems(cartItems);
+      onCartCountChange && onCartCountChange(cartItems.length);
     } catch (err) {
       setMessage('Error loading cart');
       console.error(err);
+      onCartCountChange && onCartCountChange(0);
     } finally {
       setLoading(false);
     }
@@ -96,7 +100,7 @@ const ShoppingCart = () => {
               {items.map(item => (
                 <tr key={item.id}>
                   <td>{item.product_name}</td>
-                  <td>${item.price.toFixed(2)}</td>
+                  <td>₹{item.price.toFixed(2)}</td>
                   <td>
                     <div className="quantity-control">
                       <button onClick={() => handleQuantityChange(item.id, item.quantity - 1)}>-</button>
@@ -109,7 +113,7 @@ const ShoppingCart = () => {
                       <button onClick={() => handleQuantityChange(item.id, item.quantity + 1)}>+</button>
                     </div>
                   </td>
-                  <td>${(item.price * item.quantity).toFixed(2)}</td>
+                  <td>₹{(item.price * item.quantity).toFixed(2)}</td>
                   <td>
                     <button
                       className="remove-btn"
@@ -126,7 +130,7 @@ const ShoppingCart = () => {
           <div className="cart-summary">
             <div className="total">
               <span>Total:</span>
-              <span className="amount">${totalAmount.toFixed(2)}</span>
+              <span className="amount">₹{totalAmount.toFixed(2)}</span>
             </div>
             <button className="checkout-btn" onClick={() => setShowCheckout(true)}>
               Proceed to Checkout
@@ -138,6 +142,7 @@ const ShoppingCart = () => {
               cartItems={items}
               totalAmount={totalAmount}
               onClose={handleCheckoutClose}
+              onOrderComplete={onOrderComplete}
             />
           )}
         </div>

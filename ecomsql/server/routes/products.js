@@ -1,5 +1,6 @@
 const express = require('express');
 const { getConnection, sql } = require('../config');
+const { verifyToken } = require('../middleware/auth');
 const router = express.Router();
 
 // Get all products with category info and first image
@@ -9,7 +10,7 @@ router.get('/', async (req, res) => {
     const pool = await getConnection();
     
     let query = `
-      SELECT p.id, p.name, p.description, p.category_id, p.price, p.stock, p.sku, 
+      SELECT p.id, p.name, p.description, p.category_id, p.price, p.stock, p.sku, p.seller_id,
              p.created_at, p.updated_at, c.name as category_name,
              (SELECT TOP 1 image_url FROM product_images WHERE product_id = p.id ORDER BY uploaded_at DESC) as image_url
       FROM products p
@@ -68,7 +69,7 @@ router.get('/:id', async (req, res) => {
     const result = await pool.request()
       .input('id', sql.Int, req.params.id)
       .query(`
-        SELECT p.id, p.name, p.description, p.category_id, p.price, p.stock, p.sku, 
+        SELECT p.id, p.name, p.description, p.category_id, p.price, p.stock, p.sku, p.seller_id,
                p.created_at, p.updated_at, c.name as category_name
         FROM products p
         LEFT JOIN categories c ON p.category_id = c.id
@@ -87,6 +88,14 @@ router.get('/:id', async (req, res) => {
       .query('SELECT id, product_id, image_url, filename, thumbnail_url, uploaded_at FROM product_images WHERE product_id = @productId');
     
     product.images = imagesResult.recordset;
+    
+    console.log('[DEBUG] Product detail response:', {
+      productId: product.id,
+      productName: product.name,
+      imageCount: product.images.length,
+      images: product.images
+    });
+    
     res.json(product);
   } catch (error) {
     console.error(error);
@@ -95,9 +104,10 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create product
-router.post('/', async (req, res) => {
+router.post('/', verifyToken, async (req, res) => {
   try {
     const { name, description, category_id, price, stock, sku } = req.body;
+    const sellerId = req.user.userId;
     
     if (!name || !category_id || !price) {
       return res.status(400).json({ error: 'Name, category_id, and price are required' });
@@ -111,11 +121,12 @@ router.post('/', async (req, res) => {
       .input('price', sql.Decimal(10, 2), price)
       .input('stock', sql.Int, stock || 0)
       .input('sku', sql.NVarChar, sku || null)
+      .input('seller_id', sql.Int, sellerId)
       .query(`
-        INSERT INTO products (name, description, category_id, price, stock, sku)
+        INSERT INTO products (name, description, category_id, price, stock, sku, seller_id)
         OUTPUT INSERTED.id, INSERTED.name, INSERTED.description, INSERTED.category_id, 
-               INSERTED.price, INSERTED.stock, INSERTED.sku, INSERTED.created_at, INSERTED.updated_at
-        VALUES (@name, @description, @category_id, @price, @stock, @sku)
+               INSERTED.price, INSERTED.stock, INSERTED.sku, INSERTED.seller_id, INSERTED.created_at, INSERTED.updated_at
+        VALUES (@name, @description, @category_id, @price, @stock, @sku, @seller_id)
       `);
     
     res.status(201).json(result.recordset[0]);
@@ -126,7 +137,7 @@ router.post('/', async (req, res) => {
 });
 
 // Update product
-router.put('/:id', async (req, res) => {
+router.put('/:id', verifyToken, async (req, res) => {
   try {
     const { name, description, category_id, price, stock, sku } = req.body;
     const pool = await getConnection();
@@ -144,7 +155,7 @@ router.put('/:id', async (req, res) => {
         SET name = @name, description = @description, category_id = @category_id, 
             price = @price, stock = @stock, sku = @sku, updated_at = GETDATE()
         OUTPUT INSERTED.id, INSERTED.name, INSERTED.description, INSERTED.category_id, 
-               INSERTED.price, INSERTED.stock, INSERTED.sku, INSERTED.created_at, INSERTED.updated_at
+               INSERTED.price, INSERTED.stock, INSERTED.sku, INSERTED.seller_id, INSERTED.created_at, INSERTED.updated_at
         WHERE id = @id
       `);
     

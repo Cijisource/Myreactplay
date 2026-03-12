@@ -7,14 +7,25 @@ const verifyToken = (req, res, next) => {
     const token = req.headers.authorization?.split(' ')[1];
 
     if (!token) {
+      console.warn('[verifyToken] No token provided in request to:', req.originalUrl);
       return res.status(401).json({ error: 'No token provided' });
     }
 
+    console.log('[verifyToken] Token received. Verifying...');
+    
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
     req.user = decoded;
+    
+    console.log('[verifyToken] Token verified. User:', {
+      userId: decoded.userId,
+      userName: decoded.userName,
+      roleType: decoded.roleType
+    });
+    
     next();
   } catch (error) {
+    console.error('[verifyToken] Token verification failed:', error.message);
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
 };
