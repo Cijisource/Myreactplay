@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../api';
+import SearchableDropdown from './SearchableDropdown';
 import './ManagementStyles.css';
 
 interface Transaction {
@@ -33,6 +34,15 @@ export default function TransactionManagement() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'date-desc' | 'amount-desc' | 'amount-asc'>('date-desc');
+  const [viewMode, setViewMode] = useState<'list' | 'category'>('category');
+
+  // Helper to format date as YYYY-MM-DD using local date (no timezone conversion)
+  const formatLocalDate = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   // Get current month date range
   const getCurrentMonthDates = () => {
@@ -40,8 +50,8 @@ export default function TransactionManagement() {
     const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
     const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     return {
-      startDate: firstDay.toISOString().split('T')[0],
-      endDate: lastDay.toISOString().split('T')[0]
+      startDate: formatLocalDate(firstDay),
+      endDate: formatLocalDate(lastDay)
     };
   };
 
@@ -54,7 +64,7 @@ export default function TransactionManagement() {
   const [formData, setFormData] = useState({
     description: '',
     transactionTypeId: 0,
-    transactionDate: new Date().toISOString().split('T')[0],
+    transactionDate: formatLocalDate(new Date()),
     amount: 0,
     occupancyId: ''
   });
@@ -114,7 +124,7 @@ export default function TransactionManagement() {
       setFormData({
         description: '',
         transactionTypeId: 0,
-        transactionDate: new Date().toISOString().split('T')[0],
+        transactionDate: formatLocalDate(new Date()),
         amount: 0,
         occupancyId: ''
       });
@@ -154,7 +164,7 @@ export default function TransactionManagement() {
     setShowForm(true);
   };
 
-  // Filter and group transactions by type and date range
+  // Filter and sort transactions
   const filteredTransactions = transactions.filter(t => {
     const transactionDate = new Date(t.transactionDate);
     const startDate = new Date(dateRange.startDate);
@@ -175,21 +185,6 @@ export default function TransactionManagement() {
         return 0;
     }
   });
-
-  // Group by transaction type
-  const groupedByType = filteredTransactions.reduce((groups: { [key: number]: { type: string; transactions: Transaction[]; total: number } }, transaction) => {
-    const typeId = transaction.transactionTypeId;
-    if (!groups[typeId]) {
-      groups[typeId] = {
-        type: transaction.transactionType?.transactionType || 'Unknown',
-        transactions: [],
-        total: 0
-      };
-    }
-    groups[typeId].transactions.push(transaction);
-    groups[typeId].total += transaction.amount;
-    return groups;
-  }, {});
 
   return (
     <div className="management-container">
@@ -230,15 +225,32 @@ export default function TransactionManagement() {
             Reset
           </button>
         </div>
-        <select
+        <SearchableDropdown
           value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as any)}
-          className="sort-select"
-        >
-          <option value="date-desc">Newest First</option>
-          <option value="amount-desc">Highest Amount</option>
-          <option value="amount-asc">Lowest Amount</option>
-        </select>
+          onChange={(option) => setSortBy(option.id as any)}
+          options={[
+            { id: 'date-desc', label: 'Newest First' },
+            { id: 'amount-desc', label: 'Highest Amount' },
+            { id: 'amount-asc', label: 'Lowest Amount' }
+          ]}
+          placeholder="Sort by..."
+        />
+        <div className="view-mode-toggle">
+          <button
+            className={`btn ${viewMode === 'list' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setViewMode('list')}
+            title="List view"
+          >
+            📋 List
+          </button>
+          <button
+            className={`btn ${viewMode === 'category' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setViewMode('category')}
+            title="Category-wise view"
+          >
+            🏷️ Category
+          </button>
+        </div>
         <button
           className="btn btn-primary"
           onClick={() => {
@@ -246,7 +258,7 @@ export default function TransactionManagement() {
             setFormData({
               description: '',
               transactionTypeId: 0,
-              transactionDate: new Date().toISOString().split('T')[0],
+              transactionDate: formatLocalDate(new Date()),
               amount: 0,
               occupancyId: ''
             });
@@ -268,18 +280,12 @@ export default function TransactionManagement() {
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               required
             />
-            <select
-              value={formData.transactionTypeId}
-              onChange={(e) => setFormData({ ...formData, transactionTypeId: parseInt(e.target.value) })}
-              required
-            >
-              <option value={0}>Select Transaction Type</option>
-              {transactionTypes.map((type) => (
-                <option key={type.id} value={type.id}>
-                  {type.transactionType}
-                </option>
-              ))}
-            </select>
+            <SearchableDropdown
+              value={formData.transactionTypeId || null}
+              onChange={(option) => setFormData({ ...formData, transactionTypeId: option.id as number })}
+              options={transactionTypes.map(type => ({ id: type.id, label: type.transactionType }))}
+              placeholder="Select Transaction Type"
+            />
             <input
               type="date"
               value={formData.transactionDate}
@@ -314,21 +320,71 @@ export default function TransactionManagement() {
 
       {loading ? (
         <div className="loading-spinner"></div>
-      ) : Object.keys(groupedByType).length === 0 ? (
+      ) : filteredTransactions.length === 0 ? (
         <div className="no-results-message">
-          <p>No transactions found for the selected date range.</p>
+          <p>No transactions found.</p>
+        </div>
+      ) : viewMode === 'list' ? (
+        <div className="table-responsive">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Description</th>
+                <th>Type</th>
+                <th>Date</th>
+                <th className="text-right">Amount (₹)</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredTransactions.map((transaction) => (
+                <tr key={transaction.id}>
+                  <td>{transaction.description}</td>
+                  <td>{transaction.transactionType?.transactionType || 'Unknown'}</td>
+                  <td>{new Date(transaction.transactionDate).toLocaleDateString()}</td>
+                  <td className="text-right">{transaction.amount.toFixed(2)}</td>
+                  <td className="actions">
+                    <button className="btn btn-sm btn-info" onClick={() => handleEdit(transaction)}>
+                      Edit
+                    </button>
+                    <button
+                      className="btn btn-sm btn-danger"
+                      onClick={() => setShowDeleteConfirm(transaction.id)}
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       ) : (
         <div>
-          {Object.keys(groupedByType).map((typeId) => (
-            <div key={typeId} className="type-section">
-              <div className="type-header">
-                <h3 className="type-title">
-                  📊 {groupedByType[Number(typeId)].type}
+          {Object.entries(
+            filteredTransactions.reduce((groups: { [key: number]: { type: string; transactions: Transaction[]; total: number } }, transaction) => {
+              const typeId = transaction.transactionTypeId;
+              if (!groups[typeId]) {
+                groups[typeId] = {
+                  type: transaction.transactionType?.transactionType || 'Unknown',
+                  transactions: [],
+                  total: 0
+                };
+              }
+              groups[typeId].transactions.push(transaction);
+              groups[typeId].total += transaction.amount;
+              return groups;
+            }, {})
+          ).map(([typeId, groupedData]) => (
+            <div key={typeId} className="category-section">
+              <div className="category-header">
+                <h3 className="category-title">
+                  💰 {groupedData.type}
                 </h3>
-                <span className="type-total">
-                  Total: ₹{groupedByType[Number(typeId)].total.toFixed(2)}
-                </span>
+                <div className="category-stats">
+                  <span className="stat-badge">Count: {groupedData.transactions.length}</span>
+                  <span className="stat-badge total">Total: ₹{groupedData.total.toFixed(2)}</span>
+                </div>
               </div>
               <div className="table-responsive">
                 <table className="data-table">
@@ -336,16 +392,16 @@ export default function TransactionManagement() {
                     <tr>
                       <th>Description</th>
                       <th>Date</th>
-                      <th>Amount</th>
+                      <th className="text-right">Amount (₹)</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {groupedByType[Number(typeId)].transactions.map((transaction) => (
+                    {groupedData.transactions.map((transaction) => (
                       <tr key={transaction.id}>
                         <td>{transaction.description}</td>
                         <td>{new Date(transaction.transactionDate).toLocaleDateString()}</td>
-                        <td className="amount">₹{transaction.amount.toFixed(2)}</td>
+                        <td className="text-right">{transaction.amount.toFixed(2)}</td>
                         <td className="actions">
                           <button className="btn btn-sm btn-info" onClick={() => handleEdit(transaction)}>
                             Edit
@@ -364,6 +420,22 @@ export default function TransactionManagement() {
               </div>
             </div>
           ))}
+          {filteredTransactions.length > 0 && (
+            <div className="net-balance-summary">
+              <div className="net-balance-content">
+                <span className="net-balance-label">Net Balance (Total Amount):</span>
+                <span className="net-balance-value">₹{filteredTransactions.reduce((sum, t) => {
+                  const transactionType = t.transactionType?.transactionType;
+                  if (transactionType === 'Income' || transactionType === 'CashDep') {
+                    return sum + t.amount;
+                  } else if (transactionType === 'Expense') {
+                    return sum - t.amount;
+                  }
+                  return sum;
+                }, 0).toFixed(2)}</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

@@ -54,7 +54,7 @@ export default function TenantCard({
       </button>
       <button
         className="action-icon-btn action-delete"
-        onClick={() => onDeleteClick(tenant.id)}
+        // onClick={() => onDeleteClick(tenant.id)}
         title="Delete tenant"
         aria-label="Delete"
       >

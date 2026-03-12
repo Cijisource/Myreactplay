@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../api';
+import SearchableDropdown from './SearchableDropdown';
 import './RentalCollection.css';
 
 interface SummaryData {
@@ -168,13 +169,15 @@ export default function RentalCollection() {
           <>
             <div className="month-selector">
               <label>Select Month:</label>
-              <select value={selectedMonth} onChange={(e) => handleMonthChange(e.target.value)}>
-                {unpaidTenants.map((tenant) => (
-                  <option key={tenant.month} value={tenant.month}>
-                    {tenant.month} ({tenant.outstanding_count} unpaid)
-                  </option>
-                ))}
-              </select>
+              <SearchableDropdown
+                value={selectedMonth}
+                onChange={(option) => handleMonthChange(option.id.toString())}
+                options={unpaidTenants.map((tenant) => ({
+                  id: tenant.month,
+                  label: `${tenant.month} (${tenant.outstanding_count} unpaid)`
+                }))}
+                placeholder="Select month..."
+              />
             </div>
 
             {unpaidDetails.length > 0 ? (

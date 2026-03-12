@@ -192,6 +192,103 @@
   border-radius: 0.375rem;
 }
 
+/* Category Section (for Category-wise view) */
+.category-section {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 8px;
+  border-left: 4px solid #06b6d4;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.category-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.category-title {
+  margin: 0;
+  color: #0c4a6e;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.category-stats {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.stat-badge {
+  font-size: 0.85rem;
+  color: #0c4a6e;
+  font-weight: 600;
+  background: #cffafe;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+}
+
+.stat-badge.total {
+  background: #dcfce7;
+  color: #166534;
+}
+
+/* Net Balance Summary */
+.net-balance-summary {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border-radius: 8px;
+  border-left: 5px solid #16a34a;
+  box-shadow: 0 4px 6px rgba(22, 163, 74, 0.1);
+}
+
+.net-balance-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.net-balance-label {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #166534;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.net-balance-value {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #16a34a;
+  background: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  border: 2px solid #16a34a;
+  min-width: 200px;
+  text-align: right;
+}
+
+/* View Mode Toggle */
+.view-mode-toggle {
+  display: flex;
+  gap: 8px;
+}
+
+.view-mode-toggle .btn {
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  min-height: 40px;
+  white-space: nowrap;
+}
+
 /* Date Filter Group */
 .date-filter-group {
   display: flex;
@@ -2471,3 +2568,615 @@
   }
 }
 
+
+/* Lazy Loading Sentinel */
+.lazy-loading-sentinel {
+  padding: 40px 20px;
+  text-align: center;
+  margin-top: 30px;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(37, 99, 235, 0.02);
+  border-top: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.lazy-loading-message {
+  color: #666;
+  font-size: 0.95em;
+  margin: 0;
+  animation: pulse 1.5s ease-in-out infinite;
+  font-weight: 500;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+
+
+/* Enhanced Mobile Responsive Design for All Screens */
+
+/* Tablet & Medium Devices (1024px and below) */
+@media (max-width: 1024px) {
+  .management-container {
+    padding: clamp(12px, 4vw, 25px);
+  }
+
+  .toolbar {
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .search-input {
+    min-width: 150px;
+  }
+
+  .sort-select {
+    min-width: 120px;
+  }
+
+  .data-table,
+  .complaints-table {
+    font-size: 0.9em;
+  }
+
+  .data-table thead th,
+  .complaints-table thead th {
+    padding: 10px 12px;
+  }
+
+  .data-table tbody td,
+  .complaints-table tbody td {
+    padding: 10px 12px;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .modal-content {
+    width: 90%;
+    max-height: 90vh;
+  }
+}
+
+/* Tablets (768px and below) */
+@media (max-width: 768px) {
+  .management-container {
+    padding: clamp(10px, 3vw, 20px);
+  }
+
+  .management-container h1,
+  .management-container h2 {
+    font-size: clamp(1.3em, 4vw, 1.8em);
+    margin-bottom: 20px;
+  }
+
+  .toolbar {
+    gap: 10px;
+    margin-bottom: 18px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .search-input,
+  .sort-select,
+  .date-input {
+    font-size: 16px; /* Prevents zoom on focus */
+    min-height: 44px; /* Better touch target */
+  }
+
+  .search-input {
+    min-width: unset;
+    flex: 1;
+  }
+
+  .sort-select {
+    min-width: unset;
+    width: 100%;
+  }
+
+  .date-filter-group {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .date-filter-group label {
+    font-size: 0.85rem;
+  }
+
+  /* Tables - Horizontal Scroll */
+  .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: -12px;
+    padding: 0 12px;
+  }
+
+  .data-table,
+  .complaints-table {
+    font-size: 0.85em;
+    min-width: 600px;
+  }
+
+  .data-table thead th,
+  .complaints-table thead th {
+    padding: 8px 10px;
+    font-size: 0.8rem;
+  }
+
+  .data-table tbody td,
+  .complaints-table tbody td {
+    padding: 8px 10px;
+    font-size: 0.8rem;
+  }
+
+  /* Forms */
+  .form-grid {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+
+  .form-group {
+    margin-bottom: 12px;
+  }
+
+  .form-group label {
+    font-size: 0.9rem;
+    margin-bottom: 0.4rem;
+  }
+
+  .form-group input,
+  .form-group textarea,
+  .form-group select {
+    font-size: 16px;
+    padding: 10px;
+  }
+
+  .form-buttons {
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .form-buttons button {
+    flex: 1;
+    min-width: 120px;
+    padding: 10px;
+  }
+
+  /* Consumer/Type Sections */
+  .consumer-section,
+  .type-section,
+  .user-roles-section {
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .consumer-header,
+  .type-header {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .consumer-meta,
+  .type-meta {
+    font-size: 0.8rem;
+    flex-wrap: wrap;
+  }
+
+  /* Statistics Cards */
+  .stat-card,
+  .summary-card {
+    padding: 15px;
+    font-size: 0.9rem;
+  }
+
+  .stat-value {
+    font-size: 1.5em;
+  }
+
+  /* Lists and Badges */
+  .roles-badges,
+  .proof-icons {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .role-badge,
+  .proof-link {
+    font-size: 0.85rem;
+    padding: 6px 12px;
+  }
+
+  /* Modal */
+  .modal-overlay {
+    padding: 15px;
+  }
+
+  .modal-content {
+    width: 95%;
+    max-height: 85vh;
+    border-radius: 8px;
+  }
+
+  .modal-header h3 {
+    font-size: 1.2rem;
+  }
+
+  .modal-buttons {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .modal-buttons button {
+    width: 100%;
+  }
+
+  /* Buttons */
+  .btn {
+    font-size: 0.9rem;
+    padding: 10px 12px;
+    min-height: 44px;
+  }
+
+  .btn-sm {
+    font-size: 0.8rem;
+    padding: 8px 10px;
+    min-height: 40px;
+  }
+
+  /* Filters */
+  .filters-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  /* Messages */
+  .error-message,
+  .success-message {
+    font-size: 0.9rem;
+    padding: 12px;
+    margin-bottom: 15px;
+  }
+
+  /* No Results */
+  .no-results-message,
+  .no-data {
+    padding: 20px;
+    font-size: 0.9rem;
+  }
+
+  /* Net Balance Summary */
+  .net-balance-summary {
+    margin-top: 1.5rem;
+    padding: 1rem;
+  }
+
+  .net-balance-content {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
+
+  .net-balance-label {
+    font-size: 0.95rem;
+    text-align: center;
+  }
+
+  .net-balance-value {
+    font-size: 1.5rem;
+    padding: 0.75rem;
+    min-width: auto;
+  }
+}
+
+/* Small Phones (480px and below) */
+@media (max-width: 480px) {
+  .management-container {
+    padding: clamp(8px, 2vw, 15px);
+  }
+
+  .management-container h1,
+  .management-container h2 {
+    font-size: clamp(1.1em, 3vw, 1.5em);
+    margin-bottom: 15px;
+  }
+
+  .management-container h3 {
+    font-size: 1.1rem;
+  }
+
+  .toolbar {
+    gap: 8px;
+    margin-bottom: 15px;
+    flex-direction: column;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    width: 100%;
+    padding: 12px;
+    font-size: 0.9rem;
+    min-height: 44px;
+  }
+
+  /* Input Fields */
+  .search-input,
+  .sort-select,
+  .date-input,
+  input,
+  textarea,
+  select {
+    font-size: 16px; /* Prevents zoom */
+    padding: 12px;
+    width: 100%;
+    min-height: 44px;
+    border-radius: 6px;
+  }
+
+  textarea {
+    min-height: 80px;
+  }
+
+  .date-filter-group {
+    flex-direction: column;
+    width: 100%;
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .date-filter-group label {
+    font-size: 0.8rem;
+    margin-bottom: 0;
+  }
+
+  /* Tables - Full Width Scroll */
+  .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-bottom: 10px;
+    border-radius: 6px;
+  }
+
+  .data-table,
+  .complaints-table {
+    font-size: 0.75em;
+    min-width: 500px;
+  }
+
+  .data-table thead th,
+  .complaints-table thead th {
+    padding: 6px 8px;
+    font-size: 0.7rem;
+    font-weight: 600;
+  }
+
+  .data-table tbody td,
+  .complaints-table tbody td {
+    padding: 6px 8px;
+  }
+
+  .data-table thead th:nth-child(n+3),
+  .data-table tbody td:nth-child(n+3) {
+    text-align: right;
+  }
+
+  /* Forms */
+  .form-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .form-group {
+    margin-bottom: 12px;
+  }
+
+  .form-group label {
+    font-size: 0.8rem;
+    margin-bottom: 0.3rem;
+    display: block;
+  }
+
+  .form-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .form-buttons button {
+    width: 100%;
+    padding: 12px;
+    font-size: 0.85rem;
+    min-height: 44px;
+  }
+
+  /* Sections */
+  .consumer-section,
+  .type-section,
+  .user-roles-section {
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+
+  .consumer-title,
+  .type-title {
+    font-size: 1rem;
+    margin-bottom: 10px;
+  }
+
+  .consumer-header,
+  .type-header {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .consumer-meta {
+    font-size: 0.75rem;
+  }
+
+  .consumer-count {
+    font-size: 0.7rem;
+    margin-left: 0;
+  }
+
+  /* Statistics */
+  .stat-card,
+  .summary-card {
+    padding: 12px;
+    font-size: 0.8rem;
+  }
+
+  .stat-value {
+    font-size: 1.3em;
+  }
+
+  .stat-label {
+    font-size: 0.7rem;
+  }
+
+  /* Badges and Icons */
+  .role-badge,
+  .status-badge {
+    font-size: 0.7rem;
+    padding: 4px 8px;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+  }
+
+  .proof-link {
+    font-size: 0.8rem;
+    padding: 8px;
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  /* Modal */
+  .modal-overlay {
+    padding: 0;
+  }
+
+  .modal-content {
+    width: 100%;
+    max-height: 90vh;
+    border-radius: 0;
+    margin: auto;
+  }
+
+  .modal-header {
+    padding: 12px;
+  }
+
+  .modal-header h3 {
+    font-size: 1rem;
+    margin: 0;
+  }
+
+  .modal-close {
+    width: 32px;
+    height: 32px;
+    font-size: 20px;
+  }
+
+  .modal-buttons {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .modal-buttons button {
+    width: 100%;
+    padding: 12px;
+    font-size: 0.85rem;
+    min-height: 44px;
+  }
+
+  /* Filters */
+  .filters-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  /* Messages */
+  .error-message,
+  .success-message,
+  .info-box {
+    font-size: 0.8rem;
+    padding: 10px;
+    margin-bottom: 12px;
+    border-radius: 4px;
+  }
+
+  .no-results-message {
+    padding: 15px;
+    font-size: 0.85rem;
+  }
+
+  /* Action Buttons in Tables */
+  .actions {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .actions button {
+    flex: 1;
+    min-width: 35px;
+    padding: 6px;
+    font-size: 0.7rem;
+  }
+
+  /* Legend */
+  .legend {
+    padding: 12px;
+  }
+
+  .legend h4 {
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+
+  .legend-items {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .legend-item {
+    font-size: 0.75rem;
+    flex: 1;
+    min-width: 150px;
+  }
+
+  /* Dropdown */
+  .searchable-dropdown-wrapper {
+    margin-bottom: 1.5rem;
+  }
+
+  /* Status/Type Count */
+  .results-count {
+    font-size: 0.75rem;
+  }
+
+  /* Net Balance Summary */
+  .net-balance-summary {
+    margin-top: 1rem;
+    padding: 1rem;
+    border-radius: 6px;
+  }
+
+  .net-balance-label {
+    font-size: 0.85rem;
+  }
+
+  .net-balance-value {
+    font-size: 1.3rem;
+    padding: 0.5rem 0.75rem;
+  }
+}

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../api';
+import SearchableDropdown from './SearchableDropdown';
 import './ManagementStyles.css';
 
 interface Role {
@@ -297,30 +298,24 @@ export default function RoleManagement() {
           <div className="form-container">
             <h3>Assign Role to User</h3>
             <form onSubmit={handleAssignSubmit}>
-              <select
-                value={assignFormData.userId}
-                onChange={(e) => setAssignFormData({ ...assignFormData, userId: parseInt(e.target.value) })}
-                required
-              >
-                <option value={0}>Select User</option>
-                {users.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.name} ({user.username})
-                  </option>
-                ))}
-              </select>
-              <select
-                value={assignFormData.roleId}
-                onChange={(e) => setAssignFormData({ ...assignFormData, roleId: parseInt(e.target.value) })}
-                required
-              >
-                <option value={0}>Select Role</option>
-                {roles.map((role) => (
-                  <option key={role.id} value={role.id}>
-                    {role.roleName}
-                  </option>
-                ))}
-              </select>
+              <SearchableDropdown
+                value={assignFormData.userId || null}
+                onChange={(option) => setAssignFormData({ ...assignFormData, userId: option.id as number })}
+                options={users.map((user) => ({
+                  id: user.id,
+                  label: `${user.name} (${user.username})`
+                }))}
+                placeholder="Select User"
+              />
+              <SearchableDropdown
+                value={assignFormData.roleId || null}
+                onChange={(option) => setAssignFormData({ ...assignFormData, roleId: option.id as number })}
+                options={roles.map((role) => ({
+                  id: role.id,
+                  label: role.roleName
+                }))}
+                placeholder="Select Role"
+              />
               <div className="form-buttons">
                 <button type="submit" className="btn btn-success" disabled={loading}>
                   {loading ? 'Assigning...' : 'Assign Role'}

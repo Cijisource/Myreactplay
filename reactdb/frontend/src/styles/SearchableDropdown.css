@@ -166,3 +166,129 @@
 .dropdown-options::-webkit-scrollbar-thumb:hover {
   background: #999;
 }
+
+/* Mobile Responsive Styles for SearchableDropdown */
+
+@media (max-width: 1024px) {
+  .searchable-dropdown-wrapper {
+    margin-bottom: 1.2rem;
+  }
+
+  .dropdown-label {
+    font-size: 0.9rem;
+  }
+
+  .dropdown-input {
+    font-size: 1rem; /* Prevents zoom on mobile */
+  }
+
+  .dropdown-options {
+    max-height: 250px;
+  }
+}
+
+@media (max-width: 768px) {
+  .searchable-dropdown-wrapper {
+    margin-bottom: 1.5rem;
+  }
+
+  .dropdown-label {
+    font-size: 0.85rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .dropdown-input-wrapper {
+    padding: 0.6rem;
+    border-radius: 5px;
+  }
+
+  .dropdown-input {
+    font-size: 16px;
+    padding: 0.6rem 0.8rem;
+  }
+
+  .dropdown-arrow {
+    font-size: 12px;
+  }
+
+  .dropdown-options {
+    max-height: 220px;
+    border-radius: 5px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+    top: calc(100% + 4px);
+  }
+
+  .dropdown-option {
+    padding: 0.65rem 0.9rem;
+    font-size: 0.9rem;
+  }
+
+  .dropdown-error {
+    font-size: 0.8rem;
+    margin-top: 0.4rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .searchable-dropdown-wrapper {
+    margin-bottom: 1.8rem;
+  }
+
+  .dropdown-label {
+    font-size: 0.8rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+
+  .dropdown-input-wrapper {
+    padding: 0.5rem;
+    border-radius: 4px;
+    min-height: 44px; /* Better touch target */
+  }
+
+  .dropdown-input {
+    font-size: 16px;
+    padding: 0.5rem 0.6rem;
+    min-height: 32px;
+  }
+
+  .dropdown-arrow {
+    font-size: 11px;
+    padding-right: 0.4rem;
+  }
+
+  .dropdown-options {
+    position: fixed;
+    max-height: 60vh;
+    width: 90vw;
+    left: 5vw;
+    border-radius: 8px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    z-index: 10000;
+  }
+
+  .dropdown-option {
+    padding: 0.7rem 0.8rem;
+    font-size: 0.88rem;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+
+  .dropdown-search {
+    position: sticky;
+    top: 0;
+    z-index: 10001;
+  }
+
+  .dropdown-empty,
+  .dropdown-loading {
+    padding: 1.5rem 0.8rem;
+    font-size: 0.85rem;
+  }
+
+  .dropdown-error {
+    font-size: 0.75rem;
+    margin-top: 0.3rem;
+  }
+}
