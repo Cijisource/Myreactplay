@@ -259,7 +259,7 @@ const CITIES_DATA = [
   { city: 'Daman', zipCode: '396210' }
 ];
 
-const Checkout = ({ cartItems, totalAmount, onClose, onOrderComplete }) => {
+const Checkout = ({ cartItems, subtotalAmount = 0, gstAmount = 0, shippingCharge = 0, totalAmount, onClose, onOrderComplete }) => {
   const sessionId = localStorage.getItem('sessionId');
   const [step, setStep] = useState('details'); // 'details' -> 'payment' -> 'confirmation'
   const [loading, setLoading] = useState(false);
@@ -512,6 +512,9 @@ const Checkout = ({ cartItems, totalAmount, onClose, onOrderComplete }) => {
           quantity: item.quantity,
           price: item.price
         })),
+        subtotalAmount,
+        gstAmount,
+        shippingCharge,
         totalAmount,
         paymentMethod: selectedPayment,
         paymentScreenshot: paymentScreenshotBase64,
@@ -571,8 +574,25 @@ const Checkout = ({ cartItems, totalAmount, onClose, onOrderComplete }) => {
                 ))}
               </div>
               <div className="order-total">
-                <h4>Total Amount</h4>
-                <p className="total-price">₹{totalAmount.toFixed(2)}</p>
+                <div className="total-breakdown">
+                  <div className="breakdown-row">
+                    <span>Subtotal:</span>
+                    <span>₹{subtotalAmount.toFixed(2)}</span>
+                  </div>
+                  <div className="breakdown-row">
+                    <span>GST (18%):</span>
+                    <span>₹{gstAmount.toFixed(2)}</span>
+                  </div>
+                  <div className="breakdown-row">
+                    <span>Shipping:</span>
+                    <span>{shippingCharge === 0 ? <span style={{ color: '#28a745' }}>Free</span> : `₹${shippingCharge.toFixed(2)}`}</span>
+                  </div>
+                  <div className="breakdown-divider"></div>
+                  <div className="breakdown-row total-row">
+                    <h4>Total Amount</h4>
+                    <p className="total-price">₹{totalAmount.toFixed(2)}</p>
+                  </div>
+                </div>
               </div>
             </div>
 

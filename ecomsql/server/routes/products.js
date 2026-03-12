@@ -1,12 +1,12 @@
 const express = require('express');
 const { getConnection, sql } = require('../config');
-const { verifyToken } = require('../middleware/auth');
+const { verifyToken, checkRole } = require('../middleware/auth');
 const router = express.Router();
 
 // Get all products with category info and first image
 router.get('/', async (req, res) => {
   try {
-    const { categoryId, search } = req.query;
+    const { categoryId, search, sellerOnly } = req.query;
     const pool = await getConnection();
     
     let query = `
@@ -19,6 +19,12 @@ router.get('/', async (req, res) => {
     `;
     
     const request = pool.request();
+    
+    // Filter by seller if requested (requires token)
+    if (sellerOnly === 'true' && req.user?.userId) {
+      query += ` AND p.seller_id = @sellerId`;
+      request.input('sellerId', sql.Int, req.user.userId);
+    }
     
     if (categoryId) {
       query += ` AND p.category_id = @categoryId`;
@@ -33,7 +39,7 @@ router.get('/', async (req, res) => {
     query += ` ORDER BY p.created_at DESC`;
     
     console.log('[DEBUG] Fetching products with query:', query);
-    console.log('[DEBUG] Parameters:', { categoryId, search });
+    console.log('[DEBUG] Parameters:', { categoryId, search, sellerOnly });
     
     const result = await request.query(query);
     
@@ -103,8 +109,8 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Create product
-router.post('/', verifyToken, async (req, res) => {
+// Create product (Seller/Admin only)
+router.post('/', verifyToken, checkRole(['Seller', 'Administrator']), async (req, res) => {
   try {
     const { name, description, category_id, price, stock, sku } = req.body;
     const sellerId = req.user.userId;
@@ -136,14 +142,26 @@ router.post('/', verifyToken, async (req, res) => {
   }
 });
 
-// Update product
-router.put('/:id', verifyToken, async (req, res) => {
+// Update product (Seller/Admin only)
+router.put('/:id', verifyToken, checkRole(['Seller', 'Administrator']), async (req, res) => {
   try {
     const { name, description, category_id, price, stock, sku } = req.body;
+    const productId = req.params.id;
+    const sellerId = req.user.userId;
     const pool = await getConnection();
     
+    // Verify product belongs to this seller
+    const ownerCheck = await pool.request()
+      .input('id', sql.Int, productId)
+      .input('sellerId', sql.Int, sellerId)
+      .query('SELECT id FROM products WHERE id = @id AND seller_id = @sellerId');
+    
+    if (ownerCheck.recordset.length === 0) {
+      return res.status(403).json({ error: 'You do not have permission to edit this product' });
+    }
+    
     const result = await pool.request()
-      .input('id', sql.Int, req.params.id)
+      .input('id', sql.Int, productId)
       .input('name', sql.NVarChar, name)
       .input('description', sql.NVarChar, description || null)
       .input('category_id', sql.Int, category_id)
@@ -169,12 +187,26 @@ router.put('/:id', verifyToken, async (req, res) => {
   }
 });
 
-// Delete product
-router.delete('/:id', async (req, res) => {
+// Delete product (Seller/Admin only)
+router.delete('/:id', verifyToken, checkRole(['Seller', 'Administrator']), async (req, res) => {
   try {
+    const productId = req.params.id;
+    const sellerId = req.user.userId;
     const pool = await getConnection();
+    
+    // Verify product belongs to this seller
+    const ownerCheck = await pool.request()
+      .input('id', sql.Int, productId)
+      .input('sellerId', sql.Int, sellerId)
+      .query('SELECT id FROM products WHERE id = @id AND seller_id = @sellerId');
+    
+    if (ownerCheck.recordset.length === 0) {
+      return res.status(403).json({ error: 'You do not have permission to delete this product' });
+    }
+    
+    // Delete product (will cascade delete related images)
     await pool.request()
-      .input('id', sql.Int, req.params.id)
+      .input('id', sql.Int, productId)
       .query('DELETE FROM products WHERE id = @id');
     
     res.json({ message: 'Product deleted successfully' });

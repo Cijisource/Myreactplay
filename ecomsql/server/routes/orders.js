@@ -126,12 +126,15 @@ router.get('/:id', async (req, res) => {
 // Create order from cart
 router.post('/', async (req, res) => {
   try {
-    const { sessionId, customerEmail, customerName, shippingAddress, items, totalAmount, paymentScreenshot, orderDate } = req.body;
+    const { sessionId, customerEmail, customerName, shippingAddress, items, subtotalAmount, gstAmount, shippingCharge, totalAmount, paymentScreenshot, orderDate } = req.body;
     
     console.log('[ORDERS Post] Received order creation request:', {
       customerEmail: customerEmail,
       customerName: customerName,
       itemCount: items?.length,
+      subtotalAmount: subtotalAmount,
+      gstAmount: gstAmount,
+      shippingCharge: shippingCharge,
       totalAmount: totalAmount
     });
     
@@ -159,6 +162,9 @@ router.post('/', async (req, res) => {
       const orderRequest = new sql.Request(transaction);
       const orderResult = await orderRequest
         .input('orderNumber', sql.NVarChar, orderNumber)
+        .input('subtotalAmount', sql.Decimal(10, 2), subtotalAmount || 0)
+        .input('gstAmount', sql.Decimal(10, 2), gstAmount || 0)
+        .input('shippingCharge', sql.Decimal(10, 2), shippingCharge || 0)
         .input('totalAmount', sql.Decimal(10, 2), totalAmount)
         .input('customerEmail', sql.NVarChar, normalizedEmail)
         .input('customerName', sql.NVarChar, customerName)
@@ -166,17 +172,17 @@ router.post('/', async (req, res) => {
         .input('paymentScreenshot', sql.NVarChar(sql.MAX), paymentScreenshot || null)
         .input('createdAt', sql.DateTime2, createdDate)
         .query(`
-          INSERT INTO orders (order_number, total_amount, customer_email, customer_name, shipping_address, payment_screenshot, status, created_at)
+          INSERT INTO orders (order_number, subtotal_amount, gst_amount, shipping_charge, total_amount, customer_email, customer_name, shipping_address, payment_screenshot, status, created_at)
           OUTPUT INSERTED.id, INSERTED.order_number, INSERTED.total_amount, INSERTED.status, 
                  INSERTED.customer_email, INSERTED.customer_name, INSERTED.shipping_address, 
                  INSERTED.created_at, INSERTED.updated_at
-          VALUES (@orderNumber, @totalAmount, @customerEmail, @customerName, @shippingAddress, @paymentScreenshot, 'pending', @createdAt)
+          VALUES (@orderNumber, @subtotalAmount, @gstAmount, @shippingCharge, @totalAmount, @customerEmail, @customerName, @shippingAddress, @paymentScreenshot, 'pending', @createdAt)
         `);
 
       const orderId = orderResult.recordset[0].id;
       console.log('[ORDERS Post] Order created with ID:', orderId, 'Order#:', orderResult.recordset[0].order_number);
 
-      // Add order items
+      // Add order items and reduce stock
       for (const item of items) {
         const itemRequest = new sql.Request(transaction);
         await itemRequest
@@ -189,6 +195,23 @@ router.post('/', async (req, res) => {
             INSERT INTO order_items (order_id, product_id, product_name, quantity, unit_price)
             VALUES (@orderId, @productId, @productName, @quantity, @unitPrice)
           `);
+
+        // Reduce stock for this product
+        const stockRequest = new sql.Request(transaction);
+        const stockResult = await stockRequest
+          .input('productId', sql.Int, item.productId)
+          .input('quantity', sql.Int, item.quantity)
+          .query(`
+            UPDATE products 
+            SET stock = stock - @quantity
+            WHERE id = @productId AND stock >= @quantity
+          `);
+
+        if (stockResult.rowsAffected[0] === 0) {
+          throw new Error(`Insufficient stock for product ID: ${item.productId}`);
+        }
+
+        console.log('[ORDERS Post] Stock reduced for product:', item.productId, 'by quantity:', item.quantity);
       }
       console.log('[ORDERS Post] Order items added:', items.length);
 

@@ -64,10 +64,11 @@ function generateToken(user) {
 }
 
 // Register a new user using email
-async function registerUser(email, password, name) {
+async function registerUser(email, password, name, roleType) {
   try {
     const pool = await getConnection();
     console.log('[REGISTER] Starting registration for email:', email);
+    console.log('[REGISTER] Requested role:', roleType);
     
     // Check if user already exists (email stored in UserName field)
     const existingUser = await pool.request()
@@ -98,15 +99,15 @@ async function registerUser(email, password, name) {
     console.log('[REGISTER] User inserted with ID:', result.recordset[0].Id);
     const userId = result.recordset[0].Id;
 
-    // Assign default role (e.g., Customer)
-    // First, find the default role
+    // Assign role (default to Customer, but allow Seller on signup)
+    // First, find the requested role
     const roleResult = await pool.request()
-      .input('roleType', sql.NVarChar, 'Customer')
+      .input('roleType', sql.NVarChar, roleType)
       .query('SELECT Id FROM RoleDetail WHERE RoleType = @roleType');
 
     if (roleResult.recordset.length > 0) {
       const roleId = roleResult.recordset[0].Id;
-      console.log('[REGISTER] Assigning Customer role (ID:', roleId, ') to user');
+      console.log('[REGISTER] Assigning', roleType, 'role (ID:', roleId, ') to user');
       
       await pool.request()
         .input('userId', sql.Int, userId)
@@ -118,7 +119,24 @@ async function registerUser(email, password, name) {
         `);
       console.log('[REGISTER] Role assigned successfully. User email:', email);
     } else {
-      console.warn('[REGISTER] Customer role not found in RoleDetail table');
+      console.warn('[REGISTER] Requested role "' + roleType + '" not found in RoleDetail table. Using Customer role.');
+      
+      // Fallback to Customer role
+      const customerRoleResult = await pool.request()
+        .input('roleType', sql.NVarChar, 'Customer')
+        .query('SELECT Id FROM RoleDetail WHERE RoleType = @roleType');
+      
+      if (customerRoleResult.recordset.length > 0) {
+        const roleId = customerRoleResult.recordset[0].Id;
+        await pool.request()
+          .input('userId', sql.Int, userId)
+          .input('roleId', sql.Int, roleId)
+          .input('createdDate', sql.DateTime2, new Date())
+          .query(`
+            INSERT INTO UserRole (UserId, RoleId, CreatedDate)
+            VALUES (@userId, @roleId, @createdDate)
+          `);
+      }
     }
 
     console.log('[REGISTER] Registration complete for user:', email);

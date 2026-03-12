@@ -21,14 +21,15 @@ router.post('/register', [
     const email = req.body.email || req.body.userName;
     const { password, name } = req.body;
 
-    const user = await userService.registerUser(email, password, name);
+    // Always register as Customer role
+    const user = await userService.registerUser(email, password, name, 'Customer');
 
     res.status(201).json({
       message: 'User registered successfully',
       user
     });
   } catch (error) {
-    if (error.message === 'User already exists') {
+    if (error.message === 'User already exists' || error.message === 'Email already registered') {
       return res.status(409).json({ error: error.message });
     }
     console.error('Registration error:', error);
@@ -200,6 +201,71 @@ router.get('/debug/roles', async (req, res) => {
   } catch (error) {
     console.error('Debug roles endpoint error:', error);
     res.status(500).json({ error: 'Failed to fetch roles', details: error.message });
+  }
+});
+
+// Assign role to user (Admin only)
+router.post('/assign-role', verifyToken, async (req, res) => {
+  try {
+    const { userId, roleType } = req.body;
+    const requestingUserId = req.user.userId;
+    const requestingUserRole = req.user.roleType;
+    
+    // Check if requesting user is admin
+    if (requestingUserRole !== 'Administrator') {
+      return res.status(403).json({ error: 'Only administrators can assign roles' });
+    }
+
+    if (!userId || !roleType) {
+      return res.status(400).json({ error: 'userId and roleType are required' });
+    }
+
+    const { getConnection, sql } = require('../config');
+    const pool = await getConnection();
+    
+    console.log(`[ASSIGN-ROLE] Admin ${requestingUserId} assigning role '${roleType}' to user ${userId}`);
+    
+    // Get the role ID
+    const roleResult = await pool.request()
+      .input('roleType', sql.NVarChar, roleType)
+      .query('SELECT Id FROM RoleDetail WHERE RoleType = @roleType');
+
+    if (roleResult.recordset.length === 0) {
+      return res.status(400).json({ error: `Role '${roleType}' does not exist` });
+    }
+
+    const roleId = roleResult.recordset[0].Id;
+
+    // Check if user already has this role
+    const existingRole = await pool.request()
+      .input('userId', sql.Int, userId)
+      .input('roleId', sql.Int, roleId)
+      .query('SELECT id FROM UserRole WHERE UserId = @userId AND RoleId = @roleId');
+
+    if (existingRole.recordset.length > 0) {
+      return res.status(400).json({ error: 'User already has this role' });
+    }
+
+    // Remove previous roles and assign new one
+    await pool.request()
+      .input('userId', sql.Int, userId)
+      .query('DELETE FROM UserRole WHERE UserId = @userId');
+
+    // Assign new role
+    await pool.request()
+      .input('userId', sql.Int, userId)
+      .input('roleId', sql.Int, roleId)
+      .input('createdDate', sql.DateTime2, new Date())
+      .query(`
+        INSERT INTO UserRole (UserId, RoleId, CreatedDate)
+        VALUES (@userId, @roleId, @createdDate)
+      `);
+
+    console.log(`[ASSIGN-ROLE] Role '${roleType}' assigned to user ${userId}`);
+    res.json({ message: `User ${userId} assigned role '${roleType}' successfully` });
+  } catch (error) {
+    console.error('[ASSIGN-ROLE] Error assigning role:', error);
+    res.status(500).json({ error: 'Failed to assign role', details: error.message });
   }
 });
 
