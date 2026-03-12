@@ -147,18 +147,7 @@ router.put('/:id', verifyToken, checkRole(['Seller', 'Administrator']), async (r
   try {
     const { name, description, category_id, price, stock, sku } = req.body;
     const productId = req.params.id;
-    const sellerId = req.user.userId;
     const pool = await getConnection();
-    
-    // Verify product belongs to this seller
-    const ownerCheck = await pool.request()
-      .input('id', sql.Int, productId)
-      .input('sellerId', sql.Int, sellerId)
-      .query('SELECT id FROM products WHERE id = @id AND seller_id = @sellerId');
-    
-    if (ownerCheck.recordset.length === 0) {
-      return res.status(403).json({ error: 'You do not have permission to edit this product' });
-    }
     
     const result = await pool.request()
       .input('id', sql.Int, productId)
@@ -191,18 +180,7 @@ router.put('/:id', verifyToken, checkRole(['Seller', 'Administrator']), async (r
 router.delete('/:id', verifyToken, checkRole(['Seller', 'Administrator']), async (req, res) => {
   try {
     const productId = req.params.id;
-    const sellerId = req.user.userId;
     const pool = await getConnection();
-    
-    // Verify product belongs to this seller
-    const ownerCheck = await pool.request()
-      .input('id', sql.Int, productId)
-      .input('sellerId', sql.Int, sellerId)
-      .query('SELECT id FROM products WHERE id = @id AND seller_id = @sellerId');
-    
-    if (ownerCheck.recordset.length === 0) {
-      return res.status(403).json({ error: 'You do not have permission to delete this product' });
-    }
     
     // Delete product (will cascade delete related images)
     await pool.request()
