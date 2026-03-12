@@ -60,22 +60,17 @@ router.post('/upload/:productId', verifyToken, checkRole(['Seller', 'Administrat
     }
 
     const productId = req.params.productId;
-    const sellerId = req.user.userId;
     const imageUrl = `/uploads/${req.file.filename}`;
     const isPrimary = req.body.isPrimary === 'true' ? 1 : 0;
     
-    // Verify product exists and belongs to seller
+    // Verify product exists
     const pool = await getConnection();
     const productCheck = await pool.request()
       .input('productId', sql.Int, productId)
-      .query('SELECT id, seller_id FROM products WHERE id = @productId');
+      .query('SELECT id FROM products WHERE id = @productId');
     
     if (productCheck.recordset.length === 0) {
       return res.status(404).json({ error: 'Product not found' });
-    }
-    
-    if (productCheck.recordset[0].seller_id !== sellerId) {
-      return res.status(403).json({ error: 'You do not have permission to upload images for this product' });
     }
 
     // Get current image count to set display_order
@@ -125,20 +120,15 @@ router.post('/bulk-upload/:productId', verifyToken, checkRole(['Seller', 'Admini
     }
 
     const productId = req.params.productId;
-    const sellerId = req.user.userId;
     const pool = await getConnection();
     
-    // Verify product exists and belongs to seller
+    // Verify product exists
     const productCheck = await pool.request()
       .input('productId', sql.Int, productId)
-      .query('SELECT id, seller_id FROM products WHERE id = @productId');
+      .query('SELECT id FROM products WHERE id = @productId');
     
     if (productCheck.recordset.length === 0) {
       return res.status(404).json({ error: 'Product not found' });
-    }
-    
-    if (productCheck.recordset[0].seller_id !== sellerId) {
-      return res.status(403).json({ error: 'You do not have permission to upload images for this product' });
     }
 
     // Get current max display_order
@@ -183,15 +173,13 @@ router.post('/bulk-upload/:productId', verifyToken, checkRole(['Seller', 'Admini
 router.delete('/:imageId', verifyToken, checkRole(['Seller', 'Administrator']), async (req, res) => {
   try {
     const pool = await getConnection();
-    const sellerId = req.user.userId;
     
-    // Get image and verify product belongs to seller
+    // Get image
     const imageResult = await pool.request()
       .input('imageId', sql.Int, req.params.imageId)
       .query(`
-        SELECT pi.filename, pi.product_id, p.seller_id 
+        SELECT pi.filename, pi.product_id 
         FROM product_images pi
-        JOIN products p ON pi.product_id = p.id
         WHERE pi.id = @imageId
       `);
     
@@ -200,9 +188,6 @@ router.delete('/:imageId', verifyToken, checkRole(['Seller', 'Administrator']), 
     }
     
     const image = imageResult.recordset[0];
-    if (image.seller_id !== sellerId) {
-      return res.status(403).json({ error: 'You do not have permission to delete this image' });
-    }
 
     // Delete from database
     await pool.request()
