@@ -15,7 +15,7 @@ const RatingStars = ({ rating = 4.5, reviewCount = 0 }) => {
 };
 
 // Memoized product card component
-const ProductCard = React.memo(({ product, onAddToCart, onViewPhotos }) => {
+const ProductCard = React.memo(({ product, onAddToCart, onViewPhotos, isAuthenticated }) => {
   // Build image URL - works in both local dev and Docker
   const getImageUrl = () => {
     if (!product.image_url) {
@@ -84,8 +84,9 @@ const ProductCard = React.memo(({ product, onAddToCart, onViewPhotos }) => {
             className="add-to-cart-btn"
             onClick={() => onAddToCart(product)}
             disabled={product.stock === 0}
+            style={isAuthenticated ? {} : { background: '#ff9800', cursor: product.stock === 0 ? 'not-allowed' : 'pointer' }}
           >
-            {product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
+            {product.stock === 0 ? 'Out of Stock' : (isAuthenticated ? 'Add to Cart' : 'Login to Add')}
           </button>
           <button
             className="view-details-btn"
@@ -113,7 +114,7 @@ const ProductCard = React.memo(({ product, onAddToCart, onViewPhotos }) => {
 
 ProductCard.displayName = 'ProductCard';
 
-const ProductListing = ({ searchQuery: externalSearchQuery, setSearchQuery: externalSetSearchQuery, onViewProductDetail, onProductAdded }) => {
+const ProductListing = ({ searchQuery: externalSearchQuery, setSearchQuery: externalSetSearchQuery, onViewProductDetail, onProductAdded, isAuthenticated = false, user = null }) => {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -169,6 +170,18 @@ const ProductListing = ({ searchQuery: externalSearchQuery, setSearchQuery: exte
   }, [selectedCategory, searchQuery, loadCategories, loadProducts]);
 
   const handleAddToCart = useCallback(async (product) => {
+    // Check if user is authenticated
+    if (!isAuthenticated) {
+      // Show modal or notification prompting to login
+      const shouldLogin = window.confirm(
+        'You need to be logged in to add items to cart. Would you like to login?'
+      );
+      if (shouldLogin) {
+        window.location.href = '/login';
+      }
+      return;
+    }
+
     try {
       const sessionId = localStorage.getItem('sessionId') || 'session-' + Date.now();
       localStorage.setItem('sessionId', sessionId);
@@ -202,7 +215,7 @@ const ProductListing = ({ searchQuery: externalSearchQuery, setSearchQuery: exte
       setTimeout(() => setNotification(null), 3000);
       console.error(err);
     }
-  }, [onProductAdded]);
+  }, [onProductAdded, isAuthenticated]);
 
   const handleViewPhotos = useCallback((product) => {
     setSelectedProduct(product);
@@ -215,9 +228,10 @@ const ProductListing = ({ searchQuery: externalSearchQuery, setSearchQuery: exte
         product={product} 
         onAddToCart={handleAddToCart}
         onViewPhotos={handleViewPhotos}
+        isAuthenticated={isAuthenticated}
       />
     )), 
-    [products, handleAddToCart, handleViewPhotos]
+    [products, handleAddToCart, handleViewPhotos, isAuthenticated]
   );
 
   return (

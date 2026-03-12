@@ -3,6 +3,10 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import ProductListing from './components/ProductListing';
 import ProductDetail from './components/ProductDetail';
 import ProductUpload from './components/ProductUpload';
+import ProductManagement from './components/ProductManagement';
+import EditProduct from './components/EditProduct';
+import ProductImagesManagement from './components/ProductImagesManagement';
+import CategoryManagement from './components/CategoryManagement';
 import ImageUpload from './components/ImageUpload';
 import ShoppingCart from './components/ShoppingCart';
 import OrderManagement from './components/OrderManagement';
@@ -57,11 +61,7 @@ function App() {
           
           <Route
             path="/*"
-            element={
-              <ProtectedRoute>
-                <MainApp />
-              </ProtectedRoute>
-            }
+            element={<MainApp />}
           />
         </Routes>
       </Router>
@@ -75,6 +75,8 @@ function MainApp() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProductId, setSelectedProductId] = useState(null);
   const [cartCount, setCartCount] = useState(0);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [managingImagesProduct, setManagingImagesProduct] = useState(null);
 
   useEffect(() => {
     const storedUser = getUser();
@@ -129,6 +131,61 @@ function MainApp() {
   };
 
   const renderPage = () => {
+    // Redirect to login if trying to access protected pages
+    const protectedPages = ['cart', 'orders', 'profile'];
+    if (protectedPages.includes(currentPage) && !isAuthenticated()) {
+      return (
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '60vh',
+          textAlign: 'center',
+          padding: '20px',
+          background: '#f5f5f5'
+        }}>
+          <h2 style={{ color: '#0066cc', marginBottom: '10px' }}>Login Required</h2>
+          <p style={{ color: '#666', marginBottom: '20px' }}>
+            Please log in to access this feature.
+          </p>
+          <div>
+            <button
+              onClick={() => window.location.href = '/login'}
+              style={{
+                padding: '12px 24px',
+                background: '#0066cc',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '16px',
+                fontWeight: '600',
+                marginRight: '10px'
+              }}
+            >
+              Login
+            </button>
+            <button
+              onClick={() => window.location.href = '/register'}
+              style={{
+                padding: '12px 24px',
+                background: '#28a745',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '16px',
+                fontWeight: '600'
+              }}
+            >
+              Register
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     switch (currentPage) {
       case 'products':
         return (
@@ -140,6 +197,8 @@ function MainApp() {
               setCurrentPage('productDetail');
             }}
             onProductAdded={updateCartCount}
+            isAuthenticated={isAuthenticated()}
+            user={user}
           />
         );
       case 'productDetail':
@@ -147,12 +206,47 @@ function MainApp() {
           <ProductDetail 
             productId={selectedProductId}
             onBackClick={() => setCurrentPage('products')}
+            isAuthenticated={isAuthenticated()}
+            user={user}
           />
         );
       case 'upload':
         return (
           <RoleBasedRoute requiredRole="Seller">
             <ProductUpload />
+          </RoleBasedRoute>
+        );
+      case 'manage':
+        return (
+          <RoleBasedRoute requiredRole="Seller">
+            <>
+              <ProductManagement 
+                onEditProduct={(product) => setEditingProduct(product)}
+                onManageImages={(product) => setManagingImagesProduct(product)}
+              />
+              {editingProduct && (
+                <EditProduct
+                  product={editingProduct}
+                  onClose={() => setEditingProduct(null)}
+                  onSaved={() => {
+                    setEditingProduct(null);
+                    // Refresh product management list
+                  }}
+                />
+              )}
+              {managingImagesProduct && (
+                <ProductImagesManagement
+                  product={managingImagesProduct}
+                  onClose={() => setManagingImagesProduct(null)}
+                />
+              )}
+            </>
+          </RoleBasedRoute>
+        );
+      case 'categories':
+        return (
+          <RoleBasedRoute requiredRole="Seller">
+            <CategoryManagement onClose={() => setCurrentPage('manage')} />
           </RoleBasedRoute>
         );
       case 'images':
@@ -188,6 +282,8 @@ function MainApp() {
               setCurrentPage('productDetail');
             }}
             onProductAdded={updateCartCount}
+            isAuthenticated={isAuthenticated()}
+            user={user}
           />
         );
     }
@@ -200,6 +296,16 @@ function MainApp() {
           <div className="header-content">
             <h1>� VSS-Vault</h1>
           </div>
+          {!isAuthenticated() && (
+            <nav className="main-nav">
+              <button
+                className={`nav-link ${currentPage === 'products' ? 'active' : ''}`}
+                onClick={() => setCurrentPage('products')}
+              >
+                Browse
+              </button>
+            </nav>
+          )}
           {isAuthenticated() && (
             <nav className="main-nav">
               <button
@@ -247,13 +353,19 @@ function MainApp() {
                     className={`nav-link ${currentPage === 'upload' ? 'active' : ''}`}
                     onClick={() => setCurrentPage('upload')}
                   >
-                    Sell
+                    📝 New Product
                   </button>
                   <button
-                    className={`nav-link ${currentPage === 'images' ? 'active' : ''}`}
-                    onClick={() => setCurrentPage('images')}
+                    className={`nav-link ${currentPage === 'manage' ? 'active' : ''}`}
+                    onClick={() => setCurrentPage('manage')}
                   >
-                    Media
+                    📦 My Products
+                  </button>
+                  <button
+                    className={`nav-link ${currentPage === 'categories' ? 'active' : ''}`}
+                    onClick={() => setCurrentPage('categories')}
+                  >
+                    📋 Categories
                   </button>
                 </>
               )}
@@ -265,16 +377,6 @@ function MainApp() {
                   🔐 Admin
                 </button>
               )}
-            </nav>
-          )}
-          {!isAuthenticated() && (
-            <nav className="main-nav">
-              <button
-                className={`nav-link ${currentPage === 'products' ? 'active' : ''}`}
-                onClick={() => setCurrentPage('products')}
-              >
-                Browse
-              </button>
             </nav>
           )}
           {isAuthenticated() && (
@@ -325,6 +427,44 @@ function MainApp() {
                     </button>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {!isAuthenticated() && (
+            <div className="header-icons">
+              <div className="header-icon">
+                <button 
+                  onClick={() => window.location.href = '/login'}
+                  style={{
+                    padding: '10px 16px',
+                    background: '#0066cc',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    marginRight: '8px'
+                  }}
+                >
+                  Login
+                </button>
+                <button 
+                  onClick={() => window.location.href = '/register'}
+                  style={{
+                    padding: '10px 16px',
+                    background: '#28a745',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '600'
+                  }}
+                >
+                  Register
+                </button>
               </div>
             </div>
           )}

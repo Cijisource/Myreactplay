@@ -136,6 +136,32 @@
   text-align: right;
 }
 
+.total-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.breakdown-row.total-row {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.breakdown-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.3);
+  margin: 8px 0;
+}
+
 .order-total {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   padding: 15px;

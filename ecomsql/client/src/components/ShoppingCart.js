@@ -64,7 +64,13 @@ const ShoppingCart = ({ onCartCountChange, onOrderComplete }) => {
     loadCart(); // Reload cart in case order was created
   };
 
-  const totalAmount = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  // Calculate charges
+  const subtotalAmount = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const GST_RATE = 0.18; // 18% GST
+  const gstAmount = subtotalAmount * GST_RATE;
+  const SHIPPING_FREE_ABOVE = 5000; // Free shipping above ₹5000
+  const shippingCharge = subtotalAmount >= SHIPPING_FREE_ABOVE ? 0 : 99; // ₹99 shipping or free
+  const totalAmount = subtotalAmount + gstAmount + shippingCharge;
 
   if (loading) {
     return <div className="shopping-cart"><div className="loading">Loading cart...</div></div>;
@@ -128,6 +134,31 @@ const ShoppingCart = ({ onCartCountChange, onOrderComplete }) => {
           </table>
 
           <div className="cart-summary">
+            <div className="summary-breakdown">
+              <div className="summary-row">
+                <span>Subtotal:</span>
+                <span className="amount">₹{subtotalAmount.toFixed(2)}</span>
+              </div>
+              <div className="summary-row">
+                <span>GST (18%):</span>
+                <span className="amount">₹{gstAmount.toFixed(2)}</span>
+              </div>
+              <div className="summary-row">
+                <span>Shipping:</span>
+                <span className="amount">
+                  {shippingCharge === 0 ? (
+                    <span style={{ color: '#28a745' }}>Free</span>
+                  ) : (
+                    `₹${shippingCharge.toFixed(2)}`
+                  )}
+                </span>
+              </div>
+              {shippingCharge > 0 && (
+                <div className="summary-row summary-note">
+                  <span style={{ fontSize: '12px', color: '#666' }}>Free shipping on orders above ₹5000</span>
+                </div>
+              )}
+            </div>
             <div className="total">
               <span>Total:</span>
               <span className="amount">₹{totalAmount.toFixed(2)}</span>
@@ -140,6 +171,9 @@ const ShoppingCart = ({ onCartCountChange, onOrderComplete }) => {
           {showCheckout && (
             <Checkout 
               cartItems={items}
+              subtotalAmount={subtotalAmount}
+              gstAmount={gstAmount}
+              shippingCharge={shippingCharge}
               totalAmount={totalAmount}
               onClose={handleCheckoutClose}
               onOrderComplete={onOrderComplete}

@@ -3,7 +3,7 @@ import { getProductById, getProducts, addToCart, API_BASE_URL } from '../api';
 import { isAuthenticated } from '../utils/authUtils';
 import './ProductDetail.css';
 
-const ProductDetail = ({ productId, onBackClick }) => {
+const ProductDetail = ({ productId, onBackClick, isAuthenticated: isAuthenticatedProp = null, user = null }) => {
   const [product, setProduct] = useState(null);
   const [relatedProducts, setRelatedProducts] = useState([]);
   const [quantity, setQuantity] = useState(1);
@@ -11,6 +11,9 @@ const ProductDetail = ({ productId, onBackClick }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+
+  // Use prop if provided, otherwise use utility function
+  const authenticated = isAuthenticatedProp !== null ? isAuthenticatedProp : isAuthenticated();
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -61,8 +64,13 @@ const ProductDetail = ({ productId, onBackClick }) => {
 
   const handleAddToCart = async () => {
     try {
-      if (!isAuthenticated()) {
-        onBackClick();
+      if (!authenticated) {
+        const shouldLogin = window.confirm(
+          'You need to be logged in to add items to cart. Would you like to login?'
+        );
+        if (shouldLogin) {
+          window.location.href = '/login';
+        }
         return;
       }
 
@@ -321,8 +329,9 @@ const ProductDetail = ({ productId, onBackClick }) => {
               className={`add-to-cart-btn ${!inStock ? 'disabled' : ''}`}
               onClick={handleAddToCart}
               disabled={!inStock || quantity < 1}
+              style={!authenticated && inStock ? { background: '#ff9800' } : {}}
             >
-              {inStock ? '🛒 Add to Cart' : 'Out of Stock'}
+              {!inStock ? 'Out of Stock' : (authenticated ? '🛒 Add to Cart' : '🔓 Login to Add')}
             </button>
 
             <button className="wishlist-btn">♡ Add to Wishlist</button>

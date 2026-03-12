@@ -59,7 +59,7 @@ function Register() {
     }
 
     try {
-      // Register user with email
+      // Register user with email (always as Customer)
       const normalizedEmail = email.trim().toLowerCase();
       await registerUser(normalizedEmail, password, name);
       

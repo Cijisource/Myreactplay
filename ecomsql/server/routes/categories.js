@@ -1,5 +1,6 @@
 const express = require('express');
 const { getConnection, sql } = require('../config');
+const { verifyToken, checkRole } = require('../middleware/auth');
 const router = express.Router();
 
 // Get all categories
@@ -52,8 +53,8 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Create category
-router.post('/', async (req, res) => {
+// Create category (Seller/Admin only)
+router.post('/', verifyToken, checkRole(['Seller', 'Administrator']), async (req, res) => {
   try {
     const { name, description } = req.body;
     
@@ -74,8 +75,8 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Update category
-router.put('/:id', async (req, res) => {
+// Update category (Seller/Admin only)
+router.put('/:id', verifyToken, checkRole(['Seller', 'Administrator']), async (req, res) => {
   try {
     const { name, description } = req.body;
     const pool = await getConnection();
@@ -96,8 +97,8 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// Delete category
-router.delete('/:id', async (req, res) => {
+// Delete category (Admin only)
+router.delete('/:id', verifyToken, checkRole(['Administrator']), async (req, res) => {
   try {
     const pool = await getConnection();
     await pool.request()
