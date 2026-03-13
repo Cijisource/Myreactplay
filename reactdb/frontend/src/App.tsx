@@ -252,59 +252,6 @@ function AppContent() {
     console.log('[AppContent] Rendering home page for user:', user?.username);
     return (
       <div className="container">
-        <div className="home-header">
-          <div>
-            <h1>🏰 Mansion Management System</h1>
-            <p>Welcome back, {user?.name || user?.username}!</p>
-            <p className="user-roles">Roles: {user?.roles || 'None'}</p>
-            {user?.lastLogin && (
-              <p className="last-login">
-                Last Login: {new Date(user.lastLogin).toLocaleString()}
-              </p>
-            )}
-            {user?.nextLoginDuration && (
-              <p className="next-login-duration">
-                Session expires in: {user.nextLoginDuration} day(s)
-              </p>
-            )}
-          </div>
-          <button 
-            className="logout-btn"
-            onClick={logout}
-          >
-            Sign Out
-          </button>
-        </div>
-        
-        <div className="nav-wrapper">
-          <button 
-            className="hamburger-btn"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
-            ☰
-          </button>
-          
-          <div className={`nav-buttons ${mobileMenuOpen ? 'mobile-open' : ''}`}>
-            {NAV_ITEMS.map(item => {
-              // Check if user has access to this page
-              const userRoles = user?.roles?.split(',').map(r => r.trim()).filter(r => r) || [];
-              const hasAccess = item.roles.length === 0 || userRoles.some(r => item.roles.includes(r));
-              
-              if (!hasAccess) return null;
-              
-              return (
-                <button 
-                  key={item.page}
-                  className={`nav-btn ${currentPage === item.page ? 'active' : ''}`}
-                  onClick={() => setCurrentPage(item.page)}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        
         <div className="status-section">
           <h2>System Status</h2>
           <div className={`status-item ${backendStatus}`}>
@@ -346,13 +293,36 @@ function AppContent() {
   return (
     <>
       <div className="top-header-bar">
-        <button
-          className="back-home-btn"
-          onClick={() => setCurrentPage('home')}
-          disabled={currentPage === 'home'}
+        <button 
+          className="hamburger-btn"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
         >
-          {currentPage === 'home' ? '🏠 Home' : '← Back to Home'}
+          ☰
         </button>
+        
+        <div className={`nav-buttons ${mobileMenuOpen ? 'mobile-open' : ''}`}>
+          {NAV_ITEMS.map(item => {
+            // Check if user has access to this page
+            const userRoles = user?.roles?.split(',').map(r => r.trim()).filter(r => r) || [];
+            const hasAccess = item.roles.length === 0 || userRoles.some(r => item.roles.includes(r));
+            
+            if (!hasAccess) return null;
+            
+            return (
+              <button 
+                key={item.page}
+                className={`nav-btn ${currentPage === item.page ? 'active' : ''}`}
+                onClick={() => {
+                  setCurrentPage(item.page);
+                  setMobileMenuOpen(false);
+                }}
+              >
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+        
         <div className="page-title">
           {(() => {
             if (currentPage === 'home') return 'Mansion Management';
@@ -373,6 +343,19 @@ function AppContent() {
             };
             return pageNames[currentPage] || (currentPage.charAt(0).toUpperCase() + currentPage.slice(1).replace('-', ' '));
           })()}
+        </div>
+        
+        <div className="header-user-info">
+          <div className="user-details">
+            <span className="user-name">{user?.name || user?.username}</span>
+            <span className="user-roles">{user?.roles || 'None'}</span>
+          </div>
+          <button 
+            className="header-logout-btn"
+            onClick={logout}
+          >
+            Sign Out
+          </button>
         </div>
       </div>
       <div className={currentPage === 'home' ? '' : 'page-with-header'}>
