@@ -61,15 +61,25 @@ export default function SearchableDropdown({
 
   // Handle click outside
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
+    function handleClickOutside(event: Event) {
+      // Check if click is within the dropdown wrapper
       if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     }
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    // Add small delay to allow clicks within dropdown to register first
+    if (isOpen) {
+      const timeoutId = setTimeout(() => {
+        document.addEventListener('pointerdown', handleClickOutside, true);
+      }, 50);
+      
+      return () => {
+        clearTimeout(timeoutId);
+        document.removeEventListener('pointerdown', handleClickOutside, true);
+      };
+    }
+  }, [isOpen]);
 
   // Focus input when dropdown opens
   useEffect(() => {
@@ -93,6 +103,14 @@ export default function SearchableDropdown({
     setSearchTerm('');
   };
 
+  const handleOptionSelect = (option: Option, e?: React.PointerEvent<HTMLDivElement> | React.MouseEvent<HTMLDivElement>) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    handleSelect(option);
+  };
+
   return (
     <div ref={wrapperRef} className="searchable-dropdown-wrapper">
       {label && <label className="dropdown-label">{label}</label>}
@@ -101,6 +119,13 @@ export default function SearchableDropdown({
         <div
           className="dropdown-input-wrapper"
           onClick={() => !disabled && handleInputClick()}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              !disabled && handleInputClick();
+            }
+          }}
         >
           <input
             ref={inputRef}
@@ -128,7 +153,15 @@ export default function SearchableDropdown({
                 <div
                   key={option.id}
                   className={`dropdown-option ${value === option.id ? 'selected' : ''}`}
-                  onClick={() => handleSelect(option)}
+                  onClick={(e) => handleOptionSelect(option, e)}
+                  onPointerDown={(e) => {
+                    // For touch devices, handle immediately on pointer down
+                    if (e.pointerType === 'touch') {
+                      handleOptionSelect(option, e);
+                    }
+                  }}
+                  role="option"
+                  aria-selected={value === option.id}
                 >
                   {option.label}
                 </div>
