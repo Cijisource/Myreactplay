@@ -379,7 +379,9 @@ export default function TenantForm({ tenant, onSubmit, onCancel }: TenantFormPro
         });
 
         try {
-          const uploadResponse = await apiService.uploadTenantFiles(filesToUpload);
+          const uploadResponse = await apiService.uploadTenantFiles(filesToUpload, (progress) => {
+            setUploadProgress(progress);
+          });
           console.log(`[Tenant ${tenant ? 'Update' : 'Creation'}] Upload response:`, uploadResponse);
           
           if (uploadResponse.data) {

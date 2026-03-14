@@ -4,6 +4,7 @@
   position: relative;
   width: 100%;
   margin-bottom: 1rem;
+  touch-action: manipulation;
 }
 
 .dropdown-label {
@@ -41,6 +42,7 @@
   padding: 0.5rem;
   cursor: pointer;
   transition: all 0.2s ease;
+  touch-action: manipulation;
 }
 
 .dropdown-input-wrapper:hover {
@@ -102,6 +104,7 @@
   overflow-y: auto;
   z-index: 1000;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  touch-action: manipulation;
 }
 
 .dropdown-option {
@@ -111,6 +114,10 @@
   transition: background-color 0.15s ease;
   border-bottom: 1px solid #f0f0f0;
   font-size: 0.95rem;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .dropdown-option:last-child {
@@ -250,11 +257,16 @@
     font-size: 16px;
     padding: 0.5rem 0.6rem;
     min-height: 32px;
+    /* Prevents iOS keyboard zoom */
+    font-size: 16px !important;
   }
 
   .dropdown-arrow {
     font-size: 11px;
     padding-right: 0.4rem;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
   }
 
   .dropdown-options {
@@ -262,9 +274,15 @@
     max-height: 60vh;
     width: 90vw;
     left: 5vw;
+    right: 5vw;
     border-radius: 8px;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-    z-index: 10000;
+    z-index: 99999;
+    top: auto;
+    /* Ensure dropdown is visible above all content */
+    will-change: transform;
+    touch-action: manipulation;
+    pointer-events: auto;
   }
 
   .dropdown-option {
@@ -273,6 +291,10 @@
     min-height: 44px;
     display: flex;
     align-items: center;
+    /* Improve touch target */
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
   }
 
   .dropdown-search {
