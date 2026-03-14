@@ -160,6 +160,62 @@ export const apiService = {
   getUnpaidTenants: () => api.get('/rental/unpaid-tenants'),
   getUnpaidDetails: (month: string) => api.get(`/rental/unpaid-details/${month}`),
   getPaymentsByMonth: (monthYear: string) => api.get(`/rental/payments/${monthYear}`),
+  getRentalCollectionByOccupancy: (occupancyId: number) => api.get(`/rental/occupancy/${occupancyId}`),
+  getRentalSummaryByOccupancy: (occupancyId: number) => api.get(`/rental/occupancy/${occupancyId}/summary`),
+  uploadPaymentScreenshot: (formData: FormData, onProgress?: (progress: number) => void) => {
+    return new Promise((resolve, reject) => {
+      const token = localStorage.getItem('authToken');
+      const xhr = new XMLHttpRequest();
+
+      // Track upload progress
+      if (onProgress) {
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percentComplete = Math.round((e.loaded / e.total) * 100);
+            console.log(`[Payment Upload] Progress: ${percentComplete}%`);
+            onProgress(percentComplete);
+          }
+        });
+      }
+
+      // Handle completion
+      xhr.addEventListener('load', () => {
+        console.log('[Payment Upload] Upload completed, status:', xhr.status);
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            console.log('[Payment Upload] Response data:', response);
+            resolve({ data: response });
+          } catch (error) {
+            console.error('[Payment Upload] Error parsing response:', error);
+            reject(new Error('Failed to parse upload response'));
+          }
+        } else {
+          reject(new Error(`Upload failed with status ${xhr.status}`));
+        }
+      });
+
+      // Handle errors
+      xhr.addEventListener('error', () => {
+        console.error('[Payment Upload] Network error during upload');
+        reject(new Error('Network error during upload'));
+      });
+
+      xhr.addEventListener('abort', () => {
+        console.log('[Payment Upload] Upload aborted');
+        reject(new Error('Upload was aborted'));
+      });
+
+      // Setup request
+      xhr.open('POST', `${API_URL}/rental/upload-payment`, true);
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
+
+      console.log('[Payment Upload] Starting payment screenshot upload');
+      xhr.send(formData);
+    });
+  },
   
   // Room Occupancy APIs
   getRoomOccupancyData: () => api.get('/rooms/occupancy'),

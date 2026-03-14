@@ -25,10 +25,15 @@ const dailyStatusMediaDir = process.env.DAILY_STATUS_MEDIA_DIR ||
 const tenantPhotosDir = process.env.TENANT_PHOTOS_DIR || 
   (isDocker ? '/app/tenantphotos' : path.resolve(process.cwd(), 'tenantphotos'));
 
+// Determine payments directory
+const paymentsDir = process.env.PAYMENTS_DIR || 
+  (isDocker ? '/app/payments' : path.resolve(process.cwd(), 'payments'));
+
 console.log('Environment:', { NODE_ENV: process.env.NODE_ENV, isDocker });
 console.log('Complains directory:', complainsDir);
 console.log('Daily Status Media directory:', dailyStatusMediaDir);
 console.log('Tenant Photos directory:', tenantPhotosDir);
+console.log('Payments directory:', paymentsDir);
 
 if (!fs.existsSync(complainsDir)) {
   fs.mkdirSync(complainsDir, { recursive: true });
@@ -51,6 +56,13 @@ if (!fs.existsSync(tenantPhotosDir)) {
   console.log('Tenant photos directory already exists');
 }
 
+if (!fs.existsSync(paymentsDir)) {
+  fs.mkdirSync(paymentsDir, { recursive: true });
+  console.log('Created payments directory:', paymentsDir);
+} else {
+  console.log('Payments directory already exists');
+}
+
 // Verify directories are readable/writable
 try {
   fs.accessSync(complainsDir, fs.constants.R_OK | fs.constants.W_OK);
@@ -71,6 +83,13 @@ try {
   console.log('Tenant photos directory is readable and writable');
 } catch (err) {
   console.error('ERROR: Tenant photos directory is not accessible:', err);
+}
+
+try {
+  fs.accessSync(paymentsDir, fs.constants.R_OK | fs.constants.W_OK);
+  console.log('Payments directory is readable and writable');
+} catch (err) {
+  console.error('ERROR: Payments directory is not accessible:', err);
 }
 
 // Configure multer for file uploads
@@ -123,6 +142,31 @@ const uploadDailyStatusMedia = multer({
   }
 });
 
+// Configure multer for payment uploads
+const paymentsStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, paymentsDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const uploadPaymentScreenshot = multer({
+  storage: paymentsStorage,
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB max file size
+  fileFilter: (req, file, cb) => {
+    // Allow images only
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only images are allowed for payment screenshots.'));
+    }
+  }
+});
+
 // Middleware
 app.use(cors({
   origin: '*',
@@ -145,6 +189,11 @@ console.log('Static file serving enabled at /api/daily-status-media and /daily-s
 app.use('/api/tenantphotos', express.static(tenantPhotosDir));
 app.use('/tenantphotos', express.static(tenantPhotosDir));
 console.log('Static file serving enabled at /api/tenantphotos and /tenantphotos from:', tenantPhotosDir);
+
+// Serve static files from payments folder
+app.use('/api/payments', express.static(paymentsDir));
+app.use('/payments', express.static(paymentsDir));
+console.log('Static file serving enabled at /api/payments and /payments from:', paymentsDir);
 
 // Routes
 app.get('/api/health', (req: Request, res: Response) => {
@@ -509,6 +558,8 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
           ISNULL(CAST(o.RentFixed AS FLOAT), CAST(rd.Rent AS FLOAT)) - ISNULL(CAST(rc.RentReceived AS FLOAT), 0) as rentBalance,
           @month as [month],
           @year as [year],
+          CAST(o.CheckInDate AS DATE) as checkInDate,
+          CAST(o.CheckOutDate AS DATE) as checkOutDate,
           CASE 
             WHEN rc.Id IS NULL THEN 'pending'
             WHEN ISNULL(CAST(rc.RentBalance AS FLOAT), 0) = 0 THEN 'paid'
@@ -3216,6 +3267,191 @@ app.delete('/api/service-consumption/:id', async (req: Request, res: Response) =
         details: errorMessage
       });
     }
+  }
+});
+
+// Rental Collection Detail Endpoints
+// Get detailed rental collection records for an occupancy
+app.get('/api/rental/occupancy/:occupancyId', async (req: Request, res: Response) => {
+  try {
+    const { occupancyId } = req.params;
+    const pool = getPool();
+    
+    const result = await pool
+      .request()
+      .input('occupancyId', sql.Int, parseInt(occupancyId))
+      .query(`
+        SELECT 
+          rc.Id as id,
+          rc.OccupancyId as occupancyId,
+          o.TenantId as tenantId,
+          t.Name as tenantName,
+          rd.Number as roomNumber,
+          ISNULL(o.RentFixed, rd.Rent) as rentFixed,
+          rc.RentReceivedOn as rentReceivedOn,
+          rc.RentReceived as rentReceived,
+          rc.Charges as charges,
+          rc.RentBalance as rentBalance,
+          rc.ModeofPayment as modeOfPayment,
+          rc.screenshoturl as screenshotUrl,
+          rc.folder as folder,
+          rc.CreatedDate as createdDate,
+          rc.UpdatedDate as updatedDate
+        FROM RentalCollection rc
+        INNER JOIN Occupancy o ON rc.OccupancyId = o.Id
+        INNER JOIN Tenant t ON o.TenantId = t.Id
+        INNER JOIN RoomDetail rd ON o.RoomId = rd.Id
+        WHERE rc.OccupancyId = @occupancyId
+        ORDER BY rc.RentReceivedOn DESC
+      `);
+    
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Get rental collection error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve rental collection details',
+      details: errorMessage
+    });
+  }
+});
+
+// Upload payment screenshot and create/update rental collection record
+app.post('/api/rental/upload-payment', uploadPaymentScreenshot.single('screenshot'), async (req: Request, res: Response) => {
+  try {
+    const { occupancyId, rentReceived, charges, modeOfPayment, rentReceivedOn } = req.body;
+    
+    if (!occupancyId || !rentReceived) {
+      return res.status(400).json({ 
+        error: 'Occupancy ID and Rent Received amount are required' 
+      });
+    }
+
+    let screenshotUrl = '';
+    if (req.file) {
+      screenshotUrl = `/api/payments/${req.file.filename}`;
+    }
+
+    const pool = getPool();
+    
+    // Check if rental collection record exists for this occupancy and date
+    const existingRecord = await pool
+      .request()
+      .input('occupancyId', sql.Int, parseInt(occupancyId))
+      .input('rentReceivedOn', sql.NChar(10), rentReceivedOn || new Date().toISOString().split('T')[0])
+      .query(`
+        SELECT Id FROM RentalCollection 
+        WHERE OccupancyId = @occupancyId 
+        AND RentReceivedOn = @rentReceivedOn
+      `);
+
+    let result;
+    
+    if (existingRecord.recordset.length > 0) {
+      // Update existing record
+      result = await pool
+        .request()
+        .input('id', sql.Int, existingRecord.recordset[0].Id)
+        .input('rentReceived', sql.Money, parseFloat(rentReceived))
+        .input('charges', sql.Money, charges ? parseFloat(charges) : 0)
+        .input('modeOfPayment', sql.NVarChar(10), modeOfPayment || '')
+        .input('screenshotUrl', sql.NVarChar(sql.MAX), screenshotUrl)
+        .input('updateDate', sql.DateTime, new Date())
+        .query(`
+          UPDATE RentalCollection
+          SET 
+            RentReceived = @rentReceived,
+            Charges = @charges,
+            ModeofPayment = @modeOfPayment,
+            screenshoturl = CASE WHEN @screenshotUrl != '' THEN @screenshotUrl ELSE screenshoturl END,
+            UpdatedDate = @updateDate
+          WHERE Id = @id;
+          
+          SELECT Id, OccupancyId, RentReceivedOn, RentReceived, Charges, RentBalance, screenshoturl
+          FROM RentalCollection
+          WHERE Id = @id
+        `);
+    } else {
+      // Create new record
+      result = await pool
+        .request()
+        .input('occupancyId', sql.Int, parseInt(occupancyId))
+        .input('rentReceivedOn', sql.NChar(10), rentReceivedOn || new Date().toISOString().split('T')[0])
+        .input('rentReceived', sql.Money, parseFloat(rentReceived))
+        .input('charges', sql.Money, charges ? parseFloat(charges) : 0)
+        .input('modeOfPayment', sql.NVarChar(10), modeOfPayment || '')
+        .input('screenshotUrl', sql.NVarChar(sql.MAX), screenshotUrl)
+        .input('createDate', sql.DateTime, new Date())
+        .query(`
+          INSERT INTO RentalCollection 
+          (OccupancyId, RentReceivedOn, RentReceived, Charges, ModeofPayment, screenshoturl, folder, CreatedDate)
+          VALUES (@occupancyId, @rentReceivedOn, @rentReceived, @charges, @modeOfPayment, @screenshotUrl, 'payments', @createDate);
+          
+          SELECT Id, OccupancyId, RentReceivedOn, RentReceived, Charges, RentBalance, screenshoturl
+          FROM RentalCollection
+          WHERE Id = SCOPE_IDENTITY()
+        `);
+    }
+
+    if (result.recordset.length > 0) {
+      res.status(200).json({
+        message: existingRecord.recordset.length > 0 ? 'Payment updated successfully' : 'Payment recorded successfully',
+        data: result.recordset[0]
+      });
+    } else {
+      throw new Error('Failed to save rental collection record');
+    }
+  } catch (error) {
+    console.error('Upload payment error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to upload payment screenshot',
+      details: errorMessage
+    });
+  }
+});
+
+// Get rental collection summary for a specific occupancy
+app.get('/api/rental/occupancy/:occupancyId/summary', async (req: Request, res: Response) => {
+  try {
+    const { occupancyId } = req.params;
+    const pool = getPool();
+    
+    const result = await pool
+      .request()
+      .input('occupancyId', sql.Int, parseInt(occupancyId))
+      .query(`
+        SELECT 
+          o.Id as occupancyId,
+          t.Name as tenantName,
+          rd.Number as roomNumber,
+          ISNULL(o.RentFixed, rd.Rent) as rentFixed,
+          ISNULL(SUM(CAST(rc.RentReceived AS FLOAT)), 0) as totalRentReceived,
+          ISNULL(SUM(CAST(rc.Charges AS FLOAT)), 0) as totalCharges,
+          COUNT(rc.Id) as paymentRecordsCount,
+          MAX(rc.RentReceivedOn) as lastPaymentDate,
+          o.CheckInDate as checkInDate,
+          o.CheckOutDate as checkOutDate
+        FROM Occupancy o
+        INNER JOIN Tenant t ON o.TenantId = t.Id
+        INNER JOIN RoomDetail rd ON o.RoomId = rd.Id
+        LEFT JOIN RentalCollection rc ON o.Id = rc.OccupancyId
+        WHERE o.Id = @occupancyId
+        GROUP BY o.Id, t.Name, rd.Number, o.RentFixed, rd.Rent, o.CheckInDate, o.CheckOutDate
+      `);
+    
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Occupancy not found' });
+    }
+    
+    res.json(result.recordset[0]);
+  } catch (error) {
+    console.error('Get rental summary error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve rental summary',
+      details: errorMessage
+    });
   }
 });
 
