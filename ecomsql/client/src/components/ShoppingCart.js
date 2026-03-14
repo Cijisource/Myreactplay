@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { getCartItems, updateCartItem, removeFromCart } from '../api';
 import Checkout from './Checkout';
 import './ShoppingCart.css';
@@ -11,9 +11,13 @@ const ShoppingCart = ({ onCartCountChange, onOrderComplete }) => {
 
   const sessionId = localStorage.getItem('sessionId');
 
-  useEffect(() => {
+  const loadCartMemo = useCallback(() => {
     loadCart();
-  }, []);
+  }, [sessionId]);
+
+  useEffect(() => {
+    loadCartMemo();
+  }, [loadCartMemo]);
 
   const loadCart = async () => {
     try {

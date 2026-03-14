@@ -164,6 +164,35 @@
   cursor: not-allowed;
 }
 
+@media (max-width: 768px) {
+  .edit-product-container {
+    max-width: 95%;
+  }
+
+  .form-group input,
+  .form-group textarea,
+  .form-group select {
+    padding: 8px 10px;
+    font-size: 13px;
+    min-height: 40px;
+  }
+
+  .form-actions {
+    gap: 8px;
+  }
+
+  .btn-cancel,
+  .btn-submit {
+    padding: 8px 16px;
+    font-size: 13px;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+  }
+}
+
 @media (max-width: 600px) {
   .edit-product-modal {
     padding: 0;
@@ -175,8 +204,67 @@
     border-radius: 0;
   }
 
+  .edit-header {
+    padding: 15px;
+  }
+
+  .edit-header h2 {
+    font-size: 18px;
+  }
+
+  .edit-form {
+    padding: 15px;
+  }
+
   .form-row {
     grid-template-columns: 1fr;
-    gap: 20px;
+    gap: 15px;
+  }
+
+  .form-group input,
+  .form-group textarea,
+  .form-group select {
+    padding: 8px 10px;
+    font-size: 12px;
+    min-height: 36px;
+  }
+
+  .form-actions {
+    flex-direction: column;
+    justify-content: stretch;
+    gap: 8px;
+    margin-top: 20px;
+  }
+
+  .btn-cancel,
+  .btn-submit {
+    padding: 10px;
+    font-size: 13px;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .edit-header h2 {
+    font-size: 16px;
+  }
+
+  .form-group input,
+  .form-group textarea,
+  .form-group select {
+    padding: 6px 8px;
+    font-size: 11px;
+    min-height: 32px;
+  }
+
+  .btn-cancel,
+  .btn-submit {
+    padding: 8px;
+    font-size: 12px;
+    min-height: 36px;
   }
 }

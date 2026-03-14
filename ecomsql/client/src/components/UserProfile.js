@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCurrentUser, logout as logoutAPI, getUserRoles } from '../api';
 import { getUser, clearAuth } from '../utils/authUtils';
@@ -12,10 +12,18 @@ function UserProfile() {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  useEffect(() => {
+  const loadUserProfileMemo = useCallback(() => {
     loadUserProfile();
+  }, []);
+
+  const fetchRolesMemo = useCallback(() => {
     fetchRoles();
   }, []);
+
+  useEffect(() => {
+    loadUserProfileMemo();
+    fetchRolesMemo();
+  }, [loadUserProfileMemo, fetchRolesMemo]);
 
   const loadUserProfile = async () => {
     try {

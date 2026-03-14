@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { createProduct, createCategory, getCategories, uploadProductImages } from '../api';
 import './ProductUpload.css';
 
@@ -26,9 +26,13 @@ const ProductUpload = () => {
     description: ''
   });
 
-  React.useEffect(() => {
+  const loadCategoriesMemo = useCallback(() => {
     loadCategories();
   }, []);
+
+  useEffect(() => {
+    loadCategoriesMemo();
+  }, [loadCategoriesMemo]);
 
   const loadCategories = async () => {
     try {

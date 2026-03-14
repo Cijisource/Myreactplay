@@ -794,6 +794,14 @@
 
   .form-actions {
     flex-direction: column;
+    gap: 10px;
+  }
+
+  .form-actions button {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .order-summary-sidebar {
@@ -803,6 +811,12 @@
 
   .checkout-form {
     order: 2;
+  }
+
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    min-height: 40px;
   }
 
   .qr-code-box {
@@ -821,6 +835,9 @@
   .dropdown-item {
     padding: 10px 12px;
     font-size: 13px;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
   }
 
   .zip-hint,
@@ -830,6 +847,10 @@
 
   .file-upload-area {
     padding: 20px 15px;
+    min-height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .screenshot-preview img {
@@ -848,5 +869,9 @@
   .btn {
     padding: 10px 16px;
     font-size: 14px;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 }

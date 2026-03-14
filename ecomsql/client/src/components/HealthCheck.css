@@ -81,3 +81,27 @@
     height: 6px;
   }
 }
+
+@media (max-width: 600px) {
+  .health-check {
+    font-size: 10px;
+    padding: 5px 8px;
+  }
+
+  .health-indicator {
+    width: 5px;
+    height: 5px;
+  }
+}
+
+@media (max-width: 480px) {
+  .health-check {
+    font-size: 9px;
+    padding: 4px 6px;
+  }
+
+  .health-indicator {
+    width: 4px;
+    height: 4px;
+  }
+}

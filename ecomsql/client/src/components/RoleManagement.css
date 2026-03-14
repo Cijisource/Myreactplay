@@ -333,11 +333,51 @@
     padding: 8px;
   }
 
+  .btn-edit-role {
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
   .roles-grid {
     grid-template-columns: 1fr;
   }
 
   .role-management-content {
     gap: 15px;
+  }
+}
+
+@media (max-width: 600px) {
+  .role-management-container {
+    padding: 8px;
+  }
+
+  .users-table {
+    font-size: 11px;
+  }
+
+  .btn-edit-role {
+    padding: 6px 10px;
+    font-size: 11px;
+    min-height: 34px;
+  }
+}
+
+@media (max-width: 480px) {
+  .users-table {
+    font-size: 10px;
+  }
+
+  .users-table th,
+  .users-table td {
+    padding: 6px;
+  }
+
+  .btn-edit-role {
+    padding: 4px 8px;
+    font-size: 10px;
+    min-height: 32px;
   }
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import ProductListing from './components/ProductListing';
 import ProductDetail from './components/ProductDetail';
@@ -16,7 +16,8 @@ import Register from './components/Register';
 import UserProfile from './components/UserProfile';
 import { ProtectedRoute, RoleBasedRoute } from './components/ProtectedRoute';
 import { getUser, hasRole, isAuthenticated } from './utils/authUtils';
-import { getCartItems } from './api';
+import { getCartItems, getCategories } from './api';
+import { useDebounce } from './utils/useDebounce';
 import './App.css';
 
 // Error Boundary
@@ -73,20 +74,25 @@ function MainApp() {
   const [user, setUser] = useState(null);
   const [currentPage, setCurrentPage] = useState('products');
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearchQuery = useDebounce(searchQuery, 500);
   const [selectedProductId, setSelectedProductId] = useState(null);
   const [cartCount, setCartCount] = useState(0);
   const [editingProduct, setEditingProduct] = useState(null);
   const [managingImagesProduct, setManagingImagesProduct] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [categories, setCategories] = useState([]);
 
-  useEffect(() => {
-    const storedUser = getUser();
-    if (storedUser) {
-      setUser(storedUser);
+  const loadCategories = useCallback(async () => {
+    try {
+      const response = await getCategories();
+      setCategories(Array.isArray(response.data) ? response.data : []);
+    } catch (err) {
+      console.error('Error loading categories:', err);
+      setCategories([]);
     }
-    updateCartCount();
   }, []);
 
-  const updateCartCount = async () => {
+  const updateCartCount = useCallback(async () => {
     try {
       const sessionId = localStorage.getItem('sessionId');
       if (!sessionId) {
@@ -100,7 +106,16 @@ function MainApp() {
       console.error('Error fetching cart count:', err);
       setCartCount(0);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const storedUser = getUser();
+    if (storedUser) {
+      setUser(storedUser);
+    }
+    updateCartCount();
+    loadCategories();
+  }, [updateCartCount, loadCategories]);
 
   // Update cart count after adding a product
   const handleProductAdded = () => {
@@ -190,8 +205,10 @@ function MainApp() {
       case 'products':
         return (
           <ProductListing 
-            searchQuery={searchQuery} 
+            searchQuery={debouncedSearchQuery} 
             setSearchQuery={setSearchQuery}
+            selectedCategory={selectedCategory}
+            setSelectedCategory={setSelectedCategory}
             onViewProductDetail={(productId) => {
               setSelectedProductId(productId);
               setCurrentPage('productDetail');
@@ -331,7 +348,7 @@ function MainApp() {
                     position: 'absolute',
                     top: '-8px',
                     right: '-8px',
-                    background: '#ff6b6b',
+                    background: '#FF9900',
                     color: 'white',
                     borderRadius: '50%',
                     width: '24px',
@@ -377,6 +394,22 @@ function MainApp() {
                   🔐 Admin
                 </button>
               )}
+              {user && (
+                <>
+                  <button 
+                    onClick={() => setCurrentPage('profile')} 
+                    className={`nav-link ${currentPage === 'profile' ? 'active' : ''}`}
+                  >
+                    👤 {user.name}
+                  </button>
+                  <button 
+                    onClick={handleLogout} 
+                    className="nav-link logout-nav"
+                  >
+                    🚪 Logout
+                  </button>
+                </>
+              )}
             </nav>
           )}
           {isAuthenticated() && (
@@ -390,8 +423,19 @@ function MainApp() {
                 setSearchQuery(e.target.value);
               }}
               onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+              title="Type to search products (searches automatically after 500ms of inactivity)"
             />
-            <button onClick={handleSearch}>Search</button>
+            <button 
+              onClick={handleSearch}
+              style={{
+                position: 'relative',
+                opacity: searchQuery !== debouncedSearchQuery ? 0.7 : 1,
+                transition: 'opacity 0.2s'
+              }}
+              title={searchQuery !== debouncedSearchQuery ? 'Searching...' : 'Search'}
+            >
+              {searchQuery !== debouncedSearchQuery ? '⏳' : '🔍'}
+            </button>
             {searchQuery && (
               <button 
                 onClick={handleClearSearch}
@@ -415,19 +459,17 @@ function MainApp() {
           )}
 
           {isAuthenticated() && (
-            <div className="header-icons">
-              <div className="header-icon">
-                {user && (
-                  <div className="user-menu">
-                    <button onClick={() => setCurrentPage('profile')} className="user-button">
-                      👤 {user.name}
-                    </button>
-                    <button onClick={handleLogout} className="logout-button">
-                      Logout
-                    </button>
-                  </div>
-                )}
-              </div>
+            <div className="header-category">
+              <select 
+                value={selectedCategory} 
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                title="Filter products by category"
+              >
+                <option value="">All Categories</option>
+                {categories.map(cat => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
             </div>
           )}
 

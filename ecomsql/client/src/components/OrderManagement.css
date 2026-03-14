@@ -9,7 +9,7 @@
   margin-bottom: 25px;
   color: #222;
   font-weight: 700;
-  border-left: 4px solid #ff6b6b;
+  border-left: 4px solid #FF9900;
   padding-left: 15px;
 }
 
@@ -146,7 +146,7 @@
 
 .view-btn {
   padding: 8px 16px;
-  background: #ff6b6b;
+  background: #FF9900;
   color: white;
   border: none;
   border-radius: 6px;
@@ -157,9 +157,9 @@
 }
 
 .view-btn:hover {
-  background: #ff5252;
+  background: #E68A00;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+  box-shadow: 0 4px 12px rgba(255, 153, 0, 0.3);
 }
 
 .order-details {
@@ -243,7 +243,7 @@
 }
 
 .order-info-item .amount {
-  color: #ff6b6b;
+  color: #FF9900;
   font-weight: 700;
   font-size: 22px;
 }
@@ -505,6 +505,10 @@
   .refresh-btn {
     width: 100%;
     margin-left: 0;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .order-header {
@@ -601,6 +605,17 @@
   .back-btn {
     padding: 8px 12px;
     font-size: 12px;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .action-btn {
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 }
 
@@ -617,6 +632,10 @@
     width: 100%;
     padding: 10px;
     margin-bottom: 15px;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .order-card {
@@ -676,6 +695,10 @@
     width: 100%;
     padding: 8px;
     font-size: 11px;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .items-table th {
@@ -705,6 +728,13 @@
     font-size: 16px;
   }
 
+  .back-btn {
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
   .order-card {
     padding: 10px;
   }
@@ -719,6 +749,13 @@
 
   .order-info-item p {
     font-size: 12px;
+  }
+
+  .view-btn {
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .shipping-info h4 {

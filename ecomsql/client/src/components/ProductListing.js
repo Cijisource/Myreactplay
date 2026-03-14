@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { getProducts, getCategories, addToCart, API_BASE_URL } from '../api';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { getProducts, addToCart, API_BASE_URL } from '../api';
+import { SearchCache } from '../utils/useDebounce';
 import ViewPhotos from './ViewPhotos';
 import './ProductListing.css';
 
@@ -114,18 +115,20 @@ const ProductCard = React.memo(({ product, onAddToCart, onViewPhotos, isAuthenti
 
 ProductCard.displayName = 'ProductCard';
 
-const ProductListing = ({ searchQuery: externalSearchQuery, setSearchQuery: externalSetSearchQuery, onViewProductDetail, onProductAdded, isAuthenticated = false, user = null }) => {
+const ProductListing = ({ searchQuery: externalSearchQuery, setSearchQuery: externalSetSearchQuery, selectedCategory: externalSelectedCategory, setSelectedCategory: externalSetSelectedCategory, onViewProductDetail, onProductAdded, isAuthenticated = false, user = null }) => {
   const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState('');
   const [searchQuery, setSearchQuery] = useState(externalSearchQuery || '');
+  const [selectedCategory, setSelectedCategory] = useState(externalSelectedCategory || '');
   const [notification, setNotification] = useState(null);
-
-  // Store the callback for ProductCard to use
-  ProductCard.onViewDetail = onViewProductDetail;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
+
+  // Create a cache instance that persists across renders
+  const cacheRef = useRef(new SearchCache());
+
+  // Store the callback for ProductCard to use
+  ProductCard.onViewDetail = onViewProductDetail;
 
   // Use external search query if provided
   useEffect(() => {
@@ -133,15 +136,11 @@ const ProductListing = ({ searchQuery: externalSearchQuery, setSearchQuery: exte
     setSearchQuery(externalSearchQuery || '');
   }, [externalSearchQuery]);
 
-  const loadCategories = useCallback(async () => {
-    try {
-      const response = await getCategories();
-      setCategories(Array.isArray(response.data) ? response.data : []);
-    } catch (err) {
-      console.error('Error loading categories:', err);
-      setCategories([]);
-    }
-  }, []);
+  // Use external selected category if provided
+  useEffect(() => {
+    console.log('[ProductListing] External selected category changed:', externalSelectedCategory);
+    setSelectedCategory(externalSelectedCategory || '');
+  }, [externalSelectedCategory]);
 
   const loadProducts = useCallback(async () => {
     try {
@@ -150,10 +149,34 @@ const ProductListing = ({ searchQuery: externalSearchQuery, setSearchQuery: exte
       if (selectedCategory) params.categoryId = selectedCategory;
       if (searchQuery) params.search = searchQuery;
       
+      // Check cache first
+      const cacheKey = `${searchQuery}|${selectedCategory}`;
+      const cachedResults = cacheRef.current.getIfValid(searchQuery, selectedCategory);
+      
+      if (cachedResults) {
+        console.log('[ProductListing] Using cached results for:', cacheKey);
+        setProducts(cachedResults);
+        setError(null);
+        setLoading(false);
+        return;
+      }
+      
       console.log('[ProductListing] Loading products with params:', params);
       const response = await getProducts(params);
-      console.log('[ProductListing] Products loaded:', response.data?.length, 'items');
-      setProducts(Array.isArray(response.data) ? response.data : []);
+      
+      // Handle both old format (array) and new format (object with data property)
+      let loadedProducts = [];
+      if (Array.isArray(response.data)) {
+        loadedProducts = response.data;
+      } else if (response.data?.data && Array.isArray(response.data.data)) {
+        loadedProducts = response.data.data;
+      }
+      
+      // Cache the results
+      cacheRef.current.set(searchQuery, loadedProducts, selectedCategory);
+      
+      console.log('[ProductListing] Products loaded:', loadedProducts.length, 'items');
+      setProducts(loadedProducts);
       setError(null);
     } catch (err) {
       setError('Failed to load products');
@@ -164,10 +187,9 @@ const ProductListing = ({ searchQuery: externalSearchQuery, setSearchQuery: exte
   }, [selectedCategory, searchQuery]);
 
   useEffect(() => {
-    console.log('[ProductListing] Dependency changed - loading products');
-    loadCategories();
+    console.log('[ProductListing] Category or search changed - loading products');
     loadProducts();
-  }, [selectedCategory, searchQuery, loadCategories, loadProducts]);
+  }, [selectedCategory, searchQuery]);
 
   const handleAddToCart = useCallback(async (product) => {
     // Check if user is authenticated
@@ -243,20 +265,6 @@ const ProductListing = ({ searchQuery: externalSearchQuery, setSearchQuery: exte
         </div>
       )}
       <div className="product-listing">
-        <div className="filters">
-          <div className="category-filter">
-            <label>Category</label>
-            <select 
-              value={selectedCategory} 
-              onChange={(e) => setSelectedCategory(e.target.value)}
-            >
-              <option value="">All Categories</option>
-              {categories.map(cat => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
-              ))}
-            </select>
-          </div>
-        </div>
 
         {error && <div className="error">{error}</div>}
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { getProducts, deleteProduct, API_BASE_URL } from '../api';
 import './ProductManagement.css';
 
@@ -8,9 +8,13 @@ const ProductManagement = ({ onEditProduct, onManageImages }) => {
   const [message, setMessage] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
-  useEffect(() => {
+  const loadSellerProductsMemo = useCallback(() => {
     loadSellerProducts();
   }, []);
+
+  useEffect(() => {
+    loadSellerProductsMemo();
+  }, [loadSellerProductsMemo]);
 
   const loadSellerProducts = async () => {
     try {

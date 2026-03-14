@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { getOrders, getSellerOrders, getOrderById, updateOrderStatus } from '../api';
 import { hasRole } from '../utils/authUtils';
 import './OrderManagement.css';
@@ -11,9 +11,13 @@ const OrderManagement = () => {
   const [statusLoading, setStatusLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
-  useEffect(() => {
+  const loadOrdersMemo = useCallback(() => {
     loadOrders();
   }, []);
+
+  useEffect(() => {
+    loadOrdersMemo();
+  }, [loadOrdersMemo]);
 
   const loadOrders = async () => {
     try {

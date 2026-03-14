@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { getCategories, createCategory, updateCategory } from '../api';
 import './CategoryManagement.css';
 
@@ -13,9 +13,13 @@ const CategoryManagement = ({ onClose }) => {
     description: ''
   });
 
-  useEffect(() => {
+  const loadCategoriesMemo = useCallback(() => {
     loadCategories();
   }, []);
+
+  useEffect(() => {
+    loadCategoriesMemo();
+  }, [loadCategoriesMemo]);
 
   const loadCategories = async () => {
     try {

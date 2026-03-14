@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { updateProduct, getCategories } from '../api';
 import './EditProduct.css';
 
@@ -16,9 +16,13 @@ const EditProduct = ({ product, onClose, onSaved }) => {
     sku: product.sku || ''
   });
 
-  useEffect(() => {
+  const loadCategoriesMemo = useCallback(() => {
     loadCategories();
   }, []);
+
+  useEffect(() => {
+    loadCategoriesMemo();
+  }, [loadCategoriesMemo]);
 
   const loadCategories = async () => {
     try {
