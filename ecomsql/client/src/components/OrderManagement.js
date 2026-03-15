@@ -179,7 +179,127 @@ const OrderManagement = () => {
               </div>
             )}
 
-            <div className="order-items">
+            {/* Discount Summary Section */}
+            {(selectedOrder.applied_discount_code || (selectedOrder.discounts && selectedOrder.discounts.length > 0)) && (
+              <div className="discount-summary-section">
+                <h4>💰 Discount Summary</h4>
+                <div className="discount-summary-content">
+                  {selectedOrder.applied_discount_code && (
+                    <div className="summary-item">
+                      <span className="summary-label">Coupon Applied:</span>
+                      <span className="summary-value">
+                        <span className="coupon-code-badge">{selectedOrder.applied_discount_code}</span>
+                        <span className="discount-savings">-₹{selectedOrder.discount_amount ? selectedOrder.discount_amount.toFixed(2) : '0.00'}</span>
+                      </span>
+                    </div>
+                  )}
+                  
+                  {selectedOrder.discounts && selectedOrder.discounts.length > 0 && (
+                    <div className="summary-item">
+                      <span className="summary-label">Total Discounts Applied:</span>
+                      <span className="summary-value">
+                        <span className="discount-count-badge">{selectedOrder.discounts.length} {selectedOrder.discounts.length === 1 ? 'discount' : 'discounts'}</span>
+                        <span className="total-discount-amount">
+                          -₹{selectedOrder.discounts.reduce((sum, d) => sum + (d.discount_amount || 0), 0).toFixed(2)}
+                        </span>
+                      </span>
+                    </div>
+                  )}
+
+                  {selectedOrder.discount_amount > 0 && (
+                    <div className="summary-item highlight">
+                      <span className="summary-label">You Save:</span>
+                      <span className="summary-value savings-highlight">₹{selectedOrder.discount_amount.toFixed(2)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Display Discounts and Rewards Applied */}
+            {selectedOrder.applied_discount_code && (
+              <div className="discount-info">
+                <h4>Coupon Applied</h4>
+                <p className="discount-code">{selectedOrder.applied_discount_code}</p>
+                <p className="discount-amount">Discount: ₹{selectedOrder.discount_amount ? selectedOrder.discount_amount.toFixed(2) : '0.00'}</p>
+              </div>
+            )}
+
+            {selectedOrder.discounts && selectedOrder.discounts.length > 0 && (
+              <div className="discounts-details">
+                <h4>Applied Discounts/Rewards</h4>
+                <div className="discounts-list">
+                  {selectedOrder.discounts.map((discount, index) => (
+                    <div key={index} className="discount-item">
+                      <div className="discount-header">
+                        <span className="discount-code">{discount.discount_code}</span>
+                        <span className={`discount-type ${discount.discount_type === 'coupon' ? 'coupon-badge' : 'rewards-badge'}`}>
+                          {discount.discount_type === 'coupon' ? '🎟️ Coupon' : '🎁 Reward Points'}
+                        </span>
+                      </div>
+                      <p className="discount-amount">₹{discount.discount_amount.toFixed(2)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="order-summary">
+              <h4>Order Summary</h4>
+              <div className="summary-items">
+                <div className="summary-row">
+                  <span>Subtotal:</span>
+                  <span>₹{selectedOrder.subtotal_amount ? selectedOrder.subtotal_amount.toFixed(2) : '0.00'}</span>
+                </div>
+                <div className="summary-row">
+                  <span>GST (18%):</span>
+                  <span>₹{selectedOrder.gst_amount ? selectedOrder.gst_amount.toFixed(2) : '0.00'}</span>
+                </div>
+                <div className="summary-row">
+                  <span>Shipping:</span>
+                  <span>₹{selectedOrder.shipping_charge ? selectedOrder.shipping_charge.toFixed(2) : '0.00'}</span>
+                </div>
+
+                {/* Display Applied Coupon */}
+                {selectedOrder.applied_discount_code && (
+                  <div className="summary-row coupon-applied-row">
+                    <span>
+                      <span className="coupon-label">🎟️ Coupon Applied:</span>
+                      <span className="coupon-code">{selectedOrder.applied_discount_code}</span>
+                    </span>
+                    <span style={{ color: '#22c55e', fontWeight: '600' }}>-₹{selectedOrder.discount_amount ? selectedOrder.discount_amount.toFixed(2) : '0.00'}</span>
+                  </div>
+                )}
+
+                {/* Display Applied Rewards */}
+                {selectedOrder.discounts && selectedOrder.discounts.length > 0 && selectedOrder.discounts.some(d => d.discount_type === 'loyalty_points') && (
+                  <div className="summary-row rewards-applied-row">
+                    <span>
+                      <span className="rewards-label">🎁 Loyalty Points Redeemed</span>
+                    </span>
+                    <span style={{ color: '#9c27b0', fontWeight: '600' }}>
+                      -{selectedOrder.discounts
+                        .filter(d => d.discount_type === 'loyalty_points')
+                        .reduce((sum, d) => sum + (d.discount_amount || 0), 0)
+                        .toFixed(2)}
+                    </span>
+                  </div>
+                )}
+
+                {selectedOrder.discount_amount > 0 && (
+                  <div className="summary-row discount-row">
+                    <span style={{ color: '#FFC107', fontWeight: '600' }}>Total Discount:</span>
+                    <span style={{ color: '#FFC107', fontWeight: '600' }}>-₹{selectedOrder.discount_amount.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="summary-row total-row">
+                  <span><strong>Total:</strong></span>
+                  <span><strong>₹{selectedOrder.total_amount.toFixed(2)}</strong></span>
+                </div>
+              </div>
+            </div>
+
+            <div className="order-items-section">
               <h4>Order Items</h4>
               <table className="items-table">
                 <thead>
@@ -229,6 +349,7 @@ const OrderManagement = () => {
                   <th>Customer</th>
                   <th>Email</th>
                   <th>Amount</th>
+                  <th>Discount</th>
                   <th>Status</th>
                   <th>Date</th>
                   <th>Action</th>
@@ -241,6 +362,18 @@ const OrderManagement = () => {
                     <td>{order.customer_name}</td>
                     <td>{order.customer_email}</td>
                     <td>₹{order.total_amount.toFixed(2)}</td>
+                    <td>
+                      {order.applied_discount_code ? (
+                        <div className="discount-summary">
+                          <span className="coupon-tag">🎟️ {order.applied_discount_code}</span>
+                          {order.discount_amount > 0 && (
+                            <span className="discount-amount-tag">-₹{order.discount_amount.toFixed(2)}</span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="no-discount">—</span>
+                      )}
+                    </td>
                     <td>
                       <span className={`status ${getStatusBadgeClass(order.status)}`}>
                         {order.status}

@@ -16,12 +16,13 @@ router.get('/seller/orders', verifyToken, async (req, res) => {
     
     console.log('[DEBUG] Fetching all orders for seller:', sellerId);
     
-    // Get all orders from all customers
+    // Get all orders from all customers with discount information
     const result = await pool.request()
       .query(`
         SELECT o.id, o.order_number, o.total_amount, o.status, 
                o.customer_email, o.customer_name, o.shipping_address, 
-               o.payment_screenshot, o.created_at, o.updated_at
+               o.payment_screenshot, o.discount_amount, o.applied_discount_code, 
+               o.created_at, o.updated_at
         FROM orders o
         ORDER BY o.created_at DESC
       `);
@@ -57,7 +58,8 @@ router.get('/', verifyToken, async (req, res) => {
       .input('customerEmail', sql.NVarChar, userEmail)
       .query(`
         SELECT id, order_number, total_amount, status, customer_email, customer_name, 
-               shipping_address, payment_screenshot, created_at, updated_at
+               shipping_address, payment_screenshot, discount_amount, applied_discount_code, 
+               created_at, updated_at
         FROM orders
         WHERE LOWER(RTRIM(LTRIM(customer_email))) = @customerEmail
         ORDER BY created_at DESC
@@ -95,7 +97,8 @@ router.get('/:id', async (req, res) => {
       .input('id', sql.Int, req.params.id)
       .query(`
         SELECT id, order_number, total_amount, status, customer_email, customer_name, 
-               shipping_address, payment_screenshot, created_at, updated_at
+               shipping_address, payment_screenshot, discount_amount, applied_discount_code,
+               subtotal_amount, gst_amount, shipping_charge, created_at, updated_at
         FROM orders
         WHERE id = @id
       `);
@@ -116,6 +119,18 @@ router.get('/:id', async (req, res) => {
       `);
     
     order.items = itemsResult.recordset;
+
+    // Get discount details
+    const discountsResult = await pool.request()
+      .input('orderId', sql.Int, req.params.id)
+      .query(`
+        SELECT discount_code, discount_type, discount_amount
+        FROM order_discounts
+        WHERE order_id = @orderId
+      `);
+    
+    order.discounts = discountsResult.recordset || [];
+    
     res.json(order);
   } catch (error) {
     console.error(error);

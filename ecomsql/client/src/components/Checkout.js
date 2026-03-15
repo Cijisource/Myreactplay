@@ -331,17 +331,38 @@ const Checkout = ({
 
   const handleContinueToPayment = () => {
     setMessage('');
-    if (validateDetails()) {
-      // Recalculate shipping rates for the selected city
-      const shippingCharge = calculateShipping(formData.city);
-      
-      // Validate that a valid city was selected with valid shipping cost
-      if (shippingCharge === null || shippingCharge === undefined) {
-        setMessage('Incorrect city selected. Please choose a valid city from the dropdown.');
-        return;
-      }
-      setStep('payment');
+    
+    // First validate basic details
+    if (!validateDetails()) {
+      return;
     }
+
+    // Check if city is validly selected from the dropdown
+    const selectedCity = cities.find(c => 
+      (c.city_name || c.city)?.toLowerCase() === formData.city?.toLowerCase()
+    );
+    
+    if (!selectedCity) {
+      setMessage('Invalid city selected. Please choose a valid city from the dropdown.');
+      return;
+    }
+
+    // Recalculate shipping rates for the selected city
+    const shippingCharge = calculateShipping(formData.city);
+    
+    // Validate that shipping charges were calculated successfully
+    if (shippingCharge === null || shippingCharge === undefined) {
+      setMessage('Unable to calculate shipping charges. Please select a valid city with proper shipping information.');
+      return;
+    }
+
+    if (shippingCharge < 0) {
+      setMessage('Invalid shipping charge calculated. Please check your city selection and try again.');
+      return;
+    }
+
+    // All validations passed, proceed to payment
+    setStep('payment');
   };
 
   const handlePaymentSubmit = async () => {
