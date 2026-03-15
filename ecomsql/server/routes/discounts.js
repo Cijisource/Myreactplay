@@ -3,6 +3,13 @@ const { getConnection, sql } = require('../config');
 const { verifyToken } = require('../middleware/auth');
 const router = express.Router();
 
+// Helper function to get current time in IST (UTC+5:30)
+function getNowIST() {
+  const now = new Date();
+  const istTime = new Date(now.getTime() + (5.5 * 60 * 60 * 1000)); // IST = UTC + 5:30
+  return istTime;
+}
+
 // ============== DIAGNOSTIC ENDPOINT ==============
 // Check if discounts table exists and has data
 router.get('/health', async (req, res) => {
@@ -66,13 +73,29 @@ router.post('/validate-coupon', async (req, res) => {
       return res.status(400).json({ error: 'This coupon code is no longer active' });
     }
 
-    // Check validity dates
-    const now = new Date();
-    if (discount.valid_from && new Date(discount.valid_from) > now) {
-      return res.status(400).json({ error: 'This coupon code is not yet valid' });
+    // Check validity dates using IST
+    const nowIST = getNowIST();
+    if (discount.valid_from) {
+      const validFromTime = new Date(discount.valid_from);
+      console.log('[DEBUG] Coupon valid_from check (IST):', {
+        validFrom: validFromTime.toISOString(),
+        nowIST: nowIST.toISOString(),
+        isValid: validFromTime <= nowIST
+      });
+      if (validFromTime > nowIST) {
+        return res.status(400).json({ error: 'This coupon code is not yet valid'});
+      }
     }
-    if (discount.valid_until && new Date(discount.valid_until) < now) {
-      return res.status(400).json({ error: 'This coupon code has expired' });
+    if (discount.valid_until) {
+      const validUntilTime = new Date(discount.valid_until);
+      console.log('[DEBUG] Coupon valid_until check (IST):', {
+        validUntil: validUntilTime.toISOString(),
+        nowIST: nowIST.toISOString(),
+        isValid: validUntilTime >= nowIST
+      });
+      if (validUntilTime <= nowIST) {
+        return res.status(400).json({ error: 'This coupon code has expired' });
+      }
     }
 
     // Check usage limit
@@ -209,16 +232,44 @@ router.get('/active-discounts', async (req, res) => {
   try {
     const pool = await getConnection();
     const result = await pool.request().query(`
-      SELECT code, description, discount_type, discount_value, min_order_amount
+      SELECT code, description, discount_type, discount_value, min_order_amount, valid_from, valid_until, max_uses, current_uses, is_active
       FROM discounts
       WHERE is_active = 1
-        AND (valid_until IS NULL OR valid_until >= GETDATE())
-        AND (valid_from IS NULL OR valid_from <= GETDATE())
-        AND (max_uses IS NULL OR current_uses < max_uses)
-      ORDER BY created_at DESC
+      ORDER BY created_at DESC;
     `);
 
-    res.json(result.recordset);
+    // Filter results based on IST time
+    const nowIST = getNowIST();
+    const activeDiscounts = result.recordset.filter(discount => {
+      // Check if max uses reached
+      if (discount.max_uses && discount.current_uses >= discount.max_uses) {
+        return false;
+      }
+      
+      // Check valid_from date (must be in past or null)
+      if (discount.valid_from) {
+        const validFromTime = new Date(discount.valid_from);
+        if (validFromTime > nowIST) {
+          console.log('[DEBUG] Discount filtered out - not yet valid:', discount.code, 'valid_from:', validFromTime.toISOString(), 'nowIST:', nowIST.toISOString());
+          return false;
+        }
+      }
+      
+      // Check valid_until date (must be in future or null)
+      if (discount.valid_until) {
+        const validUntilTime = new Date(discount.valid_until);
+        if (validUntilTime <= nowIST) {
+          console.log('[DEBUG] Discount filtered out - expired:', discount.code, 'valid_until:', validUntilTime.toISOString(), 'nowIST:', nowIST.toISOString());
+          return false;
+        }
+      }
+      
+      return true;
+    });
+
+    console.log('[DEBUG] Active discounts query returned:', result.recordset.length, 'total, filtered to:', activeDiscounts.length, 'active (IST-based)');
+    
+    res.json(activeDiscounts);
   } catch (error) {
     console.error('[ERROR] Get active discounts error:', error);
     res.status(500).json({ error: 'Error fetching discounts' });
