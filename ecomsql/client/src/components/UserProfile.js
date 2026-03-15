@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCurrentUser, logout as logoutAPI, getUserRoles } from '../api';
 import { getUser, clearAuth } from '../utils/authUtils';
+import CustomerRewards from './CustomerRewards';
 import './UserProfile.css';
 
 function UserProfile() {
@@ -143,6 +144,8 @@ function UserProfile() {
           </div>
         )}
       </div>
+
+      <CustomerRewards email={user.email || user.userName} />
     </div>
   );
 }

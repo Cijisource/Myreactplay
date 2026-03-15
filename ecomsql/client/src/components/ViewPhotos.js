@@ -11,6 +11,7 @@ const ViewPhotos = ({ productId, productName, onClose }) => {
 
   useEffect(() => {
     loadImages();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId]);
 
   const loadImages = useCallback(async () => {

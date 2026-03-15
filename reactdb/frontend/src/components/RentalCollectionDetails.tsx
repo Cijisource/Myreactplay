@@ -59,6 +59,9 @@ export default function RentalCollectionDetails() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showForm, setShowForm] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [editingRecord, setEditingRecord] = useState<RentalRecord | null>(null);
+  const [editFormData, setEditFormData] = useState<Partial<RentalRecord & { screenshot: File | null }>>({});
+  const [editPreviewUrl, setEditPreviewUrl] = useState<string | null>(null);
   
   const [formData, setFormData] = useState<FormData>({
     rentReceived: '',
@@ -247,6 +250,95 @@ export default function RentalCollectionDetails() {
     const totalCharges = monthlyRecords.reduce((sum, r) => sum + r.charges, 0);
     const totalBalance = occupancyInfo ? (occupancyInfo.rentFixed * (index + 1)) - totalReceived - totalCharges : 0;
     return Math.max(0, totalBalance);
+  };
+
+  const handleEditClick = (record: RentalRecord) => {
+    setEditingRecord(record);
+    setEditFormData({
+      rentReceived: record.rentReceived,
+      charges: record.charges,
+      modeOfPayment: record.modeOfPayment || 'cash',
+      rentReceivedOn: new Date(record.rentReceivedOn).toISOString().split('T')[0]
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingRecord(null);
+    setEditFormData({});
+    setEditPreviewUrl(null);
+  };
+
+  const handleEditFormChange = (field: string, value: any) => {
+    setEditFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleEditFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setEditFormData(prev => ({
+        ...prev,
+        screenshot: file
+      }));
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEditPreviewUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingRecord) return;
+
+    try {
+      setLoading(true);
+      
+      // Create FormData for potential file upload
+      const updateData = new FormData();
+      updateData.append('rentReceived', editFormData.rentReceived?.toString() || '0');
+      updateData.append('charges', editFormData.charges?.toString() || '0');
+      updateData.append('modeOfPayment', editFormData.modeOfPayment?.toString() || 'cash');
+      updateData.append('rentReceivedOn', editFormData.rentReceivedOn?.toString() || '');
+      
+      if (editFormData.screenshot) {
+        updateData.append('screenshot', editFormData.screenshot);
+      }
+
+      // Use the updateRentalRecord method with FormData
+      const response = await fetch(
+        `/api/rental/record/${editingRecord.id}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          },
+          body: updateData
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to update payment record');
+      }
+
+      // Refresh rental details
+      await fetchRentalDetails();
+      
+      // Close modal
+      handleCancelEdit();
+      
+      // Show success
+      alert('Payment updated successfully');
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to update payment';
+      setError(errorMsg);
+      alert(errorMsg);
+      console.error('Error updating payment:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const formatCurrency = (value: number | string): string => {
@@ -521,6 +613,13 @@ export default function RentalCollectionDetails() {
                           <span className="badge-mode gray">—</span>
                         )}
                       </div>
+                      <button 
+                        className="payment-record-edit-btn"
+                        title="Edit payment record"
+                        onClick={() => handleEditClick(record)}
+                      >
+                        ✏️ Edit
+                      </button>
                     </div>
 
                     <div className="payment-record-details">
@@ -574,6 +673,150 @@ export default function RentalCollectionDetails() {
       {!selectedOccupancyId && !loading && (
         <div className="empty-state">
           <p>👆 Select a tenant and room to view rental collection details</p>
+        </div>
+      )}
+
+      {/* Edit Payment Modal */}
+      {editingRecord && (
+        <div className="edit-payment-modal-overlay">
+          <div className="edit-payment-modal">
+            <button 
+              className="modal-close-btn"
+              onClick={handleCancelEdit}
+              aria-label="Close"
+            >
+              ✕
+            </button>
+            
+            <h2>Edit Payment Record</h2>
+            <p className="modal-subtitle">Occupancy: {editingRecord.tenantName} - Room {editingRecord.roomNumber}</p>
+            
+            <div className="edit-form-container">
+              <div className="edit-form-group">
+                <label htmlFor="editRentReceived">Rent Received (₹)</label>
+                <input
+                  type="number"
+                  id="editRentReceived"
+                  value={editFormData.rentReceived || ''}
+                  onChange={(e) => handleEditFormChange('rentReceived', parseFloat(e.target.value))}
+                  placeholder="Enter amount"
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+
+              <div className="edit-form-group">
+                <label htmlFor="editCharges">Charges (₹)</label>
+                <input
+                  type="number"
+                  id="editCharges"
+                  value={editFormData.charges || ''}
+                  onChange={(e) => handleEditFormChange('charges', parseFloat(e.target.value))}
+                  placeholder="Enter charges"
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+
+              <div className="edit-form-group">
+                <label htmlFor="editPaymentDate">Payment Date</label>
+                <input
+                  type="date"
+                  id="editPaymentDate"
+                  value={editFormData.rentReceivedOn || ''}
+                  onChange={(e) => handleEditFormChange('rentReceivedOn', e.target.value)}
+                />
+              </div>
+
+              <div className="edit-form-group">
+                <label htmlFor="editPaymentMode">Mode of Payment</label>
+                <select
+                  id="editPaymentMode"
+                  value={editFormData.modeOfPayment || 'cash'}
+                  onChange={(e) => handleEditFormChange('modeOfPayment', e.target.value)}
+                >
+                  <option value="cash">Cash</option>
+                  <option value="cheque">Cheque</option>
+                  <option value="bank_transfer">Bank Transfer</option>
+                  <option value="online_payment">Online Payment</option>
+                  <option value="upi">UPI</option>
+                </select>
+              </div>
+
+              {editingRecord.screenshotUrl && !editFormData.screenshot && (
+                <div className="current-image-section">
+                  <h3>Current Payment Proof</h3>
+                  <img 
+                    src={getFileUrl(editingRecord.screenshotUrl)} 
+                    alt="Current payment proof" 
+                    className="current-image"
+                  />
+                  <p className="image-note">Upload a new image below to replace it</p>
+                </div>
+              )}
+
+              <div className="edit-form-group full-width">
+                <label htmlFor="editScreenshot">
+                  {editingRecord.screenshotUrl ? 'Replace Payment Proof' : 'Add Payment Proof (Screenshot)'}
+                </label>
+                <div className="file-input-wrapper">
+                  <input
+                    type="file"
+                    id="editScreenshot"
+                    name="editScreenshot"
+                    accept="image/*"
+                    onChange={handleEditFileChange}
+                  />
+                  <div className="file-label">
+                    {editFormData.screenshot ? (
+                      <>
+                        <span>✓ {editFormData.screenshot.name}</span>
+                        <small>Click to change</small>
+                      </>
+                    ) : (
+                      <>
+                        <span>📎 {editingRecord.screenshotUrl ? 'Replace' : 'Attach'} Payment Proof</span>
+                        <small>JPG, PNG up to 5MB</small>
+                      </>
+                    )}
+                  </div>
+                </div>
+                {editPreviewUrl && (
+                  <div className="file-preview">
+                    <h4>New Image Preview</h4>
+                    <img src={editPreviewUrl} alt="Payment proof preview" />
+                    <button
+                      type="button"
+                      className="remove-preview-btn"
+                      onClick={() => {
+                        setEditFormData(prev => ({ ...prev, screenshot: null }));
+                        setEditPreviewUrl(null);
+                      }}
+                    >
+                      ✕ Remove
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="edit-modal-buttons">
+              <button 
+                className="edit-save-btn"
+                onClick={handleSaveEdit}
+                disabled={loading}
+              >
+                {loading ? '⏳ Saving...' : '💾 Save Changes'}
+              </button>
+              <button 
+                className="edit-cancel-btn"
+                onClick={handleCancelEdit}
+                disabled={loading}
+              >
+                ✕ Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

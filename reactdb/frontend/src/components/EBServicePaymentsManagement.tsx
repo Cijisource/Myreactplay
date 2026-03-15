@@ -35,6 +35,7 @@ export default function EBServicePaymentsManagement(): JSX.Element {
   const [searchField, setSearchField] = useState<'billAmount' | 'billDate' | 'consumerName'>('billDate');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [showStatsGrid, setShowStatsGrid] = useState(true);
   const [formData, setFormData] = useState<PaymentFormData>({
     serviceId: 0,
     billAmount: 0,
@@ -256,7 +257,19 @@ export default function EBServicePaymentsManagement(): JSX.Element {
       )}
 
       {/* Statistics Cards */}
-      <div className="stats-grid">
+      <div className="section-header">
+        <h2>Statistics</h2>
+        <button 
+          className={`toggle-btn ${showStatsGrid ? 'expanded' : 'collapsed'}`}
+          onClick={() => setShowStatsGrid(!showStatsGrid)}
+          aria-expanded={showStatsGrid}
+        >
+          {showStatsGrid ? '▼' : '▶'}
+        </button>
+      </div>
+      
+      <div className={`collapsible-content ${showStatsGrid ? 'open' : 'closed'}`}>
+        <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-icon">📊</div>
           <div className="stat-content">
@@ -287,6 +300,7 @@ export default function EBServicePaymentsManagement(): JSX.Element {
             <h3>Max Amount</h3>
             <p className="stat-value">{formatCurrency(stats.maxAmount)}</p>
           </div>
+        </div>
         </div>
       </div>
 

@@ -162,6 +162,10 @@ export const apiService = {
   getPaymentsByMonth: (monthYear: string) => api.get(`/rental/payments/${monthYear}`),
   getRentalCollectionByOccupancy: (occupancyId: number) => api.get(`/rental/occupancy/${occupancyId}`),
   getRentalSummaryByOccupancy: (occupancyId: number) => api.get(`/rental/occupancy/${occupancyId}/summary`),
+  updateRentalPayment: (occupancyId: number, data: { collectedAmount: number; month: string }) => 
+    api.put(`/rental/payment/${occupancyId}`, data),
+  updateRentalRecord: (recordId: number, data: any) => 
+    api.put(`/rental/record/${recordId}`, data),
   uploadPaymentScreenshot: (formData: FormData, onProgress?: (progress: number) => void) => {
     return new Promise((resolve, reject) => {
       const token = localStorage.getItem('authToken');

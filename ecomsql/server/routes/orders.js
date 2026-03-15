@@ -126,13 +126,17 @@ router.get('/:id', async (req, res) => {
 // Create order from cart
 router.post('/', async (req, res) => {
   try {
-    const { sessionId, customerEmail, customerName, shippingAddress, items, subtotalAmount, gstAmount, shippingCharge, totalAmount, paymentScreenshot, orderDate } = req.body;
+    const { sessionId, customerEmail, customerName, shippingAddress, items, subtotalAmount, gstAmount, shippingCharge, discountAmount = 0, discountCode, rewardAmount = 0, rewardCode, totalAmount, paymentScreenshot, orderDate } = req.body;
     
     console.log('[ORDERS Post] Received order creation request:', {
       customerEmail: customerEmail,
       customerName: customerName,
       itemCount: items?.length,
       subtotalAmount: subtotalAmount,
+      discountAmount: discountAmount,
+      discountCode: discountCode,
+      rewardAmount: rewardAmount,
+      rewardCode: rewardCode,
       gstAmount: gstAmount,
       shippingCharge: shippingCharge,
       totalAmount: totalAmount
@@ -165,6 +169,9 @@ router.post('/', async (req, res) => {
         .input('subtotalAmount', sql.Decimal(10, 2), subtotalAmount || 0)
         .input('gstAmount', sql.Decimal(10, 2), gstAmount || 0)
         .input('shippingCharge', sql.Decimal(10, 2), shippingCharge || 0)
+        .input('discountAmount', sql.Decimal(10, 2), discountAmount || 0)
+        .input('discountCode', sql.NVarChar, discountCode || null)
+        .input('rewardCodeUsed', sql.NVarChar, rewardCode || null)
         .input('totalAmount', sql.Decimal(10, 2), totalAmount)
         .input('customerEmail', sql.NVarChar, normalizedEmail)
         .input('customerName', sql.NVarChar, customerName)
@@ -172,11 +179,11 @@ router.post('/', async (req, res) => {
         .input('paymentScreenshot', sql.NVarChar(sql.MAX), paymentScreenshot || null)
         .input('createdAt', sql.DateTime2, createdDate)
         .query(`
-          INSERT INTO orders (order_number, subtotal_amount, gst_amount, shipping_charge, total_amount, customer_email, customer_name, shipping_address, payment_screenshot, status, created_at)
+          INSERT INTO orders (order_number, subtotal_amount, gst_amount, shipping_charge, discount_amount, discount_code, reward_code_used, total_amount, customer_email, customer_name, shipping_address, payment_screenshot, status, created_at)
           OUTPUT INSERTED.id, INSERTED.order_number, INSERTED.total_amount, INSERTED.status, 
                  INSERTED.customer_email, INSERTED.customer_name, INSERTED.shipping_address, 
                  INSERTED.created_at, INSERTED.updated_at
-          VALUES (@orderNumber, @subtotalAmount, @gstAmount, @shippingCharge, @totalAmount, @customerEmail, @customerName, @shippingAddress, @paymentScreenshot, 'pending', @createdAt)
+          VALUES (@orderNumber, @subtotalAmount, @gstAmount, @shippingCharge, @discountAmount, @discountCode, @rewardCodeUsed, @totalAmount, @customerEmail, @customerName, @shippingAddress, @paymentScreenshot, 'pending', @createdAt)
         `);
 
       const orderId = orderResult.recordset[0].id;
@@ -223,6 +230,62 @@ router.post('/', async (req, res) => {
 
       await transaction.commit();
       console.log('[ORDERS Post] Order transaction committed successfully');
+      
+      const orderEmail = normalizedEmail;
+
+      // Create reward for customer (5% of total amount)
+      try {
+        const rewardAmount = parseFloat((totalAmount * 0.05).toFixed(2));
+        const validUntil = new Date();
+        validUntil.setMonth(validUntil.getMonth() + 3);
+        
+        const rewardCode = 'REW-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+        
+        const rewardPool = await getConnection();
+        await rewardPool.request()
+          .input('customerEmail', sql.NVarChar, orderEmail)
+          .input('orderId', sql.Int, orderId)
+          .input('rewardCode', sql.NVarChar, rewardCode)
+          .input('rewardAmount', sql.Decimal(10, 2), rewardAmount)
+          .input('orderValue', sql.Decimal(10, 2), totalAmount)
+          .input('validUntil', sql.DateTime2, validUntil)
+          .query(`
+            INSERT INTO customer_rewards (customer_email, order_id, reward_code, reward_amount, original_order_value, valid_until)
+            VALUES (@customerEmail, @orderId, @rewardCode, @rewardAmount, @orderValue, @validUntil)
+          `);
+        
+        console.log('[ORDERS Post] Reward created for customer:', { orderEmail, rewardCode, rewardAmount });
+      } catch (rewardError) {
+        console.warn('[ORDERS Post] Warning: Could not create reward:', rewardError.message);
+        // Don't fail the order if reward creation fails
+      }
+
+      // Mark reward as used if customer applied one
+      if (rewardCode) {
+        try {
+          const rewardPool = await getConnection();
+          await rewardPool.request()
+            .input('code', sql.NVarChar, rewardCode.toUpperCase().trim())
+            .input('email', sql.NVarChar, orderEmail)
+            .input('orderId', sql.Int, orderId)
+            .input('now', sql.DateTime2, new Date())
+            .query(`
+              UPDATE customer_rewards
+              SET is_used = 1, 
+                  used_in_order_id = @orderId,
+                  used_at = @now,
+                  updated_at = @now
+              WHERE UPPER(RTRIM(LTRIM(reward_code))) = @code
+              AND LOWER(RTRIM(LTRIM(customer_email))) = @email
+            `);
+          
+          console.log('[ORDERS Post] Reward marked as used:', { rewardCode, orderId });
+        } catch (rewardUsageError) {
+          console.warn('[ORDERS Post] Warning: Could not mark reward as used:', rewardUsageError.message);
+          // Don't fail the order if reward marking fails
+        }
+      }
+
       console.log('[ORDERS Post] Returning order:', {
         id: orderResult.recordset[0].id,
         order_number: orderResult.recordset[0].order_number,

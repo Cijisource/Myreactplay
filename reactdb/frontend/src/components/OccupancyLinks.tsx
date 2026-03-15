@@ -38,6 +38,8 @@ export default function OccupancyLinks(): JSX.Element {
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'tenant' | 'room' | 'checkIn'>('checkIn');
+  const [showStatsGrid, setShowStatsGrid] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     const fetchOccupancies = async () => {
@@ -146,7 +148,19 @@ export default function OccupancyLinks(): JSX.Element {
       )}
 
       {/* Statistics Cards */}
-      <div className="stats-grid">
+      <div className="section-header">
+        <h2>Statistics</h2>
+        <button 
+          className={`toggle-btn ${showStatsGrid ? 'expanded' : 'collapsed'}`}
+          onClick={() => setShowStatsGrid(!showStatsGrid)}
+          aria-expanded={showStatsGrid}
+        >
+          {showStatsGrid ? '▼' : '▶'}
+        </button>
+      </div>
+      
+      <div className={`collapsible-content ${showStatsGrid ? 'open' : 'closed'}`}>
+        <div className="stats-grid">
         <div className="stat-card total">
           <div className="stat-icon">🔗</div>
           <div className="stat-content">
@@ -189,7 +203,19 @@ export default function OccupancyLinks(): JSX.Element {
       </div>
 
       {/* Filters */}
-      <div className="filters-section">
+      <div className="section-header">
+        <h2>Filters & Search</h2>
+        <button 
+          className={`toggle-btn ${showFilters ? 'expanded' : 'collapsed'}`}
+          onClick={() => setShowFilters(!showFilters)}
+          aria-expanded={showFilters}
+        >
+          {showFilters ? '▼' : '▶'}
+        </button>
+      </div>
+
+      <div className={`collapsible-content ${showFilters ? 'open' : 'closed'}`}>
+        <div className="filters-section">
         <div className="filter-group">
           <input
             type="text"
@@ -230,6 +256,7 @@ export default function OccupancyLinks(): JSX.Element {
               <option value="room">Room Number</option>
             </select>
           </div>
+        </div>
         </div>
       </div>
 
@@ -317,6 +344,7 @@ export default function OccupancyLinks(): JSX.Element {
           Each occupancy record (FK_Occupancy_Tenant) represents a tenant's assignment to a room for a specific time period.
         </p>
       </div>
+    </div>
     </div>
   );
 }

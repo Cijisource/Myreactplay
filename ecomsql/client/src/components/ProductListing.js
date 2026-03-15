@@ -189,6 +189,7 @@ const ProductListing = ({ searchQuery: externalSearchQuery, setSearchQuery: exte
   useEffect(() => {
     console.log('[ProductListing] Category or search changed - loading products');
     loadProducts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCategory, searchQuery]);
 
   const handleAddToCart = useCallback(async (product) => {

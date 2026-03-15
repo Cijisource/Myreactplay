@@ -36,7 +36,7 @@ apiClient.interceptors.request.use((config) => {
   return Promise.reject(error);
 });
 
-// Add response interceptor for caching
+// Add response interceptor for caching and error logging
 apiClient.interceptors.response.use((response) => {
   if (response.config.method === 'get') {
     const cacheKey = `${response.config.method}:${response.config.url}`;
@@ -47,7 +47,24 @@ apiClient.interceptors.response.use((response) => {
   }
   return response;
 }, (error) => {
-  console.error('[API] Response error:', error.message, error.response?.status);
+  // Enhanced error logging for auth issues
+  if (error.response?.status === 401) {
+    const errorData = error.response?.data;
+    console.error('[API] 401 Unauthorized Error:', {
+      url: error.config?.url,
+      message: errorData?.error || error.message,
+      details: errorData?.details,
+      tokenInStorage: !!localStorage.getItem('authToken'),
+      tokenLength: localStorage.getItem('authToken')?.length
+    });
+    
+    // Optionally clear token and redirect to login
+    if (errorData?.error?.includes('token')) {
+      console.warn('[API] Token-related error detected - user may need to re-login');
+    }
+  } else {
+    console.error('[API] Response error:', error.message, error.response?.status);
+  }
   return Promise.reject(error);
 });
 
@@ -136,5 +153,37 @@ export const getSellerOrders = () => apiClient.get('/orders/seller/orders');
 export const getOrderById = (id) => apiClient.get(`/orders/${id}`);
 export const createOrder = (data) => apiClient.post('/orders', data);
 export const updateOrderStatus = (id, data) => apiClient.put(`/orders/${id}`, data);
+
+// Discounts
+export const validateDiscountCode = (code, cartTotal) => 
+  apiClient.post('/discounts/validate', { code, cartTotal });
+export const getActiveDiscounts = () => apiClient.get('/discounts/active');
+export const getDiscountByCode = (code) => apiClient.get(`/discounts/${code}`);
+
+// Rewards
+export const getAvailableRewards = (email) => 
+  apiClient.get(`/rewards/customer/${email}`);
+export const getAllCustomerRewards = (email) => 
+  apiClient.get(`/rewards/customer-all/${email}`);
+export const validateRewardCode = (code, email, cartTotal) => 
+  apiClient.post('/rewards/validate', { code, customerEmail: email, cartTotal });
+export const useRewardCode = (code, email, usedInOrderId) => 
+  apiClient.put(`/rewards/use/${code}`, { customerEmail: email, orderIdUsedIn: usedInOrderId });
+export const getAllRewards = () => apiClient.get('/rewards/admin/all-rewards');
+export const getRewardsStats = () => apiClient.get('/rewards/admin/stats');
+export const getRewardsByStatus = (status) => apiClient.get(`/rewards/admin/filter/${status}`);
+
+// Shipping & Logistics
+export const getShippingRateByPincode = (pincode, weight = 1, totalOrder = 0) => 
+  apiClient.get(`/shipping/rate/${pincode}`, { params: { weight, totalOrder } });
+
+export const getShippingRateByCity = (city, weight = 1, totalOrder = 0) => 
+  apiClient.get(`/shipping/rate-by-city/${city}`, { params: { weight, totalOrder } });
+
+export const getLocationFromIP = () => 
+  apiClient.get('/shipping/location-from-ip');
+
+export const getAvailableShippingCities = () => 
+  apiClient.get('/shipping/cities');
 
 export { API_BASE_URL };

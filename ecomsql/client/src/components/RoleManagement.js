@@ -61,11 +61,6 @@ const RoleManagement = () => {
     return role ? role.RoleName : 'N/A';
   };
 
-  const getRoleTypeById = (roleId) => {
-    const role = roles.find(r => r.Id === roleId);
-    return role ? role.RoleType : 'N/A';
-  };
-
   if (loading) {
     return <div className="role-management-container"><p>Loading users and roles...</p></div>;
   }

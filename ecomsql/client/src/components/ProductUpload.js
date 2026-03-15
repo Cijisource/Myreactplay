@@ -19,7 +19,6 @@ const ProductUpload = () => {
   });
 
   const [selectedFiles, setSelectedFiles] = useState([]);
-  const [filePreview, setFilePreview] = useState([]);
 
   const [categoryForm, setCategoryForm] = useState({
     name: '',
@@ -69,35 +68,11 @@ const ProductUpload = () => {
       return;
     }
 
-    // Create preview URLs
-    const previews = files.map(file => {
-      const reader = new FileReader();
-      const preview = {
-        file,
-        url: null,
-        name: file.name
-      };
-
-      reader.onload = (event) => {
-        preview.url = event.target.result;
-        setFilePreview(prev => [...prev]);
-      };
-
-      reader.readAsDataURL(file);
-      return preview;
-    });
-
     setSelectedFiles(files);
-    setFilePreview(previews);
     setMessage('');
   };
 
-  const handleRemoveFile = (index) => {
-    const newFiles = selectedFiles.filter((_, i) => i !== index);
-    const newPreviews = filePreview.filter((_, i) => i !== index);
-    setSelectedFiles(newFiles);
-    setFilePreview(newPreviews);
-  };
+
 
   const handleCreateProduct = async (e) => {
     e.preventDefault();
@@ -145,7 +120,6 @@ const ProductUpload = () => {
         sku: ''
       });
       setSelectedFiles([]);
-      setFilePreview([]);
       setUploadProgress(0);
 
       // Auto-refresh categories

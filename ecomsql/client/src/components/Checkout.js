@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import QRCode from 'qrcode.react';
-import { createOrder } from '../api';
+import { createOrder, getLocationFromIP, getShippingRateByCity } from '../api';
 import { getUser } from '../utils/authUtils';
 import './Checkout.css';
 
@@ -197,6 +197,29 @@ const CITIES_DATA = [
   { city: 'Cuddalore', zipCode: '607001' },
   { city: 'Kanchipuram', zipCode: '631501' },
   { city: 'Thanjavur', zipCode: '613001' },
+  { city: 'Palani', zipCode: '624403' },
+  { city: 'Dindigul', zipCode: '624001' },
+  { city: 'Tirupati', zipCode: '517501' },
+  { city: 'Nellore', zipCode: '524001' },
+  { city: 'Vellore', zipCode: '632001' },
+  { city: 'Ranipet', zipCode: '632401' },
+  { city: 'Tiruppur', zipCode: '641602' },
+  { city: 'Pollachi', zipCode: '642001' },
+  { city: 'Sivakasi', zipCode: '625523' },
+  { city: 'Virudunagar', zipCode: '625532' },
+  { city: 'Nagercoil', zipCode: '629001' },
+  { city: 'Kanya Kumari', zipCode: '629702' },
+  { city: 'Karaikudi', zipCode: '630001' },
+  { city: 'Villupuram', zipCode: '605602' },
+  { city: 'Koyambedu', zipCode: '603202' },
+  { city: 'Ariyalur', zipCode: '621001' },
+  { city: 'Oddanchatram', zipCode: '624507' },
+  { city: 'Coonoor', zipCode: '640001' },
+  { city: 'Attur', zipCode: '636103' },
+  { city: 'Nambiyur', zipCode: '638103' },
+  { city: 'Valparai', zipCode: '642113' },
+  { city: 'Chengalpattu', zipCode: '609001' },
+  { city: 'Mahabalipuram', zipCode: '609602' },
   
   // Telangana
   { city: 'Hyderabad', zipCode: '500001' },
@@ -259,7 +282,7 @@ const CITIES_DATA = [
   { city: 'Daman', zipCode: '396210' }
 ];
 
-const Checkout = ({ cartItems, subtotalAmount = 0, gstAmount = 0, shippingCharge = 0, totalAmount, onClose, onOrderComplete }) => {
+const Checkout = ({ cartItems, subtotalAmount = 0, gstAmount = 0, shippingCharge = 0, discountAmount = 0, discountCode, rewardAmount = 0, rewardCode, totalAmount, onClose, onOrderComplete }) => {
   const sessionId = localStorage.getItem('sessionId');
   const [step, setStep] = useState('details'); // 'details' -> 'payment' -> 'confirmation'
   const [loading, setLoading] = useState(false);
@@ -288,6 +311,16 @@ const Checkout = ({ cartItems, subtotalAmount = 0, gstAmount = 0, shippingCharge
   const [paymentScreenshot, setPaymentScreenshot] = useState(null);
   const [screenshotPreview, setScreenshotPreview] = useState(null);
 
+  // Shipping & Geolocation states
+  const [shippingData, setShippingData] = useState({
+    charge: shippingCharge || 0,
+    zone: 'unknown',
+    city: '',
+    pincode: ''
+  });
+  const [locationLoading, setLocationLoading] = useState(true);
+  const [shippingLoading, setShippingLoading] = useState(false);
+
   // Generate UPI/GPay QR code
   useEffect(() => {
     if (step === 'payment' && selectedPayment === 'gpay') {
@@ -308,6 +341,79 @@ const Checkout = ({ cartItems, subtotalAmount = 0, gstAmount = 0, shippingCharge
       }));
     }
   }, []);
+
+  // Fetch location from IP and populate city/zipcode
+  useEffect(() => {
+    const fetchLocationFromIP = async () => {
+      try {
+        setLocationLoading(true);
+        console.log('[Checkout] Fetching location from IP...');
+        const response = await getLocationFromIP();
+        
+        if (response.data.success) {
+          console.log('[Checkout] Location detected:', response.data);
+          setFormData(prev => ({
+            ...prev,
+            city: response.data.city || prev.city,
+            zipCode: response.data.pincode || prev.zipCode
+          }));
+          setShippingData(prev => ({
+            ...prev,
+            city: response.data.city,
+            pincode: response.data.pincode
+          }));
+          
+          // Fetch shipping rates for detected city
+          if (response.data.city) {
+            await fetchShippingRates(response.data.city);
+          }
+        }
+      } catch (error) {
+        console.warn('[Checkout] Failed to fetch location from IP:', error.message);
+        // Fallback - set default city to Mumbai
+        setFormData(prev => ({
+          ...prev,
+          city: 'Mumbai',
+          zipCode: '400001'
+        }));
+      } finally {
+        setLocationLoading(false);
+      }
+    };
+
+    fetchLocationFromIP();
+  }, []);
+
+  // Fetch shipping rates when city changes
+  const fetchShippingRates = async (city) => {
+    if (!city) return;
+    
+    try {
+      setShippingLoading(true);
+      console.log('[Checkout] Fetching shipping rates for city:', city);
+      
+      const response = await getShippingRateByCity(city, 1, subtotalAmount);
+      
+      if (response.data.success) {
+        console.log('[Checkout] Shipping rates received:', response.data);
+        setShippingData(prev => ({
+          ...prev,
+          charge: response.data.shippingCharge,
+          zone: response.data.zone,
+          city: response.data.city
+        }));
+      }
+    } catch (error) {
+      console.warn('[Checkout] Failed to fetch shipping rates:', error.message);
+      // Use fallback rate
+      setShippingData(prev => ({
+        ...prev,
+        charge: 99
+      }));
+    } finally {
+      setShippingLoading(false);
+    }
+  };
 
   // Validate email address
   const validateEmail = (email) => {
@@ -355,6 +461,9 @@ const Checkout = ({ cartItems, subtotalAmount = 0, gstAmount = 0, shippingCharge
       zipCode: cityData.zipCode
     }));
     setCityDropdownOpen(false);
+    
+    // Fetch shipping rates for selected city
+    fetchShippingRates(cityData.city);
   };
 
   // Handle zip code search and filter
@@ -501,6 +610,12 @@ const Checkout = ({ cartItems, subtotalAmount = 0, gstAmount = 0, shippingCharge
       // Normalize email for consistency
       const normalizedEmail = formData.customerEmail.trim().toLowerCase();
 
+      // Calculate final total with real shipping charges
+      const realShippingCharge = shippingData.charge || 0;
+      const discountAmt = discountAmount || 0;
+      const rewardAmt = rewardAmount || 0;
+      const realTotalAmount = subtotalAmount + gstAmount + realShippingCharge - discountAmt - rewardAmt;
+
       // Create order
       const response = await createOrder({
         sessionId,
@@ -515,8 +630,12 @@ const Checkout = ({ cartItems, subtotalAmount = 0, gstAmount = 0, shippingCharge
         })),
         subtotalAmount,
         gstAmount,
-        shippingCharge,
-        totalAmount,
+        shippingCharge: realShippingCharge,
+        discountAmount,
+        discountCode,
+        rewardAmount,
+        rewardCode,
+        totalAmount: realTotalAmount,
         paymentMethod: selectedPayment,
         paymentScreenshot: paymentScreenshotBase64,
         orderDate: new Date().toISOString()
@@ -585,13 +704,23 @@ const Checkout = ({ cartItems, subtotalAmount = 0, gstAmount = 0, shippingCharge
                     <span>₹{gstAmount.toFixed(2)}</span>
                   </div>
                   <div className="breakdown-row">
-                    <span>Shipping:</span>
-                    <span>{shippingCharge === 0 ? <span style={{ color: '#28a745' }}>Free</span> : `₹${shippingCharge.toFixed(2)}`}</span>
+                    <span>Shipping ({shippingData.zone}):</span>
+                    <span>
+                      {shippingLoading ? (
+                        'Calculating...'
+                      ) : shippingData.charge === 0 ? (
+                        <span style={{ color: '#28a745' }}>Free</span>
+                      ) : (
+                        `₹${shippingData.charge.toFixed(2)}`
+                      )}
+                    </span>
                   </div>
                   <div className="breakdown-divider"></div>
                   <div className="breakdown-row total-row">
                     <h4>Total Amount</h4>
-                    <p className="total-price">₹{totalAmount.toFixed(2)}</p>
+                    <p className="total-price">
+                      ₹{(subtotalAmount + gstAmount + shippingData.charge - (discountAmount || 0) - (rewardAmount || 0)).toFixed(2)}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -675,7 +804,15 @@ const Checkout = ({ cartItems, subtotalAmount = 0, gstAmount = 0, shippingCharge
 
               <div className="form-row">
                 <div className="form-group">
-                  <label>City *</label>
+                  <label>
+                    City * 
+                    {locationLoading && <span style={{ fontSize: '12px', marginLeft: '8px', color: '#666' }}>Detecting location...</span>}
+                    {!locationLoading && shippingData.zone !== 'unknown' && (
+                      <span style={{ fontSize: '12px', marginLeft: '8px', color: '#28a745' }}>
+                        ✓ {shippingData.zone.toUpperCase()} ZONE - Shipping: ₹{shippingData.charge.toFixed(2)}
+                      </span>
+                    )}
+                  </label>
                   <div className="searchable-dropdown" ref={cityDropdownRef}>
                     <input
                       type="text"

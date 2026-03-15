@@ -12,6 +12,9 @@ const productRoutes = require('./routes/products');
 const productImageRoutes = require('./routes/productImages');
 const cartRoutes = require('./routes/cart');
 const orderRoutes = require('./routes/orders');
+const discountRoutes = require('./routes/discounts');
+const rewardsRoutes = require('./routes/rewards');
+const shippingRoutes = require('./routes/shipping');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -52,6 +55,9 @@ app.use('/api/products', productRoutes);
 app.use('/api/product-images', productImageRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/discounts', discountRoutes);
+app.use('/api/rewards', rewardsRoutes);
+app.use('/api/shipping', shippingRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -113,13 +119,65 @@ app.get('/api/debug', async (req, res) => {
   }
 });
 
+// Token diagnostic endpoint (for debugging token issues)
+app.get('/api/token-debug', (req, res) => {
+  try {
+    const jwt = require('jsonwebtoken');
+    const token = req.headers.authorization?.split(' ')[1];
+    
+    if (!token) {
+      return res.json({
+        success: false,
+        message: 'No token provided in Authorization header',
+        hint: 'Add "Authorization: Bearer <token>" header to requests'
+      });
+    }
+
+    const secret = process.env.JWT_SECRET || 'your-secret-key';
+    const decoded = jwt.verify(token, secret);
+    
+    res.json({
+      success: true,
+      message: 'Token is valid',
+      decoded: {
+        userId: decoded.userId,
+        userName: decoded.userName,
+        roleType: decoded.roleType,
+        roleId: decoded.roleId,
+        issuedAt: new Date(decoded.iat * 1000).toISOString(),
+        expiresAt: new Date(decoded.exp * 1000).toISOString()
+      }
+    });
+  } catch (error) {
+    res.json({
+      success: false,
+      error: error.message,
+      errorType: error.name,
+      hint: error.name === 'TokenExpiredError' 
+        ? 'Token has expired. Please login again.' 
+        : error.name === 'JsonWebTokenError'
+        ? 'Token is invalid or signature mismatch. Check JWT_SECRET.'
+        : 'Unknown token error'
+    });
+  }
+});
+
 // Start server
 initializeDB().then(() => {
+  // Log JWT configuration on startup
+  console.log('[SERVER] JWT Configuration:', {
+    jwtSecretSet: !!process.env.JWT_SECRET,
+    jwtSecretLength: (process.env.JWT_SECRET || 'your-secret-key').length,
+    jwtSecretSource: process.env.JWT_SECRET ? 'from .env' : 'using fallback',
+    note: 'If jwtSecretSource is "using fallback", JWT tokens may not verify correctly'
+  });
+
   app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`[SERVER] Server running on port ${PORT}`);
+    console.log('[SERVER] Use GET /api/token-debug with Authorization header to test token validity');
   });
 }).catch(error => {
-  console.error('Failed to start server:', error);
+  console.error('[SERVER] Failed to start server:', error);
   process.exit(1);
 });
 

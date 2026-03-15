@@ -15,9 +15,9 @@ const ProductDetail = ({ productId, onBackClick, isAuthenticated: isAuthenticate
   // Use prop if provided, otherwise use utility function
   const authenticated = isAuthenticatedProp !== null ? isAuthenticatedProp : isAuthenticated();
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     loadProductDetails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId]);
 
   const loadProductDetails = async () => {

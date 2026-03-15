@@ -10,11 +10,12 @@ import CategoryManagement from './components/CategoryManagement';
 import ImageUpload from './components/ImageUpload';
 import ShoppingCart from './components/ShoppingCart';
 import OrderManagement from './components/OrderManagement';
+import RewardsManagement from './components/RewardsManagement';
 import AdminPanel from './components/AdminPanel';
 import Login from './components/Login';
 import Register from './components/Register';
 import UserProfile from './components/UserProfile';
-import { ProtectedRoute, RoleBasedRoute } from './components/ProtectedRoute';
+import { RoleBasedRoute } from './components/ProtectedRoute';
 import { getUser, hasRole, isAuthenticated } from './utils/authUtils';
 import { getCartItems, getCategories } from './api';
 import { useDebounce } from './utils/useDebounce';
@@ -116,11 +117,6 @@ function MainApp() {
     updateCartCount();
     loadCategories();
   }, [updateCartCount, loadCategories]);
-
-  // Update cart count after adding a product
-  const handleProductAdded = () => {
-    updateCartCount();
-  };
 
   const handleLogout = () => {
     localStorage.removeItem('authToken');
@@ -281,6 +277,12 @@ function MainApp() {
         );
       case 'orders':
         return <OrderManagement />;
+      case 'rewards':
+        return (
+          <RoleBasedRoute requiredRole="Seller">
+            <RewardsManagement />
+          </RoleBasedRoute>
+        );
       case 'admin':
         return (
           <RoleBasedRoute requiredRole="Administrator">
@@ -383,6 +385,12 @@ function MainApp() {
                     onClick={() => setCurrentPage('categories')}
                   >
                     📋 Categories
+                  </button>
+                  <button
+                    className={`nav-link ${currentPage === 'rewards' ? 'active' : ''}`}
+                    onClick={() => setCurrentPage('rewards')}
+                  >
+                    🎁 Rewards
                   </button>
                 </>
               )}

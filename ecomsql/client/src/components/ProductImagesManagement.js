@@ -12,6 +12,7 @@ const ProductImagesManagement = ({ product, onClose }) => {
 
   useEffect(() => {
     loadImages();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product.id]);
 
   const loadImages = async () => {
@@ -187,7 +188,7 @@ const ProductImagesManagement = ({ product, onClose }) => {
                     <div className="image-wrapper">
                       <img
                         src={getImageUrl(image.image_url)}
-                        alt={`Product image ${index + 1}`}
+                        alt={`Product ${index + 1}`}
                         onError={(e) => {
                           e.target.src = 'https://via.placeholder.com/150?text=Image+Not+Found';
                         }}
