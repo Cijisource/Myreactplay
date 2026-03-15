@@ -332,6 +332,14 @@ const Checkout = ({
   const handleContinueToPayment = () => {
     setMessage('');
     if (validateDetails()) {
+      // Recalculate shipping rates for the selected city
+      const shippingCharge = calculateShipping(formData.city);
+      
+      // Validate that a valid city was selected with valid shipping cost
+      if (shippingCharge === null || shippingCharge === undefined) {
+        setMessage('Incorrect city selected. Please choose a valid city from the dropdown.');
+        return;
+      }
       setStep('payment');
     }
   };
@@ -349,8 +357,15 @@ const Checkout = ({
       // Normalize email for consistency
       const normalizedEmail = formData.customerEmail.trim().toLowerCase();
 
-      // Calculate total with the shipping charge determined during address entry
-      const calculatedTotal = subtotalAmount + gstAmount + calculatedShippingCharge;
+      // Calculate discount amounts
+      const discountAmount = (appliedDiscount?.amount || 0) + (appliedRewards?.discountAmount || 0);
+      
+      // Calculate GST: Only waived if loyalty points are redeemed
+      const gstForOrder = (appliedRewards && appliedRewards.discountAmount > 0) ? 0 : gstAmount;
+      
+      // Calculate total: discounts apply only to product value, then GST on discounted value, then add shipping
+      const subtotalAfterDiscount = Math.max(0, subtotalAmount - discountAmount);
+      const calculatedTotal = subtotalAfterDiscount + gstForOrder + calculatedShippingCharge;
 
       // Create order
       const response = await createOrder({
@@ -371,6 +386,7 @@ const Checkout = ({
         paymentMethod: selectedPayment,
         paymentScreenshot: paymentScreenshotBase64,
         orderDate: new Date().toISOString(),
+        appliedDiscount: appliedDiscount || null,
         appliedRewards: appliedRewards || null
       });
 
@@ -434,7 +450,7 @@ const Checkout = ({
                   </div>
                   <div className="breakdown-row">
                     <span>GST (18%):</span>
-                    <span>₹{gstAmount.toFixed(2)}</span>
+                    <span>₹{(appliedRewards && appliedRewards.discountAmount > 0 ? 0 : gstAmount).toFixed(2)}</span>
                   </div>
                   <div className="breakdown-row">
                     <span>Shipping:</span>
@@ -458,7 +474,12 @@ const Checkout = ({
                   <div className="breakdown-divider"></div>
                   <div className="breakdown-row total-row">
                     <h4>Total Amount</h4>
-                    <p className="total-price">₹{(subtotalAmount + gstAmount + calculatedShippingCharge - (appliedDiscount?.amount || 0) - (appliedRewards?.discountAmount || 0)).toFixed(2)}</p>
+                    <p className="total-price">₹{(() => {
+                      const discountAmount = (appliedDiscount?.amount || 0) + (appliedRewards?.discountAmount || 0);
+                      const subtotalAfterDiscount = Math.max(0, subtotalAmount - discountAmount);
+                      const gstOnDiscountedValue = subtotalAfterDiscount * 0.18;
+                      return (subtotalAfterDiscount + gstOnDiscountedValue + calculatedShippingCharge).toFixed(2);
+                    })()}</p>
                   </div>
                 </div>
               </div>

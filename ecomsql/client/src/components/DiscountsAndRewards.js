@@ -128,8 +128,8 @@ const DiscountsAndRewards = ({
       setRedeemLoading(true);
       setCouponError('');
       
-      // Calculate discount: 1 point = ₹2
-      const discountAmount = pointsToRedeem * 2;
+      // Calculate discount: 1 point = ₹0.50 (50 paisa)
+      const discountAmount = pointsToRedeem * 0.50;
       
       // Notify parent
       onRewardsApplied({
@@ -199,39 +199,17 @@ const DiscountsAndRewards = ({
         {couponError && <p className="dar-error">{couponError}</p>}
 
         {/* Available Discounts and Rewards Offers */}
-        {(activeDiscounts.length > 0 || (customerEmail && !loyaltyLoading && loyaltyData?.available_points > 0)) && (
+        {activeDiscounts.length > 0 && (
           <div className="dar-available">
             <button 
               className="dar-toggle"
               onClick={() => setShowDiscounts(!showDiscounts)}
             >
-              {showDiscounts ? '▼' : '▶'} Available Offers ({activeDiscounts.length + (customerEmail && !loyaltyLoading && loyaltyData?.available_points > 0 ? 1 : 0)})
+              {showDiscounts ? '▼' : '▶'} Available Offers ({activeDiscounts.length})
             </button>
             
             {showDiscounts && (
               <div className="dar-discounts-list">
-                {/* Reward Points Offer */}
-                {customerEmail && !loyaltyLoading && loyaltyData?.available_points > 0 && (
-                  <div className="dar-discount-item reward-offer-item">
-                    <div className="dar-discount-header">
-                      <strong>🎁 Loyalty Points</strong>
-                      <span className="dar-discount-value">
-                        {loyaltyData.available_points} points = ₹{loyaltyData.available_points * 2}
-                      </span>
-                    </div>
-                    <p className="dar-discount-desc">Each point equals ₹2 discount</p>
-                    <p className="dar-discount-condition">
-                      Available points: {loyaltyData.available_points}
-                    </p>
-                    <button
-                      className="dar-btn-use"
-                      onClick={() => setShowRedemption(true)}
-                    >
-                      Redeem Points
-                    </button>
-                  </div>
-                )}
-
                 {/* Active Coupon Discounts */}
                 {!appliedCoupon && activeDiscounts.map((discount, idx) => (
                   <div key={idx} className="dar-discount-item">
@@ -326,7 +304,7 @@ const DiscountsAndRewards = ({
                           className="dar-input"
                         />
                         <span className="dar-redeem-value">
-                          = ₹{pointsToRedeem * 2}
+                          = ₹{(pointsToRedeem * 0.50).toFixed(2)}
                         </span>
                       </div>
                       <div className="dar-redeem-actions">

@@ -39,7 +39,7 @@ router.post('/validate-coupon', async (req, res) => {
   try {
     const { code, orderAmount, customerEmail } = req.body;
 
-    if (!code || !orderAmount) {
+    if (!code || orderAmount === undefined || orderAmount === null) {
       return res.status(400).json({ error: 'Code and order amount required' });
     }
 
@@ -80,18 +80,20 @@ router.post('/validate-coupon', async (req, res) => {
       return res.status(400).json({ error: 'This coupon code has reached its usage limit' });
     }
 
-    // Check minimum order amount
+    // Check minimum order amount (orderAmount is product value only, before GST/shipping)
     if (discount.min_order_amount && orderAmount < discount.min_order_amount) {
       return res.status(400).json({ 
         error: `Minimum order amount of ₹${discount.min_order_amount} required` 
       });
     }
 
-    // Calculate discount amount
+    // Calculate discount amount based on product value only
     let discountAmount = 0;
     if (discount.discount_type === 'percentage') {
+      // Apply percentage to product value (orderAmount), not including GST/shipping
       discountAmount = (orderAmount * discount.discount_value) / 100;
     } else {
+      // Fixed amount discount
       discountAmount = discount.discount_value;
     }
 
@@ -99,6 +101,9 @@ router.post('/validate-coupon', async (req, res) => {
     if (discount.max_discount_amount) {
       discountAmount = Math.min(discountAmount, discount.max_discount_amount);
     }
+
+    // Ensure discount doesn't exceed product value
+    discountAmount = Math.min(discountAmount, orderAmount);
 
     res.json({
       valid: true,
@@ -119,22 +124,35 @@ router.post('/apply-coupon', verifyToken, async (req, res) => {
   try {
     const { orderId, code, discountAmount } = req.body;
 
-    if (!orderId || !code) {
-      return res.status(400).json({ error: 'Order ID and coupon code required' });
+    if (!orderId || !code || discountAmount === undefined || discountAmount === null) {
+      return res.status(400).json({ error: 'Order ID, coupon code, and discount amount required' });
     }
 
     const pool = await getConnection();
 
-    // Get discount ID
+    // Get discount ID and current usage
     const discountResult = await pool.request()
       .input('code', sql.NVarChar, code.toUpperCase())
-      .query('SELECT id FROM discounts WHERE UPPER(code) = @code');
+      .query(`
+        SELECT id, discount_type, discount_value, current_uses, max_uses 
+        FROM discounts 
+        WHERE UPPER(code) = @code
+      `);
 
     if (discountResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Coupon code not found' });
     }
 
-    const discountId = discountResult.recordset[0].id;
+    const discountRecord = discountResult.recordset[0];
+    const discountId = discountRecord.id;
+
+    // Verify usage limit before applying
+    if (discountRecord.max_uses && discountRecord.current_uses >= discountRecord.max_uses) {
+      return res.status(400).json({ error: 'This coupon code has reached its usage limit' });
+    }
+
+    // Get discount type for the order_discounts table
+    const discountType = discountRecord.discount_type || 'coupon';
 
     // Insert order discount record
     await pool.request()
@@ -142,32 +160,44 @@ router.post('/apply-coupon', verifyToken, async (req, res) => {
       .input('discountId', sql.Int, discountId)
       .input('code', sql.NVarChar, code.toUpperCase())
       .input('discountAmount', sql.Decimal(10, 2), discountAmount)
+      .input('discountType', sql.NVarChar, discountType)
       .query(`
         INSERT INTO order_discounts (order_id, discount_id, discount_code, discount_type, discount_amount)
-        VALUES (@orderId, @discountId, @code, 'coupon', @discountAmount)
+        VALUES (@orderId, @discountId, @code, @discountType, @discountAmount)
       `);
 
-    // Increment coupon usage
-    await pool.request()
+    // Increment coupon usage count
+    const updateResult = await pool.request()
       .input('code', sql.NVarChar, code.toUpperCase())
       .query(`
         UPDATE discounts
         SET current_uses = current_uses + 1
-        WHERE UPPER(code) = @code
+        WHERE UPPER(code) = @code;
+        
+        SELECT current_uses FROM discounts WHERE UPPER(code) = @code
       `);
 
-    // Update order with discount
+    const newUsageCount = updateResult.recordset[updateResult.recordset.length - 1]?.[0]?.current_uses;
+
+    // Update order with discount information
     await pool.request()
       .input('orderId', sql.Int, orderId)
       .input('discountAmount', sql.Decimal(10, 2), discountAmount)
       .input('code', sql.NVarChar, code.toUpperCase())
       .query(`
         UPDATE orders
-        SET discount_amount = @discountAmount, applied_discount_code = @code
+        SET discount_amount = @discountAmount, 
+            applied_discount_code = @code,
+            updated_at = GETDATE()
         WHERE id = @orderId
       `);
 
-    res.json({ success: true, message: 'Coupon applied successfully' });
+    res.json({ 
+      success: true, 
+      message: 'Coupon applied successfully',
+      discountAmount: Math.round(discountAmount * 100) / 100,
+      newUsageCount: newUsageCount
+    });
   } catch (error) {
     console.error('[ERROR] Apply coupon error:', error);
     res.status(500).json({ error: 'Error applying coupon code' });
@@ -243,13 +273,14 @@ router.post('/earn-rewards', verifyToken, async (req, res) => {
   try {
     const { orderId, customerEmail, orderAmount } = req.body;
 
-    if (!orderId || !customerEmail || !orderAmount) {
+    if (!orderId || !customerEmail || orderAmount === undefined || orderAmount === null) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
     const pool = await getConnection();
 
-    // Calculate points: 1 point per ₹10 spent
+    // Calculate points based on product value only (orderAmount should be subtotal, not including GST/shipping)
+    // 1 point per ₹10 spent on products
     const pointsEarned = Math.floor(orderAmount / 10);
 
     // Get current customer rewards
@@ -270,13 +301,13 @@ router.post('/earn-rewards', verifyToken, async (req, res) => {
       currentRewards = { total_points: 0, redeemed_points: 0, total_spent: 0, order_count: 0 };
     }
 
-    // Update customer rewards
+    // Update customer rewards based on product value only (orderAmount)
     const newTotalPoints = (currentRewards.total_points || 0) + pointsEarned;
     const newAvailablePoints = (currentRewards.available_points || 0) + pointsEarned;
     const newTotalSpent = (currentRewards.total_spent || 0) + orderAmount;
     const newOrderCount = (currentRewards.order_count || 0) + 1;
 
-    // Determine loyalty tier
+    // Determine loyalty tier based on total_spent (product value only)
     let loyaltyTier = 'Silver';
     if (newTotalSpent >= 50000) loyaltyTier = 'Diamond';
     else if (newTotalSpent >= 25000) loyaltyTier = 'Platinum';
@@ -353,8 +384,8 @@ router.post('/redeem-points', verifyToken, async (req, res) => {
       });
     }
 
-    // Calculate discount: 1 point = ₹1
-    const discountAmount = pointsToRedeem;
+    // Calculate discount: 1 point = ₹0.50 (50 paisa)
+    const discountAmount = pointsToRedeem * 0.50;
 
     // Update customer rewards
     const newAvailablePoints = rewards.available_points - pointsToRedeem;

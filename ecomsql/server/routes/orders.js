@@ -126,7 +126,7 @@ router.get('/:id', async (req, res) => {
 // Create order from cart
 router.post('/', async (req, res) => {
   try {
-    const { sessionId, customerEmail, customerName, shippingAddress, items, subtotalAmount, gstAmount, shippingCharge, totalAmount, paymentScreenshot, orderDate, appliedRewards } = req.body;
+    const { sessionId, customerEmail, customerName, shippingAddress, items, subtotalAmount, gstAmount, shippingCharge, totalAmount, paymentScreenshot, orderDate, appliedDiscount, appliedRewards } = req.body;
     
     console.log('[ORDERS Post] Received order creation request:', {
       customerEmail: customerEmail,
@@ -229,10 +229,11 @@ router.post('/', async (req, res) => {
       
       // Update customer rewards after order is successfully created
       try {
-        console.log('[ORDERS Post] Updating customer rewards for:', orderEmail, 'with amount:', totalAmount);
+        console.log('[ORDERS Post] Updating customer rewards for:', orderEmail, 'with product value (subtotal):', subtotalAmount);
         
-        // Calculate points: 1 point per ₹10 spent
-        const pointsEarned = Math.floor(totalAmount / 10);
+        // Calculate points based on product value only (subtotalAmount), not GST or shipping
+        // 1 point per ₹10 spent on products
+        const pointsEarned = Math.floor(subtotalAmount / 10);
 
         // Get current customer rewards
         const rewardsResult = await pool.request()
@@ -253,13 +254,13 @@ router.post('/', async (req, res) => {
           currentRewards = { total_points: 0, available_points: 0, redeemed_points: 0, total_spent: 0, order_count: 0 };
         }
 
-        // Update customer rewards with new totals
+        // Update customer rewards with new totals based on product value (subtotalAmount)
         const newTotalPoints = (currentRewards.total_points || 0) + pointsEarned;
         const newAvailablePoints = (currentRewards.available_points || 0) + pointsEarned;
-        const newTotalSpent = (currentRewards.total_spent || 0) + totalAmount;
+        const newTotalSpent = (currentRewards.total_spent || 0) + subtotalAmount;
         const newOrderCount = (currentRewards.order_count || 0) + 1;
 
-        // Determine loyalty tier based on total_spent
+        // Determine loyalty tier based on total_spent (product value only)
         let loyaltyTier = 'Bronze';
         if (newTotalSpent >= 50000) loyaltyTier = 'Diamond';
         else if (newTotalSpent >= 25000) loyaltyTier = 'Platinum';
@@ -268,6 +269,7 @@ router.post('/', async (req, res) => {
 
         console.log('[ORDERS Post] Updating rewards:', {
           email: orderEmail,
+          subtotalAmount: subtotalAmount,
           pointsEarned: pointsEarned,
           newTotalPoints: newTotalPoints,
           newTotalSpent: newTotalSpent,
@@ -364,6 +366,62 @@ router.post('/', async (req, res) => {
       } catch (rewardError) {
         console.error('[ORDERS Post] Error updating rewards (non-blocking):', rewardError.message);
         // Don't fail the order creation if rewards fail to update
+      }
+
+      // Handle coupon code usage tracking
+      if (appliedDiscount && appliedDiscount.code) {
+        try {
+          console.log('[ORDERS Post] Processing coupon code:', {
+            code: appliedDiscount.code,
+            discountAmount: appliedDiscount.amount
+          });
+
+          // Get discount ID and update usage
+          const couponResult = await pool.request()
+            .input('code', sql.NVarChar, appliedDiscount.code.toUpperCase())
+            .query(`
+              SELECT id FROM discounts 
+              WHERE UPPER(code) = @code
+            `);
+
+          if (couponResult.recordset.length > 0) {
+            const discountId = couponResult.recordset[0].id;
+
+            // Insert order discount record
+            await pool.request()
+              .input('orderId', sql.Int, orderId)
+              .input('discountId', sql.Int, discountId)
+              .input('code', sql.NVarChar, appliedDiscount.code.toUpperCase())
+              .input('discountAmount', sql.Decimal(10, 2), appliedDiscount.amount || 0)
+              .input('discountType', sql.NVarChar, appliedDiscount.type || 'coupon')
+              .query(`
+                INSERT INTO order_discounts (order_id, discount_id, discount_code, discount_type, discount_amount)
+                VALUES (@orderId, @discountId, @code, @discountType, @discountAmount)
+              `);
+
+            // Increment coupon usage count
+            const updateResult = await pool.request()
+              .input('code', sql.NVarChar, appliedDiscount.code.toUpperCase())
+              .query(`
+                UPDATE discounts
+                SET current_uses = current_uses + 1
+                WHERE UPPER(code) = @code;
+                
+                SELECT current_uses FROM discounts WHERE UPPER(code) = @code
+              `);
+
+            const newUsageCount = updateResult.recordset[updateResult.recordset.length - 1]?.[0]?.current_uses;
+            console.log('[ORDERS Post] Coupon usage count updated:', {
+              code: appliedDiscount.code,
+              newUsage: newUsageCount
+            });
+          } else {
+            console.warn('[ORDERS Post] Coupon code not found in database:', appliedDiscount.code);
+          }
+        } catch (couponError) {
+          console.error('[ORDERS Post] Error updating coupon usage (non-blocking):', couponError.message);
+          // Don't fail the order creation if coupon tracking fails
+        }
       }
       
       console.log('[ORDERS Post] Returning order:', {
