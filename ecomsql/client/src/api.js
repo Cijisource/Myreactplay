@@ -103,7 +103,15 @@ export const getAdminUserById = (userId) =>
 export const updateUserRole = (userId, roleId) => 
   apiClient.put(`/auth/users/${userId}/role`, { roleId });
 
-export const getProducts = (params) => apiClient.get('/products', { params });
+export const getProducts = (params) => {
+  const token = localStorage.getItem('authToken');
+  console.log('[getProducts] Calling with params:', params);
+  console.log('[getProducts] Token present:', !!token);
+  if (token) {
+    console.log('[getProducts] Token length:', token.length);
+  }
+  return apiClient.get('/products', { params });
+};
 export const getProductById = (id) => apiClient.get(`/products/${id}`);
 export const createProduct = (data) => apiClient.post('/products', data);
 export const updateProduct = (id, data) => apiClient.put(`/products/${id}`, data);
@@ -154,36 +162,94 @@ export const getOrderById = (id) => apiClient.get(`/orders/${id}`);
 export const createOrder = (data) => apiClient.post('/orders', data);
 export const updateOrderStatus = (id, data) => apiClient.put(`/orders/${id}`, data);
 
-// Discounts
-export const validateDiscountCode = (code, cartTotal) => 
-  apiClient.post('/discounts/validate', { code, cartTotal });
-export const getActiveDiscounts = () => apiClient.get('/discounts/active');
-export const getDiscountByCode = (code) => apiClient.get(`/discounts/${code}`);
+// Shipping and Cities API
+export const getAllCities = () => apiClient.get('/shipping/all');
+export const getShippingZones = () => apiClient.get('/shipping/shipping-zones');
+export const searchCities = (query) => apiClient.get('/shipping/search', { params: { query } });
+export const getCityByName = (cityName) => apiClient.get(`/shipping/by-city/${cityName}`);
+export const getCitiesByState = (state) => apiClient.get(`/shipping/by-state/${state}`);
+export const getShippingCharge = (zoneCode) => apiClient.get(`/shipping/shipping/${zoneCode}`);
+export const getAllStates = () => apiClient.get('/shipping/states/all');
 
-// Rewards
-export const getAvailableRewards = (email) => 
-  apiClient.get(`/rewards/customer/${email}`);
-export const getAllCustomerRewards = (email) => 
-  apiClient.get(`/rewards/customer-all/${email}`);
-export const validateRewardCode = (code, email, cartTotal) => 
-  apiClient.post('/rewards/validate', { code, customerEmail: email, cartTotal });
-export const useRewardCode = (code, email, usedInOrderId) => 
-  apiClient.put(`/rewards/use/${code}`, { customerEmail: email, orderIdUsedIn: usedInOrderId });
-export const getAllRewards = () => apiClient.get('/rewards/admin/all-rewards');
-export const getRewardsStats = () => apiClient.get('/rewards/admin/stats');
-export const getRewardsByStatus = (status) => apiClient.get(`/rewards/admin/filter/${status}`);
+// Shipping Management API (Seller & Admin Only)
+export const addCity = (cityData) => apiClient.post('/shipping/manage/cities', cityData);
+export const updateCity = (id, cityData) => apiClient.put(`/shipping/manage/cities/${id}`, cityData);
+export const deleteCity = (id) => apiClient.delete(`/shipping/manage/cities/${id}`);
 
-// Shipping & Logistics
-export const getShippingRateByPincode = (pincode, weight = 1, totalOrder = 0) => 
-  apiClient.get(`/shipping/rate/${pincode}`, { params: { weight, totalOrder } });
+export const addShippingZone = (zoneData) => apiClient.post('/shipping/manage/zones', zoneData);
+export const updateShippingZone = (id, zoneData) => apiClient.put(`/shipping/manage/zones/${id}`, zoneData);
+export const deleteShippingZone = (id) => apiClient.delete(`/shipping/manage/zones/${id}`);
 
-export const getShippingRateByCity = (city, weight = 1, totalOrder = 0) => 
-  apiClient.get(`/shipping/rate-by-city/${city}`, { params: { weight, totalOrder } });
+// Discount and Rewards API
+export const validateCoupon = (code, orderAmount, customerEmail) => 
+  apiClient.post('/discounts/validate-coupon', { code, orderAmount, customerEmail });
 
-export const getLocationFromIP = () => 
-  apiClient.get('/shipping/location-from-ip');
+export const applyCoupon = (orderId, code, discountAmount) => 
+  apiClient.post('/discounts/apply-coupon', { orderId, code, discountAmount });
 
-export const getAvailableShippingCities = () => 
-  apiClient.get('/shipping/cities');
+export const getActiveDiscounts = () => apiClient.get('/discounts/active-discounts');
+
+export const getCustomerLoyalty = (customerEmail) => 
+  apiClient.get(`/discounts/loyalty/${customerEmail}`);
+
+export const earnRewardPoints = (orderId, customerEmail, orderAmount) => 
+  apiClient.post('/discounts/earn-rewards', { orderId, customerEmail, orderAmount });
+
+export const redeemPoints = (customerEmail, pointsToRedeem, orderId) => 
+  apiClient.post('/discounts/redeem-points', { customerEmail, pointsToRedeem, orderId });
+
+export const getTierBenefits = (tier) => apiClient.get(`/discounts/tier-benefits/${tier}`);
+
+export const getTransactionHistory = (customerEmail) => 
+  apiClient.get(`/discounts/history/${customerEmail}`);
+
+// Seller/Admin Coupon Management API
+export const getSellerCoupons = () => apiClient.get('/discounts/seller/coupons');
+
+export const createCoupon = (couponData) => 
+  apiClient.post('/discounts/seller/coupons', couponData);
+
+export const updateCoupon = (id, couponData) => 
+  apiClient.put(`/discounts/seller/coupons/${id}`, couponData);
+
+export const deleteCoupon = (id) => 
+  apiClient.delete(`/discounts/seller/coupons/${id}`);
+
+// Seller/Admin Customer Rewards Management API
+export const getSellerCustomers = () => apiClient.get('/discounts/seller/customers');
+
+export const getSellerCustomerDetail = (email) => 
+  apiClient.get(`/discounts/seller/customers/${encodeURIComponent(email)}`);
+
+export const adjustCustomerPoints = (customerEmail, pointsAdjustment, reason) => {
+  console.log('[API] adjustCustomerPoints called with:', {
+    url: `${API_URL}/discounts/seller/adjust-points`,
+    customerEmail,
+    pointsAdjustment,
+    reason
+  });
+  return apiClient.post('/discounts/seller/adjust-points', { 
+    customerEmail, 
+    pointsAdjustment, 
+    reason 
+  }).then(response => {
+    console.log('[API] adjustCustomerPoints success:', response.data);
+    return response;
+  }).catch(error => {
+    console.error('[API] adjustCustomerPoints error:', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      url: error.response?.config?.url,
+      method: error.response?.config?.method,
+      data: error.response?.data
+    });
+    throw error;
+  });
+};
+
+export const getCouponStats = () => apiClient.get('/discounts/seller/coupon-stats');
+
+// Diagnostic endpoint
+export const checkDiscountsHealth = () => apiClient.get('/discounts/health');
 
 export { API_BASE_URL };

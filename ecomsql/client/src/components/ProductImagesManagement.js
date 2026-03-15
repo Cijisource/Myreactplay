@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { getProductImages, uploadProductImage, deleteProductImage, API_BASE_URL } from '../api';
 import './ProductImagesManagement.css';
 
@@ -10,12 +10,7 @@ const ProductImagesManagement = ({ product, onClose }) => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
 
-  useEffect(() => {
-    loadImages();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [product.id]);
-
-  const loadImages = async () => {
+  const loadImages = useCallback(async () => {
     try {
       setLoading(true);
       const response = await getProductImages(product.id);
@@ -28,7 +23,11 @@ const ProductImagesManagement = ({ product, onClose }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [product.id]);
+
+  useEffect(() => {
+    loadImages();
+  }, [product.id, loadImages]);
 
   const handleFileSelect = (e) => {
     const file = e.target.files?.[0];
@@ -188,7 +187,7 @@ const ProductImagesManagement = ({ product, onClose }) => {
                     <div className="image-wrapper">
                       <img
                         src={getImageUrl(image.image_url)}
-                        alt={`Product ${index + 1}`}
+                        alt={`${index + 1}`}
                         onError={(e) => {
                           e.target.src = 'https://via.placeholder.com/150?text=Image+Not+Found';
                         }}

@@ -9,11 +9,6 @@ const ViewPhotos = ({ productId, productName, onClose }) => {
   const [error, setError] = useState(null);
   const [deleteInProgress, setDeleteInProgress] = useState(false);
 
-  useEffect(() => {
-    loadImages();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productId]);
-
   const loadImages = useCallback(async () => {
     try {
       setLoading(true);
@@ -31,6 +26,10 @@ const ViewPhotos = ({ productId, productName, onClose }) => {
       setLoading(false);
     }
   }, [productId]);
+
+  useEffect(() => {
+    loadImages();
+  }, [productId, loadImages]);
 
   const getImageUrl = (imageUrl) => {
     if (!imageUrl) return 'https://via.placeholder.com/400?text=No+Image';

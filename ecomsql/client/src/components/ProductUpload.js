@@ -68,6 +68,17 @@ const ProductUpload = () => {
       return;
     }
 
+    // Create preview URLs
+    files.forEach(file => {
+      const reader = new FileReader();
+
+      reader.onload = (event) => {
+        console.log(`Preview loaded for ${file.name}`);
+      };
+
+      reader.readAsDataURL(file);
+    });
+
     setSelectedFiles(files);
     setMessage('');
   };
@@ -81,8 +92,8 @@ const ProductUpload = () => {
       setMessage('');
       setUploadProgress(0);
 
-      if (!productForm.name || !productForm.category_id || !productForm.price) {
-        setMessage('Please fill in all required fields');
+      if (!productForm.name || !productForm.category_id || !productForm.price || !productForm.sku) {
+        setMessage('Please fill in all required fields (Name, Category, Price, and SKU)');
         setLoading(false);
         return;
       }
@@ -95,7 +106,7 @@ const ProductUpload = () => {
         category_id: parseInt(productForm.category_id),
         price: parseFloat(productForm.price),
         stock: parseInt(productForm.stock) || 0,
-        sku: productForm.sku || null
+        sku: productForm.sku
       });
 
       const productId = productResponse.data.id;
@@ -262,13 +273,14 @@ const ProductUpload = () => {
             </div>
 
             <div className="form-group">
-              <label>SKU</label>
+              <label>SKU *</label>
               <input
                 type="text"
                 name="sku"
                 value={productForm.sku}
                 onChange={handleProductChange}
-                placeholder="Product SKU"
+                placeholder="Product SKU (Unique identifier)"
+                required
               />
             </div>
 

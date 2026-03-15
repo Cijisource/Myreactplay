@@ -1,288 +1,35 @@
 import React, { useState, useEffect, useRef } from 'react';
 import QRCode from 'qrcode.react';
-import { createOrder, getLocationFromIP, getShippingRateByCity } from '../api';
+import { createOrder, getAllCities, getShippingZones } from '../api';
 import { getUser } from '../utils/authUtils';
 import './Checkout.css';
 
-// Indian cities with zip codes
-const CITIES_DATA = [
-  // Andhra Pradesh
-  { city: 'Visakhapatnam', zipCode: '530001' },
-  { city: 'Vijayawada', zipCode: '520001' },
-  { city: 'Nellore', zipCode: '524001' },
-  { city: 'Tirupati', zipCode: '517501' },
-  { city: 'Rajahmundry', zipCode: '533101' },
-  { city: 'Guntur', zipCode: '522001' },
-  { city: 'Kakinada', zipCode: '533001' },
-  { city: 'Tenali', zipCode: '522201' },
+// Function to get shipping charge for a city using zone_code from API
+const getShippingCharge = (city, citiesArray, zonesMap) => {
+  // Find the city in the array
+  const cityData = citiesArray.find(c => c.city_name?.toLowerCase() === city.toLowerCase());
   
-  // Arunachal Pradesh
-  { city: 'Itanagar', zipCode: '791111' },
-  { city: 'Naharlagun', zipCode: '792123' },
+  if (!cityData || !cityData.shipping_zone) {
+    // Return null if city not found - indicates data not loaded
+    return null;
+  }
   
-  // Assam
-  { city: 'Guwahati', zipCode: '781001' },
-  { city: 'Dibrugarh', zipCode: '786001' },
-  { city: 'Silchar', zipCode: '788001' },
-  { city: 'Barpeta Road', zipCode: '781301' },
-  { city: 'Nagaon', zipCode: '782001' },
-  
-  // Bihar
-  { city: 'Patna', zipCode: '800001' },
-  { city: 'Gaya', zipCode: '823001' },
-  { city: 'Bhagalpur', zipCode: '812001' },
-  { city: 'Muzaffarpur', zipCode: '842001' },
-  { city: 'Darbhanga', zipCode: '846003' },
-  { city: 'Purnia', zipCode: '854301' },
-  { city: 'Arrah', zipCode: '802133' },
-  
-  // Chhattisgarh
-  { city: 'Raipur', zipCode: '492001' },
-  { city: 'Bilaspur', zipCode: '495001' },
-  { city: 'Durg', zipCode: '491001' },
-  { city: 'Rajnandgaon', zipCode: '491441' },
-  
-  // Goa
-  { city: 'Panaji', zipCode: '403001' },
-  { city: 'Margao', zipCode: '403601' },
-  { city: 'Vasco da Gama', zipCode: '403802' },
-  
-  // Gujarat
-  { city: 'Ahmedabad', zipCode: '380001' },
-  { city: 'Surat', zipCode: '395001' },
-  { city: 'Vadodara', zipCode: '390001' },
-  { city: 'Rajkot', zipCode: '360001' },
-  { city: 'Bhavnagar', zipCode: '364001' },
-  { city: 'Jamnagar', zipCode: '361001' },
-  { city: 'Anand', zipCode: '388001' },
-  { city: 'Gandhinagar', zipCode: '382001' },
-  { city: 'Junagadh', zipCode: '362001' },
-  { city: 'Mehsana', zipCode: '384001' },
-  { city: 'Nadiad', zipCode: '387001' },
-  { city: 'Palanpur', zipCode: '385001' },
-  { city: 'Viramgam', zipCode: '382150' },
-  
-  // Haryana
-  { city: 'Gurgaon', zipCode: '122001' },
-  { city: 'Faridabad', zipCode: '121001' },
-  { city: 'Hisar', zipCode: '125001' },
-  { city: 'Rohtak', zipCode: '124001' },
-  { city: 'Ambala', zipCode: '134001' },
-  { city: 'Yamunanagar', zipCode: '135001' },
-  { city: 'Panipat', zipCode: '132103' },
-  { city: 'Sonipat', zipCode: '131001' },
-  { city: 'Karnal', zipCode: '132001' },
-  { city: 'Kaithal', zipCode: '136027' },
-  
-  // Himachal Pradesh
-  { city: 'Shimla', zipCode: '171001' },
-  { city: 'Manali', zipCode: '175131' },
-  { city: 'Mandi', zipCode: '175001' },
-  { city: 'Solan', zipCode: '173211' },
-  { city: 'Kangra', zipCode: '176001' },
-  
-  // Jharkhand
-  { city: 'Ranchi', zipCode: '834001' },
-  { city: 'Jamshedpur', zipCode: '831001' },
-  { city: 'Dhanbad', zipCode: '826001' },
-  { city: 'Giridih', zipCode: '815301' },
-  { city: 'Deoghar', zipCode: '814112' },
-  
-  // Karnataka
-  { city: 'Bangalore', zipCode: '560001' },
-  { city: 'Mysore', zipCode: '570001' },
-  { city: 'Mangalore', zipCode: '575001' },
-  { city: 'Belgaum', zipCode: '590001' },
-  { city: 'Hubli', zipCode: '580001' },
-  { city: 'Davangere', zipCode: '577001' },
-  { city: 'Hassan', zipCode: '573201' },
-  { city: 'Shimoga', zipCode: '577201' },
-  { city: 'Gulbarga', zipCode: '585101' },
-  { city: 'Kolar', zipCode: '563101' },
-  
-  // Kerala
-  { city: 'Thiruvananthapuram', zipCode: '695001' },
-  { city: 'Kochi', zipCode: '682001' },
-  { city: 'Kozhikode', zipCode: '673001' },
-  { city: 'Thrissur', zipCode: '680001' },
-  { city: 'Kottayam', zipCode: '686001' },
-  { city: 'Kannur', zipCode: '670001' },
-  { city: 'Pathanamthitta', zipCode: '689645' },
-  { city: 'Idukki', zipCode: '685553' },
-  { city: 'Malappuram', zipCode: '676501' },
-  
-  // Madhya Pradesh
-  { city: 'Bhopal', zipCode: '462001' },
-  { city: 'Indore', zipCode: '452001' },
-  { city: 'Gwalior', zipCode: '474001' },
-  { city: 'Jabalpur', zipCode: '482001' },
-  { city: 'Ujjain', zipCode: '456001' },
-  { city: 'Sagar', zipCode: '470001' },
-  { city: 'Dewas', zipCode: '455001' },
-  { city: 'Khargone', zipCode: '451001' },
-  { city: 'Vidisha', zipCode: '464001' },
-  
-  // Maharashtra
-  { city: 'Mumbai', zipCode: '400001' },
-  { city: 'Pune', zipCode: '411001' },
-  { city: 'Nagpur', zipCode: '440001' },
-  { city: 'Nashik', zipCode: '422001' },
-  { city: 'Aurangabad', zipCode: '431001' },
-  { city: 'Solapur', zipCode: '413001' },
-  { city: 'Ahmednagar', zipCode: '414001' },
-  { city: 'Akola', zipCode: '444001' },
-  { city: 'Amravati', zipCode: '444601' },
-  { city: 'Kolhapur', zipCode: '416001' },
-  { city: 'Sangli', zipCode: '416416' },
-  { city: 'Latur', zipCode: '413512' },
-  { city: 'Parbhani', zipCode: '431401' },
-  { city: 'Nanded', zipCode: '431601' },
-  
-  // Manipur
-  { city: 'Imphal', zipCode: '795001' },
-  
-  // Meghalaya
-  { city: 'Shillong', zipCode: '793001' },
-  
-  // Mizoram
-  { city: 'Aizawl', zipCode: '796001' },
-  
-  // Nagaland
-  { city: 'Kohima', zipCode: '797001' },
-  { city: 'Dimapur', zipCode: '797112' },
-  
-  // Odisha
-  { city: 'Bhubaneswar', zipCode: '751001' },
-  { city: 'Cuttack', zipCode: '753001' },
-  { city: 'Rourkela', zipCode: '769001' },
-  { city: 'Balasore', zipCode: '756001' },
-  { city: 'Sambalpur', zipCode: '768001' },
-  
-  // Punjab
-  { city: 'Chandigarh', zipCode: '160001' },
-  { city: 'Ludhiana', zipCode: '141001' },
-  { city: 'Amritsar', zipCode: '143001' },
-  { city: 'Patiala', zipCode: '147001' },
-  { city: 'Jalandhar', zipCode: '144001' },
-  { city: 'Bathinda', zipCode: '151001' },
-  { city: 'Mohali', zipCode: '160059' },
-  { city: 'Firozpur', zipCode: '152001' },
-  { city: 'Gurdaspur', zipCode: '143521' },
-  
-  // Rajasthan
-  { city: 'Jaipur', zipCode: '302001' },
-  { city: 'Jodhpur', zipCode: '342001' },
-  { city: 'Kota', zipCode: '324001' },
-  { city: 'Bikaner', zipCode: '334001' },
-  { city: 'Udaipur', zipCode: '313001' },
-  { city: 'Ajmer', zipCode: '305001' },
-  { city: 'Alwar', zipCode: '301001' },
-  { city: 'Bhilwara', zipCode: '311001' },
-  { city: 'Sikar', zipCode: '332001' },
-  { city: 'Barmer', zipCode: '344001' },
-  { city: 'Tonk', zipCode: '304001' },
-  
-  // Sikkim
-  { city: 'Gangtok', zipCode: '737001' },
-  
-  // Tamil Nadu
-  { city: 'Chennai', zipCode: '600001' },
-  { city: 'Coimbatore', zipCode: '641001' },
-  { city: 'Madurai', zipCode: '625001' },
-  { city: 'Tiruchirappalli', zipCode: '620001' },
-  { city: 'Salem', zipCode: '636001' },
-  { city: 'Tirunelveli', zipCode: '627001' },
-  { city: 'Erode', zipCode: '638001' },
-  { city: 'Thoothukudi', zipCode: '628001' },
-  { city: 'Cuddalore', zipCode: '607001' },
-  { city: 'Kanchipuram', zipCode: '631501' },
-  { city: 'Thanjavur', zipCode: '613001' },
-  { city: 'Palani', zipCode: '624403' },
-  { city: 'Dindigul', zipCode: '624001' },
-  { city: 'Tirupati', zipCode: '517501' },
-  { city: 'Nellore', zipCode: '524001' },
-  { city: 'Vellore', zipCode: '632001' },
-  { city: 'Ranipet', zipCode: '632401' },
-  { city: 'Tiruppur', zipCode: '641602' },
-  { city: 'Pollachi', zipCode: '642001' },
-  { city: 'Sivakasi', zipCode: '625523' },
-  { city: 'Virudunagar', zipCode: '625532' },
-  { city: 'Nagercoil', zipCode: '629001' },
-  { city: 'Kanya Kumari', zipCode: '629702' },
-  { city: 'Karaikudi', zipCode: '630001' },
-  { city: 'Villupuram', zipCode: '605602' },
-  { city: 'Koyambedu', zipCode: '603202' },
-  { city: 'Ariyalur', zipCode: '621001' },
-  { city: 'Oddanchatram', zipCode: '624507' },
-  { city: 'Coonoor', zipCode: '640001' },
-  { city: 'Attur', zipCode: '636103' },
-  { city: 'Nambiyur', zipCode: '638103' },
-  { city: 'Valparai', zipCode: '642113' },
-  { city: 'Chengalpattu', zipCode: '609001' },
-  { city: 'Mahabalipuram', zipCode: '609602' },
-  
-  // Telangana
-  { city: 'Hyderabad', zipCode: '500001' },
-  { city: 'Secunderabad', zipCode: '500003' },
-  { city: 'Warangal', zipCode: '506001' },
-  { city: 'Nizamabad', zipCode: '503001' },
-  { city: 'Khammam', zipCode: '507001' },
-  
-  // Tripura
-  { city: 'Agartala', zipCode: '799001' },
-  
-  // Uttar Pradesh
-  { city: 'Lucknow', zipCode: '226001' },
-  { city: 'Kanpur', zipCode: '208001' },
-  { city: 'Ghaziabad', zipCode: '201001' },
-  { city: 'Varanasi', zipCode: '221001' },
-  { city: 'Meerut', zipCode: '250001' },
-  { city: 'Agra', zipCode: '282001' },
-  { city: 'Allahabad', zipCode: '211001' },
-  { city: 'Mathura', zipCode: '281001' },
-  { city: 'Moradabad', zipCode: '244001' },
-  { city: 'Firozabad', zipCode: '283203' },
-  { city: 'Azamgarh', zipCode: '276001' },
-  { city: 'Bareilly', zipCode: '243001' },
-  { city: 'Muzaffarnagar', zipCode: '251001' },
-  { city: 'Etah', zipCode: '207001' },
-  { city: 'Noida', zipCode: '201301' },
-  { city: 'Greater Noida', zipCode: '201308' },
-  { city: 'Gautam Buddh Nagar', zipCode: '201301' },
-  { city: 'Bulandshahr', zipCode: '203001' },
-  
-  // Uttarakhand
-  { city: 'Dehradun', zipCode: '248001' },
-  { city: 'Haldwani', zipCode: '263139' },
-  { city: 'Nainital', zipCode: '263001' },
-  { city: 'Rudrapur', zipCode: '263153' },
-  
-  // West Bengal
-  { city: 'Kolkata', zipCode: '700001' },
-  { city: 'Darjeeling', zipCode: '734101' },
-  { city: 'Asansol', zipCode: '713301' },
-  { city: 'Siliguri', zipCode: '734001' },
-  { city: 'Durgapur', zipCode: '713201' },
-  { city: 'Bardhaman', zipCode: '713101' },
-  { city: 'Howrah', zipCode: '711101' },
-  
-  // Union Territories
-  { city: 'New Delhi', zipCode: '110001' },
-  { city: 'Srinagar', zipCode: '190001' },
-  { city: 'Jammu', zipCode: '180001' },
-  { city: 'Leh', zipCode: '194101' },
-  { city: 'Puducherry', zipCode: '605001' },
-  { city: 'Yanam', zipCode: '533464' },
-  { city: 'Karaikal', zipCode: '609602' },
-  { city: 'Mahe', zipCode: '673331' },
-  { city: 'Port Blair', zipCode: '744101' },
-  { city: 'Kavaratti', zipCode: '682551' },
-  { city: 'Silvassa', zipCode: '396230' },
-  { city: 'Diu', zipCode: '362520' },
-  { city: 'Daman', zipCode: '396210' }
-];
+  // Get the zone code from city data and return the corresponding charge
+  const zoneCode = cityData.shipping_zone;
+  return zonesMap[zoneCode] || null;
+};
 
-const Checkout = ({ cartItems, subtotalAmount = 0, gstAmount = 0, shippingCharge = 0, discountAmount = 0, discountCode, rewardAmount = 0, rewardCode, totalAmount, onClose, onOrderComplete }) => {
+const Checkout = ({ 
+  cartItems, 
+  subtotalAmount = 0, 
+  gstAmount = 0, 
+  shippingCharge = 0, 
+  totalAmount, 
+  appliedDiscount = null,
+  appliedRewards = null,
+  onClose, 
+  onOrderComplete 
+}) => {
   const sessionId = localStorage.getItem('sessionId');
   const [step, setStep] = useState('details'); // 'details' -> 'payment' -> 'confirmation'
   const [loading, setLoading] = useState(false);
@@ -294,10 +41,15 @@ const Checkout = ({ cartItems, subtotalAmount = 0, gstAmount = 0, shippingCharge
   // Dropdown states
   const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
   const [zipDropdownOpen, setZipDropdownOpen] = useState(false);
-  const [filteredCities, setFilteredCities] = useState(CITIES_DATA);
-  const [filteredZipCodes, setFilteredZipCodes] = useState(CITIES_DATA);
+  const [filteredCities, setFilteredCities] = useState([]);
+  const [filteredZipCodes, setFilteredZipCodes] = useState([]);
   const cityDropdownRef = useRef(null);
   const zipDropdownRef = useRef(null);
+  
+  // Shipping data states
+  const [cities, setCities] = useState([]);
+  const [shippingZones, setShippingZones] = useState([]);
+  const [citiesLoading, setCitiesLoading] = useState(true);
 
   const [formData, setFormData] = useState({
     customerName: '',
@@ -310,6 +62,9 @@ const Checkout = ({ cartItems, subtotalAmount = 0, gstAmount = 0, shippingCharge
 
   const [paymentScreenshot, setPaymentScreenshot] = useState(null);
   const [screenshotPreview, setScreenshotPreview] = useState(null);
+  
+  // State for calculated shipping charge
+  const [calculatedShippingCharge, setCalculatedShippingCharge] = useState(shippingCharge);
 
   // Shipping & Geolocation states
   const [shippingData, setShippingData] = useState({
@@ -324,10 +79,53 @@ const Checkout = ({ cartItems, subtotalAmount = 0, gstAmount = 0, shippingCharge
   // Generate UPI/GPay QR code
   useEffect(() => {
     if (step === 'payment' && selectedPayment === 'gpay') {
-      const upiString = `upi://pay?pa=cijai4u@okicici&pn=VSS-Vault&am=${totalAmount}&tn=VSS-VAULT shop - ${formData.customerName}`;
+      const calculatedTotal = subtotalAmount + gstAmount + calculatedShippingCharge;
+      const upiString = `upi://pay?pa=cijai4u@okicici&pn=VSS-Vault&am=${calculatedTotal}&tn=VSS-VAULT shop - ${formData.customerName}`;
       setQrValue(upiString);
     }
-  }, [step, selectedPayment, totalAmount, formData.customerName]);
+  }, [step, selectedPayment, subtotalAmount, gstAmount, calculatedShippingCharge, formData.customerName]);
+
+  // Load cities from API on component mount
+  useEffect(() => {
+    const loadCitiesData = async () => {
+      try {
+        setCitiesLoading(true);
+        const response = await getAllCities();
+        const citiesArray = response.data || [];
+        setCities(citiesArray);
+        setFilteredCities(citiesArray);
+        setFilteredZipCodes(citiesArray);
+        console.log('[Checkout] Cities loaded from database:', citiesArray);
+      } catch (error) {
+        console.error('[Checkout] Error loading cities:', error);
+        setMessage('Failed to load cities from database');
+        setCities([]);
+        setFilteredCities([]);
+        setFilteredZipCodes([]);
+      } finally {
+        setCitiesLoading(false);
+      }
+    };
+    
+    loadCitiesData();
+  }, []);
+
+  // Load shipping zones from API on component mount
+  useEffect(() => {
+    const loadShippingZones = async () => {
+      try {
+        const response = await getShippingZones();
+        const zones = response.data || [];
+        setShippingZones(zones);
+        console.log('[Checkout] Shipping zones loaded from database:', zones);
+      } catch (error) {
+        console.error('[Checkout] Error loading shipping zones:', error);
+        setShippingZones([]);
+      }
+    };
+    
+    loadShippingZones();
+  }, []);
 
   // Pre-fill form data if user is logged in
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -447,23 +245,43 @@ const Checkout = ({ cartItems, subtotalAmount = 0, gstAmount = 0, shippingCharge
     }));
     setCityDropdownOpen(true);
     
-    const filtered = CITIES_DATA.filter(item =>
-      item.city.toLowerCase().includes(value.toLowerCase())
+    const filtered = cities.filter(item =>
+      item.city_name?.toLowerCase().includes(value.toLowerCase())
     );
     setFilteredCities(filtered);
   };
 
+  // Calculate shipping based on selected city using API zone data
+  const calculateShipping = (city) => {
+    if (shippingZones.length === 0 || cities.length === 0) {
+      // Require both cities and zones from database
+      console.warn('[Checkout] Cannot calculate shipping - cities or zones not loaded from database');
+      return null;
+    }
+    
+    // Build zones map from database zones
+    const zonesMap = {};
+    shippingZones.forEach(zone => {
+      zonesMap[zone.zone_code] = zone.shipping_charge;
+    });
+    
+    const charge = getShippingCharge(city, cities, zonesMap);
+    setCalculatedShippingCharge(charge);
+    return charge;
+  };
+
   // Handle city selection
   const handleCitySelect = (cityData) => {
+    const cityName = cityData.city_name || cityData.city;
+    const zipCode = cityData.zip_code || cityData.zipCode;
     setFormData(prev => ({
       ...prev,
-      city: cityData.city,
-      zipCode: cityData.zipCode
+      city: cityName,
+      zipCode: zipCode
     }));
     setCityDropdownOpen(false);
-    
-    // Fetch shipping rates for selected city
-    fetchShippingRates(cityData.city);
+    // Calculate shipping when city is selected
+    calculateShipping(cityName);
   };
 
   // Handle zip code search and filter
@@ -474,21 +292,25 @@ const Checkout = ({ cartItems, subtotalAmount = 0, gstAmount = 0, shippingCharge
     }));
     setZipDropdownOpen(true);
     
-    const filtered = CITIES_DATA.filter(item =>
-      item.zipCode.includes(value) || 
-      item.city.toLowerCase().includes(value.toLowerCase())
+    const filtered = cities.filter(item =>
+      item.zip_code?.includes(value) || 
+      item.city_name?.toLowerCase().includes(value.toLowerCase())
     );
     setFilteredZipCodes(filtered);
   };
 
   // Handle zip code selection
   const handleZipSelect = (cityData) => {
+    const cityName = cityData.city_name || cityData.city;
+    const zipCode = cityData.zip_code || cityData.zipCode;
     setFormData(prev => ({
       ...prev,
-      city: cityData.city,
-      zipCode: cityData.zipCode
+      city: cityName,
+      zipCode: zipCode
     }));
     setZipDropdownOpen(false);
+    // Calculate shipping when city is selected via zip code
+    calculateShipping(cityName);
   };
 
   // Handle payment screenshot upload
@@ -610,11 +432,8 @@ const Checkout = ({ cartItems, subtotalAmount = 0, gstAmount = 0, shippingCharge
       // Normalize email for consistency
       const normalizedEmail = formData.customerEmail.trim().toLowerCase();
 
-      // Calculate final total with real shipping charges
-      const realShippingCharge = shippingData.charge || 0;
-      const discountAmt = discountAmount || 0;
-      const rewardAmt = rewardAmount || 0;
-      const realTotalAmount = subtotalAmount + gstAmount + realShippingCharge - discountAmt - rewardAmt;
+      // Calculate total with the shipping charge determined during address entry
+      const calculatedTotal = subtotalAmount + gstAmount + calculatedShippingCharge;
 
       // Create order
       const response = await createOrder({
@@ -630,15 +449,12 @@ const Checkout = ({ cartItems, subtotalAmount = 0, gstAmount = 0, shippingCharge
         })),
         subtotalAmount,
         gstAmount,
-        shippingCharge: realShippingCharge,
-        discountAmount,
-        discountCode,
-        rewardAmount,
-        rewardCode,
-        totalAmount: realTotalAmount,
+        shippingCharge: calculatedShippingCharge,
+        totalAmount: calculatedTotal,
         paymentMethod: selectedPayment,
         paymentScreenshot: paymentScreenshotBase64,
-        orderDate: new Date().toISOString()
+        orderDate: new Date().toISOString(),
+        appliedRewards: appliedRewards || null
       });
 
       setOrderId(response.data?.id || response.data?.orderId || 'ORD-' + Date.now());
@@ -704,23 +520,28 @@ const Checkout = ({ cartItems, subtotalAmount = 0, gstAmount = 0, shippingCharge
                     <span>₹{gstAmount.toFixed(2)}</span>
                   </div>
                   <div className="breakdown-row">
-                    <span>Shipping ({shippingData.zone}):</span>
-                    <span>
-                      {shippingLoading ? (
-                        'Calculating...'
-                      ) : shippingData.charge === 0 ? (
-                        <span style={{ color: '#28a745' }}>Free</span>
-                      ) : (
-                        `₹${shippingData.charge.toFixed(2)}`
-                      )}
-                    </span>
+                    <span>Shipping:</span>
+                    <span>{calculatedShippingCharge === 0 ? <span style={{ color: '#28a745' }}>Free</span> : <span style={{ color: '#FFC107' }}>₹{calculatedShippingCharge.toFixed(2)}</span>}</span>
                   </div>
+                  
+                  {/* Applied Discounts in Summary Table */}
+                  {appliedDiscount && (
+                    <div className="breakdown-row discount-breakdown-row">
+                      <span style={{ color: '#FFC107', fontWeight: '600' }}>{appliedDiscount.code || 'Coupon Discount'}:</span>
+                      <span style={{ color: '#FFC107', fontWeight: '600' }}>-₹{appliedDiscount.amount.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {appliedRewards && (
+                    <div className="breakdown-row discount-breakdown-row">
+                      <span style={{ color: '#FFC107', fontWeight: '600' }}>Loyalty Points ({appliedRewards.points}):</span>
+                      <span style={{ color: '#FFC107', fontWeight: '600' }}>-₹{appliedRewards.discountAmount.toFixed(2)}</span>
+                    </div>
+                  )}
+                  
                   <div className="breakdown-divider"></div>
                   <div className="breakdown-row total-row">
                     <h4>Total Amount</h4>
-                    <p className="total-price">
-                      ₹{(subtotalAmount + gstAmount + shippingData.charge - (discountAmount || 0) - (rewardAmount || 0)).toFixed(2)}
-                    </p>
+                    <p className="total-price">₹{(subtotalAmount + gstAmount + calculatedShippingCharge - (appliedDiscount?.amount || 0) - (appliedRewards?.discountAmount || 0)).toFixed(2)}</p>
                   </div>
                 </div>
               </div>
@@ -821,8 +642,10 @@ const Checkout = ({ cartItems, subtotalAmount = 0, gstAmount = 0, shippingCharge
                       onFocus={() => setCityDropdownOpen(true)}
                       placeholder="Search and select city"
                       className="dropdown-input"
+                      disabled={citiesLoading}
                       required
                     />
+                    {citiesLoading && <div className="loading-message">Loading cities...</div>}
                     {cityDropdownOpen && filteredCities.length > 0 && (
                       <div className="dropdown-menu">
                         {filteredCities.map((item, index) => (
@@ -831,8 +654,8 @@ const Checkout = ({ cartItems, subtotalAmount = 0, gstAmount = 0, shippingCharge
                             className="dropdown-item"
                             onClick={() => handleCitySelect(item)}
                           >
-                            <span className="city-name">{item.city}</span>
-                            <span className="zip-hint">{item.zipCode}</span>
+                            <span className="city-name">{item.city_name || item.city}</span>
+                            <span className="zip-hint">{item.zip_code || item.zipCode}</span>
                           </div>
                         ))}
                       </div>
@@ -854,6 +677,7 @@ const Checkout = ({ cartItems, subtotalAmount = 0, gstAmount = 0, shippingCharge
                       onFocus={() => setZipDropdownOpen(true)}
                       placeholder="Search and select zip code"
                       className="dropdown-input"
+                      disabled={citiesLoading}
                       required
                     />
                     {zipDropdownOpen && filteredZipCodes.length > 0 && (
@@ -864,8 +688,8 @@ const Checkout = ({ cartItems, subtotalAmount = 0, gstAmount = 0, shippingCharge
                             className="dropdown-item"
                             onClick={() => handleZipSelect(item)}
                           >
-                            <span className="zip-code">{item.zipCode}</span>
-                            <span className="city-hint">{item.city}</span>
+                            <span className="zip-code">{item.zip_code || item.zipCode}</span>
+                            <span className="city-hint">{item.city_name || item.city}</span>
                           </div>
                         ))}
                       </div>
@@ -878,6 +702,17 @@ const Checkout = ({ cartItems, subtotalAmount = 0, gstAmount = 0, shippingCharge
                   </div>
                 </div>
               </div>
+
+              {/* Shipping Cost Display */}
+              {formData.city && (
+                <div className="shipping-cost-display">
+                  <div className="shipping-cost-info">
+                    <span className="shipping-label">🚚 Shipping Cost for {formData.city}:</span>
+                    <span className="shipping-cost">₹{calculatedShippingCharge}</span>
+                  </div>
+                  <p className="shipping-note">Shipping charge is calculated based on your delivery location</p>
+                </div>
+              )}
 
               {message && <div className="error-message">{message}</div>}
 
@@ -994,7 +829,7 @@ const Checkout = ({ cartItems, subtotalAmount = 0, gstAmount = 0, shippingCharge
 
             <div className="payment-summary">
               <h4>Order Total</h4>
-              <p className="total-amount">₹{totalAmount.toFixed(2)}</p>
+              <p className="total-amount">₹{(subtotalAmount + gstAmount + calculatedShippingCharge).toFixed(2)}</p>
             </div>
 
             {/* Payment Screenshot Upload */}
@@ -1074,7 +909,7 @@ const Checkout = ({ cartItems, subtotalAmount = 0, gstAmount = 0, shippingCharge
               Your order has been placed successfully. You will receive a confirmation email shortly.
             </p>
             <div className="confirmation-details">
-              <p><strong>Total Paid:</strong> ₹{totalAmount.toFixed(2)}</p>
+              <p><strong>Total Paid:</strong> ₹{(subtotalAmount + gstAmount + calculatedShippingCharge).toFixed(2)}</p>
               <p><strong>Payment Method:</strong> {selectedPayment === 'gpay' ? 'Google Pay/UPI' : selectedPayment}</p>
             </div>
             <button

@@ -1,13 +1,25 @@
 const express = require('express');
 const { getConnection, sql } = require('../config');
-const { verifyToken, checkRole } = require('../middleware/auth');
+const { verifyToken, checkRole, optionalAuth } = require('../middleware/auth');
 const router = express.Router();
 
 // Get all products with category info and first image
-router.get('/', async (req, res) => {
+router.get('/', optionalAuth, async (req, res) => {
   try {
     const { categoryId, search, sellerOnly, page = 1, limit = 20 } = req.query;
     const pool = await getConnection();
+    
+    console.log('[PRODUCTS] ========== REQUEST RECEIVED ==========');
+    console.log('[PRODUCTS] Query params:', { categoryId, search, sellerOnly, page, limit });
+    console.log('[PRODUCTS] Auth status:', req.user ? 'AUTHENTICATED' : 'NOT AUTHENTICATED');
+    if (req.user) {
+      console.log('[PRODUCTS] User details:', { 
+        userId: req.user.userId, 
+        userName: req.user.userName,
+        roleType: req.user.roleType 
+      });
+    }
+    console.log('[PRODUCTS] Authorization header:', req.headers.authorization ? 'PRESENT' : 'MISSING');
     
     const pageNum = Math.max(1, parseInt(page) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(limit) || 20));
@@ -28,6 +40,10 @@ router.get('/', async (req, res) => {
     if (sellerOnly === 'true' && req.user?.userId) {
       query += ` AND p.seller_id = @sellerId`;
       request.input('sellerId', sql.Int, req.user.userId);
+      console.log('[PRODUCTS] ✓ FILTERING BY SELLER - seller_id:', req.user.userId);
+    } else if (sellerOnly === 'true') {
+      console.log('[PRODUCTS] ✗ CANNOT FILTER BY SELLER - sellerOnly=true but req.user not set');
+      console.log('[PRODUCTS]   Reason:', req.user ? 'req.user missing userId' : 'req.user is null/undefined');
     }
     
     if (categoryId) {
@@ -146,8 +162,17 @@ router.post('/', verifyToken, checkRole(['Seller', 'Administrator']), async (req
     const { name, description, category_id, price, stock, sku } = req.body;
     const sellerId = req.user.userId;
     
-    if (!name || !category_id || !price) {
-      return res.status(400).json({ error: 'Name, category_id, and price are required' });
+    console.log('[CREATE_PRODUCT] Received request:', {
+      name,
+      category_id,
+      price,
+      stock,
+      sku,
+      sellerId
+    });
+    
+    if (!name || !category_id || !price || !sku) {
+      return res.status(400).json({ error: 'Name, category_id, price, and SKU are required' });
     }
 
     const pool = await getConnection();
@@ -166,10 +191,20 @@ router.post('/', verifyToken, checkRole(['Seller', 'Administrator']), async (req
         VALUES (@name, @description, @category_id, @price, @stock, @sku, @seller_id)
       `);
     
+    console.log('[CREATE_PRODUCT] Product created successfully:', result.recordset[0]);
     res.status(201).json(result.recordset[0]);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: error.message });
+    console.error('[CREATE_PRODUCT] Error:', {
+      message: error.message,
+      code: error.code,
+      number: error.number,
+      lineNumber: error.lineNumber
+    });
+    res.status(500).json({ 
+      error: error.message,
+      code: error.code,
+      details: 'Check server logs for full error details'
+    });
   }
 });
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { getProductById, getProducts, addToCart, API_BASE_URL } from '../api';
 import { isAuthenticated } from '../utils/authUtils';
 import './ProductDetail.css';
@@ -15,12 +15,7 @@ const ProductDetail = ({ productId, onBackClick, isAuthenticated: isAuthenticate
   // Use prop if provided, otherwise use utility function
   const authenticated = isAuthenticatedProp !== null ? isAuthenticatedProp : isAuthenticated();
 
-  useEffect(() => {
-    loadProductDetails();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productId]);
-
-  const loadProductDetails = async () => {
+  const loadProductDetails = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
@@ -60,7 +55,11 @@ const ProductDetail = ({ productId, onBackClick, isAuthenticated: isAuthenticate
     } finally {
       setLoading(false);
     }
-  };
+  }, [productId]);
+
+  useEffect(() => {
+    loadProductDetails();
+  }, [productId, loadProductDetails]);
 
   const handleAddToCart = async () => {
     try {
