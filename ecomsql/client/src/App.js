@@ -14,8 +14,8 @@ import AdminPanel from './components/AdminPanel';
 import Login from './components/Login';
 import Register from './components/Register';
 import UserProfile from './components/UserProfile';
-import { ProtectedRoute, RoleBasedRoute } from './components/ProtectedRoute';
-import { getUser, hasRole, isAuthenticated } from './utils/authUtils';
+import { RoleBasedRoute } from './components/ProtectedRoute';
+import { getUser, hasRole, hasAnyRole, isAuthenticated } from './utils/authUtils';
 import { getCartItems, getCategories } from './api';
 import { useDebounce } from './utils/useDebounce';
 import './App.css';
@@ -116,11 +116,6 @@ function MainApp() {
     updateCartCount();
     loadCategories();
   }, [updateCartCount, loadCategories]);
-
-  // Update cart count after adding a product
-  const handleProductAdded = () => {
-    updateCartCount();
-  };
 
   const handleLogout = () => {
     localStorage.removeItem('authToken');
@@ -283,7 +278,7 @@ function MainApp() {
         return <OrderManagement />;
       case 'admin':
         return (
-          <RoleBasedRoute requiredRole="Administrator">
+          <RoleBasedRoute requiredRole={['Administrator', 'Seller']}>
             <AdminPanel />
           </RoleBasedRoute>
         );
@@ -386,7 +381,7 @@ function MainApp() {
                   </button>
                 </>
               )}
-              {user && hasRole('Administrator') && (
+              {user && hasAnyRole(['Administrator', 'Seller']) && (
                 <button
                   className={`nav-link admin-link ${currentPage === 'admin' ? 'active' : ''}`}
                   onClick={() => setCurrentPage('admin')}

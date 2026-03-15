@@ -150,6 +150,13 @@
   color: rgba(255, 255, 255, 0.9);
 }
 
+.breakdown-row.discount-breakdown-row {
+  padding: 6px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  margin-top: 4px;
+  padding-top: 8px;
+}
+
 .breakdown-row.total-row {
   margin-top: 8px;
   padding-top: 8px;
@@ -286,6 +293,41 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 15px;
+}
+
+/* Shipping Cost Display */
+.shipping-cost-display {
+  background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%);
+  border: 2px solid #4caf50;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 20px;
+}
+
+.shipping-cost-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.shipping-label {
+  font-weight: 600;
+  color: #2e7d32;
+  font-size: 14px;
+}
+
+.shipping-cost {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1b5e20;
+}
+
+.shipping-note {
+  font-size: 12px;
+  color: #558b2f;
+  margin: 0;
+  font-style: italic;
 }
 
 /* Searchable Dropdown */

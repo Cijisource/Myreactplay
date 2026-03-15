@@ -8,28 +8,43 @@ const ProductManagement = ({ onEditProduct, onManageImages }) => {
   const [message, setMessage] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
-  const loadSellerProductsMemo = useCallback(() => {
-    loadSellerProducts();
-  }, []);
-
-  useEffect(() => {
-    loadSellerProductsMemo();
-  }, [loadSellerProductsMemo]);
-
-  const loadSellerProducts = async () => {
+  const loadSellerProducts = useCallback(async () => {
     try {
+      console.log('[ProductManagement] Loading seller products...');
       setLoading(true);
       const response = await getProducts({ sellerOnly: 'true' });
-      setProducts(Array.isArray(response.data) ? response.data : []);
+      console.log('[ProductManagement] API response:', response);
+      console.log('[ProductManagement] response.data structure:', {
+        type: typeof response.data,
+        isArray: Array.isArray(response.data),
+        hasDataProperty: response.data?.data !== undefined,
+        dataLength: response.data?.data?.length
+      });
+      
+      // Handle both response.data as array OR response.data.data as array
+      const productsArray = Array.isArray(response.data) 
+        ? response.data 
+        : Array.isArray(response.data?.data) 
+          ? response.data.data 
+          : [];
+      
+      setProducts(productsArray);
+      console.log('[ProductManagement] Products loaded and set:', productsArray.length, 'items');
+      console.log('[ProductManagement] First product:', productsArray[0]);
       setMessage('');
     } catch (err) {
-      setMessage('Error loading your products');
-      console.error(err);
+      console.error('[ProductManagement] Error loading products:', err);
+      setMessage('Error loading your products: ' + (err.message || 'Unknown error'));
       setProducts([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    console.log('[ProductManagement] Component mounted, loading products');
+    loadSellerProducts();
+  }, [loadSellerProducts]);
 
   const handleDeleteProduct = async (productId) => {
     try {
