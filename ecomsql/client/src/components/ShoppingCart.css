@@ -161,6 +161,13 @@
   color: #333;
 }
 
+.summary-row.discount-row {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #FFE082;
+  color: #FFC107;
+}
+
 .summary-row.total-row {
   margin-top: 10px;
   color: #333;
@@ -349,6 +356,70 @@
   padding: 60px 20px;
   color: #999;
   font-size: 16px;
+}
+
+/* Rewards Points Banner */
+.rewards-points-banner {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.rewards-header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 12px;
+}
+
+.rewards-icon {
+  font-size: 32px;
+}
+
+.rewards-info {
+  flex: 1;
+}
+
+.rewards-label {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.9;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.rewards-value {
+  margin: 4px 0 0 0;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.rewards-conversion {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.rewards-conversion p {
+  margin: 0;
+}
+
+.rewards-conversion strong {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.rewards-max {
+  margin-top: 6px;
+  font-size: 13px !important;
+  opacity: 0.9;
 }
 
 @media (max-width: 1200px) {

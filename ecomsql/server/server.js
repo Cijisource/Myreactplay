@@ -12,6 +12,8 @@ const productRoutes = require('./routes/products');
 const productImageRoutes = require('./routes/productImages');
 const cartRoutes = require('./routes/cart');
 const orderRoutes = require('./routes/orders');
+const shippingRoutes = require('./routes/shipping');
+const discountsRoutes = require('./routes/discounts');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -52,6 +54,8 @@ app.use('/api/products', productRoutes);
 app.use('/api/product-images', productImageRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/shipping', shippingRoutes);
+app.use('/api/discounts', discountsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

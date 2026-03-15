@@ -92,6 +92,84 @@
   font-size: 16px;
 }
 
+.shipping-management {
+  background: white;
+  padding: 30px;
+  border-radius: 8px;
+}
+
+.shipping-management h2 {
+  margin: 0 0 25px 0;
+  font-size: 22px;
+  color: #333;
+}
+
+.shipping-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.discounts-management {
+  background: white;
+  padding: 30px;
+  border-radius: 8px;
+}
+
+.discounts-management h2 {
+  margin: 0 0 25px 0;
+  font-size: 22px;
+  color: #333;
+}
+
+.rewards-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.management-btn {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  padding: 20px;
+  background: #f9f9f9;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s;
+  text-align: left;
+}
+
+.management-btn:hover {
+  border-color: #667eea;
+  background: #f0f4ff;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+}
+
+.management-btn .icon {
+  font-size: 32px;
+  line-height: 1;
+}
+
+.management-btn .text {
+  flex: 1;
+}
+
+.management-btn strong {
+  display: block;
+  font-size: 15px;
+  color: #333;
+  margin-bottom: 6px;
+}
+
+.management-btn p {
+  margin: 0;
+  font-size: 13px;
+  color: #999;
+  line-height: 1.4;
+}
+
 @media (max-width: 768px) {
   .admin-header {
     padding: 20px 15px;

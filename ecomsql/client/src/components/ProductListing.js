@@ -189,7 +189,7 @@ const ProductListing = ({ searchQuery: externalSearchQuery, setSearchQuery: exte
   useEffect(() => {
     console.log('[ProductListing] Category or search changed - loading products');
     loadProducts();
-  }, [selectedCategory, searchQuery]);
+  }, [selectedCategory, searchQuery, loadProducts]);
 
   const handleAddToCart = useCallback(async (product) => {
     // Check if user is authenticated

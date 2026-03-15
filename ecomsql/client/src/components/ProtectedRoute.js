@@ -10,14 +10,23 @@ export const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-// Component to protect routes that require specific role
+// Component to protect routes that require specific role(s)
 export const RoleBasedRoute = ({ children, requiredRole }) => {
   if (!isAuthenticated()) {
     return <Navigate to="/login" replace />;
   }
 
-  if (!hasRole(requiredRole)) {
+  // Support both single role (string) and multiple roles (array)
+  const isAuthorized = Array.isArray(requiredRole) 
+    ? hasAnyRole(requiredRole) 
+    : hasRole(requiredRole);
+
+  if (!isAuthorized) {
     const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+    const roleDisplay = Array.isArray(requiredRole) 
+      ? requiredRole.join(' or ') 
+      : requiredRole;
+    
     return (
       <div style={{
         display: 'flex',
@@ -31,7 +40,7 @@ export const RoleBasedRoute = ({ children, requiredRole }) => {
       }}>
         <h2 style={{ color: '#d32f2f', marginBottom: '10px' }}>Access Restricted</h2>
         <p style={{ color: '#666', marginBottom: '5px' }}>
-          You need <strong>{requiredRole}</strong> role to access this page.
+          You need <strong>{roleDisplay}</strong> role to access this page.
         </p>
         <p style={{ color: '#999', fontSize: '14px', marginBottom: '20px' }}>
           Your current role: <strong>{currentUser.roleType || 'None'}</strong>

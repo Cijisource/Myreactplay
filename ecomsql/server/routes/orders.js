@@ -126,7 +126,7 @@ router.get('/:id', async (req, res) => {
 // Create order from cart
 router.post('/', async (req, res) => {
   try {
-    const { sessionId, customerEmail, customerName, shippingAddress, items, subtotalAmount, gstAmount, shippingCharge, totalAmount, paymentScreenshot, orderDate } = req.body;
+    const { sessionId, customerEmail, customerName, shippingAddress, items, subtotalAmount, gstAmount, shippingCharge, totalAmount, paymentScreenshot, orderDate, appliedRewards } = req.body;
     
     console.log('[ORDERS Post] Received order creation request:', {
       customerEmail: customerEmail,
@@ -135,7 +135,8 @@ router.post('/', async (req, res) => {
       subtotalAmount: subtotalAmount,
       gstAmount: gstAmount,
       shippingCharge: shippingCharge,
-      totalAmount: totalAmount
+      totalAmount: totalAmount,
+      rewardPoints: appliedRewards?.points || 0
     });
     
     if (!customerEmail || !customerName || !items || items.length === 0) {
@@ -223,6 +224,148 @@ router.post('/', async (req, res) => {
 
       await transaction.commit();
       console.log('[ORDERS Post] Order transaction committed successfully');
+      
+      const orderEmail = orderResult.recordset[0].customer_email;
+      
+      // Update customer rewards after order is successfully created
+      try {
+        console.log('[ORDERS Post] Updating customer rewards for:', orderEmail, 'with amount:', totalAmount);
+        
+        // Calculate points: 1 point per ₹10 spent
+        const pointsEarned = Math.floor(totalAmount / 10);
+
+        // Get current customer rewards
+        const rewardsResult = await pool.request()
+          .input('email', sql.NVarChar, orderEmail)
+          .query('SELECT * FROM customer_rewards WHERE LOWER(customer_email) = LOWER(@email)');
+
+        let currentRewards = rewardsResult.recordset[0];
+
+        if (!currentRewards) {
+          // Initialize new customer rewards
+          console.log('[ORDERS Post] No existing rewards found, creating new record for:', orderEmail);
+          await pool.request()
+            .input('email', sql.NVarChar, orderEmail)
+            .query(`
+              INSERT INTO customer_rewards (customer_email, total_points, available_points, total_spent, order_count)
+              VALUES (@email, 0, 0, 0, 0)
+            `);
+          currentRewards = { total_points: 0, available_points: 0, redeemed_points: 0, total_spent: 0, order_count: 0 };
+        }
+
+        // Update customer rewards with new totals
+        const newTotalPoints = (currentRewards.total_points || 0) + pointsEarned;
+        const newAvailablePoints = (currentRewards.available_points || 0) + pointsEarned;
+        const newTotalSpent = (currentRewards.total_spent || 0) + totalAmount;
+        const newOrderCount = (currentRewards.order_count || 0) + 1;
+
+        // Determine loyalty tier based on total_spent
+        let loyaltyTier = 'Bronze';
+        if (newTotalSpent >= 50000) loyaltyTier = 'Diamond';
+        else if (newTotalSpent >= 25000) loyaltyTier = 'Platinum';
+        else if (newTotalSpent >= 10000) loyaltyTier = 'Gold';
+        else if (newTotalSpent >= 5000) loyaltyTier = 'Silver';
+
+        console.log('[ORDERS Post] Updating rewards:', {
+          email: orderEmail,
+          pointsEarned: pointsEarned,
+          newTotalPoints: newTotalPoints,
+          newTotalSpent: newTotalSpent,
+          newOrderCount: newOrderCount,
+          tier: loyaltyTier
+        });
+
+        await pool.request()
+          .input('email', sql.NVarChar, orderEmail)
+          .input('totalPoints', sql.Int, newTotalPoints)
+          .input('availablePoints', sql.Int, newAvailablePoints)
+          .input('totalSpent', sql.Decimal(10, 2), newTotalSpent)
+          .input('orderCount', sql.Int, newOrderCount)
+          .input('tier', sql.NVarChar, loyaltyTier)
+          .query(`
+            UPDATE customer_rewards
+            SET total_points = @totalPoints,
+                available_points = @availablePoints,
+                total_spent = @totalSpent,
+                order_count = @orderCount,
+                loyalty_tier = @tier,
+                last_order_date = GETDATE()
+            WHERE LOWER(customer_email) = LOWER(@email)
+          `);
+
+        // Record transaction
+        await pool.request()
+          .input('email', sql.NVarChar, orderEmail)
+          .input('type', sql.NVarChar, 'earned')
+          .input('points', sql.Int, pointsEarned)
+          .input('orderId', sql.Int, orderId)
+          .input('description', sql.NVarChar, `Earned ${pointsEarned} points from order #${orderResult.recordset[0].order_number}`)
+          .query(`
+            INSERT INTO reward_transactions (customer_email, transaction_type, points_amount, order_id, description)
+            VALUES (@email, @type, @points, @orderId, @description)
+          `);
+
+        // Handle reward points redemption if customer redeemed points for this order
+        if (appliedRewards && appliedRewards.points > 0) {
+          console.log('[ORDERS Post] Processing reward points redemption:', {
+            email: orderEmail,
+            pointsRedeemed: appliedRewards.points,
+            discountAmount: appliedRewards.discountAmount
+          });
+
+          // Get current rewards again to ensure we have latest data
+          const currentRewardsCheck = await pool.request()
+            .input('email', sql.NVarChar, orderEmail)
+            .query('SELECT available_points, redeemed_points FROM customer_rewards WHERE LOWER(customer_email) = LOWER(@email)');
+
+          if (currentRewardsCheck.recordset.length > 0) {
+            const currentCheck = currentRewardsCheck.recordset[0];
+            const availableAfterEarning = (currentCheck.available_points || 0);
+            const redeemCount = Math.min(appliedRewards.points, availableAfterEarning);
+
+            if (redeemCount > 0) {
+              const newAvailableAfterRedeem = availableAfterEarning - redeemCount;
+              const newRedeemedTotal = (currentCheck.redeemed_points || 0) + redeemCount;
+
+              // Update available points and redeemed points
+              await pool.request()
+                .input('email', sql.NVarChar, orderEmail)
+                .input('availablePoints', sql.Int, newAvailableAfterRedeem)
+                .input('redeemedPoints', sql.Int, newRedeemedTotal)
+                .query(`
+                  UPDATE customer_rewards
+                  SET available_points = @availablePoints,
+                      redeemed_points = @redeemedPoints
+                  WHERE LOWER(customer_email) = LOWER(@email)
+                `);
+
+              // Record redemption transaction
+              await pool.request()
+                .input('email', sql.NVarChar, orderEmail)
+                .input('type', sql.NVarChar, 'redeemed')
+                .input('points', sql.Int, redeemCount)
+                .input('orderId', sql.Int, orderId)
+                .input('description', sql.NVarChar, `Redeemed ${redeemCount} points for ₹${appliedRewards.discountAmount || redeemCount} discount on order #${orderResult.recordset[0].order_number}`)
+                .query(`
+                  INSERT INTO reward_transactions (customer_email, transaction_type, points_amount, order_id, description)
+                  VALUES (@email, @type, @points, @orderId, @description)
+                `);
+
+              console.log('[ORDERS Post] Reward points redeemed successfully:', {
+                email: orderEmail,
+                pointsRedeemed: redeemCount,
+                newAvailable: newAvailableAfterRedeem
+              });
+            }
+          }
+        }
+
+        console.log('[ORDERS Post] Customer rewards updated successfully');
+      } catch (rewardError) {
+        console.error('[ORDERS Post] Error updating rewards (non-blocking):', rewardError.message);
+        // Don't fail the order creation if rewards fail to update
+      }
+      
       console.log('[ORDERS Post] Returning order:', {
         id: orderResult.recordset[0].id,
         order_number: orderResult.recordset[0].order_number,
