@@ -144,6 +144,142 @@
   color: #721c24;
 }
 
+/* Discount Column Styles */
+.discount-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.coupon-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #e8f5e9;
+  color: #2e7d32;
+  padding: 6px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.discount-amount-tag {
+  display: inline-flex;
+  align-items: center;
+  background: #fff3e0;
+  color: #e65100;
+  padding: 4px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.no-discount {
+  color: #ccc;
+  font-weight: 600;
+}
+
+/* Discount Summary Section */
+.discount-summary-section {
+  background: linear-gradient(135deg, #fff8e1 0%, #fffde7 100%);
+  padding: 20px;
+  border-radius: 8px;
+  border-left: 5px solid #FFC107;
+  margin-bottom: 25px;
+  box-shadow: 0 2px 8px rgba(255, 193, 7, 0.1);
+}
+
+.discount-summary-section h4 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #333;
+  font-weight: 700;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.discount-summary-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.summary-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #ffe082;
+}
+
+.summary-item.highlight {
+  background: linear-gradient(135deg, #c8e6c9 0%, #e8f5e9 100%);
+  border-color: #66bb6a;
+  font-weight: 600;
+}
+
+.summary-label {
+  color: #555;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.summary-value {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: right;
+}
+
+.coupon-code-badge {
+  background: #e8f5e9;
+  color: #2e7d32;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-family: monospace;
+  font-weight: 700;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.discount-savings {
+  color: #FF9900;
+  font-weight: 700;
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+.discount-count-badge {
+  background: #f3e5f5;
+  color: #6a1b9a;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.total-discount-amount {
+  color: #FF9900;
+  font-weight: 700;
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+.savings-highlight {
+  color: #22c55e;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+
 .view-btn {
   padding: 8px 16px;
   background: #FF9900;
@@ -439,6 +575,227 @@
   color: #856404;
 }
 
+/* Discount and Rewards Information Section */
+.discount-info {
+  background: #fef3e2;
+  padding: 18px;
+  border-radius: 6px;
+  border: 1px solid #f0d5a8;
+  margin-bottom: 25px;
+}
+
+.discount-info h4 {
+  margin-top: 0;
+  margin-bottom: 12px;
+  color: #223;
+  font-weight: 700;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.discount-code {
+  background: white;
+  padding: 8px 12px;
+  border-radius: 4px;
+  border: 1px solid #f0d5a8;
+  font-family: monospace;
+  font-weight: 600;
+  color: #FF9900;
+  font-size: 14px;
+}
+
+/* Discounts and Rewards Details */
+.discounts-details {
+  background: white;
+  padding: 25px;
+  border-radius: 6px;
+  border: 1px solid #f0f0f0;
+  margin-bottom: 25px;
+}
+
+.discounts-details h4 {
+  margin-top: 0;
+  margin-bottom: 18px;
+  color: #222;
+  font-weight: 700;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.discounts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.discount-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: #f8f8f8;
+  border-radius: 5px;
+  border-left: 4px solid #FF9900;
+}
+
+.discount-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.discount-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.coupon-badge {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.rewards-badge {
+  background: #f3e5f5;
+  color: #6a1b9a;
+}
+
+.discount-amount {
+  color: #FF9900;
+  font-weight: 700;
+  font-size: 16px;
+  white-space: nowrap;
+  margin-left: 10px;
+}
+
+/* Order Summary Section */
+.order-summary {
+  background: white;
+  padding: 25px;
+  border-radius: 6px;
+  border: 1px solid #f0f0f0;
+  margin-bottom: 25px;
+}
+
+.order-summary h4 {
+  margin-top: 0;
+  margin-bottom: 18px;
+  color: #222;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.summary-items {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 14px;
+  color: #666;
+}
+
+.summary-row label {
+  font-weight: 500;
+  color: #333;
+}
+
+.summary-row .amount {
+  text-align: right;
+  color: #222;
+  font-weight: 600;
+}
+
+.summary-row.discount-row {
+  color: #22c55e;
+  font-weight: 600;
+}
+
+.summary-row.discount-row .amount {
+  color: #22c55e;
+  font-weight: 700;
+}
+
+.summary-row.total-row {
+  border-bottom: none;
+  padding-top: 16px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #222;
+}
+
+.summary-row.total-row .amount {
+  color: #FF9900;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.gst-waived {
+  background: #f0f7ff;
+  border: 1px solid #b3d9ff;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #084298;
+  margin-left: 8px;
+  font-weight: 600;
+}
+
+/* Coupon and Rewards Applied Rows in Order Summary */
+.summary-row.coupon-applied-row {
+  background: #f0f7ff;
+  border-left: 3px solid #2e7d32;
+  padding: 12px;
+  border-radius: 4px;
+  gap: 12px;
+}
+
+.coupon-label {
+  color: #1976d2;
+  font-weight: 600;
+  display: inline-block;
+  margin-right: 8px;
+}
+
+.coupon-code {
+  background: #e8f5e9;
+  color: #2e7d32;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-weight: 700;
+  font-size: 13px;
+  margin-right: 12px;
+}
+
+.summary-row.rewards-applied-row {
+  background: #f3e5f5;
+  border-left: 3px solid #9c27b0;
+  padding: 12px;
+  border-radius: 4px;
+}
+
+.rewards-label {
+  color: #6a1b9a;
+  font-weight: 600;
+}
+
 @media (max-width: 1200px) {
   .order-management {
     padding: 20px 15px;
@@ -451,6 +808,68 @@
   .orders-table th,
   .orders-table td {
     padding: 12px;
+  }
+
+  .coupon-tag {
+    font-size: 11px;
+    padding: 5px 8px;
+  }
+
+  .discount-amount-tag {
+    font-size: 10px;
+    padding: 3px 6px;
+  }
+
+  .discount-summary-section {
+    padding: 18px;
+    margin-bottom: 20px;
+  }
+
+  .discount-summary-section h4 {
+    font-size: 15px;
+    margin-bottom: 12px;
+  }
+
+  .summary-item {
+    padding: 10px;
+    font-size: 13px;
+  }
+
+  .coupon-code-badge {
+    font-size: 11px;
+    padding: 5px 10px;
+  }
+
+  .discount-savings {
+    font-size: 14px;
+  }
+
+  .discount-count-badge {
+    font-size: 11px;
+    padding: 5px 10px;
+  }
+
+  .total-discount-amount {
+    font-size: 14px;
+  }
+
+  .savings-highlight {
+    font-size: 16px;
+  }
+
+  .summary-row.coupon-applied-row {
+    padding: 10px;
+    font-size: 13px;
+  }
+
+  .coupon-code {
+    font-size: 12px;
+    padding: 3px 6px;
+  }
+
+  .summary-row.rewards-applied-row {
+    padding: 10px;
+    font-size: 13px;
   }
 }
 
@@ -617,6 +1036,127 @@
     align-items: center;
     justify-content: center;
   }
+
+  .discount-info {
+    padding: 12px;
+    margin-bottom: 15px;
+  }
+
+  .discount-info h4 {
+    font-size: 14px;
+    margin-bottom: 10px;
+  }
+
+  .discount-code {
+    font-size: 12px;
+  }
+
+  .discounts-details {
+    padding: 15px;
+    margin-bottom: 15px;
+  }
+
+  .discounts-details h4 {
+    font-size: 14px;
+    margin-bottom: 12px;
+  }
+
+  .discount-item {
+    padding: 10px;
+  }
+
+  .discount-amount {
+    margin-left: 8px;
+  }
+
+  .order-summary {
+    padding: 15px;
+    margin-bottom: 15px;
+  }
+
+  .order-summary h4 {
+    font-size: 14px;
+    margin-bottom: 12px;
+  }
+
+  .summary-row {
+    font-size: 13px;
+    padding: 8px 0;
+  }
+
+  .summary-row.total-row {
+    font-size: 15px;
+  }
+
+  .summary-row.total-row .amount {
+    font-size: 16px;
+  }
+
+  .coupon-tag {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+
+  .discount-amount-tag {
+    font-size: 10px;
+    padding: 3px 6px;
+  }
+
+  .discount-summary-section {
+    padding: 15px;
+    margin-bottom: 20px;
+  }
+
+  .discount-summary-section h4 {
+    font-size: 14px;
+    margin-bottom: 12px;
+  }
+
+  .summary-item {
+    padding: 10px;
+    font-size: 12px;
+  }
+
+  .coupon-code-badge {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+
+  .discount-savings {
+    font-size: 13px;
+  }
+
+  .discount-count-badge {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+
+  .total-discount-amount {
+    font-size: 13px;
+  }
+
+  .savings-highlight {
+    font-size: 15px;
+  }
+
+  .summary-row.coupon-applied-row {
+    padding: 10px;
+    font-size: 12px;
+  }
+
+  .coupon-code {
+    font-size: 11px;
+    padding: 3px 6px;
+  }
+
+  .summary-row.rewards-applied-row {
+    padding: 10px;
+    font-size: 12px;
+  }
+
+  .rewards-label {
+    font-size: 12px;
+  }
 }
 
 @media (max-width: 600px) {
@@ -717,6 +1257,156 @@
   .items-table td::before {
     font-size: 9px;
   }
+
+  .discount-info {
+    padding: 10px;
+    margin-bottom: 12px;
+  }
+
+  .discount-info h4 {
+    font-size: 13px;
+    margin-bottom: 8px;
+  }
+
+  .discount-code {
+    font-size: 11px;
+  }
+
+  .discounts-details {
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+
+  .discounts-details h4 {
+    font-size: 13px;
+    margin-bottom: 10px;
+  }
+
+  .discount-item {
+    padding: 8px;
+    font-size: 13px;
+  }
+
+  .discount-type {
+    font-size: 11px;
+  }
+
+  .discount-amount {
+    font-size: 14px;
+  }
+
+  .order-summary {
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+
+  .order-summary h4 {
+    font-size: 13px;
+    margin-bottom: 10px;
+  }
+
+  .summary-row {
+    font-size: 12px;
+    padding: 6px 0;
+  }
+
+  .summary-row.total-row {
+    font-size: 14px;
+    padding-top: 12px;
+  }
+
+  .summary-row.total-row .amount {
+    font-size: 15px;
+  }
+
+  .coupon-tag {
+    font-size: 10px;
+    padding: 4px 6px;
+  }
+
+  .discount-amount-tag {
+    font-size: 9px;
+    padding: 2px 4px;
+  }
+
+  .orders-table {
+    font-size: 12px;
+  }
+
+  .orders-table th,
+  .orders-table td {
+    padding: 8px;
+  }
+
+  .discount-summary-section {
+    padding: 12px;
+    margin-bottom: 15px;
+  }
+
+  .discount-summary-section h4 {
+    font-size: 13px;
+    margin-bottom: 10px;
+  }
+
+  .summary-item {
+    padding: 8px;
+    font-size: 12px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .summary-value {
+    width: 100%;
+    text-align: right;
+    margin-top: 4px;
+  }
+
+  .coupon-code-badge {
+    font-size: 10px;
+    padding: 3px 6px;
+  }
+
+  .discount-savings {
+    font-size: 12px;
+  }
+
+  .discount-count-badge {
+    font-size: 10px;
+    padding: 3px 6px;
+  }
+
+  .total-discount-amount {
+    font-size: 12px;
+  }
+
+  .savings-highlight {
+    font-size: 14px;
+  }
+
+  .summary-row.coupon-applied-row {
+    padding: 10px 8px;
+    font-size: 11px;
+  }
+
+  .coupon-label {
+    font-size: 11px;
+    margin-right: 4px;
+  }
+
+  .coupon-code {
+    font-size: 10px;
+    padding: 2px 4px;
+    margin-right: 4px;
+  }
+
+  .summary-row.rewards-applied-row {
+    padding: 10px 8px;
+    font-size: 11px;
+  }
+
+  .rewards-label {
+    font-size: 11px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -769,4 +1459,168 @@
   .items-table td {
     font-size: 10px;
   }
+
+  .discount-info {
+    padding: 8px;
+    margin-bottom: 10px;
+  }
+
+  .discount-info h4 {
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+
+  .discount-code {
+    font-size: 10px;
+    padding: 6px 10px;
+  }
+
+  .discounts-details {
+    padding: 10px;
+    margin-bottom: 10px;
+  }
+
+  .discounts-details h4 {
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+
+  .discount-item {
+    padding: 6px;
+    font-size: 12px;
+  }
+
+  .discount-header {
+    gap: 6px;
+  }
+
+  .discount-type {
+    font-size: 10px;
+    padding: 3px 6px;
+  }
+
+  .discount-amount {
+    font-size: 13px;
+    margin-left: 4px;
+  }
+
+  .order-summary {
+    padding: 10px;
+    margin-bottom: 10px;
+  }
+
+  .order-summary h4 {
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+
+  .summary-row {
+    font-size: 11px;
+    padding: 5px 0;
+  }
+
+  .summary-row.total-row {
+    font-size: 13px;
+    padding-top: 10px;
+  }
+
+  .summary-row.total-row .amount {
+    font-size: 14px;
+  }
+
+  .gst-waived {
+    font-size: 10px;
+    padding: 6px 10px;
+    margin-left: 4px;
+  }
+
+  .coupon-tag {
+    font-size: 9px;
+    padding: 3px 6px;
+  }
+
+  .discount-amount-tag {
+    font-size: 8px;
+    padding: 2px 4px;
+  }
+
+  .orders-table {
+    font-size: 11px;
+  }
+
+  .orders-table th,
+  .orders-table td {
+    padding: 6px;
+  }
+
+  .discount-summary-section {
+    padding: 10px;
+    margin-bottom: 10px;
+  }
+
+  .discount-summary-section h4 {
+    font-size: 12px;
+    margin-bottom: 10px;
+  }
+
+  .summary-item {
+    padding: 8px;
+    font-size: 11px;
+  }
+
+  .summary-label {
+    font-size: 11px;
+  }
+
+  .summary-value {
+    gap: 6px;
+  }
+
+  .coupon-code-badge {
+    font-size: 9px;
+    padding: 3px 6px;
+  }
+
+  .discount-savings {
+    font-size: 11px;
+  }
+
+  .discount-count-badge {
+    font-size: 9px;
+    padding: 3px 6px;
+  }
+
+  .total-discount-amount {
+    font-size: 11px;
+  }
+
+  .savings-highlight {
+    font-size: 13px;
+  }
+
+  .summary-row.coupon-applied-row {
+    padding: 8px;
+    font-size: 10px;
+  }
+
+  .coupon-label {
+    font-size: 10px;
+    margin-right: 2px;
+  }
+
+  .coupon-code {
+    font-size: 9px;
+    padding: 2px 3px;
+    margin-right: 2px;
+  }
+
+  .summary-row.rewards-applied-row {
+    padding: 8px;
+    font-size: 10px;
+  }
+
+  .rewards-label {
+    font-size: 10px;
+  }
 }
+

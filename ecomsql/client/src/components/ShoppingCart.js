@@ -94,10 +94,18 @@ const ShoppingCart = ({ onCartCountChange, onOrderComplete }) => {
   // Calculate charges
   const subtotalAmount = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const GST_RATE = 0.18; // 18% GST
-  const gstAmount = subtotalAmount * GST_RATE;
-  const shippingCharge = 0; // Shipping calculated during checkout based on delivery location
+  
+  // Discounts are applied only to product value (subtotal), not to GST or shipping
   const discountAmount = (appliedDiscount?.amount || 0) + (appliedRewards?.discountAmount || 0);
-  const totalAmount = subtotalAmount + gstAmount + shippingCharge - discountAmount;
+  const subtotalAfterDiscount = Math.max(0, subtotalAmount - discountAmount);
+  
+  // GST is calculated on the discounted product value
+  // But when loyalty points are redeemed (with discountAmount > 0), GST is waived
+  const gstAmount = (appliedRewards && appliedRewards.discountAmount > 0) ? 0 : subtotalAfterDiscount * GST_RATE;
+  const shippingCharge = 0; // Shipping calculated during checkout based on delivery location
+  
+  // Total = discounted product value + GST on discounted value + shipping
+  const totalAmount = subtotalAfterDiscount + gstAmount + shippingCharge;
 
   if (loading) {
     return <div className="shopping-cart"><div className="loading">Loading cart...</div></div>;
@@ -297,15 +305,15 @@ const ShoppingCart = ({ onCartCountChange, onOrderComplete }) => {
                   </div>
                 </div>
                 <div className="rewards-conversion">
-                  <p><strong>Each point = ₹2</strong></p>
-                  <p className="rewards-max">Max redemption: ₹{Math.min(customerRewards.available_points * 2, subtotalAmount + gstAmount + shippingCharge)}</p>
+                  <p><strong>Each point = ₹0.50 (50 paisa)</strong></p>
+                  <p className="rewards-max">Max redemption: ₹{(Math.min(customerRewards.available_points * 0.50, subtotalAmount)).toFixed(2)}</p>
                 </div>
               </div>
             )}
             
             {/* Discounts and Rewards Component */}
             <DiscountsAndRewards
-              orderAmount={subtotalAmount + gstAmount + shippingCharge}
+              orderAmount={subtotalAmount}
               customerEmail={customerEmail}
               onDiscountApplied={(discount) => setAppliedDiscount(discount)}
               onRewardsApplied={(rewards) => setAppliedRewards(rewards)}
