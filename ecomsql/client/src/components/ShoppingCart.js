@@ -41,28 +41,28 @@ const ShoppingCart = ({ onCartCountChange, onOrderComplete }) => {
     }
   }, [sessionId, onCartCountChange]);
 
+  const loadRewards = useCallback(async () => {
+    if (!customerEmail) return;
+    
+    try {
+      setRewardsLoading(true);
+      const response = await getCustomerLoyalty(customerEmail);
+      setCustomerRewards(response.data);
+    } catch (error) {
+      console.error('[ShoppingCart] Error loading customer rewards:', error);
+    } finally {
+      setRewardsLoading(false);
+    }
+  }, [customerEmail]);
+
   useEffect(() => {
     loadCart();
   }, [loadCart]);
 
   // Load customer rewards data
   useEffect(() => {
-    const loadRewards = async () => {
-      if (!customerEmail) return;
-      
-      try {
-        setRewardsLoading(true);
-        const response = await getCustomerLoyalty(customerEmail);
-        setCustomerRewards(response.data);
-      } catch (error) {
-        console.error('[ShoppingCart] Error loading customer rewards:', error);
-      } finally {
-        setRewardsLoading(false);
-      }
-    };
-    
     loadRewards();
-  }, [customerEmail]);
+  }, [loadRewards]);
 
   const handleQuantityChange = async (itemId, newQuantity) => {
     if (newQuantity < 1) return;
@@ -86,26 +86,38 @@ const ShoppingCart = ({ onCartCountChange, onOrderComplete }) => {
     }
   };
 
-  const handleCheckoutClose = () => {
+  const handleCheckoutClose = async () => {
     setShowCheckout(false);
-    loadCart(); // Reload cart in case order was created
+    await loadCart(); // Reload cart in case order was created
+    
+    // Reload rewards data after order completion to reflect redeemed points
+    await loadRewards();
+    
+    // Reset applied discount and rewards state after order completion
+    setAppliedDiscount(null);
+    setAppliedRewards(null);
   };
 
   // Calculate charges
+  const MINIMUM_ORDER_VALUE = 200;
   const subtotalAmount = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const GST_RATE = 0.18; // 18% GST
   
-  // Discounts are applied only to product value (subtotal), not to GST or shipping
+  // Discounts are applied ONLY to product value (subtotal), NOT to GST or shipping
   const discountAmount = (appliedDiscount?.amount || 0) + (appliedRewards?.discountAmount || 0);
   const subtotalAfterDiscount = Math.max(0, subtotalAmount - discountAmount);
   
-  // GST is calculated on the discounted product value
-  // But when loyalty points are redeemed (with discountAmount > 0), GST is waived
-  const gstAmount = (appliedRewards && appliedRewards.discountAmount > 0) ? 0 : subtotalAfterDiscount * GST_RATE;
+  // GST MUST NEVER be discounted - always calculated on ORIGINAL product subtotal
+  // Applies to coupons, loyalty points, or any other discount type
+  const gstAmount = subtotalAmount * GST_RATE;
   const shippingCharge = 0; // Shipping calculated during checkout based on delivery location
   
-  // Total = discounted product value + GST on discounted value + shipping
+  // Total = discounted product value + GST on original value + shipping
   const totalAmount = subtotalAfterDiscount + gstAmount + shippingCharge;
+  
+  // Check if minimum order requirement is met
+  const isBelowMinimum = subtotalAmount < MINIMUM_ORDER_VALUE;
+  const amountNeeded = MINIMUM_ORDER_VALUE - subtotalAmount;
 
   if (loading) {
     return <div className="shopping-cart"><div className="loading">Loading cart...</div></div>;
@@ -212,12 +224,11 @@ const ShoppingCart = ({ onCartCountChange, onOrderComplete }) => {
                   </div>
                 </div>
                 <div className="rewards-conversion">
-                  <p><strong>Each point = ₹0.50 (50 paisa)</strong></p>
-                  <p className="rewards-max">Max redemption: ₹{(Math.min(customerRewards.available_points * 0.50, subtotalAmount)).toFixed(2)}</p>
+                  <p><strong>Each point = ₹0.10 (10 paisa)</strong></p>
+                  <p className="rewards-max">Max redemption: ₹{(Math.min(customerRewards.available_points * 0.10, subtotalAmount)).toFixed(2)}</p>
                 </div>
               </div>
             )}
-            
             {/* Discounts and Rewards Component */}
             <DiscountsAndRewards
               orderAmount={subtotalAmount}
@@ -226,12 +237,30 @@ const ShoppingCart = ({ onCartCountChange, onOrderComplete }) => {
               onRewardsApplied={(rewards) => setAppliedRewards(rewards)}
             />
             
+            {/* Minimum Order Requirement Alert */}
+            {isBelowMinimum && (
+              <div className="minimum-order-alert">
+                <div className="alert-icon">⚠️</div>
+                <div className="alert-content">
+                  <p className="alert-title">Minimum Order Requirement</p>
+                  <p className="alert-message">
+                    Minimum order value is ₹{MINIMUM_ORDER_VALUE}. Add ₹{amountNeeded.toFixed(2)} more to proceed.
+                  </p>
+                </div>
+              </div>
+            )}
+            
             <div className="total">
               <span>Total:</span>
               <span className="amount">₹{totalAmount.toFixed(2)}</span>
             </div>
-            <button className="checkout-btn" onClick={() => setShowCheckout(true)}>
-              Proceed to Checkout
+            <button 
+              className="checkout-btn" 
+              onClick={() => setShowCheckout(true)}
+              disabled={isBelowMinimum}
+              title={isBelowMinimum ? `Add ₹${amountNeeded.toFixed(2)} more to reach minimum order value` : 'Proceed to checkout'}
+            >
+              {isBelowMinimum ? `Add ₹${amountNeeded.toFixed(2)} more` : 'Proceed to Checkout'}
             </button>
           </div>
 

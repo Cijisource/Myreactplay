@@ -28,6 +28,7 @@ const DiscountsAndRewards = ({
   const [redeemLoading, setRedeemLoading] = useState(false);
   const [loyaltyLoading, setLoyaltyLoading] = useState(true);
   const [showRedemption, setShowRedemption] = useState(false);
+  const [appliedRewards, setAppliedRewards] = useState(null);
 
   // Load active discounts on mount
   useEffect(() => {
@@ -128,15 +129,20 @@ const DiscountsAndRewards = ({
       setRedeemLoading(true);
       setCouponError('');
       
-      // Calculate discount: 1 point = ₹0.50 (50 paisa)
-      const discountAmount = pointsToRedeem * 0.50;
+      // Calculate discount: 1 point = ₹0.10 (10 paisa)
+      const discountAmount = pointsToRedeem * 0.10;
       
-      // Notify parent
-      onRewardsApplied({
+      const rewardsData = {
         points: pointsToRedeem,
         discountAmount,
         type: 'loyalty_points'
-      });
+      };
+      
+      // Set applied rewards locally for UI display
+      setAppliedRewards(rewardsData);
+      
+      // Notify parent
+      onRewardsApplied(rewardsData);
 
       setShowRedemption(false);
       setPointsToRedeem(0);
@@ -146,6 +152,14 @@ const DiscountsAndRewards = ({
     } finally {
       setRedeemLoading(false);
     }
+  };
+
+  // Remove applied rewards
+  const handleRemoveRewards = () => {
+    setAppliedRewards(null);
+    setShowRedemption(false);
+    setPointsToRedeem(0);
+    onRewardsApplied(null);
   };
 
   return (
@@ -284,7 +298,25 @@ const DiscountsAndRewards = ({
               {/* Redeem Points */}
               {loyaltyData.available_points > 0 && (
                 <div className="dar-redemption">
-                  {!showRedemption ? (
+                  {appliedRewards ? (
+                    <div className="dar-applied">
+                      <div className="dar-applied-content">
+                        <span className="dar-applied-badge">✓ Applied</span>
+                        <div className="dar-applied-details">
+                          <p className="dar-applied-code">Loyalty Points</p>
+                          <p className="dar-applied-savings">
+                            {appliedRewards.points} points = <strong>₹{appliedRewards.discountAmount.toFixed(2)} discount</strong>
+                          </p>
+                        </div>
+                      </div>
+                      <button 
+                        className="dar-btn-remove"
+                        onClick={handleRemoveRewards}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : !showRedemption ? (
                     <button
                       className="dar-btn-redeem"
                       onClick={() => setShowRedemption(true)}
@@ -304,7 +336,7 @@ const DiscountsAndRewards = ({
                           className="dar-input"
                         />
                         <span className="dar-redeem-value">
-                          = ₹{(pointsToRedeem * 0.50).toFixed(2)}
+                          = ₹{(pointsToRedeem * 0.10).toFixed(2)}
                         </span>
                       </div>
                       <div className="dar-redeem-actions">

@@ -552,14 +552,52 @@
   padding: 20px;
   border-radius: 8px;
   margin-top: 20px;
-  text-align: center;
 }
 
 .payment-summary h4 {
-  margin: 0 0 10px 0;
+  margin: 0 0 15px 0;
+  color: #333;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.payment-summary-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.summary-line {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
   color: #666;
-  font-size: 12px;
-  text-transform: uppercase;
+  padding: 8px 0;
+}
+
+.summary-line strong {
+  color: #333;
+  font-weight: 600;
+}
+
+.summary-line.discount {
+  font-weight: 600;
+  padding: 10px 0;
+}
+
+.summary-divider {
+  height: 1px;
+  background: #e0e0e0;
+  margin: 8px 0;
+}
+
+.summary-total {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 700;
+  font-size: 16px;
+  color: #333;
+  padding: 12px 0;
 }
 
 .total-amount {
