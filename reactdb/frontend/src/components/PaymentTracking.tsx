@@ -14,6 +14,8 @@ interface PaymentRecord {
   rentBalance: number;
   month: number;
   year: number;
+  checkInDate: string;
+  checkOutDate: string | null;
   paymentStatus: 'paid' | 'pending' | 'partial';
 }
 
@@ -23,11 +25,42 @@ interface MonthYearOption {
   label: string;
 }
 
+// Helper function to safely format dates
+const formatDate = (dateString: string | null | undefined): string => {
+  if (!dateString) return 'Invalid date';
+  
+  try {
+    // Extract just the date part if it includes time
+    const dateOnly = dateString.split('T')[0];
+    
+    // Parse YYYY-MM-DD format directly
+    const match = dateOnly.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) {
+      return 'Invalid date';
+    }
+    
+    const year = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10);
+    const day = parseInt(match[3], 10);
+    
+    // Validate ranges
+    if (month < 1 || month > 12 || day < 1 || day > 31) {
+      return 'Invalid date';
+    }
+    
+    // Format as DD/MM/YYYY using the parsed components
+    return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+  } catch (err) {
+    return 'Invalid date';
+  }
+};
+
 export default function PaymentTracking() {
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>('');
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<'paid' | 'pending' | 'partial' | null>(null);
 
   // Generate available month-year options (current month and last 12 months)
   const monthYearOptions = useMemo(() => {
@@ -61,6 +94,12 @@ export default function PaymentTracking() {
     };
   }, [payments]);
 
+  // Filter payments based on selected status
+  const filteredPayments = useMemo(() => {
+    if (!selectedStatusFilter) return payments;
+    return payments.filter((p) => p.paymentStatus === selectedStatusFilter);
+  }, [payments, selectedStatusFilter]);
+
   // Fetch payment data for selected month
   useEffect(() => {
     if (!selectedMonth) {
@@ -73,6 +112,7 @@ export default function PaymentTracking() {
       setError(null);
       try {
         const response = await apiService.getPaymentsByMonth(selectedMonth);
+        console.log('Fetched payments:', response.data);
         setPayments(response.data);
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Failed to fetch payment data';
@@ -146,15 +186,30 @@ export default function PaymentTracking() {
       {/* Status Summary */}
       {selectedMonth && (
         <div className="status-summary">
-          <div className="status-badge paid">
+          <div 
+            className={`status-badge paid ${selectedStatusFilter === 'paid' ? 'active' : ''}`}
+            onClick={() => setSelectedStatusFilter(selectedStatusFilter === 'paid' ? null : 'paid')}
+            role="button"
+            tabIndex={0}
+          >
             <span className="status-label">Paid</span>
             <span className="status-count">{summary.paidCount}</span>
           </div>
-          <div className="status-badge partial">
+          <div 
+            className={`status-badge partial ${selectedStatusFilter === 'partial' ? 'active' : ''}`}
+            onClick={() => setSelectedStatusFilter(selectedStatusFilter === 'partial' ? null : 'partial')}
+            role="button"
+            tabIndex={0}
+          >
             <span className="status-label">Partial</span>
             <span className="status-count">{summary.partialCount}</span>
           </div>
-          <div className="status-badge pending">
+          <div 
+            className={`status-badge pending ${selectedStatusFilter === 'pending' ? 'active' : ''}`}
+            onClick={() => setSelectedStatusFilter(selectedStatusFilter === 'pending' ? null : 'pending')}
+            role="button"
+            tabIndex={0}
+          >
             <span className="status-label">Pending</span>
             <span className="status-count">{summary.pendingCount}</span>
           </div>
@@ -176,7 +231,7 @@ export default function PaymentTracking() {
       )}
 
       {/* Payment Table */}
-      {selectedMonth && !loading && payments.length > 0 && (
+      {selectedMonth && !loading && filteredPayments.length > 0 && (
         <div className="payment-table-wrapper">
           <table className="payment-table">
             <thead>
@@ -191,27 +246,41 @@ export default function PaymentTracking() {
               </tr>
             </thead>
             <tbody>
-              {payments.map((payment) => (
-                <tr key={`${payment.occupancyId}-${payment.month}-${payment.year}`}>
-                  <td className="tenant-name">{payment.tenantName}</td>
-                  <td>{payment.roomNumber}</td>
-                  <td className="amount">₹{payment.rentFixed.toLocaleString()}</td>
-                  <td className="amount success">
+              {filteredPayments.map((payment) => (
+                <tr 
+                  key={`${payment.occupancyId}-${payment.month}-${payment.year}`}
+                  className="payment-row"
+                >
+                  <td 
+                    className="tenant-name"
+                    data-label="Tenant"
+                    title={`Check-in: ${formatDate(payment.checkInDate)}\nCheck-out: ${payment.checkOutDate ? formatDate(payment.checkOutDate) : 'Active'}`}
+                  >
+                    {payment.tenantName}
+                  </td>
+                  <td data-label="Room">
+                    {payment.roomNumber}
+                  </td>
+                  <td className="amount" data-label="Rent Fixed">
+                    ₹{payment.rentFixed.toLocaleString()}
+                  </td>
+                  <td className="amount success" data-label="Rent Received">
                     ₹{payment.rentReceived.toLocaleString()}
                   </td>
                   <td
                     className={`amount ${
                       payment.rentBalance > 0 ? 'pending' : 'success'
                     }`}
+                    data-label="Balance"
                   >
                     ₹{payment.rentBalance.toLocaleString()}
                   </td>
-                  <td>
+                  <td data-label="Payment Date">
                     {payment.rentReceivedOn
-                      ? new Date(payment.rentReceivedOn).toLocaleDateString()
+                      ? formatDate(payment.rentReceivedOn)
                       : '-'}
                   </td>
-                  <td>
+                  <td data-label="Status">
                     <span
                       className={`badge ${getStatusBadgeClass(
                         payment.paymentStatus
@@ -229,9 +298,23 @@ export default function PaymentTracking() {
       )}
 
       {/* Empty State */}
+      {/* Empty State - No Records for Month */}
       {selectedMonth && !loading && payments.length === 0 && !error && (
         <div className="empty-state">
           <p>No payment records found for the selected month</p>
+        </div>
+      )}
+
+      {/* Empty State - Filter Applied but No Matches */}
+      {selectedMonth && !loading && payments.length > 0 && filteredPayments.length === 0 && !error && (
+        <div className="empty-state">
+          <p>No {selectedStatusFilter} payment records found</p>
+          <button 
+            className="btn btn-secondary"
+            onClick={() => setSelectedStatusFilter(null)}
+          >
+            Clear Filter
+          </button>
         </div>
       )}
     </div>

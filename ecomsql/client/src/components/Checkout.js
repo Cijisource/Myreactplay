@@ -66,6 +66,16 @@ const Checkout = ({
   // State for calculated shipping charge
   const [calculatedShippingCharge, setCalculatedShippingCharge] = useState(shippingCharge);
 
+  // Shipping & Geolocation states
+  const [shippingData, setShippingData] = useState({
+    charge: shippingCharge || 0,
+    zone: 'unknown',
+    city: '',
+    pincode: ''
+  });
+  const [locationLoading, setLocationLoading] = useState(true);
+  const [shippingLoading, setShippingLoading] = useState(false);
+
   // Generate UPI/GPay QR code
   useEffect(() => {
     if (step === 'payment' && selectedPayment === 'gpay') {
@@ -129,6 +139,79 @@ const Checkout = ({
       }));
     }
   }, []);
+
+  // Fetch location from IP and populate city/zipcode
+  useEffect(() => {
+    const fetchLocationFromIP = async () => {
+      try {
+        setLocationLoading(true);
+        console.log('[Checkout] Fetching location from IP...');
+        const response = await getLocationFromIP();
+        
+        if (response.data.success) {
+          console.log('[Checkout] Location detected:', response.data);
+          setFormData(prev => ({
+            ...prev,
+            city: response.data.city || prev.city,
+            zipCode: response.data.pincode || prev.zipCode
+          }));
+          setShippingData(prev => ({
+            ...prev,
+            city: response.data.city,
+            pincode: response.data.pincode
+          }));
+          
+          // Fetch shipping rates for detected city
+          if (response.data.city) {
+            await fetchShippingRates(response.data.city);
+          }
+        }
+      } catch (error) {
+        console.warn('[Checkout] Failed to fetch location from IP:', error.message);
+        // Fallback - set default city to Mumbai
+        setFormData(prev => ({
+          ...prev,
+          city: 'Mumbai',
+          zipCode: '400001'
+        }));
+      } finally {
+        setLocationLoading(false);
+      }
+    };
+
+    fetchLocationFromIP();
+  }, []);
+
+  // Fetch shipping rates when city changes
+  const fetchShippingRates = async (city) => {
+    if (!city) return;
+    
+    try {
+      setShippingLoading(true);
+      console.log('[Checkout] Fetching shipping rates for city:', city);
+      
+      const response = await getShippingRateByCity(city, 1, subtotalAmount);
+      
+      if (response.data.success) {
+        console.log('[Checkout] Shipping rates received:', response.data);
+        setShippingData(prev => ({
+          ...prev,
+          charge: response.data.shippingCharge,
+          zone: response.data.zone,
+          city: response.data.city
+        }));
+      }
+    } catch (error) {
+      console.warn('[Checkout] Failed to fetch shipping rates:', error.message);
+      // Use fallback rate
+      setShippingData(prev => ({
+        ...prev,
+        charge: 99
+      }));
+    } finally {
+      setShippingLoading(false);
+    }
+  };
 
   // Validate email address
   const validateEmail = (email) => {
@@ -542,7 +625,15 @@ const Checkout = ({
 
               <div className="form-row">
                 <div className="form-group">
-                  <label>City *</label>
+                  <label>
+                    City * 
+                    {locationLoading && <span style={{ fontSize: '12px', marginLeft: '8px', color: '#666' }}>Detecting location...</span>}
+                    {!locationLoading && shippingData.zone !== 'unknown' && (
+                      <span style={{ fontSize: '12px', marginLeft: '8px', color: '#28a745' }}>
+                        ✓ {shippingData.zone.toUpperCase()} ZONE - Shipping: ₹{shippingData.charge.toFixed(2)}
+                      </span>
+                    )}
+                  </label>
                   <div className="searchable-dropdown" ref={cityDropdownRef}>
                     <input
                       type="text"

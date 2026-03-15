@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { apiService } from './api';
 import './App.css';
 //import RentalCollection from './components/RentalCollection';
+import RentalCollectionDetails from './components/RentalCollectionDetails';
 import Diagnostic from './components/Diagnostic';
 import PaymentTracking from './components/PaymentTracking';
 import TenantManagement from './components/TenantManagement';
@@ -21,13 +22,14 @@ import ServiceConsumptionDetails from './components/ServiceConsumptionDetails';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
-type Page = 'home' | 'diagnostic' | 'payment' | 'tenants' | 'occupancy' | 'occupancy-links' | 'complaints' | 'services' | 'eb-payments' | 'users' | 'roles' | 'transactions' | 'stock' | 'daily-status' | 'service-allocation' | 'consumption';
+type Page = 'home' | 'diagnostic' | 'payment' | 'rental-collection' | 'tenants' | 'occupancy' | 'occupancy-links' | 'complaints' | 'services' | 'eb-payments' | 'users' | 'roles' | 'transactions' | 'stock' | 'daily-status' | 'service-allocation' | 'consumption';
 
 // Role requirements for each screen
 const SCREEN_ROLES: Record<Page, string[]> = {
   home: [],
   diagnostic: ['admin'],
   payment: ['admin', 'manager', 'accountant'],
+  'rental-collection': ['admin', 'manager', 'accountant', 'property_manager'],
   tenants: ['admin', 'manager', 'property_manager'],
   occupancy: ['admin', 'manager', 'property_manager'],
   'occupancy-links': ['admin', 'manager', 'property_manager'],
@@ -50,6 +52,7 @@ const NAV_ITEMS: Array<{ page: Page; label: string; roles: string[] }> = [
   { page: 'occupancy', label: 'Room Occupancy', roles: SCREEN_ROLES.occupancy },
   { page: 'tenants', label: 'Tenant Management', roles: SCREEN_ROLES.tenants },
   { page: 'payment', label: 'Payment Tracking', roles: SCREEN_ROLES.payment },
+  { page: 'rental-collection', label: 'Rental Collection', roles: SCREEN_ROLES['rental-collection'] },
   { page: 'complaints', label: 'Complaints', roles: SCREEN_ROLES.complaints },
   { page: 'services', label: 'Service Details', roles: SCREEN_ROLES.services },
   { page: 'consumption', label: 'Service Consumption', roles: SCREEN_ROLES.consumption },
@@ -205,6 +208,14 @@ function AppContent() {
       return (
         <ProtectedRoute requiredRoles={SCREEN_ROLES.payment}>
           <PaymentTracking />
+        </ProtectedRoute>
+      );
+    }
+
+    if (currentPage === 'rental-collection') {
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES['rental-collection']}>
+          <RentalCollectionDetails />
         </ProtectedRoute>
       );
     }

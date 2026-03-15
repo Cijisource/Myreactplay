@@ -10,6 +10,7 @@ import CategoryManagement from './components/CategoryManagement';
 import ImageUpload from './components/ImageUpload';
 import ShoppingCart from './components/ShoppingCart';
 import OrderManagement from './components/OrderManagement';
+import RewardsManagement from './components/RewardsManagement';
 import AdminPanel from './components/AdminPanel';
 import Login from './components/Login';
 import Register from './components/Register';
@@ -276,6 +277,12 @@ function MainApp() {
         );
       case 'orders':
         return <OrderManagement />;
+      case 'rewards':
+        return (
+          <RoleBasedRoute requiredRole="Seller">
+            <RewardsManagement />
+          </RoleBasedRoute>
+        );
       case 'admin':
         return (
           <RoleBasedRoute requiredRole={['Administrator', 'Seller']}>
@@ -378,6 +385,12 @@ function MainApp() {
                     onClick={() => setCurrentPage('categories')}
                   >
                     📋 Categories
+                  </button>
+                  <button
+                    className={`nav-link ${currentPage === 'rewards' ? 'active' : ''}`}
+                    onClick={() => setCurrentPage('rewards')}
+                  >
+                    🎁 Rewards
                   </button>
                 </>
               )}

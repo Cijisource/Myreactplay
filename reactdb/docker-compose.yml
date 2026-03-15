@@ -20,6 +20,7 @@ services:
       - complains-data:/app/complains
       - daily-status-media:/app/daily-status-media
       - tenantphotos:/app/tenantphotos
+      - paymentreceipts:/app/paymentreceipts
     deploy:
       replicas: 3   # Run 3 containers for the API service
       restart_policy:
@@ -83,3 +84,4 @@ volumes:
   complains-data:
   daily-status-media:
   tenantphotos:
+  paymentreceipts:
