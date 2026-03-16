@@ -180,79 +180,6 @@ const ShoppingCart = ({ onCartCountChange, onOrderComplete }) => {
             </tbody>
           </table>
 
-          {/* Discount & Reward Code Section */}
-          <div className="promo-section">
-            <div className="promo-tabs">
-              <div className="promo-tab">
-                <h4>Discount Code</h4>
-                {!appliedDiscount ? (
-                  <div className="promo-input-group">
-                    <input
-                      type="text"
-                      placeholder="Enter discount code"
-                      value={discountCode}
-                      onChange={(e) => setDiscountCode(e.target.value.toUpperCase())}
-                      onKeyPress={handleKeyPress}
-                      className="discount-input promo-input"
-                    />
-                    <button 
-                      onClick={handleApplyDiscount}
-                      disabled={validatingDiscount}
-                      className="apply-promo-btn"
-                    >
-                      {validatingDiscount ? 'Validating...' : 'Apply'}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="applied-promo">
-                    <span className="promo-badge discount-badge">✓ {appliedDiscount.code}</span>
-                    <span className="promo-description">{appliedDiscount.description}</span>
-                    <button 
-                      onClick={handleRemoveDiscount}
-                      className="remove-promo-btn"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div className="promo-tab">
-                <h4>Reward Code</h4>
-                {!appliedReward ? (
-                  <div className="promo-input-group">
-                    <input
-                      type="text"
-                      placeholder="Enter reward code"
-                      value={rewardCode}
-                      onChange={(e) => setRewardCode(e.target.value.toUpperCase())}
-                      onKeyPress={handleKeyPress}
-                      className="reward-input promo-input"
-                    />
-                    <button 
-                      onClick={handleApplyReward}
-                      disabled={validatingReward}
-                      className="apply-promo-btn"
-                    >
-                      {validatingReward ? 'Validating...' : 'Apply'}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="applied-promo">
-                    <span className="promo-badge reward-badge">✓ {appliedReward.code}</span>
-                    <span className="promo-description">Reward from previous order</span>
-                    <button 
-                      onClick={handleRemoveReward}
-                      className="remove-promo-btn"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
           <div className="cart-summary">
             <div className="summary-breakdown">
               <div className="summary-row">
@@ -267,16 +194,16 @@ const ShoppingCart = ({ onCartCountChange, onOrderComplete }) => {
                 </div>
               )}
 
-              {appliedReward && (
+              {appliedRewards && (
                 <div className="summary-row promo-row">
-                  <span>Reward ({appliedReward.code}):</span>
-                  <span className="amount promo-amount">-₹{appliedReward.amount.toFixed(2)}</span>
+                  <span>Reward ({appliedRewards.code}):</span>
+                  <span className="amount promo-amount">-₹{appliedRewards.amount.toFixed(2)}</span>
                 </div>
               )}
 
               <div className="summary-row">
                 <span>Amount After Promo:</span>
-                <span className="amount">₹{amountAfterPromo.toFixed(2)}</span>
+                <span className="amount">₹{(subtotalAmount - discountAmount).toFixed(2)}</span>
               </div>
               
               <div className="summary-row">
@@ -365,8 +292,8 @@ const ShoppingCart = ({ onCartCountChange, onOrderComplete }) => {
               shippingCharge={shippingCharge}
               discountAmount={appliedDiscount?.amount}  
               discountCode={appliedDiscount?.code}
-              rewardAmount={appliedReward?.amount}
-              rewardCode={appliedReward?.code}
+              rewardAmount={appliedRewards?.amount}
+              rewardCode={appliedRewards?.code}
               totalAmount={totalAmount}
               appliedDiscount={appliedDiscount}
               appliedRewards={appliedRewards}

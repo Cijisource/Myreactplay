@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import QRCode from 'qrcode.react';
-import { createOrder, getAllCities, getShippingZones } from '../api';
+import { createOrder, getAllCities, getShippingZones, getLocationFromIP, getShippingRateByCity } from '../api';
 import { getUser } from '../utils/authUtils';
 import './Checkout.css';
 
@@ -74,7 +74,39 @@ const Checkout = ({
     pincode: ''
   });
   const [locationLoading, setLocationLoading] = useState(true);
+  // eslint-disable-next-line no-unused-vars
   const [shippingLoading, setShippingLoading] = useState(false);
+
+  // Fetch shipping rates when city changes
+  const fetchShippingRates = useCallback(async (city) => {
+    if (!city) return;
+    
+    try {
+      setShippingLoading(true);
+      console.log('[Checkout] Fetching shipping rates for city:', city);
+      
+      const response = await getShippingRateByCity(city, 1, subtotalAmount);
+      
+      if (response.data.success) {
+        console.log('[Checkout] Shipping rates received:', response.data);
+        setShippingData(prev => ({
+          ...prev,
+          charge: response.data.shippingCharge,
+          zone: response.data.zone,
+          city: response.data.city
+        }));
+      }
+    } catch (error) {
+      console.warn('[Checkout] Failed to fetch shipping rates:', error.message);
+      // Use fallback rate
+      setShippingData(prev => ({
+        ...prev,
+        charge: 99
+      }));
+    } finally {
+      setShippingLoading(false);
+    }
+  }, [subtotalAmount]);
 
   // Generate UPI/GPay QR code
   useEffect(() => {
@@ -141,6 +173,7 @@ const Checkout = ({
   }, []);
 
   // Fetch location from IP and populate city/zipcode
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const fetchLocationFromIP = async () => {
       try {
@@ -180,38 +213,7 @@ const Checkout = ({
     };
 
     fetchLocationFromIP();
-  }, []);
-
-  // Fetch shipping rates when city changes
-  const fetchShippingRates = async (city) => {
-    if (!city) return;
-    
-    try {
-      setShippingLoading(true);
-      console.log('[Checkout] Fetching shipping rates for city:', city);
-      
-      const response = await getShippingRateByCity(city, 1, subtotalAmount);
-      
-      if (response.data.success) {
-        console.log('[Checkout] Shipping rates received:', response.data);
-        setShippingData(prev => ({
-          ...prev,
-          charge: response.data.shippingCharge,
-          zone: response.data.zone,
-          city: response.data.city
-        }));
-      }
-    } catch (error) {
-      console.warn('[Checkout] Failed to fetch shipping rates:', error.message);
-      // Use fallback rate
-      setShippingData(prev => ({
-        ...prev,
-        charge: 99
-      }));
-    } finally {
-      setShippingLoading(false);
-    }
-  };
+  }, [fetchShippingRates]);
 
   // Validate email address
   const validateEmail = (email) => {
