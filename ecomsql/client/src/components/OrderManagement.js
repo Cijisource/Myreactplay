@@ -152,7 +152,7 @@ const OrderManagement = () => {
                   <button
                     className={`status-btn ${selectedOrder.status === 'shipped' ? 'active' : ''}`}
                     onClick={() => handleStatusChange('shipped')}
-                    disabled={statusLoading || selectedOrder.status === 'shipped'}
+                    disabled={statusLoading || selectedOrder.status !== 'ready for shipping'}
                   >
                     Shipped
                   </button>
