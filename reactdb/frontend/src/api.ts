@@ -1,6 +1,17 @@
 import axios, { AxiosInstance } from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || '/apisdd';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
+
+// Interface for upload response
+interface UploadResponse {
+  photoUrls?: string[];
+  proofUrls?: string[];
+  [key: string]: any;
+}
+
+interface ApiUploadResponse {
+  data: UploadResponse;
+}
 
 // Log API configuration
 console.log('[API Config]', {
@@ -27,6 +38,55 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Get the base API URL for file serving
+const getApiBaseUrl = (): string => {
+  if (!API_URL) return window.location.origin;
+  
+  // If API_URL is absolute, extract the base
+  if (API_URL.startsWith('http://') || API_URL.startsWith('https://')) {
+    const base = API_URL.replace(/\/api\/?$/, ''); // Remove /api suffix
+    // console.log('[File URL] Using absolute API base:', base);
+    return base;
+  }
+  
+  // If API_URL is relative, use the current origin
+  // console.log('[File URL] Using relative API, origin:', window.location.origin);
+  return window.location.origin;
+};
+
+// Helper function to construct file URLs
+export const getFileUrl = (filePath: string): string => {
+  if (!filePath) return '';
+  
+  // If it's already an absolute URL, return as is
+  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+    // console.log('[File URL] Already absolute:', filePath);
+    return filePath;
+  }
+  
+  // If it's a path with /, use the API base URL
+  if (filePath.startsWith('/')) {
+    const baseUrl = getApiBaseUrl();
+    const fullUrl = `${baseUrl}${filePath}`;
+    // console.log('[File URL] Constructed URL from path:', { filePath, baseUrl, fullUrl });
+    return fullUrl;
+  }
+  
+  // Check if the path contains tenantphotos
+  if (filePath.includes('tenantphotos')) {
+    const baseUrl = getApiBaseUrl();
+    const fullUrl = `${baseUrl}/api/${filePath}`;
+    // console.log('[File URL] Constructed URL from tenantphotos path:', { filePath, baseUrl, fullUrl });
+    return fullUrl;
+  }
+  
+  // For plain filenames, prepend the API tenantphotos path
+  const baseUrl = getApiBaseUrl();
+  const fullUrl = `${baseUrl}/api/tenantphotos/${filePath}`;
+  // console.log('[File URL] Constructed URL from filename:', { filePath, baseUrl, fullUrl });
+  return fullUrl;
+};
+
 export const apiService = {
   getHealth: () => api.get('/health'),
   getDatabaseStatus: () => api.get('/database/status'),
@@ -44,12 +104,122 @@ export const apiService = {
   deleteTenant: (tenantId: number) => api.delete(`/tenants/${tenantId}`),
   searchTenants: (field: string, query: string) => 
     api.get(`/tenants/search?field=${field}&query=${query}`),
+  uploadTenantFiles: (formData: FormData, onProgress?: (progress: number) => void): Promise<ApiUploadResponse> => {
+    const token = localStorage.getItem('authToken');
+
+    console.log('[Tenant Upload] Starting multi-file upload');
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      // Track upload progress
+      if (onProgress) {
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percentComplete = Math.round((e.loaded / e.total) * 100);
+            console.log('[Tenant Upload] Progress:', percentComplete + '%');
+            onProgress(percentComplete);
+          }
+        });
+      }
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const data = JSON.parse(xhr.responseText);
+            console.log('[Tenant Upload] Response data:', data);
+            resolve({ data });
+          } catch (e) {
+            reject(new Error('Failed to parse upload response'));
+          }
+        } else {
+          reject(new Error(`Upload failed with status ${xhr.status}`));
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        reject(new Error('Upload failed - network error'));
+      });
+
+      xhr.addEventListener('abort', () => {
+        reject(new Error('Upload was cancelled'));
+      });
+
+      xhr.open('POST', `${API_URL}/tenants/upload`);
+      
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
+
+      xhr.send(formData);
+    });
+  },
   
   // Rental Collection APIs
   getRentalSummary: () => api.get('/rental/summary'),
   getUnpaidTenants: () => api.get('/rental/unpaid-tenants'),
   getUnpaidDetails: (month: string) => api.get(`/rental/unpaid-details/${month}`),
   getPaymentsByMonth: (monthYear: string) => api.get(`/rental/payments/${monthYear}`),
+  getRentalCollectionByOccupancy: (occupancyId: number) => api.get(`/rental/occupancy/${occupancyId}`),
+  getRentalSummaryByOccupancy: (occupancyId: number) => api.get(`/rental/occupancy/${occupancyId}/summary`),
+  updateRentalPayment: (occupancyId: number, data: { collectedAmount: number; month: string }) => 
+    api.put(`/rental/payment/${occupancyId}`, data),
+  updateRentalRecord: (recordId: number, data: any) => 
+    api.put(`/rental/record/${recordId}`, data),
+  uploadPaymentScreenshot: (formData: FormData, onProgress?: (progress: number) => void) => {
+    return new Promise((resolve, reject) => {
+      const token = localStorage.getItem('authToken');
+      const xhr = new XMLHttpRequest();
+
+      // Track upload progress
+      if (onProgress) {
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percentComplete = Math.round((e.loaded / e.total) * 100);
+            console.log(`[Payment Upload] Progress: ${percentComplete}%`);
+            onProgress(percentComplete);
+          }
+        });
+      }
+
+      // Handle completion
+      xhr.addEventListener('load', () => {
+        console.log('[Payment Upload] Upload completed, status:', xhr.status);
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            console.log('[Payment Upload] Response data:', response);
+            resolve({ data: response });
+          } catch (error) {
+            console.error('[Payment Upload] Error parsing response:', error);
+            reject(new Error('Failed to parse upload response'));
+          }
+        } else {
+          reject(new Error(`Upload failed with status ${xhr.status}`));
+        }
+      });
+
+      // Handle errors
+      xhr.addEventListener('error', () => {
+        console.error('[Payment Upload] Network error during upload');
+        reject(new Error('Network error during upload'));
+      });
+
+      xhr.addEventListener('abort', () => {
+        console.log('[Payment Upload] Upload aborted');
+        reject(new Error('Upload was aborted'));
+      });
+
+      // Setup request
+      xhr.open('POST', `${API_URL}/rental/upload-payment`, true);
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
+
+      console.log('[Payment Upload] Starting payment screenshot upload');
+      xhr.send(formData);
+    });
+  },
   
   // Room Occupancy APIs
   getRoomOccupancyData: () => api.get('/rooms/occupancy'),
@@ -62,6 +232,38 @@ export const apiService = {
   createComplaint: (data: any) => api.post('/complaints', data),
   updateComplaint: (complaintId: number, data: any) => api.put(`/complaints/${complaintId}`, data),
   deleteComplaint: (complaintId: number) => api.delete(`/complaints/${complaintId}`),
+  uploadComplaintFiles: (formData: FormData) => {
+    // Use fetch instead of axios for FormData to avoid header issues
+    const token = localStorage.getItem('authToken');
+    const headers: any = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    
+    // Remove Content-Type header - browser will set it with boundary for FormData
+    console.log('[Upload] Starting file upload with FormData');
+    
+    return fetch(`${API_URL}/complaints/upload`, {
+      method: 'POST',
+      headers: headers,
+      body: formData
+    })
+    .then(response => {
+      console.log('[Upload] Response status:', response.status);
+      if (!response.ok) {
+        throw new Error(`Upload failed with status ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log('[Upload] Response data:', data);
+      return { data };
+    })
+    .catch(error => {
+      console.error('[Upload] Error:', error);
+      throw error;
+    });
+  },
   getRooms: () => api.get('/rooms'),
 
   // Service Details APIs
@@ -122,11 +324,69 @@ export const apiService = {
   createDailyStatus: (data: any) => api.post('/daily-status', data),
   updateDailyStatus: (statusId: number, data: any) => api.put(`/daily-status/${statusId}`, data),
   deleteDailyStatus: (statusId: number) => api.delete(`/daily-status/${statusId}`),
+  getDailyStatusMedia: (statusId: number) => api.get(`/daily-status/${statusId}/media`),
+  getDailyStatusAllMedia: () => api.get('/all-media/'), // New endpoint to fetch all media files
+  uploadDailyStatusMedia: (formData: FormData, onProgress?: (progress: number) => void) => {
+    return new Promise((resolve, reject) => {
+      const token = localStorage.getItem('authToken');
+      const xhr = new XMLHttpRequest();
+
+      // Track upload progress
+      if (onProgress) {
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percentComplete = Math.round((e.loaded / e.total) * 100);
+            console.log(`[Upload] Progress: ${percentComplete}%`);
+            onProgress(percentComplete);
+          }
+        });
+      }
+
+      // Handle completion
+      xhr.addEventListener('load', () => {
+        console.log('[Upload] Upload completed, status:', xhr.status);
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            console.log('[Upload] Response data:', response);
+            resolve({ data: response });
+          } catch (error) {
+            console.error('[Upload] Error parsing response:', error);
+            reject(new Error('Failed to parse upload response'));
+          }
+        } else {
+          reject(new Error(`Upload failed with status ${xhr.status}`));
+        }
+      });
+
+      // Handle errors
+      xhr.addEventListener('error', () => {
+        console.error('[Upload] Network error during upload');
+        reject(new Error('Network error during upload'));
+      });
+
+      xhr.addEventListener('abort', () => {
+        console.log('[Upload] Upload aborted');
+        reject(new Error('Upload was aborted'));
+      });
+
+      // Setup request
+      xhr.open('POST', `${API_URL}/daily-status/upload`, true);
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
+
+      console.log('[Upload] Starting daily status media upload');
+      xhr.send(formData);
+    });
+  },
+  deleteDailyStatusMedia: (mediaId: number) => api.delete(`/daily-status/media/${mediaId}`),
 
   // Service Room Allocation APIs
   getServiceAllocations: () => api.get('/service-allocations'),
   getServiceAllocationById: (allocationId: number) => api.get(`/service-allocations/${allocationId}`),
   getServiceAllocationsWithPayments: () => api.get('/service-allocations-with-payments'),
+  getServiceAllocationsForReading: () => api.get('/service-allocations-for-reading'),
   createServiceAllocation: (data: any) => api.post('/service-allocations', data),
   updateServiceAllocation: (allocationId: number, data: any) => api.put(`/service-allocations/${allocationId}`, data),
   deleteServiceAllocation: (allocationId: number) => api.delete(`/service-allocations/${allocationId}`),
@@ -141,6 +401,8 @@ export const apiService = {
     return api.get(`/service-consumption${params.toString() ? '?' + params.toString() : ''}`);
   },
   getServiceConsumptionById: (consumptionId: number) => api.get(`/service-consumption/${consumptionId}`),
+  getPreviousMonthEndingReading: (serviceAllocId: number, month: number, year: number) =>
+    api.get(`/service-consumption/previous-month-reading/${serviceAllocId}/${month}/${year}`),
   createServiceConsumption: (data: any) => api.post('/service-consumption', data),
   deleteServiceConsumption: (consumptionId: number) => api.delete(`/service-consumption/${consumptionId}`),
   

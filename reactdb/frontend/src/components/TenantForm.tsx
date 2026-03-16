@@ -1,6 +1,8 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
+import { apiService, getFileUrl } from '../api';
 import { TenantWithOccupancy } from './TenantManagement';
 import './TenantForm.css';
+import './ManagementStyles.css';
 
 interface TenantFormProps {
   tenant?: TenantWithOccupancy | null;
@@ -8,24 +10,77 @@ interface TenantFormProps {
   onCancel: () => void;
 }
 
+interface FilePreview {
+  file: File;
+  preview: string;
+  name: string;
+}
+
+interface ExistingFile {
+  url: string;
+  field: string; // 'photoUrl', 'photo2Url', etc.
+}
+
+const MAX_PHOTOS = 10;
+const MAX_PROOFS = 10;
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
 export default function TenantForm({ tenant, onSubmit, onCancel }: TenantFormProps) {
   const [formData, setFormData] = useState({
     name: tenant?.name || '',
     phone: tenant?.phone || '',
     address: tenant?.address || '',
     city: tenant?.city || '',
-    photoUrl: tenant?.photoUrl || '',
-    proof1Url: tenant?.proof1Url || '',
-    proof2Url: tenant?.proof2Url || '',
-    proof3Url: tenant?.proof3Url || '',
   });
 
-  const [photoPreview, setPhotoPreview] = useState<string | null>(
-    tenant?.photoUrl || null
-  );
+  const [photos, setPhotos] = useState<FilePreview[]>([]);
+  const [proofs, setProofs] = useState<FilePreview[]>([]);
+  const [deletedPhotoFields, setDeletedPhotoFields] = useState<Set<string>>(new Set());
+  const [deletedProofFields, setDeletedProofFields] = useState<Set<string>>(new Set());
+  const [replacementPhotos, setReplacementPhotos] = useState<Map<string, FilePreview>>(new Map());
+  const [replacementProofs, setReplacementProofs] = useState<Map<string, FilePreview>>(new Map());
+  const [replacingPhotoField, setReplacingPhotoField] = useState<string | null>(null);
+  const [replacingProofField, setReplacingProofField] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const proofInputRef = useRef<HTMLInputElement>(null);
+  const replacePhotoInputRef = useRef<HTMLInputElement>(null);
+  const replaceProofInputRef = useRef<HTMLInputElement>(null);
+
+  // Get existing photos and proofs
+  const existingPhotos = useMemo<ExistingFile[]>(() => {
+    if (!tenant) return [];
+    return [
+      { url: tenant.photoUrl, field: 'photoUrl' },
+      { url: tenant.photo2Url, field: 'photo2Url' },
+      { url: tenant.photo3Url, field: 'photo3Url' },
+      { url: tenant.photo4Url, field: 'photo4Url' },
+      { url: tenant.photo5Url, field: 'photo5Url' },
+      { url: tenant.photo6Url, field: 'photo6Url' },
+      { url: tenant.photo7Url, field: 'photo7Url' },
+      { url: tenant.photo8Url, field: 'photo8Url' },
+      { url: tenant.photo9Url, field: 'photo9Url' },
+      { url: tenant.photo10Url, field: 'photo10Url' },
+    ].filter((item): item is ExistingFile => !!item.url);
+  }, [tenant]);
+
+  const existingProofs = useMemo<ExistingFile[]>(() => {
+    if (!tenant) return [];
+    return [
+      { url: tenant.proof1Url, field: 'proof1Url' },
+      { url: tenant.proof2Url, field: 'proof2Url' },
+      { url: tenant.proof3Url, field: 'proof3Url' },
+      { url: tenant.proof4Url, field: 'proof4Url' },
+      { url: tenant.proof5Url, field: 'proof5Url' },
+      { url: tenant.proof6Url, field: 'proof6Url' },
+      { url: tenant.proof7Url, field: 'proof7Url' },
+      { url: tenant.proof8Url, field: 'proof8Url' },
+      { url: tenant.proof9Url, field: 'proof9Url' },
+      { url: tenant.proof10Url, field: 'proof10Url' },
+    ].filter((item): item is ExistingFile => !!item.url);
+  }, [tenant]);
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -37,31 +92,186 @@ export default function TenantForm({ tenant, onSubmit, onCancel }: TenantFormPro
     }));
   };
 
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
+  const validateFile = (file: File): string | null => {
+    if (file.size > MAX_FILE_SIZE) {
+      return `File ${file.name} exceeds 10MB limit`;
+    }
+    if (!file.type.startsWith('image/')) {
+      return `File ${file.name} is not an image`;
+    }
+    return null;
+  };
+
+  const handlePhotosChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    const newPhotos: FilePreview[] = [];
+    for (let i = 0; i < files.length; i++) {
+      if (photos.length + newPhotos.length >= MAX_PHOTOS) {
+        setError(`Maximum ${MAX_PHOTOS} photos allowed`);
+        break;
+      }
+
+      const file = files[i];
+      const validationError = validateFile(file);
+      if (validationError) {
+        setError(validationError);
+        continue;
+      }
+
       const reader = new FileReader();
       reader.onload = (event) => {
-        const dataUrl = event.target?.result as string;
-        setPhotoPreview(dataUrl);
-        setFormData((prev) => ({
+        const preview = event.target?.result as string;
+        setPhotos((prev) => [
           ...prev,
-          photoUrl: dataUrl,
-        }));
+          {
+            file,
+            preview,
+            name: file.name,
+          },
+        ]);
       };
       reader.readAsDataURL(file);
     }
+
+    if (photoInputRef.current) {
+      photoInputRef.current.value = '';
+    }
   };
 
-  const handleRemovePhoto = () => {
-    setPhotoPreview(null);
-    setFormData((prev) => ({
-      ...prev,
-      photoUrl: '',
-    }));
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+  const handleProofsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    const newProofs: FilePreview[] = [];
+    for (let i = 0; i < files.length; i++) {
+      if (proofs.length + newProofs.length >= MAX_PROOFS) {
+        setError(`Maximum ${MAX_PROOFS} proofs allowed`);
+        break;
+      }
+
+      const file = files[i];
+      const validationError = validateFile(file);
+      if (validationError) {
+        setError(validationError);
+        continue;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const preview = event.target?.result as string;
+        setProofs((prev) => [
+          ...prev,
+          {
+            file,
+            preview,
+            name: file.name,
+          },
+        ]);
+      };
+      reader.readAsDataURL(file);
     }
+
+    if (proofInputRef.current) {
+      proofInputRef.current.value = '';
+    }
+  };
+
+  const removePhoto = (index: number) => {
+    setPhotos((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const removeProof = (index: number) => {
+    setProofs((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const removeExistingPhoto = (field: string) => {
+    setDeletedPhotoFields((prev) => new Set([...prev, field]));
+  };
+
+  const removeExistingProof = (field: string) => {
+    setDeletedProofFields((prev) => new Set([...prev, field]));
+  };
+
+  const startReplacingPhoto = (field: string) => {
+    setReplacingPhotoField(field);
+    replacePhotoInputRef.current?.click();
+  };
+
+  const startReplacingProof = (field: string) => {
+    setReplacingProofField(field);
+    replaceProofInputRef.current?.click();
+  };
+
+  const handleReplacePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !replacingPhotoField) return;
+
+    const validationError = validateFile(file);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const preview = event.target?.result as string;
+      setReplacementPhotos((prev) => new Map(prev).set(replacingPhotoField, {
+        file,
+        preview,
+        name: file.name,
+      }));
+      setReplacingPhotoField(null);
+    };
+    reader.readAsDataURL(file);
+
+    if (replacePhotoInputRef.current) {
+      replacePhotoInputRef.current.value = '';
+    }
+  };
+
+  const handleReplaceProofChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !replacingProofField) return;
+
+    const validationError = validateFile(file);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const preview = event.target?.result as string;
+      setReplacementProofs((prev) => new Map(prev).set(replacingProofField, {
+        file,
+        preview,
+        name: file.name,
+      }));
+      setReplacingProofField(null);
+    };
+    reader.readAsDataURL(file);
+
+    if (replaceProofInputRef.current) {
+      replaceProofInputRef.current.value = '';
+    }
+  };
+
+  const cancelReplacePhoto = (field: string) => {
+    setReplacementPhotos((prev) => {
+      const newMap = new Map(prev);
+      newMap.delete(field);
+      return newMap;
+    });
+  };
+
+  const cancelReplaceProof = (field: string) => {
+    setReplacementProofs((prev) => {
+      const newMap = new Map(prev);
+      newMap.delete(field);
+      return newMap;
+    });
   };
 
   const validateForm = (): boolean => {
@@ -99,28 +309,175 @@ export default function TenantForm({ tenant, onSubmit, onCancel }: TenantFormPro
 
     setLoading(true);
     try {
+      // Start with existing file URLs (for edit mode), excluding deleted ones
+      let photoUrls: string[] = [
+        tenant?.photoUrl || null,
+        tenant?.photo2Url || null,
+        tenant?.photo3Url || null,
+        tenant?.photo4Url || null,
+        tenant?.photo5Url || null,
+        tenant?.photo6Url || null,
+        tenant?.photo7Url || null,
+        tenant?.photo8Url || null,
+        tenant?.photo9Url || null,
+        tenant?.photo10Url || null,
+      ]
+        .map((url, idx) => {
+          const field = `photo${idx === 0 ? '' : idx + 1}Url`;
+          return !url || deletedPhotoFields.has(field) ? null : url;
+        })
+        .filter((url): url is string => url !== null);
+
+      let proofUrls: string[] = [
+        tenant?.proof1Url || null,
+        tenant?.proof2Url || null,
+        tenant?.proof3Url || null,
+        tenant?.proof4Url || null,
+        tenant?.proof5Url || null,
+        tenant?.proof6Url || null,
+        tenant?.proof7Url || null,
+        tenant?.proof8Url || null,
+        tenant?.proof9Url || null,
+        tenant?.proof10Url || null,
+      ]
+        .map((url, idx) => {
+          const field = `proof${idx + 1}Url`;
+          return !url || deletedProofFields.has(field) ? null : url;
+        })
+        .filter((url): url is string => url !== null);
+
+      // Collect files to upload (new photos + replacement photos + new proofs + replacement proofs)
+      const filesToUpload = new FormData();
+      
+      // Add new photos
+      photos.forEach((photo) => {
+        filesToUpload.append('photos', photo.file);
+      });
+
+      // Add replacement photos
+      replacementPhotos.forEach((photo) => {
+        filesToUpload.append('photos', photo.file);
+      });
+
+      // Add new proofs
+      proofs.forEach((proof) => {
+        filesToUpload.append('proofs', proof.file);
+      });
+
+      // Add replacement proofs
+      replacementProofs.forEach((proof) => {
+        filesToUpload.append('proofs', proof.file);
+      });
+
+      // If new/replacement files are provided, upload them
+      if (filesToUpload.entries().next().value !== undefined) {
+        console.log(`[Tenant ${tenant ? 'Update' : 'Creation'}] Uploading files...`, {
+          newPhotoCount: photos.length,
+          replacementPhotoCount: replacementPhotos.size,
+          newProofCount: proofs.length,
+          replacementProofCount: replacementProofs.size,
+        });
+
+        try {
+          const uploadResponse = await apiService.uploadTenantFiles(filesToUpload, (progress) => {
+            setUploadProgress(progress);
+          });
+          console.log(`[Tenant ${tenant ? 'Update' : 'Creation'}] Upload response:`, uploadResponse);
+          
+          if (uploadResponse.data) {
+            const uploadedPhotos = uploadResponse.data.photoUrls || [];
+            const uploadedProofs = uploadResponse.data.proofUrls || [];
+            
+            // Handle replacement photos
+            let uploadedPhotoIndex = 0;
+            replacementPhotos.forEach((_, field) => {
+              // Get the position of the field to replace
+              const fieldIndex = parseInt(field.match(/\d+/)?.[0] || '0');
+              const position = field === 'photoUrl' ? 0 : fieldIndex - 1;
+              
+              if (uploadedPhotoIndex < uploadedPhotos.length) {
+                // Replace at the correct position
+                photoUrls[position] = uploadedPhotos[uploadedPhotoIndex];
+                uploadedPhotoIndex++;
+              }
+            });
+            
+            // Add remaining new photos
+            while (uploadedPhotoIndex < uploadedPhotos.length && photoUrls.length < MAX_PHOTOS) {
+              photoUrls.push(uploadedPhotos[uploadedPhotoIndex]);
+              uploadedPhotoIndex++;
+            }
+            
+            // Handle replacement proofs
+            let uploadedProofIndex = 0;
+            replacementProofs.forEach((_, field) => {
+              // Get the position of the field to replace
+              const position = parseInt(field.match(/\d+/)?.[0] || '1') - 1;
+              
+              if (uploadedProofIndex < uploadedProofs.length) {
+                // Replace at the correct position
+                proofUrls[position] = uploadedProofs[uploadedProofIndex];
+                uploadedProofIndex++;
+              }
+            });
+            
+            // Add remaining new proofs
+            while (uploadedProofIndex < uploadedProofs.length && proofUrls.length < MAX_PROOFS) {
+              proofUrls.push(uploadedProofs[uploadedProofIndex]);
+              uploadedProofIndex++;
+            }
+          }
+        } catch (uploadErr) {
+          const uploadError = uploadErr instanceof Error ? uploadErr.message : 'File upload failed';
+          setError(`Upload failed: ${uploadError}`);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Create submit data with all 10 photo and proof URLs
       const submitData: Omit<TenantWithOccupancy, 'id'> = {
         name: formData.name.trim(),
         phone: formData.phone.trim(),
         address: formData.address.trim(),
         city: formData.city.trim(),
-        photoUrl: formData.photoUrl || null,
-        proof1Url: formData.proof1Url || null,
-        proof2Url: formData.proof2Url || null,
-        proof3Url: formData.proof3Url || null,
+        photoUrl: photoUrls[0] || null,
+        photo2Url: photoUrls[1] || null,
+        photo3Url: photoUrls[2] || null,
+        photo4Url: photoUrls[3] || null,
+        photo5Url: photoUrls[4] || null,
+        photo6Url: photoUrls[5] || null,
+        photo7Url: photoUrls[6] || null,
+        photo8Url: photoUrls[7] || null,
+        photo9Url: photoUrls[8] || null,
+        photo10Url: photoUrls[9] || null,
+        proof1Url: proofUrls[0] || null,
+        proof2Url: proofUrls[1] || null,
+        proof3Url: proofUrls[2] || null,
+        proof4Url: proofUrls[3] || null,
+        proof5Url: proofUrls[4] || null,
+        proof6Url: proofUrls[5] || null,
+        proof7Url: proofUrls[6] || null,
+        proof8Url: proofUrls[7] || null,
+        proof9Url: proofUrls[8] || null,
+        proof10Url: proofUrls[9] || null,
       };
+
+      console.log(`[Tenant ${tenant ? 'Update' : 'Creation'}] Submitting data:`, submitData);
       await onSubmit(submitData);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to save tenant';
       setError(errorMsg);
+      console.error('[Tenant Form] Error:', err);
     } finally {
       setLoading(false);
+      setUploadProgress(0);
     }
   };
 
   return (
     <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-content modal-large" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>{tenant ? 'Edit Tenant' : 'Add New Tenant'}</h2>
           <button className="btn-close" onClick={onCancel} disabled={loading}>
@@ -130,45 +487,14 @@ export default function TenantForm({ tenant, onSubmit, onCancel }: TenantFormPro
 
         <form onSubmit={handleSubmit} className="tenant-form">
           {error && <div className="form-error">{error}</div>}
-
-          {/* Photo Upload Section */}
-          <div className="form-section photo-section">
-            <label>Tenant Photo</label>
-            <div className="photo-upload-area">
-              {photoPreview ? (
-                <div className="photo-preview">
-                  <img src={photoPreview} alt="Preview" />
-                  <button
-                    type="button"
-                    className="btn-remove-photo"
-                    onClick={handleRemovePhoto}
-                    disabled={loading}
-                  >
-                    Remove Photo
-                  </button>
-                </div>
-              ) : (
-                <div
-                  className="photo-placeholder"
-                  onClick={() => fileInputRef.current?.click()}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <div className="upload-icon">📷</div>
-                  <p>Click to upload photo</p>
-                  <span className="upload-hint">PNG, JPG up to 5MB</span>
-                </div>
-              )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handlePhotoChange}
-                className="photo-input"
-                disabled={loading}
-              />
+          {uploadProgress > 0 && uploadProgress < 100 && (
+            <div className="upload-progress">
+              <div className="progress-bar">
+                <div className="progress-fill" style={{ width: `${uploadProgress}%` }}></div>
+              </div>
+              <span className="progress-text">{uploadProgress}%</span>
             </div>
-          </div>
+          )}
 
           {/* Basic Information */}
           <div className="form-section">
@@ -233,48 +559,256 @@ export default function TenantForm({ tenant, onSubmit, onCancel }: TenantFormPro
             </div>
           </div>
 
-          {/* Document URLs */}
+          {/* Photo Upload Section */}
           <div className="form-section">
-            <h3>Document Links (Optional)</h3>
+            <div className="section-header">
+              <h3>Tenant Photos {tenant && '(Click to update)'}</h3>
+              <span className="count-badge">{photos.length + replacementPhotos.size + (existingPhotos.length - deletedPhotoFields.size)} / {MAX_PHOTOS}</span>
+            </div>
 
-            <div className="form-group">
-              <label htmlFor="proof1Url">Proof 1 URL</label>
+            {/* Display Existing Photos */}
+            {existingPhotos.length > 0 && (
+              <div className="edit-media-section">
+                <h4>Current Photos</h4>
+                <div className="edit-media-grid">
+                  {existingPhotos
+                    .filter((photo) => !deletedPhotoFields.has(photo.field))
+                    .map((photo) => (
+                      <div key={photo.field} className="edit-media-item">
+                        {replacementPhotos.has(photo.field) ? (
+                          <>
+                            <img
+                              src={replacementPhotos.get(photo.field)?.preview}
+                              alt={`Replacement ${photo.field}`}
+                              className="edit-media-thumbnail replacement-preview"
+                            />
+                            <div className="replacement-badge">New</div>
+                          </>
+                        ) : (
+                          <img
+                            src={getFileUrl(photo.url)}
+                            alt={photo.field}
+                            className="edit-media-thumbnail"
+                          />
+                        )}
+                        <div className="edit-media-actions">
+                          {replacementPhotos.has(photo.field) ? (
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              onClick={() => cancelReplacePhoto(photo.field)}
+                              disabled={loading}
+                              title="Cancel replacement"
+                            >
+                              ✕ Cancel
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                className="btn-info"
+                                onClick={() => startReplacingPhoto(photo.field)}
+                                disabled={loading}
+                                title="Replace photo"
+                              >
+                                🔄 Replace
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-danger"
+                                onClick={() => removeExistingPhoto(photo.field)}
+                                disabled={loading}
+                                title="Delete photo"
+                              >
+                                🗑️ Delete
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+            
+            <div className="file-upload-area">
+              <div
+                className="upload-placeholder"
+                onClick={() => photoInputRef.current?.click()}
+                role="button"
+                tabIndex={0}
+              >
+                <div className="upload-icon">📸</div>
+                <p>Click to {tenant && photos.length === 0 ? 'add or update' : 'upload'} photos (up to {MAX_PHOTOS})</p>
+                <span className="upload-hint">PNG, JPG, GIF up to 10MB each</span>
+              </div>
               <input
-                id="proof1Url"
-                type="url"
-                name="proof1Url"
-                value={formData.proof1Url}
-                onChange={handleInputChange}
-                placeholder="https://example.com/proof1"
-                disabled={loading}
+                ref={photoInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handlePhotosChange}
+                className="file-input"
+                disabled={loading || (photos.length + replacementPhotos.size + (existingPhotos.length - deletedPhotoFields.size)) >= MAX_PHOTOS}
+                multiple
               />
             </div>
 
-            <div className="form-group">
-              <label htmlFor="proof2Url">Proof 2 URL</label>
+            {photos.length > 0 && (
+              <div className="file-gallery">
+                <h4>New Photos to Add</h4>
+                {photos.map((photo, index) => (
+                  <div key={index} className="gallery-item">
+                    <img src={photo.preview} alt={`Photo ${index + 1}`} />
+                    <div className="file-name" title={photo.name}>{photo.name}</div>
+                    <button
+                      type="button"
+                      className="btn-remove-file"
+                      onClick={() => removePhoto(index)}
+                      disabled={loading}
+                      title="Remove photo"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Hidden input for photo replacement */}
+            <input
+              ref={replacePhotoInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleReplacePhotoChange}
+              className="file-input"
+              hidden
+            />
+          </div>
+
+          {/* Proof Upload Section */}
+          <div className="form-section">
+            <div className="section-header">
+              <h3>Proof Documents {tenant && '(Click to update)'}</h3>
+              <span className="count-badge">{proofs.length + replacementProofs.size + (existingProofs.length - deletedProofFields.size)} / {MAX_PROOFS}</span>
+            </div>
+
+            {/* Display Existing Proofs */}
+            {existingProofs.length > 0 && (
+              <div className="edit-media-section">
+                <h4>Current Proofs</h4>
+                <div className="edit-media-grid">
+                  {existingProofs
+                    .filter((proof) => !deletedProofFields.has(proof.field))
+                    .map((proof) => (
+                      <div key={proof.field} className="edit-media-item">
+                        {replacementProofs.has(proof.field) ? (
+                          <>
+                            <img
+                              src={replacementProofs.get(proof.field)?.preview}
+                              alt={`Replacement ${proof.field}`}
+                              className="edit-media-thumbnail replacement-preview"
+                            />
+                            <div className="replacement-badge">New</div>
+                          </>
+                        ) : (
+                          <img
+                            src={getFileUrl(proof.url)}
+                            alt={proof.field}
+                            className="edit-media-thumbnail"
+                          />
+                        )}
+                        <div className="edit-media-actions">
+                          {replacementProofs.has(proof.field) ? (
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              onClick={() => cancelReplaceProof(proof.field)}
+                              disabled={loading}
+                              title="Cancel replacement"
+                            >
+                              ✕ Cancel
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                className="btn-info"
+                                onClick={() => startReplacingProof(proof.field)}
+                                disabled={loading}
+                                title="Replace proof"
+                              >
+                                🔄 Replace
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-danger"
+                                onClick={() => removeExistingProof(proof.field)}
+                                disabled={loading}
+                                title="Delete proof"
+                              >
+                                🗑️ Delete
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            <div className="file-upload-area">
+              <div
+                className="upload-placeholder"
+                onClick={() => proofInputRef.current?.click()}
+                role="button"
+                tabIndex={0}
+              >
+                <div className="upload-icon">📄</div>
+                <p>Click to {tenant && proofs.length === 0 ? 'add or update' : 'upload'} proof documents (up to {MAX_PROOFS})</p>
+                <span className="upload-hint">PNG, JPG, GIF up to 10MB each</span>
+              </div>
               <input
-                id="proof2Url"
-                type="url"
-                name="proof2Url"
-                value={formData.proof2Url}
-                onChange={handleInputChange}
-                placeholder="https://example.com/proof2"
-                disabled={loading}
+                ref={proofInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleProofsChange}
+                className="file-input"
+                disabled={loading || (proofs.length + replacementProofs.size + (existingProofs.length - deletedProofFields.size)) >= MAX_PROOFS}
+                multiple
               />
             </div>
 
-            <div className="form-group">
-              <label htmlFor="proof3Url">Proof 3 URL</label>
-              <input
-                id="proof3Url"
-                type="url"
-                name="proof3Url"
-                value={formData.proof3Url}
-                onChange={handleInputChange}
-                placeholder="https://example.com/proof3"
-                disabled={loading}
-              />
-            </div>
+            {proofs.length > 0 && (
+              <div className="file-gallery">
+                <h4>New Proofs to Add</h4>
+                {proofs.map((proof, index) => (
+                  <div key={index} className="gallery-item">
+                    <img src={proof.preview} alt={`Proof ${index + 1}`} />
+                    <div className="file-name" title={proof.name}>{proof.name}</div>
+                    <button
+                      type="button"
+                      className="btn-remove-file"
+                      onClick={() => removeProof(index)}
+                      disabled={loading}
+                      title="Remove proof"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Hidden input for proof replacement */}
+            <input
+              ref={replaceProofInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleReplaceProofChange}
+              className="file-input"
+              hidden
+            />
           </div>
 
           {/* Form Actions */}
@@ -293,7 +827,7 @@ export default function TenantForm({ tenant, onSubmit, onCancel }: TenantFormPro
               disabled={loading}
             >
               {loading
-                ? 'Saving...'
+                ? `Saving... ${uploadProgress > 0 ? uploadProgress + '%' : ''}`
                 : tenant
                 ? 'Update Tenant'
                 : 'Create Tenant'}

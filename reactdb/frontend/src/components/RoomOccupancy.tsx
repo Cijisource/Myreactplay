@@ -33,6 +33,8 @@ export default function RoomOccupancy(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [filterOccupancy, setFilterOccupancy] = useState<'all' | 'occupied' | 'vacant'>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [showStatsGrid, setShowStatsGrid] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     const fetchRoomData = async () => {
@@ -186,7 +188,19 @@ export default function RoomOccupancy(): JSX.Element {
       )}
 
       {/* Statistics Cards */}
-      <div className="stats-grid">
+      <div className="section-header">
+        <h2>Statistics</h2>
+        <button 
+          className={`toggle-btn ${showStatsGrid ? 'expanded' : 'collapsed'}`}
+          onClick={() => setShowStatsGrid(!showStatsGrid)}
+          aria-expanded={showStatsGrid}
+        >
+          {showStatsGrid ? '▼' : '▶'}
+        </button>
+      </div>
+      
+      <div className={`collapsible-content ${showStatsGrid ? 'open' : 'closed'}`}>
+        <div className="stats-grid">
         <div className="stat-card total">
           <div className="stat-icon">🔑</div>
           <div className="stat-content">
@@ -240,7 +254,19 @@ export default function RoomOccupancy(): JSX.Element {
       </div>
 
       {/* Filters */}
-      <div className="filters-section">
+      <div className="section-header">
+        <h2>Filters & Search</h2>
+        <button 
+          className={`toggle-btn ${showFilters ? 'expanded' : 'collapsed'}`}
+          onClick={() => setShowFilters(!showFilters)}
+          aria-expanded={showFilters}
+        >
+          {showFilters ? '▼' : '▶'}
+        </button>
+      </div>
+
+      <div className={`collapsible-content ${showFilters ? 'open' : 'closed'}`}>
+        <div className="filters-section">
         <div className="filter-group">
           <input
             type="text"
@@ -270,6 +296,7 @@ export default function RoomOccupancy(): JSX.Element {
           >
             Vacant ({stats.vacantRooms})
           </button>
+        </div>
         </div>
       </div>
 
@@ -339,6 +366,7 @@ export default function RoomOccupancy(): JSX.Element {
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 }

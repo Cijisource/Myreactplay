@@ -3,17 +3,237 @@ import cors from 'cors';
 import { initializeDatabase, closeDatabase, getPool } from './database';
 import sql from 'mssql';
 import jwt from 'jsonwebtoken';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
 const app: Express = express();
 const PORT: number = parseInt(process.env.EXPRESS_PORT || '5000');
 
+// Determine complains directory based on environment
+// In Docker: /app/complains (or use env variable if provided)
+// In local development: process.cwd()/complains
+const isDocker = process.env.NODE_ENV === 'production';
+const complainsDir = process.env.COMPLAINS_DIR || 
+  (isDocker ? '/app/complains' : path.resolve(process.cwd(), 'complains'));
+
+// Determine daily status media directory
+const dailyStatusMediaDir = process.env.DAILY_STATUS_MEDIA_DIR || 
+  (isDocker ? '/app/daily-status-media' : path.resolve(process.cwd(), 'daily-status-media'));
+
+// Determine tenant photos directory
+const tenantPhotosDir = process.env.TENANT_PHOTOS_DIR || 
+  (isDocker ? '/app/tenantphotos' : path.resolve(process.cwd(), 'tenantphotos'));
+
+// Determine payments directory
+const paymentsDir = process.env.PAYMENTS_DIR || 
+  (isDocker ? '/app/payments' : path.resolve(process.cwd(), 'payments'));
+
+console.log('Environment:', { NODE_ENV: process.env.NODE_ENV, isDocker });
+console.log('Complains directory:', complainsDir);
+console.log('Daily Status Media directory:', dailyStatusMediaDir);
+console.log('Tenant Photos directory:', tenantPhotosDir);
+console.log('Payments directory:', paymentsDir);
+
+if (!fs.existsSync(complainsDir)) {
+  fs.mkdirSync(complainsDir, { recursive: true });
+  console.log('Created complains directory:', complainsDir);
+} else {
+  console.log('Complains directory already exists');
+}
+
+if (!fs.existsSync(dailyStatusMediaDir)) {
+  fs.mkdirSync(dailyStatusMediaDir, { recursive: true });
+  console.log('Created daily status media directory:', dailyStatusMediaDir);
+} else {
+  console.log('Daily status media directory already exists');
+}
+
+if (!fs.existsSync(tenantPhotosDir)) {
+  fs.mkdirSync(tenantPhotosDir, { recursive: true });
+  console.log('Created tenant photos directory:', tenantPhotosDir);
+} else {
+  console.log('Tenant photos directory already exists');
+}
+
+if (!fs.existsSync(paymentsDir)) {
+  fs.mkdirSync(paymentsDir, { recursive: true });
+  console.log('Created payments directory:', paymentsDir);
+} else {
+  console.log('Payments directory already exists');
+}
+
+// Verify directories are readable/writable
+try {
+  fs.accessSync(complainsDir, fs.constants.R_OK | fs.constants.W_OK);
+  console.log('Complains directory is readable and writable');
+} catch (err) {
+  console.error('ERROR: Complains directory is not accessible:', err);
+}
+
+try {
+  fs.accessSync(dailyStatusMediaDir, fs.constants.R_OK | fs.constants.W_OK);
+  console.log('Daily status media directory is readable and writable');
+} catch (err) {
+  console.error('ERROR: Daily status media directory is not accessible:', err);
+}
+
+try {
+  fs.accessSync(tenantPhotosDir, fs.constants.R_OK | fs.constants.W_OK);
+  console.log('Tenant photos directory is readable and writable');
+} catch (err) {
+  console.error('ERROR: Tenant photos directory is not accessible:', err);
+}
+
+try {
+  fs.accessSync(paymentsDir, fs.constants.R_OK | fs.constants.W_OK);
+  console.log('Payments directory is readable and writable');
+} catch (err) {
+  console.error('ERROR: Payments directory is not accessible:', err);
+}
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, complainsDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+// Configure multer for daily status media uploads
+const dailyStatusMediaStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, dailyStatusMediaDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 500 * 1024 * 1024 }, // 500MB max file size
+  fileFilter: (req, file, cb) => {
+    // Allow images and videos
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime'];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only images and videos are allowed.'));
+    }
+  }
+});
+
+const uploadDailyStatusMedia = multer({
+  storage: dailyStatusMediaStorage,
+  limits: { fileSize: 500 * 1024 * 1024 }, // 500MB max file size
+  fileFilter: (req, file, cb) => {
+    // Allow images and videos
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime'];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only images and videos are allowed.'));
+    }
+  }
+});
+
+// Configure multer for payment uploads
+const paymentsStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, paymentsDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const uploadPaymentScreenshot = multer({
+  storage: paymentsStorage,
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB max file size
+  fileFilter: (req, file, cb) => {
+    // Allow images only
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only images are allowed for payment screenshots.'));
+    }
+  }
+});
+
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
 app.use(express.json());
+// Serve static files from complains folder via API path and direct path
+app.use('/api/complains', express.static(complainsDir));
+app.use('/complains', express.static(complainsDir));
+console.log('Static file serving enabled at /api/complains and /complains from:', complainsDir);
+
+// Serve static files from daily status media folder
+app.use('/api/daily-status-media', express.static(dailyStatusMediaDir));
+app.use('/daily-status-media', express.static(dailyStatusMediaDir));
+console.log('Static file serving enabled at /api/daily-status-media and /daily-status-media from:', dailyStatusMediaDir);
+
+// Serve static files from tenant photos folder
+app.use('/api/tenantphotos', express.static(tenantPhotosDir));
+app.use('/tenantphotos', express.static(tenantPhotosDir));
+console.log('Static file serving enabled at /api/tenantphotos and /tenantphotos from:', tenantPhotosDir);
+
+// Serve static files from payments folder
+app.use('/api/payments', express.static(paymentsDir));
+app.use('/payments', express.static(paymentsDir));
+console.log('Static file serving enabled at /api/payments and /payments from:', paymentsDir);
 
 // Routes
 app.get('/api/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', message: 'Backend is running' });
+});
+
+// Test endpoint to check upload directory
+app.get('/api/complaints/test-upload', (req: Request, res: Response) => {
+  try {
+    const files = fs.readdirSync(complainsDir);
+    const stats = fs.statSync(complainsDir);
+    const fileDetails = files.map(f => {
+      const filePath = path.join(complainsDir, f);
+      const fileStats = fs.statSync(filePath);
+      return {
+        name: f,
+        size: fileStats.size,
+        mode: '0o' + fileStats.mode.toString(8).slice(-3),
+        accessible: true
+      };
+    });
+    
+    res.json({
+      uploadDirectory: complainsDir,
+      directoryExists: fs.existsSync(complainsDir),
+      directoryMode: '0o' + stats.mode.toString(8).slice(-3),
+      directorySize: stats.size,
+      filesInDirectory: files,
+      fileDetails: fileDetails,
+      totalFiles: files.length,
+      servingAt: ['/api/complains', '/complains']
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({
+      error: 'Failed to read upload directory',
+      details: errorMessage,
+      uploadDirectory: complainsDir
+    });
+  }
 });
 
 app.get('/api/database/status', async (req: Request, res: Response) => {
@@ -54,21 +274,26 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
           Id as id,
           UserName as username,
           Password as password,
-          Name as name
+          Name as name,
+          NextLoginDuration as nextLoginDuration,
+          LastLogin as lastLogin
         FROM [User]
         WHERE UserName = @username
       `);
 
     if (!userResult.recordset.length) {
+      console.log(`[Login] User not found: ${username}`);
       return res.status(401).json({ 
         error: 'Invalid username or password' 
       });
     }
 
     const user = userResult.recordset[0];
+    console.log(`[Login] User found: ${username} (ID: ${user.id})`);
 
     // Check password (in production, should use hashed passwords)
     if (user.password !== password) {
+      console.log(`[Login] Invalid password for user: ${username}`);
       return res.status(401).json({ 
         error: 'Invalid username or password' 
       });
@@ -82,11 +307,34 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
           r.RoleName as roleName,
           r.RoleType as roleType
         FROM UserRole ur
-        LEFT JOIN RoleDetail r ON ur.RoleId = r.Id
+        INNER JOIN RoleDetail r ON ur.RoleId = r.Id
         WHERE ur.UserId = @userId
       `);
 
-    const roles = rolesResult.recordset.map(r => r.roleName).join(',') || 'user';
+    const roles = rolesResult.recordset
+      .map(r => r.roleName)
+      .filter(r => r && r.trim() !== '') // Filter out null/empty values
+      .join(',') || 'user';
+    
+    console.log(`[Login] User roles for ${username}: ${roles}`);
+
+    // Update LastLogin timestamp and fetch the updated value
+    const updateResult = await pool.request()
+      .input('userId', sql.Int, user.id)
+      .query(`
+        UPDATE [User]
+        SET LastLogin = GETUTCDATE()
+        WHERE Id = @userId;
+        
+        SELECT LastLogin
+        FROM [User]
+        WHERE Id = @userId
+      `);
+
+    // Get the newly updated LastLogin
+    const updatedLastLogin = updateResult.recordset.length > 0 
+      ? updateResult.recordset[0].LastLogin 
+      : user.lastLogin;
 
     // Generate JWT token
     const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
@@ -101,6 +349,16 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
       { expiresIn: '24h' }
     );
 
+    console.log(`[Login] Successful login for user: ${username}`);
+    console.log(`[Login] Response user object:`, {
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      roles: roles,
+      nextLoginDuration: user.nextLoginDuration,
+      lastLogin: updatedLastLogin
+    });
+
     // Return token and user info
     res.json({
       token,
@@ -108,7 +366,9 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
         id: user.id,
         username: user.username,
         name: user.name,
-        roles: roles
+        roles: roles,
+        nextLoginDuration: user.nextLoginDuration || null,
+        lastLogin: updatedLastLogin || null
       }
     });
   } catch (error) {
@@ -288,27 +548,34 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
       .input('month', sql.Int, month)
       .query(`
         SELECT 
-          rc.OccupancyId as occupancyId,
+          o.Id as occupancyId,
           t.Id as tenantId,
           t.Name as tenantName,
           rd.Number as roomNumber,
           ISNULL(o.RentFixed, rd.Rent) as rentFixed,
-          rc.RentReceivedOn as rentReceivedOn,
+          ISNULL(CAST(rc.RentReceivedOn AS NVARCHAR), NULL) as rentReceivedOn,
           ISNULL(CAST(rc.RentReceived AS FLOAT), 0) as rentReceived,
-          ISNULL(CAST(rc.RentBalance AS FLOAT), 0) as rentBalance,
-          MONTH(CAST(rc.RentReceivedOn AS DATE)) as [month],
-          YEAR(CAST(rc.RentReceivedOn AS DATE)) as [year],
+          ISNULL(CAST(o.RentFixed AS FLOAT), CAST(rd.Rent AS FLOAT)) - ISNULL(CAST(rc.RentReceived AS FLOAT), 0) as rentBalance,
+          @month as [month],
+          @year as [year],
+          CAST(o.CheckInDate AS DATE) as checkInDate,
+          CAST(o.CheckOutDate AS DATE) as checkOutDate,
           CASE 
+            WHEN rc.Id IS NULL THEN 'pending'
             WHEN ISNULL(CAST(rc.RentBalance AS FLOAT), 0) = 0 THEN 'paid'
             WHEN ISNULL(CAST(rc.RentReceived AS FLOAT), 0) > 0 THEN 'partial'
             ELSE 'pending'
           END as paymentStatus
-        FROM RentalCollection rc
-        INNER JOIN Occupancy o ON rc.OccupancyId = o.Id
+        FROM Occupancy o
         INNER JOIN Tenant t ON o.TenantId = t.Id
         INNER JOIN RoomDetail rd ON o.RoomId = rd.Id
-        WHERE YEAR(CAST(rc.RentReceivedOn AS DATE)) = @year
+        LEFT JOIN RentalCollection rc ON rc.OccupancyId = o.Id
+          AND YEAR(CAST(rc.RentReceivedOn AS DATE)) = @year
           AND MONTH(CAST(rc.RentReceivedOn AS DATE)) = @month
+        WHERE 
+          -- Occupancy is active during this month
+          CAST(o.CheckInDate AS DATE) <= EOMONTH(DATEFROMPARTS(@year, @month, 1))
+          AND (o.CheckOutDate IS NULL OR CAST(o.CheckOutDate AS DATE) > DATEFROMPARTS(@year, @month, 1))
         ORDER BY t.Name ASC
       `);
     res.json(result.recordset);
@@ -453,9 +720,25 @@ app.get('/api/tenants/with-occupancy', async (req: Request, res: Response) => {
         TRIM(t.Address) as address,
         TRIM(t.City) as city,
         t.PhotoUrl as photoUrl,
+        t.Photo2Url as photo2Url,
+        t.Photo3Url as photo3Url,
+        t.Photo4Url as photo4Url,
+        t.Photo5Url as photo5Url,
+        t.Photo6Url as photo6Url,
+        t.Photo7Url as photo7Url,
+        t.Photo8Url as photo8Url,
+        t.Photo9Url as photo9Url,
+        t.Photo10Url as photo10Url,
         t.Proof1Url as proof1Url,
         t.Proof2Url as proof2Url,
         t.Proof3Url as proof3Url,
+        t.Proof4Url as proof4Url,
+        t.Proof5Url as proof5Url,
+        t.Proof6Url as proof6Url,
+        t.Proof7Url as proof7Url,
+        t.Proof8Url as proof8Url,
+        t.Proof9Url as proof9Url,
+        t.Proof10Url as proof10Url,
         o.Id as occupancyId,
         rd.Number as roomNumber,
         rd.Id as roomId,
@@ -518,9 +801,15 @@ app.get('/api/tenants/:id', async (req: Request, res: Response) => {
           TRIM(t.Address) as address,
           TRIM(t.City) as city,
           t.PhotoUrl,
-          t.Proof1Url,
-          t.Proof2Url,
-          t.Proof3Url,
+          t.Photo2Url as photo2Url,
+          t.Photo3Url as photo3Url,
+          t.Photo4Url as photo4Url,
+          t.Photo5Url as photo5Url,
+          t.Photo6Url as photo6Url,
+          t.Photo7Url as photo7Url,
+          t.Photo8Url as photo8Url,
+          t.Photo9Url as photo9Url,
+          t.Photo10Url as photo10Url,
           o.Id as occupancyId,
           rd.Number as roomNumber,
           o.CheckInDate,
@@ -550,7 +839,11 @@ app.get('/api/tenants/:id', async (req: Request, res: Response) => {
 // Create tenant
 app.post('/api/tenants', async (req: Request, res: Response) => {
   try {
-    const { name, phone, address, city, photoUrl, proof1Url, proof2Url, proof3Url } = req.body;
+    const { 
+      name, phone, address, city, 
+      photoUrl, photo2Url, photo3Url, photo4Url, photo5Url, photo6Url, photo7Url, photo8Url, photo9Url, photo10Url,
+      proof1Url, proof2Url, proof3Url, proof4Url, proof5Url, proof6Url, proof7Url, proof8Url, proof9Url, proof10Url
+    } = req.body;
     
     if (!name || !phone || !address || !city) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -564,12 +857,28 @@ app.post('/api/tenants', async (req: Request, res: Response) => {
       .input('address', sql.NChar(100), address)
       .input('city', sql.NChar(50), city)
       .input('photoUrl', sql.NVarChar(sql.MAX), photoUrl || null)
+      .input('photo2Url', sql.NVarChar(sql.MAX), photo2Url || null)
+      .input('photo3Url', sql.NVarChar(sql.MAX), photo3Url || null)
+      .input('photo4Url', sql.NVarChar(sql.MAX), photo4Url || null)
+      .input('photo5Url', sql.NVarChar(sql.MAX), photo5Url || null)
+      .input('photo6Url', sql.NVarChar(sql.MAX), photo6Url || null)
+      .input('photo7Url', sql.NVarChar(sql.MAX), photo7Url || null)
+      .input('photo8Url', sql.NVarChar(sql.MAX), photo8Url || null)
+      .input('photo9Url', sql.NVarChar(sql.MAX), photo9Url || null)
+      .input('photo10Url', sql.NVarChar(sql.MAX), photo10Url || null)
       .input('proof1Url', sql.NVarChar(sql.MAX), proof1Url || null)
       .input('proof2Url', sql.NVarChar(sql.MAX), proof2Url || null)
       .input('proof3Url', sql.NVarChar(sql.MAX), proof3Url || null)
+      .input('proof4Url', sql.NVarChar(sql.MAX), proof4Url || null)
+      .input('proof5Url', sql.NVarChar(sql.MAX), proof5Url || null)
+      .input('proof6Url', sql.NVarChar(sql.MAX), proof6Url || null)
+      .input('proof7Url', sql.NVarChar(sql.MAX), proof7Url || null)
+      .input('proof8Url', sql.NVarChar(sql.MAX), proof8Url || null)
+      .input('proof9Url', sql.NVarChar(sql.MAX), proof9Url || null)
+      .input('proof10Url', sql.NVarChar(sql.MAX), proof10Url || null)
       .query(`
-        INSERT INTO Tenant (Name, Phone, Address, City, PhotoUrl, Proof1Url, Proof2Url, Proof3Url)
-        VALUES (@name, @phone, @address, @city, @photoUrl, @proof1Url, @proof2Url, @proof3Url);
+        INSERT INTO Tenant (Name, Phone, Address, City, PhotoUrl, Photo2Url, Photo3Url, Photo4Url, Photo5Url, Photo6Url, Photo7Url, Photo8Url, Photo9Url, Photo10Url, Proof1Url, Proof2Url, Proof3Url, Proof4Url, Proof5Url, Proof6Url, Proof7Url, Proof8Url, Proof9Url, Proof10Url)
+        VALUES (@name, @phone, @address, @city, @photoUrl, @photo2Url, @photo3Url, @photo4Url, @photo5Url, @photo6Url, @photo7Url, @photo8Url, @photo9Url, @photo10Url, @proof1Url, @proof2Url, @proof3Url, @proof4Url, @proof5Url, @proof6Url, @proof7Url, @proof8Url, @proof9Url, @proof10Url);
         SELECT SCOPE_IDENTITY() as id;
       `);
     
@@ -585,11 +894,90 @@ app.post('/api/tenants', async (req: Request, res: Response) => {
   }
 });
 
+// Configure multer for tenant file uploads (supports up to 10 photos and 10 proofs)
+const tenantUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, tenantPhotosDir);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    }
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max file size
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only images are allowed.'));
+    }
+  }
+});
+
+// Tenant file upload endpoint
+app.post('/api/tenants/upload', tenantUpload.fields([
+  { name: 'photos', maxCount: 10 },
+  { name: 'proofs', maxCount: 10 }
+]), async (req: Request, res: Response) => {
+  try {
+    const files = req.files as any;
+    
+    if (!files || (!files.photos && !files.proofs)) {
+      return res.status(400).json({ error: 'No files uploaded' });
+    }
+
+    const photoUrls: string[] = [];
+    const proofUrls: string[] = [];
+
+    // Process photos
+    if (files.photos && Array.isArray(files.photos)) {
+      for (const file of files.photos) {
+        const fileUrl = `tenantphotos/${path.basename(file.path)}`;
+        photoUrls.push(fileUrl);
+      }
+    }
+
+    // Process proofs
+    if (files.proofs && Array.isArray(files.proofs)) {
+      for (const file of files.proofs) {
+        const fileUrl = `tenantphotos/${path.basename(file.path)}`;
+        proofUrls.push(fileUrl);
+      }
+    }
+
+    console.log('[Tenant Upload] Files uploaded successfully:', {
+      photoCount: photoUrls.length,
+      proofCount: proofUrls.length,
+      photoUrls,
+      proofUrls
+    });
+
+    res.status(200).json({ 
+      message: 'Files uploaded successfully',
+      photoUrls,
+      proofUrls
+    });
+  } catch (error) {
+    console.error('Tenant file upload error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to upload files',
+      details: errorMessage
+    });
+  }
+});
+
 // Update tenant
 app.put('/api/tenants/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, phone, address, city, photoUrl, proof1Url, proof2Url, proof3Url } = req.body;
+    const { 
+      name, phone, address, city, 
+      photoUrl, photo2Url, photo3Url, photo4Url, photo5Url, photo6Url, photo7Url, photo8Url, photo9Url, photo10Url,
+      proof1Url, proof2Url, proof3Url, proof4Url, proof5Url, proof6Url, proof7Url, proof8Url, proof9Url, proof10Url
+    } = req.body;
     
     if (!name || !phone || !address || !city) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -604,13 +992,30 @@ app.put('/api/tenants/:id', async (req: Request, res: Response) => {
       .input('address', sql.NChar(100), address)
       .input('city', sql.NChar(50), city)
       .input('photoUrl', sql.NVarChar(sql.MAX), photoUrl || null)
+      .input('photo2Url', sql.NVarChar(sql.MAX), photo2Url || null)
+      .input('photo3Url', sql.NVarChar(sql.MAX), photo3Url || null)
+      .input('photo4Url', sql.NVarChar(sql.MAX), photo4Url || null)
+      .input('photo5Url', sql.NVarChar(sql.MAX), photo5Url || null)
+      .input('photo6Url', sql.NVarChar(sql.MAX), photo6Url || null)
+      .input('photo7Url', sql.NVarChar(sql.MAX), photo7Url || null)
+      .input('photo8Url', sql.NVarChar(sql.MAX), photo8Url || null)
+      .input('photo9Url', sql.NVarChar(sql.MAX), photo9Url || null)
+      .input('photo10Url', sql.NVarChar(sql.MAX), photo10Url || null)
       .input('proof1Url', sql.NVarChar(sql.MAX), proof1Url || null)
       .input('proof2Url', sql.NVarChar(sql.MAX), proof2Url || null)
       .input('proof3Url', sql.NVarChar(sql.MAX), proof3Url || null)
+      .input('proof4Url', sql.NVarChar(sql.MAX), proof4Url || null)
+      .input('proof5Url', sql.NVarChar(sql.MAX), proof5Url || null)
+      .input('proof6Url', sql.NVarChar(sql.MAX), proof6Url || null)
+      .input('proof7Url', sql.NVarChar(sql.MAX), proof7Url || null)
+      .input('proof8Url', sql.NVarChar(sql.MAX), proof8Url || null)
+      .input('proof9Url', sql.NVarChar(sql.MAX), proof9Url || null)
+      .input('proof10Url', sql.NVarChar(sql.MAX), proof10Url || null)
       .query(`
         UPDATE Tenant 
         SET Name = @name, Phone = @phone, Address = @address, City = @city,
-            PhotoUrl = @photoUrl, Proof1Url = @proof1Url, Proof2Url = @proof2Url, Proof3Url = @proof3Url
+            PhotoUrl = @photoUrl, Photo2Url = @photo2Url, Photo3Url = @photo3Url, Photo4Url = @photo4Url, Photo5Url = @photo5Url, Photo6Url = @photo6Url, Photo7Url = @photo7Url, Photo8Url = @photo8Url, Photo9Url = @photo9Url, Photo10Url = @photo10Url,
+            Proof1Url = @proof1Url, Proof2Url = @proof2Url, Proof3Url = @proof3Url, Proof4Url = @proof4Url, Proof5Url = @proof5Url, Proof6Url = @proof6Url, Proof7Url = @proof7Url, Proof8Url = @proof8Url, Proof9Url = @proof9Url, Proof10Url = @proof10Url
         WHERE Id = @id
       `);
     
@@ -649,16 +1054,62 @@ app.delete('/api/tenants/:id', async (req: Request, res: Response) => {
         error: 'Cannot delete tenant with active occupancy. Check out the tenant first.' 
       });
     }
-    
-    const result = await pool
+
+    // Fetch tenant record to get all photo and proof URLs
+    const tenantResult = await pool
+      .request()
+      .input('id', sql.Int, parseInt(id))
+      .query(`
+        SELECT PhotoUrl, Photo2Url, Photo3Url, Photo4Url, Photo5Url, Photo6Url, Photo7Url, Photo8Url, Photo9Url, Photo10Url,
+               Proof1Url, Proof2Url, Proof3Url, Proof4Url, Proof5Url, Proof6Url, Proof7Url, Proof8Url, Proof9Url, Proof10Url
+        FROM Tenant WHERE Id = @id
+      `);
+
+    if (tenantResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Tenant not found' });
+    }
+
+    const tenant = tenantResult.recordset[0];
+
+    // Extract and delete all photo and proof files
+    const filesToDelete = [
+      tenant.PhotoUrl, tenant.Photo2Url, tenant.Photo3Url, tenant.Photo4Url, tenant.Photo5Url,
+      tenant.Photo6Url, tenant.Photo7Url, tenant.Photo8Url, tenant.Photo9Url, tenant.Photo10Url,
+      tenant.Proof1Url, tenant.Proof2Url, tenant.Proof3Url, tenant.Proof4Url, tenant.Proof5Url,
+      tenant.Proof6Url, tenant.Proof7Url, tenant.Proof8Url, tenant.Proof9Url, tenant.Proof10Url
+    ];
+
+    // Delete each file from the tenantphotos directory
+    for (const fileUrl of filesToDelete) {
+      if (fileUrl) {
+        try {
+          // Extract filename from URL (e.g., "tenantphotos/filename.jpg" -> "filename.jpg")
+          const fileName = fileUrl.split('/').pop();
+          if (fileName) {
+            const filePath = path.join(tenantPhotosDir, fileName);
+            if (fs.existsSync(filePath)) {
+              fs.unlinkSync(filePath);
+              console.log('[Tenant Delete] Deleted file:', filePath);
+            }
+          }
+        } catch (fileErr) {
+          console.warn('[Tenant Delete] Warning: Could not delete file:', fileUrl, (fileErr instanceof Error ? fileErr.message : String(fileErr)));
+          // Don't throw error, just log warning and continue
+        }
+      }
+    }
+
+    // Delete tenant from database
+    const deleteResult = await pool
       .request()
       .input('id', sql.Int, parseInt(id))
       .query(`DELETE FROM Tenant WHERE Id = @id`);
     
-    if (result.rowsAffected[0] === 0) {
+    if (deleteResult.rowsAffected[0] === 0) {
       return res.status(404).json({ error: 'Tenant not found' });
     }
-    
+
+    console.log('[Tenant Delete] Tenant deleted successfully:', id);
     res.json({ message: 'Tenant deleted successfully' });
   } catch (error) {
     console.error('Delete tenant error:', error);
@@ -974,6 +1425,82 @@ app.delete('/api/complaints/:id', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Delete complaint error:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
+  }
+});
+
+// Upload complaint files
+app.post('/api/complaints/upload', upload.fields([
+  { name: 'proof1', maxCount: 1 },
+  { name: 'proof2', maxCount: 1 },
+  { name: 'video', maxCount: 1 }
+]), (req: Request, res: Response) => {
+  try {
+    console.log('\n========== FILE UPLOAD REQUEST ==========');
+    console.log('Complains directory:', complainsDir);
+    console.log('Files received:', req.files);
+    
+    const uploadedFiles: { [key: string]: string | null } = {
+      proof1Url: null,
+      proof2Url: null,
+      videoUrl: null
+    };
+
+    if (req.files && typeof req.files === 'object') {
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+      
+      if (files.proof1 && files.proof1[0]) {
+        const filename = files.proof1[0].filename;
+        uploadedFiles.proof1Url = filename;
+        const proof1Path = path.join(complainsDir, filename);
+        console.log('Proof1 file saved at:', proof1Path);
+        console.log('Proof1 file exists:', fs.existsSync(proof1Path));
+        fs.chmod(proof1Path, 0o644, (err) => {
+          if (err) console.error('Failed to chmod proof1:', err);
+          else console.log('Proof1 permissions set to 644');
+        });
+      }
+      if (files.proof2 && files.proof2[0]) {
+        const filename = files.proof2[0].filename;
+        uploadedFiles.proof2Url = filename;
+        const proof2Path = path.join(complainsDir, filename);
+        console.log('Proof2 file saved at:', proof2Path);
+        console.log('Proof2 file exists:', fs.existsSync(proof2Path));
+        fs.chmod(proof2Path, 0o644, (err) => {
+          if (err) console.error('Failed to chmod proof2:', err);
+          else console.log('Proof2 permissions set to 644');
+        });
+      }
+      if (files.video && files.video[0]) {
+        const filename = files.video[0].filename;
+        uploadedFiles.videoUrl = filename;
+        const videoPath = path.join(complainsDir, filename);
+        console.log('Video file saved at:', videoPath);
+        console.log('Video file exists:', fs.existsSync(videoPath));
+        fs.chmod(videoPath, 0o644, (err) => {
+          if (err) console.error('Failed to chmod video:', err);
+          else console.log('Video permissions set to 644');
+        });
+      }
+    }
+
+    console.log('Upload response:', uploadedFiles);
+    console.log('=========================================\n');
+    res.json({
+      message: 'Files uploaded successfully',
+      files: uploadedFiles,
+      servingUrls: {
+        proof1: uploadedFiles.proof1Url ? `/api/complains/${uploadedFiles.proof1Url}` : null,
+        proof2: uploadedFiles.proof2Url ? `/api/complains/${uploadedFiles.proof2Url}` : null,
+        video: uploadedFiles.videoUrl ? `/api/complains/${uploadedFiles.videoUrl}` : null
+      }
+    });
+  } catch (error) {
+    console.error('File upload error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({
+      error: 'Failed to upload files',
+      details: errorMessage
+    });
   }
 });
 
@@ -1989,6 +2516,175 @@ app.delete('/api/daily-status/:id', async (req: Request, res: Response) => {
   }
 });
 
+// ============ DAILY STATUS MEDIA ENDPOINTS ============
+
+// Get media for a daily status
+app.get('/api/daily-status/:id/media', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    const result = await pool.request()
+      .input('dailyStatusId', sql.Int, id)
+      .query(`
+        SELECT 
+          Id as id,
+          DailyStatusId as dailyStatusId,
+          MediaType as mediaType,
+          SequenceNumber as sequenceNumber,
+          FileName as fileName,
+          FilePath as filePath,
+          FileSize as fileSize,
+          MimeType as mimeType,
+          UploadedDate as uploadedDate,
+          CreatedBy as createdBy
+        FROM DailyRoomStatusMedia
+        WHERE DailyStatusId = @dailyStatusId
+        ORDER BY MediaType ASC, SequenceNumber ASC
+      `);
+    res.json(result.recordset);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve media', details: error });
+  }
+});
+
+// Get media for a daily status
+app.get('/api/all-media/', async (req: Request, res: Response) => {
+  try {
+    const pool = getPool();
+    const result = await pool.request()
+      .query(`
+        SELECT 
+          Id as id,
+          DailyStatusId as dailyStatusId,
+          MediaType as mediaType,
+          SequenceNumber as sequenceNumber,
+          FileName as fileName,
+          FilePath as filePath,
+          FileSize as fileSize,
+          MimeType as mimeType,
+          UploadedDate as uploadedDate,
+          CreatedBy as createdBy
+        FROM DailyRoomStatusMedia
+        ORDER BY MediaType ASC, SequenceNumber ASC
+      `);
+    res.json(result.recordset);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve media', details: error });
+  }
+});
+
+// Upload media for a daily status
+app.post('/api/daily-status/upload', uploadDailyStatusMedia.array('files', 4), async (req: Request, res: Response) => {
+  try {
+    const { dailyStatusId, mediaType } = req.body;
+    
+    if (!dailyStatusId || !mediaType) {
+      return res.status(400).json({ error: 'dailyStatusId and mediaType are required' });
+    }
+
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No files uploaded' });
+    }
+
+    const pool = getPool();
+    const uploadedMedia = [];
+
+    // Get the current max sequence number for this media type
+    const seqResult = await pool.request()
+      .input('dailyStatusId', sql.Int, dailyStatusId)
+      .input('mediaType', sql.VarChar(50), mediaType)
+      .query(`
+        SELECT ISNULL(MAX(SequenceNumber), 0) as maxSeq
+        FROM DailyRoomStatusMedia
+        WHERE DailyStatusId = @dailyStatusId AND MediaType = @mediaType
+      `);
+
+    let sequenceNumber = (seqResult.recordset[0]?.maxSeq || 0) + 1;
+
+    for (const file of req.files as Express.Multer.File[]) {
+      // Limit to 2 per type
+      if (sequenceNumber > 2) {
+        // Delete the extra file
+        fs.unlinkSync(file.path);
+        continue;
+      }
+
+      const filePath = `/daily-status-media/${path.basename(file.path)}`;
+      
+      const insertResult = await pool.request()
+        .input('dailyStatusId', sql.Int, dailyStatusId)
+        .input('mediaType', sql.VarChar(50), mediaType)
+        .input('sequenceNumber', sql.Int, sequenceNumber)
+        .input('fileName', sql.VarChar(500), file.originalname)
+        .input('filePath', sql.VarChar(1000), filePath)
+        .input('fileSize', sql.BigInt, file.size)
+        .input('mimeType', sql.VarChar(100), file.mimetype)
+        .query(`
+          INSERT INTO DailyRoomStatusMedia (DailyStatusId, MediaType, SequenceNumber, FileName, FilePath, FileSize, MimeType, UploadedDate)
+          VALUES (@dailyStatusId, @mediaType, @sequenceNumber, @fileName, @filePath, @fileSize, @mimeType, GETDATE());
+          SELECT SCOPE_IDENTITY() as id;
+        `);
+
+      uploadedMedia.push({
+        id: insertResult.recordset[0].id,
+        dailyStatusId,
+        mediaType,
+        sequenceNumber,
+        fileName: file.originalname,
+        filePath,
+        fileSize: file.size,
+        mimeType: file.mimetype
+      });
+
+      sequenceNumber++;
+    }
+
+    res.status(201).json({
+      message: 'Media uploaded successfully',
+      uploadedMedia
+    });
+  } catch (error) {
+    console.error('Media upload error:', error);
+    res.status(500).json({ error: 'Failed to upload media', details: error });
+  }
+});
+
+// Delete media file
+app.delete('/api/daily-status/media/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+
+    // Get the file path first
+    const mediaResult = await pool.request()
+      .input('id', sql.Int, id)
+      .query(`
+        SELECT FilePath FROM DailyRoomStatusMedia WHERE Id = @id
+      `);
+
+    if (!mediaResult.recordset.length) {
+      return res.status(404).json({ error: 'Media not found' });
+    }
+
+    const filePath = mediaResult.recordset[0].FilePath;
+    
+    // Delete from database
+    await pool.request()
+      .input('id', sql.Int, id)
+      .query('DELETE FROM DailyRoomStatusMedia WHERE Id = @id');
+
+    // Delete the file from disk
+    const fullPath = path.join(dailyStatusMediaDir, path.basename(filePath));
+    if (fs.existsSync(fullPath)) {
+      fs.unlinkSync(fullPath);
+    }
+
+    res.json({ message: 'Media deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete media', details: error });
+  }
+});
+
 // ============ SERVICE ALLOCATION ENDPOINTS ============
 
 // Get all service allocations
@@ -2184,6 +2880,50 @@ app.get('/api/service-allocations-with-payments', async (req: Request, res: Resp
   }
 });
 
+// Get service allocations for meter reading (searchable)
+app.get('/api/service-allocations-for-reading', async (req: Request, res: Response) => {
+  try {
+    const { search } = req.query;
+    const pool = getPool();
+    
+    let query = `
+      SELECT 
+        sra.Id as id,
+        sra.ServiceId as serviceId,
+        sra.RoomId as roomId,
+        rd.Number as roomNumber,
+        sd.ConsumerNo as consumerNo,
+        sd.ConsumerName as consumerName,
+        sd.MeterNo as meterNo,
+        CONCAT(rd.Number, ' - ', sd.ConsumerName, ' (', sd.ConsumerNo, ')') as displayName
+      FROM ServiceRoomAllocation sra
+      INNER JOIN ServiceDetails sd ON sra.ServiceId = sd.Id
+      INNER JOIN RoomDetail rd ON sra.RoomId = rd.Id
+    `;
+    
+    const request = pool.request();
+    
+    if (search) {
+      query += ` WHERE rd.Number LIKE @search
+                    OR sd.ConsumerName LIKE @search
+                    OR sd.ConsumerNo LIKE @search`;
+      request.input('search', sql.NVarChar(100), `%${search}%`);
+    }
+    
+    query += ` ORDER BY rd.Number ASC, sd.ConsumerName ASC`;
+    
+    const result = await request.query(query);
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Get service allocations for reading error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve service allocations',
+      details: errorMessage
+    });
+  }
+});
+
 // Error handling middleware
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   console.error('Unhandled error:', err);
@@ -2193,6 +2933,53 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 });
 
 // Service Consumption endpoints
+
+// Get previous month's ending meter reading for a service allocation
+app.get('/api/service-consumption/previous-month-reading/:serviceAllocId/:month/:year', async (req: Request, res: Response) => {
+  try {
+    const { serviceAllocId, month, year } = req.params;
+    const pool = getPool();
+    
+    // Calculate previous month
+    let prevMonth = parseInt(month) - 1;
+    let prevYear = parseInt(year);
+    if (prevMonth < 1) {
+      prevMonth = 12;
+      prevYear -= 1;
+    }
+    
+    const result = await pool
+      .request()
+      .input('serviceAllocId', sql.Int, parseInt(serviceAllocId))
+      .input('prevYear', sql.Int, prevYear)
+      .input('prevMonth', sql.Int, prevMonth)
+      .query(`
+        SELECT TOP 1
+          scd.EndingMeterReading as endingMeterReading,
+          scd.ReadingTakenDate as readingTakenDate
+        FROM ServiceConsumptionDetails scd
+        WHERE scd.ServiceAllocId = @serviceAllocId
+          AND YEAR(scd.ReadingTakenDate) = @prevYear
+          AND MONTH(scd.ReadingTakenDate) = @prevMonth
+        ORDER BY scd.ReadingTakenDate DESC
+      `);
+    
+    if (!res.headersSent) {
+      res.json(result.recordset);
+    }
+  } catch (error) {
+    console.error('Get previous month reading error:', error);
+    if (!res.headersSent) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ 
+        error: 'Failed to retrieve previous month reading',
+        details: errorMessage
+      });
+    }
+  }
+});
+
+// Get service consumption details
 app.get('/api/service-consumption', async (req: Request, res: Response) => {
   try {
     const { serviceAllocId, startDate, endDate, roomId } = req.query;
@@ -2214,6 +3001,9 @@ app.get('/api/service-consumption', async (req: Request, res: Response) => {
         scd.UnitsConsumed as unitsConsumed,
         scd.AmountToBeCollected as amountToBeCollected,
         scd.UnitRate as unitRate,
+        scd.MeterPhoto1Url as meterPhoto1Url,
+        scd.MeterPhoto2Url as meterPhoto2Url,
+        scd.MeterPhoto3Url as meterPhoto3Url,
         scd.CreatedDate as createdDate,
         scd.UpdatedDate as updatedDate
       FROM ServiceConsumptionDetails scd
@@ -2263,6 +3053,7 @@ app.get('/api/service-consumption', async (req: Request, res: Response) => {
   }
 });
 
+
 // Get service consumption by ID
 app.get('/api/service-consumption/:id', async (req: Request, res: Response) => {
   try {
@@ -2288,6 +3079,9 @@ app.get('/api/service-consumption/:id', async (req: Request, res: Response) => {
           scd.UnitsConsumed as unitsConsumed,
           scd.AmountToBeCollected as amountToBeCollected,
           scd.UnitRate as unitRate,
+          scd.MeterPhoto1Url as meterPhoto1Url,
+          scd.MeterPhoto2Url as meterPhoto2Url,
+          scd.MeterPhoto3Url as meterPhoto3Url,
           scd.CreatedDate as createdDate,
           scd.UpdatedDate as updatedDate
         FROM ServiceConsumptionDetails scd
@@ -2324,7 +3118,8 @@ app.post('/api/service-consumption', async (req: Request, res: Response) => {
       readingTakenDate, 
       startingMeterReading, 
       endingMeterReading, 
-      unitRate 
+      unitRate,
+      isAutoFilledStartingReading
     } = req.body;
     
     // Validation
@@ -2340,8 +3135,13 @@ app.post('/api/service-consumption', async (req: Request, res: Response) => {
     const unitsConsumed = parseInt(endingMeterReading) - parseInt(startingMeterReading);
     const amountToBeCollected = unitsConsumed * (unitRate || 10);
     
-    const result = await pool
-      .request()
+    // Handle photo uploads - store photo URLs from request body
+    const photoUrls: (string | null)[] = [null, null, null];
+    if (req.body.meterPhoto1) photoUrls[0] = req.body.meterPhoto1;
+    if (req.body.meterPhoto2) photoUrls[1] = req.body.meterPhoto2;
+    if (req.body.meterPhoto3) photoUrls[2] = req.body.meterPhoto3;
+    
+    const request = pool.request()
       .input('serviceAllocId', sql.Int, parseInt(serviceAllocId))
       .input('readingTakenDate', sql.DateTime, new Date(readingTakenDate))
       .input('startingMeterReading', sql.Int, parseInt(startingMeterReading))
@@ -2350,29 +3150,42 @@ app.post('/api/service-consumption', async (req: Request, res: Response) => {
       .input('amountToBeCollected', sql.Money, amountToBeCollected)
       .input('unitRate', sql.Money, unitRate || 10)
       .input('createdDate', sql.DateTime, new Date())
-      .query(`
-        INSERT INTO ServiceConsumptionDetails (
-          ServiceAllocId,
-          ReadingTakenDate,
-          StartingMeterReading,
-          EndingMeterReading,
-          UnitsConsumed,
-          AmountToBeCollected,
-          UnitRate,
-          CreatedDate
-        )
-        VALUES (
-          @serviceAllocId,
-          @readingTakenDate,
-          @startingMeterReading,
-          @endingMeterReading,
-          @unitsConsumed,
-          @amountToBeCollected,
-          @unitRate,
-          @createdDate
-        );
-        SELECT SCOPE_IDENTITY() as id;
-      `);
+      .input('meterPhoto1Url', sql.NVarChar(sql.MAX), photoUrls[0] || null)
+      .input('meterPhoto2Url', sql.NVarChar(sql.MAX), photoUrls[1] || null)
+      .input('meterPhoto3Url', sql.NVarChar(sql.MAX), photoUrls[2] || null)
+      .input('isAutoFilledStartingReading', sql.Bit, isAutoFilledStartingReading ? 1 : 0);
+    
+    const result = await request.query(`
+      INSERT INTO ServiceConsumptionDetails (
+        ServiceAllocId,
+        ReadingTakenDate,
+        StartingMeterReading,
+        EndingMeterReading,
+        UnitsConsumed,
+        AmountToBeCollected,
+        UnitRate,
+        MeterPhoto1Url,
+        MeterPhoto2Url,
+        MeterPhoto3Url,
+        IsAutoFilledStartingReading,
+        CreatedDate
+      )
+      VALUES (
+        @serviceAllocId,
+        @readingTakenDate,
+        @startingMeterReading,
+        @endingMeterReading,
+        @unitsConsumed,
+        @amountToBeCollected,
+        @unitRate,
+        @meterPhoto1Url,
+        @meterPhoto2Url,
+        @meterPhoto3Url,
+        @isAutoFilledStartingReading,
+        @createdDate
+      );
+      SELECT SCOPE_IDENTITY() as id;
+    `);
     
     const consumptionId = result.recordset[0].id;
     
@@ -2396,6 +3209,10 @@ app.post('/api/service-consumption', async (req: Request, res: Response) => {
           scd.UnitsConsumed as unitsConsumed,
           scd.AmountToBeCollected as amountToBeCollected,
           scd.UnitRate as unitRate,
+          scd.MeterPhoto1Url as meterPhoto1Url,
+          scd.MeterPhoto2Url as meterPhoto2Url,
+          scd.MeterPhoto3Url as meterPhoto3Url,
+          scd.IsAutoFilledStartingReading as isAutoFilledStartingReading,
           scd.CreatedDate as createdDate,
           scd.UpdatedDate as updatedDate
         FROM ServiceConsumptionDetails scd
@@ -2450,6 +3267,191 @@ app.delete('/api/service-consumption/:id', async (req: Request, res: Response) =
         details: errorMessage
       });
     }
+  }
+});
+
+// Rental Collection Detail Endpoints
+// Get detailed rental collection records for an occupancy
+app.get('/api/rental/occupancy/:occupancyId', async (req: Request, res: Response) => {
+  try {
+    const { occupancyId } = req.params;
+    const pool = getPool();
+    
+    const result = await pool
+      .request()
+      .input('occupancyId', sql.Int, parseInt(occupancyId))
+      .query(`
+        SELECT 
+          rc.Id as id,
+          rc.OccupancyId as occupancyId,
+          o.TenantId as tenantId,
+          t.Name as tenantName,
+          rd.Number as roomNumber,
+          ISNULL(o.RentFixed, rd.Rent) as rentFixed,
+          rc.RentReceivedOn as rentReceivedOn,
+          rc.RentReceived as rentReceived,
+          rc.Charges as charges,
+          rc.RentBalance as rentBalance,
+          rc.ModeofPayment as modeOfPayment,
+          rc.screenshoturl as screenshotUrl,
+          rc.folder as folder,
+          rc.CreatedDate as createdDate,
+          rc.UpdatedDate as updatedDate
+        FROM RentalCollection rc
+        INNER JOIN Occupancy o ON rc.OccupancyId = o.Id
+        INNER JOIN Tenant t ON o.TenantId = t.Id
+        INNER JOIN RoomDetail rd ON o.RoomId = rd.Id
+        WHERE rc.OccupancyId = @occupancyId
+        ORDER BY rc.RentReceivedOn DESC
+      `);
+    
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Get rental collection error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve rental collection details',
+      details: errorMessage
+    });
+  }
+});
+
+// Upload payment screenshot and create/update rental collection record
+app.post('/api/rental/upload-payment', uploadPaymentScreenshot.single('screenshot'), async (req: Request, res: Response) => {
+  try {
+    const { occupancyId, rentReceived, charges, modeOfPayment, rentReceivedOn } = req.body;
+    
+    if (!occupancyId || !rentReceived) {
+      return res.status(400).json({ 
+        error: 'Occupancy ID and Rent Received amount are required' 
+      });
+    }
+
+    let screenshotUrl = '';
+    if (req.file) {
+      screenshotUrl = `/api/payments/${req.file.filename}`;
+    }
+
+    const pool = getPool();
+    
+    // Check if rental collection record exists for this occupancy and date
+    const existingRecord = await pool
+      .request()
+      .input('occupancyId', sql.Int, parseInt(occupancyId))
+      .input('rentReceivedOn', sql.NChar(10), rentReceivedOn || new Date().toISOString().split('T')[0])
+      .query(`
+        SELECT Id FROM RentalCollection 
+        WHERE OccupancyId = @occupancyId 
+        AND RentReceivedOn = @rentReceivedOn
+      `);
+
+    let result;
+    
+    if (existingRecord.recordset.length > 0) {
+      // Update existing record
+      result = await pool
+        .request()
+        .input('id', sql.Int, existingRecord.recordset[0].Id)
+        .input('rentReceived', sql.Money, parseFloat(rentReceived))
+        .input('charges', sql.Money, charges ? parseFloat(charges) : 0)
+        .input('modeOfPayment', sql.NVarChar(10), modeOfPayment || '')
+        .input('screenshotUrl', sql.NVarChar(sql.MAX), screenshotUrl)
+        .input('updateDate', sql.DateTime, new Date())
+        .query(`
+          UPDATE RentalCollection
+          SET 
+            RentReceived = @rentReceived,
+            Charges = @charges,
+            ModeofPayment = @modeOfPayment,
+            screenshoturl = CASE WHEN @screenshotUrl != '' THEN @screenshotUrl ELSE screenshoturl END,
+            UpdatedDate = @updateDate
+          WHERE Id = @id;
+          
+          SELECT Id, OccupancyId, RentReceivedOn, RentReceived, Charges, RentBalance, screenshoturl
+          FROM RentalCollection
+          WHERE Id = @id
+        `);
+    } else {
+      // Create new record
+      result = await pool
+        .request()
+        .input('occupancyId', sql.Int, parseInt(occupancyId))
+        .input('rentReceivedOn', sql.NChar(10), rentReceivedOn || new Date().toISOString().split('T')[0])
+        .input('rentReceived', sql.Money, parseFloat(rentReceived))
+        .input('charges', sql.Money, charges ? parseFloat(charges) : 0)
+        .input('modeOfPayment', sql.NVarChar(10), modeOfPayment || '')
+        .input('screenshotUrl', sql.NVarChar(sql.MAX), screenshotUrl)
+        .input('createDate', sql.DateTime, new Date())
+        .query(`
+          INSERT INTO RentalCollection 
+          (OccupancyId, RentReceivedOn, RentReceived, Charges, ModeofPayment, screenshoturl, folder, CreatedDate)
+          VALUES (@occupancyId, @rentReceivedOn, @rentReceived, @charges, @modeOfPayment, @screenshotUrl, 'payments', @createDate);
+          
+          SELECT Id, OccupancyId, RentReceivedOn, RentReceived, Charges, RentBalance, screenshoturl
+          FROM RentalCollection
+          WHERE Id = SCOPE_IDENTITY()
+        `);
+    }
+
+    if (result.recordset.length > 0) {
+      res.status(200).json({
+        message: existingRecord.recordset.length > 0 ? 'Payment updated successfully' : 'Payment recorded successfully',
+        data: result.recordset[0]
+      });
+    } else {
+      throw new Error('Failed to save rental collection record');
+    }
+  } catch (error) {
+    console.error('Upload payment error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to upload payment screenshot',
+      details: errorMessage
+    });
+  }
+});
+
+// Get rental collection summary for a specific occupancy
+app.get('/api/rental/occupancy/:occupancyId/summary', async (req: Request, res: Response) => {
+  try {
+    const { occupancyId } = req.params;
+    const pool = getPool();
+    
+    const result = await pool
+      .request()
+      .input('occupancyId', sql.Int, parseInt(occupancyId))
+      .query(`
+        SELECT 
+          o.Id as occupancyId,
+          t.Name as tenantName,
+          rd.Number as roomNumber,
+          ISNULL(o.RentFixed, rd.Rent) as rentFixed,
+          ISNULL(SUM(CAST(rc.RentReceived AS FLOAT)), 0) as totalRentReceived,
+          ISNULL(SUM(CAST(rc.Charges AS FLOAT)), 0) as totalCharges,
+          COUNT(rc.Id) as paymentRecordsCount,
+          MAX(rc.RentReceivedOn) as lastPaymentDate,
+          o.CheckInDate as checkInDate,
+          o.CheckOutDate as checkOutDate
+        FROM Occupancy o
+        INNER JOIN Tenant t ON o.TenantId = t.Id
+        INNER JOIN RoomDetail rd ON o.RoomId = rd.Id
+        LEFT JOIN RentalCollection rc ON o.Id = rc.OccupancyId
+        WHERE o.Id = @occupancyId
+        GROUP BY o.Id, t.Name, rd.Number, o.RentFixed, rd.Rent, o.CheckInDate, o.CheckOutDate
+      `);
+    
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Occupancy not found' });
+    }
+    
+    res.json(result.recordset[0]);
+  } catch (error) {
+    console.error('Get rental summary error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve rental summary',
+      details: errorMessage
+    });
   }
 });
 

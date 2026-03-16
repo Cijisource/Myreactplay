@@ -41,7 +41,14 @@ const OrderManagement = () => {
         status: err.response?.status,
         config: err.config
       });
-      setError(`Failed to load orders: ${err.response?.data?.error || err.message}`);
+      
+      // Enhanced error message for token issues
+      let errorMessage = err.response?.data?.error || err.message;
+      if (err.response?.status === 401) {
+        errorMessage += ' - Please log in again. If the issue persists, clear your browser cache and try again.';
+      }
+      
+      setError(`Failed to load orders: ${errorMessage}`);
     } finally {
       setLoading(false);
     }

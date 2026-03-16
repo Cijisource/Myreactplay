@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../api';
+import SearchableDropdown from './SearchableDropdown';
 import './RentalCollection.css';
 
 interface SummaryData {
@@ -31,6 +32,9 @@ export default function RentalCollection() {
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editingOccupancyId, setEditingOccupancyId] = useState<number | null>(null);
+  const [editAmount, setEditAmount] = useState('');
+  const [editingMonth, setEditingMonth] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -74,6 +78,49 @@ export default function RentalCollection() {
       setUnpaidDetails(res.data);
     } catch (err) {
       console.error('Error fetching details:', err);
+    }
+  };
+
+  const handleEditClick = (detail: UnpaidDetail, month: string) => {
+    setEditingOccupancyId(detail.OccupancyId);
+    setEditAmount(detail.collected_amount.toString());
+    setEditingMonth(month);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingOccupancyId(null);
+    setEditAmount('');
+    setEditingMonth('');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingOccupancyId || !editAmount) {
+      alert('Please enter a valid amount');
+      return;
+    }
+
+    try {
+      // Call API to update the payment
+      await apiService.updateRentalPayment(editingOccupancyId, {
+        collectedAmount: parseFloat(editAmount),
+        month: editingMonth
+      });
+
+      // Refresh the details
+      const res = await apiService.getUnpaidDetails(editingMonth);
+      setUnpaidDetails(res.data);
+      
+      // Refresh summary
+      const summaryRes = await apiService.getRentalSummary();
+      setSummary(summaryRes.data);
+
+      // Close the edit modal
+      handleCancelEdit();
+      alert('Payment updated successfully');
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to update payment';
+      alert(errorMsg);
+      console.error('Error updating payment:', err);
     }
   };
 
@@ -168,13 +215,15 @@ export default function RentalCollection() {
           <>
             <div className="month-selector">
               <label>Select Month:</label>
-              <select value={selectedMonth} onChange={(e) => handleMonthChange(e.target.value)}>
-                {unpaidTenants.map((tenant) => (
-                  <option key={tenant.month} value={tenant.month}>
-                    {tenant.month} ({tenant.outstanding_count} unpaid)
-                  </option>
-                ))}
-              </select>
+              <SearchableDropdown
+                value={selectedMonth}
+                onChange={(option) => handleMonthChange(option.id.toString())}
+                options={unpaidTenants.map((tenant) => ({
+                  id: tenant.month,
+                  label: `${tenant.month} (${tenant.outstanding_count} unpaid)`
+                }))}
+                placeholder="Select month..."
+              />
             </div>
 
             {unpaidDetails.length > 0 ? (
@@ -186,6 +235,7 @@ export default function RentalCollection() {
                       <th>Pending Amount</th>
                       <th>Collected Amount</th>
                       <th>Records</th>
+                      <th>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -195,6 +245,15 @@ export default function RentalCollection() {
                         <td className="amount">₹ {parseFloat(detail.pending_amount.toString()).toLocaleString()}</td>
                         <td className="paid">₹ {parseFloat(detail.collected_amount.toString()).toLocaleString()}</td>
                         <td>{detail.records_count}</td>
+                        <td className="actions">
+                          <button 
+                            className="edit-btn"
+                            onClick={() => handleEditClick(detail, selectedMonth)}
+                            title="Edit payment"
+                          >
+                            ✏️ Edit
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -212,6 +271,44 @@ export default function RentalCollection() {
           </div>
         )}
       </div>
+
+      {/* Edit Payment Modal */}
+      {editingOccupancyId !== null && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h2>Edit Payment - Occupancy #{editingOccupancyId}</h2>
+            <p className="modal-subtitle">Month: {editingMonth}</p>
+            
+            <div className="form-group">
+              <label htmlFor="editAmount">Collected Amount (₹)</label>
+              <input
+                type="number"
+                id="editAmount"
+                value={editAmount}
+                onChange={(e) => setEditAmount(e.target.value)}
+                placeholder="Enter collected amount"
+                min="0"
+                step="0.01"
+              />
+            </div>
+
+            <div className="modal-buttons">
+              <button 
+                className="save-btn"
+                onClick={handleSaveEdit}
+              >
+                💾 Save
+              </button>
+              <button 
+                className="cancel-btn"
+                onClick={handleCancelEdit}
+              >
+                ✕ Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

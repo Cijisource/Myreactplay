@@ -337,6 +337,7 @@ export default function UserManagement() {
                     </div>
                   </div>
                   <p><strong>Username:</strong> {user.userName}</p>
+                  <p><strong>Password:</strong> <code>{user.password}</code></p>
                   <p><strong>Login Duration:</strong> {user.nextLoginDuration || 'N/A'} days</p>
                   <p><strong>Created:</strong> {new Date(user.createdDate).toLocaleDateString()}</p>
                 </div>

@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { apiService } from './api';
 import './App.css';
 //import RentalCollection from './components/RentalCollection';
+import RentalCollectionDetails from './components/RentalCollectionDetails';
 import Diagnostic from './components/Diagnostic';
 import PaymentTracking from './components/PaymentTracking';
 import TenantManagement from './components/TenantManagement';
@@ -21,13 +22,14 @@ import ServiceConsumptionDetails from './components/ServiceConsumptionDetails';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
-type Page = 'home' | 'diagnostic' | 'payment' | 'tenants' | 'occupancy' | 'occupancy-links' | 'complaints' | 'services' | 'eb-payments' | 'users' | 'roles' | 'transactions' | 'stock' | 'daily-status' | 'service-allocation' | 'consumption';
+type Page = 'home' | 'diagnostic' | 'payment' | 'rental-collection' | 'tenants' | 'occupancy' | 'occupancy-links' | 'complaints' | 'services' | 'eb-payments' | 'users' | 'roles' | 'transactions' | 'stock' | 'daily-status' | 'service-allocation' | 'consumption';
 
 // Role requirements for each screen
 const SCREEN_ROLES: Record<Page, string[]> = {
   home: [],
   diagnostic: ['admin'],
   payment: ['admin', 'manager', 'accountant'],
+  'rental-collection': ['admin', 'manager', 'accountant', 'property_manager'],
   tenants: ['admin', 'manager', 'property_manager'],
   occupancy: ['admin', 'manager', 'property_manager'],
   'occupancy-links': ['admin', 'manager', 'property_manager'],
@@ -50,6 +52,7 @@ const NAV_ITEMS: Array<{ page: Page; label: string; roles: string[] }> = [
   { page: 'occupancy', label: 'Room Occupancy', roles: SCREEN_ROLES.occupancy },
   { page: 'tenants', label: 'Tenant Management', roles: SCREEN_ROLES.tenants },
   { page: 'payment', label: 'Payment Tracking', roles: SCREEN_ROLES.payment },
+  { page: 'rental-collection', label: 'Rental Collection', roles: SCREEN_ROLES['rental-collection'] },
   { page: 'complaints', label: 'Complaints', roles: SCREEN_ROLES.complaints },
   { page: 'services', label: 'Service Details', roles: SCREEN_ROLES.services },
   { page: 'consumption', label: 'Service Consumption', roles: SCREEN_ROLES.consumption },
@@ -66,16 +69,89 @@ const NAV_ITEMS: Array<{ page: Page; label: string; roles: string[] }> = [
 function AppContent() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [backendStatus, setBackendStatus] = useState<string>('loading');
   const [dbStatus, setDbStatus] = useState<string>('loading');
   const [tables, setTables] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [headerHidden, setHeaderHidden] = useState(false);
+  const lastScrollPosRef = useRef(0);
   const { isAuthenticated, user, logout } = useAuth();
+
+  // Debug logging for authentication state
+  useEffect(() => {
+    console.log('[AppContent] Auth state changed:', {
+      isAuthenticated,
+      user: user ? { id: user.id, username: user.username, roles: user.roles } : null,
+      timestamp: new Date().toISOString()
+    });
+  }, [isAuthenticated, user]);
 
   // Close mobile menu when page changes
   useEffect(() => {
     setMobileMenuOpen(false);
+    setUserMenuOpen(false);
   }, [currentPage]);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const userMenuEl = document.querySelector('.user-profile-dropdown');
+      const navSidebarEl = document.querySelector('.nav-sidebar');
+      
+      if (userMenuEl && !userMenuEl.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+      if (navSidebarEl && !navSidebarEl.contains(e.target as Node) && 
+          !(e.target as Element).classList?.contains('hamburger-btn')) {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
+
+  // Auto-hide header on scroll
+  useEffect(() => {
+    let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
+    
+    const handleScroll = () => {
+      const currentScrollPos = window.scrollY;
+      const isScrollingDown = currentScrollPos > lastScrollPosRef.current;
+      
+      // Adaptive threshold based on screen size
+      let scrollThreshold = 50; // Default for mobile
+      
+      if (window.innerWidth > 1024) {
+        scrollThreshold = 100; // Desktop
+      } else if (window.innerWidth > 768) {
+        scrollThreshold = 75; // Tablet landscape
+      } else {
+        scrollThreshold = 50; // Tablet portrait and mobile
+      }
+      
+      if (isScrollingDown && currentScrollPos > scrollThreshold) {
+        if (!headerHidden) {
+          setHeaderHidden(true);
+        }
+      } else {
+        if (headerHidden) {
+          setHeaderHidden(false);
+        }
+      }
+      
+      lastScrollPosRef.current = currentScrollPos;
+    };
+    
+    // Use passive listener for better scroll performance
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (scrollTimeout) clearTimeout(scrollTimeout);
+    };
+  }, [headerHidden]);
 
   useEffect(() => {
     const fetchStatus = async () => {
@@ -113,8 +189,11 @@ function AppContent() {
 
   // If not authenticated, show login screen
   if (!isAuthenticated) {
+    console.log('[AppContent] Not authenticated, showing login screen');
     return <LoginScreen />;
   }
+
+  console.log('[AppContent] Authenticated, rendering app with currentPage:', currentPage);
 
   const renderPage = () => {
     if (currentPage === 'diagnostic') {
@@ -129,6 +208,14 @@ function AppContent() {
       return (
         <ProtectedRoute requiredRoles={SCREEN_ROLES.payment}>
           <PaymentTracking />
+        </ProtectedRoute>
+      );
+    }
+
+    if (currentPage === 'rental-collection') {
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES['rental-collection']}>
+          <RentalCollectionDetails />
         </ProtectedRoute>
       );
     }
@@ -237,50 +324,9 @@ function AppContent() {
       );
     }
 
+    console.log('[AppContent] Rendering home page for user:', user?.username);
     return (
       <div className="container">
-        <div className="home-header">
-          <div>
-            <h1>🏰 Mansion Management System</h1>
-            <p>Welcome back, {user?.name || user?.username}!</p>
-            <p className="user-roles">Roles: {user?.roles || 'None'}</p>
-          </div>
-          <button 
-            className="logout-btn"
-            onClick={logout}
-          >
-            Sign Out
-          </button>
-        </div>
-        
-        <div className="nav-wrapper">
-          <button 
-            className="hamburger-btn"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
-            ☰
-          </button>
-          
-          <div className={`nav-buttons ${mobileMenuOpen ? 'mobile-open' : ''}`}>
-            {NAV_ITEMS.map(item => {
-              // Check if user has access to this page
-              const hasAccess = item.roles.length === 0 || user?.roles.split(',').some(r => item.roles.includes(r.trim()));
-              
-              if (!hasAccess) return null;
-              
-              return (
-                <button 
-                  key={item.page}
-                  className={`nav-btn ${currentPage === item.page ? 'active' : ''}`}
-                  onClick={() => setCurrentPage(item.page)}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        
         <div className="status-section">
           <h2>System Status</h2>
           <div className={`status-item ${backendStatus}`}>
@@ -321,37 +367,125 @@ function AppContent() {
 
   return (
     <>
-      <div className="top-header-bar">
-        <button
-          className="back-home-btn"
-          onClick={() => setCurrentPage('home')}
-          disabled={currentPage === 'home'}
-        >
-          {currentPage === 'home' ? '🏠 Home' : '← Back to Home'}
-        </button>
-        <div className="page-title">
-          {(() => {
-            if (currentPage === 'home') return 'Mansion Management';
-            const pageNames: { [key in Page]?: string } = {
-              'users': 'User & Role Management',
-              'transactions': 'Transaction Management',
-              'stock': 'Stock Management',
-              'daily-status': 'Daily Room Status Management',
-              'service-allocation': 'Service Room Allocation Management',
-              'tenants': 'Tenant Management',
-              'occupancy': '🏠 Room Occupancy Dashboard',
-              'occupancy-links': '🔗 Room-Tenant Occupancy Links',
-              'payment': 'Rental Payment Tracking',
-              'complaints': 'Complaints Management',
-              'services': '⚡ Service Details Management',
-              'eb-payments': '💡 EB Service Payments Management',
-              'diagnostic': 'RentalCollection Table Diagnostic'
-            };
-            return pageNames[currentPage] || (currentPage.charAt(0).toUpperCase() + currentPage.slice(1).replace('-', ' '));
-          })()}
+      <div className={`top-header-bar ${headerHidden ? 'hidden' : ''}`}>
+        <div className="header-left">
+          <button 
+            className="hamburger-btn"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            title="Menu"
+          >
+            ☰
+          </button>
+          <div className="app-branding">
+            <span className="app-logo">🏢</span>
+            <span className="app-name">Mansion</span>
+          </div>
+        </div>
+        
+        <div className="header-center">
+          <h1 className="page-title">
+            {(() => {
+              if (currentPage === 'home') return 'Dashboard';
+              const pageNames: { [key in Page]?: string } = {
+                'occupancy': 'Room Occupancy',
+                'occupancy-links': 'Occupancy Links',
+                'tenants': 'Tenants',
+                'payment': 'Payments',
+                'complaints': 'Complaints',
+                'services': 'Services',
+                'consumption': 'Consumption',
+                'eb-payments': 'EB Payments',
+                'users': 'Users',
+                'roles': 'Roles',
+                'transactions': 'Transactions',
+                'stock': 'Stock',
+                'daily-status': 'Daily Status',
+                'service-allocation': 'Allocations',
+                'diagnostic': 'Diagnostic'
+              };
+              return pageNames[currentPage] || (currentPage.charAt(0).toUpperCase() + currentPage.slice(1).replace('-', ' '));
+            })()}
+          </h1>
+        </div>
+        
+        <div className="header-right">
+          <div className="user-profile-dropdown">
+            <button 
+              className="user-profile-btn"
+              onClick={() => setUserMenuOpen(!userMenuOpen)}
+              title={user?.name || user?.username}
+            >
+              <span className="user-avatar">{(user?.name || user?.username || 'U')[0].toUpperCase()}</span>
+              <span className="user-name-short">{user?.name || user?.username}</span>
+              <span className="dropdown-arrow">▼</span>
+            </button>
+            
+            {userMenuOpen && (
+              <div className="user-dropdown-menu">
+                <div className="dropdown-header">
+                  <div className="dropdown-user-name">{user?.name || user?.username}</div>
+                  <div className="dropdown-user-roles">{user?.roles || 'Guest'}</div>
+                  {user?.lastLogin && (
+                    <div className="dropdown-last-login">
+                      Last Login: {new Date(user.lastLogin).toLocaleDateString()} {new Date(user.lastLogin).toLocaleTimeString()}
+                    </div>
+                  )}
+                  {user?.nextLoginDuration && (
+                    <div className="dropdown-next-login">
+                      Valid for: {user.nextLoginDuration} day{user.nextLoginDuration !== 1 ? 's' : ''}
+                    </div>
+                  )}
+                </div>
+                <hr className="dropdown-divider" />
+                <button 
+                  className="dropdown-logout-btn"
+                  onClick={() => {
+                    setUserMenuOpen(false);
+                    logout();
+                  }}
+                >
+                  Sign Out
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
-      <div className={currentPage === 'home' ? '' : 'page-with-header'}>
+      
+      <div className={`nav-sidebar ${mobileMenuOpen ? 'open' : ''} ${headerHidden ? 'header-hidden' : ''}`}>
+        <div className="nav-items-container">
+          {NAV_ITEMS.map(item => {
+            const userRoles = user?.roles?.split(',').map(r => r.trim()).filter(r => r) || [];
+            const hasAccess = item.roles.length === 0 || userRoles.some(r => item.roles.includes(r));
+            
+            if (item.label === 'Tenant Management') {
+              console.log('[Nav Debug] Tenant Management visibility:', {
+                userRoles,
+                requiredRoles: item.roles,
+                hasAccess,
+                userRolesString: user?.roles
+              });
+            }
+            
+            if (!hasAccess) return null;
+            
+            return (
+              <button 
+                key={item.page}
+                className={`nav-item ${currentPage === item.page ? 'active' : ''}`}
+                onClick={() => {
+                  setCurrentPage(item.page);
+                  setMobileMenuOpen(false);
+                }}
+              >
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      
+      <div className={currentPage === 'home' ? 'main-content' : 'main-content with-top-space'}>
         {renderPage()}
       </div>
     </>

@@ -46,7 +46,9 @@ export default function Diagnostic() {
         alignItems: 'center',
         justifyContent: 'center',
         gap: '1.5rem',
-        minWidth: '300px'
+        width: 'min(92vw, 420px)',
+        maxHeight: '85vh',
+        overflowY: 'auto'
       }}>
         <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true">
           <circle
@@ -88,7 +90,7 @@ export default function Diagnostic() {
   }
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
+    <div style={{ padding: 'clamp(12px, 3vw, 20px)', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
       <h1>RentalCollection Table Diagnostic</h1>
 
       {error && (
@@ -105,29 +107,32 @@ export default function Diagnostic() {
 
       <div style={{ marginBottom: '30px' }}>
         <h2>Table Schema</h2>
-        <table style={{ 
-          width: '100%', 
-          borderCollapse: 'collapse',
-          background: 'white',
-          border: '1px solid #ddd'
-        }}>
-          <thead style={{ background: '#f0f0f0' }}>
-            <tr>
-              <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>Column Name</th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>Data Type</th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>Nullable</th>
-            </tr>
-          </thead>
-          <tbody>
-            {schema.map((col: any, idx: number) => (
-              <tr key={idx}>
-                <td style={{ padding: '10px', border: '1px solid #ddd' }}><strong>{col.COLUMN_NAME}</strong></td>
-                <td style={{ padding: '10px', border: '1px solid #ddd' }}>{col.DATA_TYPE}</td>
-                <td style={{ padding: '10px', border: '1px solid #ddd' }}>{col.IS_NULLABLE}</td>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ 
+            width: '100%',
+            minWidth: '560px',
+            borderCollapse: 'collapse',
+            background: 'white',
+            border: '1px solid #ddd'
+          }}>
+            <thead style={{ background: '#f0f0f0' }}>
+              <tr>
+                <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>Column Name</th>
+                <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>Data Type</th>
+                <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>Nullable</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {schema.map((col: any, idx: number) => (
+                <tr key={idx}>
+                  <td style={{ padding: '10px', border: '1px solid #ddd' }}><strong>{col.COLUMN_NAME}</strong></td>
+                  <td style={{ padding: '10px', border: '1px solid #ddd' }}>{col.DATA_TYPE}</td>
+                  <td style={{ padding: '10px', border: '1px solid #ddd' }}>{col.IS_NULLABLE}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div>

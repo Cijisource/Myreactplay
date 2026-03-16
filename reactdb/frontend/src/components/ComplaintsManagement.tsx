@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { apiService } from '../api';
+import { apiService, getFileUrl } from '../api';
+import SearchableDropdown from './SearchableDropdown';
 import './ComplaintsManagement.css';
 
 interface Room {
@@ -38,84 +39,6 @@ interface Complaint {
   videoUrl: string | null;
 }
 
-interface SearchableDropdownProps {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: Array<{ id: number; name: string }>;
-  placeholder?: string;
-}
-
-const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
-  label,
-  value,
-  onChange,
-  options,
-  placeholder = 'Select...'
-}) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-
-  const filteredOptions = useMemo(() => {
-    return options.filter(opt =>
-      opt.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [options, searchTerm]);
-
-  const selectedOption = options.find(opt => opt.id.toString() === value);
-
-  const handleSelect = (optionId: number) => {
-    onChange(optionId.toString());
-    setIsOpen(false);
-    setSearchTerm('');
-  };
-
-  return (
-    <div className="searchable-dropdown-container">
-      <label>{label}</label>
-      <div className="dropdown-wrapper">
-        <button
-          className="dropdown-trigger"
-          onClick={() => setIsOpen(!isOpen)}
-        >
-          {selectedOption ? selectedOption.name : placeholder}
-          <span className="dropdown-arrow">{isOpen ? '▲' : '▼'}</span>
-        </button>
-
-        {isOpen && (
-          <div className="dropdown-content">
-            <input
-              type="text"
-              className="dropdown-search"
-              placeholder={`Search ${label.toLowerCase()}...`}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              autoFocus
-            />
-            <div className="dropdown-options">
-              {filteredOptions.length > 0 ? (
-                filteredOptions.map((option) => (
-                  <button
-                    key={option.id}
-                    className={`dropdown-option ${
-                      selectedOption?.id === option.id ? 'selected' : ''
-                    }`}
-                    onClick={() => handleSelect(option.id)}
-                  >
-                    {option.name}
-                  </button>
-                ))
-              ) : (
-                <div className="no-options">No results found</div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
 export const ComplaintsManagement: React.FC = () => {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -142,6 +65,18 @@ export const ComplaintsManagement: React.FC = () => {
     closureComments: ''
   });
 
+  // File upload state
+  const [selectedFiles, setSelectedFiles] = useState({
+    proof1: null as File | null,
+    proof2: null as File | null,
+    video: null as File | null
+  });
+  const [filePreview, setFilePreview] = useState({
+    proof1: null as string | null,
+    proof2: null as string | null,
+    video: null as string | null
+  });
+
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRoomId, setFilterRoomId] = useState('');
@@ -149,6 +84,7 @@ export const ComplaintsManagement: React.FC = () => {
   const [filterStatusId, setFilterStatusId] = useState('');
   const [filterFromDate, setFilterFromDate] = useState('');
   const [filterToDate, setFilterToDate] = useState('');
+  const [previewModal, setPreviewModal] = useState<{ type: 'image' | 'video', url: string } | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -201,6 +137,16 @@ export const ComplaintsManagement: React.FC = () => {
       closedDate: '',
       closureComments: ''
     });
+    setSelectedFiles({
+      proof1: null,
+      proof2: null,
+      video: null
+    });
+    setFilePreview({
+      proof1: null,
+      proof2: null,
+      video: null
+    });
     setEditingComplaintId(null);
   };
 
@@ -235,9 +181,88 @@ export const ComplaintsManagement: React.FC = () => {
     }));
   };
 
+  const handleFileChange = (fieldName: 'proof1' | 'proof2' | 'video', file: File | null) => {
+    console.log(`File selected for ${fieldName}:`, file);
+    setSelectedFiles(prev => ({
+      ...prev,
+      [fieldName]: file
+    }));
+
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const result = e.target?.result as string;
+        console.log(`File preview loaded for ${fieldName}, size:`, result.length);
+        setFilePreview(prev => ({
+          ...prev,
+          [fieldName]: result
+        }));
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setFilePreview(prev => ({
+        ...prev,
+        [fieldName]: null
+      }));
+    }
+  };
+
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      let proof1Url = formData.proof1Url;
+      let proof2Url = formData.proof2Url;
+      let videoUrl = formData.videoUrl;
+
+      // Upload files if selected
+      if (selectedFiles.proof1 || selectedFiles.proof2 || selectedFiles.video) {
+        const formDataToUpload = new FormData();
+        
+        console.log('[Form] Files to upload:', {
+          proof1: selectedFiles.proof1?.name,
+          proof2: selectedFiles.proof2?.name,
+          video: selectedFiles.video?.name
+        });
+
+        if (selectedFiles.proof1) {
+          formDataToUpload.append('proof1', selectedFiles.proof1);
+          console.log('[Form] Added proof1:', selectedFiles.proof1.name, selectedFiles.proof1.size, 'bytes');
+        }
+        if (selectedFiles.proof2) {
+          formDataToUpload.append('proof2', selectedFiles.proof2);
+          console.log('[Form] Added proof2:', selectedFiles.proof2.name, selectedFiles.proof2.size, 'bytes');
+        }
+        if (selectedFiles.video) {
+          formDataToUpload.append('video', selectedFiles.video);
+          console.log('[Form] Added video:', selectedFiles.video.name, selectedFiles.video.size, 'bytes');
+        }
+
+        try {
+          console.log('[Form] Sending upload request...');
+          const uploadResponse = await apiService.uploadComplaintFiles(formDataToUpload);
+          console.log('[Form] Upload response received:', uploadResponse);
+          
+          if (uploadResponse.data?.files) {
+            if (uploadResponse.data.files.proof1Url) {
+              proof1Url = uploadResponse.data.files.proof1Url;
+              console.log('[Form] Updated proof1Url:', proof1Url);
+            }
+            if (uploadResponse.data.files.proof2Url) {
+              proof2Url = uploadResponse.data.files.proof2Url;
+              console.log('[Form] Updated proof2Url:', proof2Url);
+            }
+            if (uploadResponse.data.files.videoUrl) {
+              videoUrl = uploadResponse.data.files.videoUrl;
+              console.log('[Form] Updated videoUrl:', videoUrl);
+            }
+          }
+        } catch (uploadError) {
+          console.error('[Form] File upload error:', uploadError);
+          setError(`File upload failed: ${uploadError instanceof Error ? uploadError.message : String(uploadError)}`);
+          return;
+        }
+      }
+
       const submitData = {
         description: formData.description,
         complaintTypeId: parseInt(formData.complaintTypeId),
@@ -245,12 +270,14 @@ export const ComplaintsManagement: React.FC = () => {
         roomId: parseInt(formData.roomId),
         charges: formData.charges ? parseFloat(formData.charges) : 0,
         chargesDetails: formData.chargesDetails || null,
-        proof1Url: formData.proof1Url || null,
-        proof2Url: formData.proof2Url || null,
-        videoUrl: formData.videoUrl || null,
+        proof1Url: proof1Url || null,
+        proof2Url: proof2Url || null,
+        videoUrl: videoUrl || null,
         closedDate: formData.closedDate || null,
         closureComments: formData.closureComments || null
       };
+
+      console.log('[Form] Submitting complaint with:', submitData);
 
       if (editingComplaintId) {
         await apiService.updateComplaint(editingComplaintId, submitData);
@@ -267,8 +294,9 @@ export const ComplaintsManagement: React.FC = () => {
       // Clear success message after 3 seconds
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
-      setError(editingComplaintId ? 'Failed to update complaint' : 'Failed to create complaint');
-      console.error(err);
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      setError(editingComplaintId ? `Failed to update complaint: ${errorMsg}` : `Failed to create complaint: ${errorMsg}`);
+      console.error('[Form] Error:', err);
     }
   };
 
@@ -287,17 +315,17 @@ export const ComplaintsManagement: React.FC = () => {
   };
 
   const roomOptions = useMemo(
-    () => rooms.map(r => ({ id: r.id, name: `Room ${r.number}` })),
+    () => rooms.map(r => ({ id: r.id, label: `Room ${r.number}` })),
     [rooms]
   );
 
   const typeOptions = useMemo(
-    () => types.map(t => ({ id: t.id, name: t.type })),
+    () => types.map(t => ({ id: t.id, label: t.type })),
     [types]
   );
 
   const statusOptions = useMemo(
-    () => statuses.map(s => ({ id: s.id, name: s.status })),
+    () => statuses.map(s => ({ id: s.id, label: s.status })),
     [statuses]
   );
 
@@ -415,24 +443,24 @@ export const ComplaintsManagement: React.FC = () => {
         <div className="filters-grid">
           <SearchableDropdown
             label="Room"
-            value={filterRoomId}
-            onChange={setFilterRoomId}
+            value={filterRoomId ? parseInt(filterRoomId) : null}
+            onChange={(option) => setFilterRoomId(option.id.toString())}
             options={roomOptions}
             placeholder="All Rooms"
           />
 
           <SearchableDropdown
             label="Complaint Type"
-            value={filterTypeId}
-            onChange={setFilterTypeId}
+            value={filterTypeId ? parseInt(filterTypeId) : null}
+            onChange={(option) => setFilterTypeId(option.id.toString())}
             options={typeOptions}
             placeholder="All Types"
           />
 
           <SearchableDropdown
             label="Status"
-            value={filterStatusId}
-            onChange={setFilterStatusId}
+            value={filterStatusId ? parseInt(filterStatusId) : null}
+            onChange={(option) => setFilterStatusId(option.id.toString())}
             options={statusOptions}
             placeholder="All Statuses"
           />
@@ -497,9 +525,33 @@ export const ComplaintsManagement: React.FC = () => {
                   <td className="charges-cell">{formatCurrency(complaint.charges)}</td>
                   <td className="details-cell">
                     <div className="proof-icons">
-                      {complaint.proof1Url && <span title="Proof 1">📷</span>}
-                      {complaint.proof2Url && <span title="Proof 2">📷</span>}
-                      {complaint.videoUrl && <span title="Video">🎥</span>}
+                      {complaint.proof1Url && (
+                        <button
+                          className="proof-link"
+                          onClick={() => setPreviewModal({ type: 'image', url: complaint.proof1Url as string })}
+                          title="Preview Proof 1"
+                        >
+                          📷
+                        </button>
+                      )}
+                      {complaint.proof2Url && (
+                        <button
+                          className="proof-link"
+                          onClick={() => setPreviewModal({ type: 'image', url: complaint.proof2Url as string })}
+                          title="Preview Proof 2"
+                        >
+                          📷
+                        </button>
+                      )}
+                      {complaint.videoUrl && (
+                        <button
+                          className="proof-link"
+                          onClick={() => setPreviewModal({ type: 'video', url: complaint.videoUrl as string })}
+                          title="Preview Video"
+                        >
+                          🎥
+                        </button>
+                      )}
                     </div>
                   </td>
                   <td className="actions-cell">
@@ -559,59 +611,29 @@ export const ComplaintsManagement: React.FC = () => {
             
             <form onSubmit={handleFormSubmit} className="complaint-form">
               <div className="form-grid">
-                <div className="form-group">
-                  <label htmlFor="roomId">Room *</label>
-                  <select
-                    id="roomId"
-                    name="roomId"
-                    value={formData.roomId}
-                    onChange={handleFormChange}
-                    required
-                  >
-                    <option value="">Select a room</option>
-                    {rooms.map(room => (
-                      <option key={room.id} value={room.id}>
-                        Room {room.number}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <SearchableDropdown
+                  label="Room"
+                  value={formData.roomId ? parseInt(formData.roomId) : null}
+                  onChange={(option) => setFormData(prev => ({ ...prev, roomId: option.id.toString() }))}
+                  options={roomOptions}
+                  placeholder="Select a room"
+                />
 
-                <div className="form-group">
-                  <label htmlFor="complaintTypeId">Complaint Type *</label>
-                  <select
-                    id="complaintTypeId"
-                    name="complaintTypeId"
-                    value={formData.complaintTypeId}
-                    onChange={handleFormChange}
-                    required
-                  >
-                    <option value="">Select type</option>
-                    {types.map(type => (
-                      <option key={type.id} value={type.id}>
-                        {type.type}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <SearchableDropdown
+                  label="Complaint Type"
+                  value={formData.complaintTypeId ? parseInt(formData.complaintTypeId) : null}
+                  onChange={(option) => setFormData(prev => ({ ...prev, complaintTypeId: option.id.toString() }))}
+                  options={typeOptions}
+                  placeholder="Select type"
+                />
 
-                <div className="form-group">
-                  <label htmlFor="complaintStatusId">Status *</label>
-                  <select
-                    id="complaintStatusId"
-                    name="complaintStatusId"
-                    value={formData.complaintStatusId}
-                    onChange={handleFormChange}
-                    required
-                  >
-                    <option value="">Select status</option>
-                    {statuses.map(status => (
-                      <option key={status.id} value={status.id}>
-                        {status.status}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <SearchableDropdown
+                  label="Status"
+                  value={formData.complaintStatusId ? parseInt(formData.complaintStatusId) : null}
+                  onChange={(option) => setFormData(prev => ({ ...prev, complaintStatusId: option.id.toString() }))}
+                  options={statusOptions}
+                  placeholder="Select status"
+                />
               </div>
 
               <div className="form-group full-width">
@@ -680,39 +702,100 @@ export const ComplaintsManagement: React.FC = () => {
 
               <div className="form-grid">
                 <div className="form-group">
-                  <label htmlFor="proof1Url">Proof 1 URL</label>
+                  <label htmlFor="proof1">Proof 1 (Image)</label>
                   <input
-                    type="url"
-                    id="proof1Url"
-                    name="proof1Url"
-                    value={formData.proof1Url}
-                    onChange={handleFormChange}
-                    placeholder="https://example.com/proof1.jpg"
+                    type="file"
+                    id="proof1"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      console.log('proof1 input changed, file:', file);
+                      handleFileChange('proof1', file || null);
+                    }}
                   />
+                  {selectedFiles.proof1 && (
+                    <div style={{ color: 'blue', fontSize: '12px', marginTop: '4px' }}>
+                      Selected: {selectedFiles.proof1.name}
+                    </div>
+                  )}
+                  {filePreview.proof1 && (
+                    <div className="file-preview" style={{ border: '2px solid green' }}>
+                      <img src={filePreview.proof1} alt="Proof 1 preview" style={{ maxWidth: '100px', maxHeight: '100px' }} />
+                      <p style={{ fontSize: '11px', color: 'green' }}>Preview loaded</p>
+                    </div>
+                  )}
+                  {formData.proof1Url && !filePreview.proof1 && (
+                    <div className="file-preview" style={{ border: '2px solid blue' }}>
+                      <img src={getFileUrl(formData.proof1Url)} alt="Proof 1" style={{ maxWidth: '100px', maxHeight: '100px' }} />
+                      <p style={{ fontSize: '11px', color: 'blue' }}>Existing file: {formData.proof1Url}</p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="proof2Url">Proof 2 URL</label>
+                  <label htmlFor="proof2">Proof 2 (Image)</label>
                   <input
-                    type="url"
-                    id="proof2Url"
-                    name="proof2Url"
-                    value={formData.proof2Url}
-                    onChange={handleFormChange}
-                    placeholder="https://example.com/proof2.jpg"
+                    type="file"
+                    id="proof2"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      console.log('proof2 input changed, file:', file);
+                      handleFileChange('proof2', file || null);
+                    }}
                   />
+                  {selectedFiles.proof2 && (
+                    <div style={{ color: 'blue', fontSize: '12px', marginTop: '4px' }}>
+                      Selected: {selectedFiles.proof2.name}
+                    </div>
+                  )}
+                  {filePreview.proof2 && (
+                    <div className="file-preview" style={{ border: '2px solid green' }}>
+                      <img src={filePreview.proof2} alt="Proof 2 preview" style={{ maxWidth: '100px', maxHeight: '100px' }} />
+                      <p style={{ fontSize: '11px', color: 'green' }}>Preview loaded</p>
+                    </div>
+                  )}
+                  {formData.proof2Url && !filePreview.proof2 && (
+                    <div className="file-preview" style={{ border: '2px solid blue' }}>
+                      <img src={getFileUrl(formData.proof2Url)} alt="Proof 2" style={{ maxWidth: '100px', maxHeight: '100px' }} />
+                      <p style={{ fontSize: '11px', color: 'blue' }}>Existing file: {formData.proof2Url}</p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="videoUrl">Video URL</label>
+                  <label htmlFor="video">Video</label>
                   <input
-                    type="url"
-                    id="videoUrl"
-                    name="videoUrl"
-                    value={formData.videoUrl}
-                    onChange={handleFormChange}
-                    placeholder="https://example.com/video.mp4"
+                    type="file"
+                    id="video"
+                    accept="video/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      console.log('video input changed, file:', file);
+                      handleFileChange('video', file || null);
+                    }}
                   />
+                  {selectedFiles.video && (
+                    <div style={{ color: 'blue', fontSize: '12px', marginTop: '4px' }}>
+                      Selected: {selectedFiles.video.name}
+                    </div>
+                  )}
+                  {filePreview.video && (
+                    <div className="file-preview" style={{ border: '2px solid green' }}>
+                      <video style={{ maxWidth: '100px', maxHeight: '100px' }} controls>
+                        <source src={filePreview.video} />
+                      </video>
+                      <p style={{ fontSize: '11px', color: 'green' }}>Preview loaded</p>
+                    </div>
+                  )}
+                  {formData.videoUrl && !filePreview.video && (
+                    <div className="file-preview" style={{ border: '2px solid blue' }}>
+                      <video style={{ maxWidth: '100px', maxHeight: '100px' }} controls>
+                        <source src={getFileUrl(formData.videoUrl)} />
+                      </video>
+                      <p style={{ fontSize: '11px', color: 'blue' }}>Existing file: {formData.videoUrl}</p>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -729,6 +812,31 @@ export const ComplaintsManagement: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {previewModal && (
+        <div className="modal-overlay" onClick={() => setPreviewModal(null)}>
+          <div className="modal-content preview-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>{previewModal.type === 'image' ? 'Image Preview' : 'Video Preview'}</h3>
+              <button className="modal-close" onClick={() => setPreviewModal(null)}>✕</button>
+            </div>
+            <div className="preview-container">
+              {previewModal.type === 'image' ? (
+                <img src={getFileUrl(previewModal.url)} alt="Preview" style={{ maxWidth: '100%', maxHeight: '70vh' }} />
+              ) : (
+                <video style={{ maxWidth: '100%', maxHeight: '70vh' }} controls>
+                  <source src={getFileUrl(previewModal.url)} />
+                </video>
+              )}
+            </div>
+            <div style={{ marginTop: '16px', textAlign: 'center' }}>
+              <a href={getFileUrl(previewModal.url)} download target="_blank" rel="noopener noreferrer" className="btn-primary">
+                Download
+              </a>
+            </div>
           </div>
         </div>
       )}

@@ -49,6 +49,12 @@ async function comparePassword(password, hashedPassword) {
 
 // Generate JWT token
 function generateToken(user) {
+  const secret = process.env.JWT_SECRET || 'your-secret-key';
+  
+  if (!process.env.JWT_SECRET) {
+    console.warn('[generateToken] WARNING: JWT_SECRET not set in environment, using fallback');
+  }
+  
   const token = jwt.sign(
     {
       userId: user.Id,
@@ -57,7 +63,7 @@ function generateToken(user) {
       roleType: user.RoleType,
       roleId: user.RoleId
     },
-    process.env.JWT_SECRET || 'your-secret-key',
+    secret,
     { expiresIn: '24h' }
   );
   return token;
@@ -212,6 +218,7 @@ async function loginUser(email, password) {
       user: {
         id: user.Id,
         userName: user.UserName,
+        email: user.UserName,
         name: user.Name,
         role: user.RoleName,
         roleType: user.RoleType,

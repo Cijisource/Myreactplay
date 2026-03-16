@@ -188,6 +188,10 @@ router.post('/', async (req, res) => {
       customerName: customerName,
       itemCount: items?.length,
       subtotalAmount: subtotalAmount,
+      discountAmount: discountAmount,
+      discountCode: discountCode,
+      rewardAmount: rewardAmount,
+      rewardCode: rewardCode,
       gstAmount: gstAmount,
       shippingCharge: shippingCharge,
       totalAmount: totalAmount,
@@ -229,6 +233,9 @@ router.post('/', async (req, res) => {
         .input('subtotalAmount', sql.Decimal(10, 2), subtotalAmount || 0)
         .input('gstAmount', sql.Decimal(10, 2), gstAmount || 0)
         .input('shippingCharge', sql.Decimal(10, 2), shippingCharge || 0)
+        .input('discountAmount', sql.Decimal(10, 2), discountAmount || 0)
+        .input('discountCode', sql.NVarChar, discountCode || null)
+        .input('rewardCodeUsed', sql.NVarChar, rewardCode || null)
         .input('totalAmount', sql.Decimal(10, 2), totalAmount)
         .input('customerEmail', sql.NVarChar, normalizedEmail)
         .input('customerName', sql.NVarChar, customerName)
@@ -236,11 +243,11 @@ router.post('/', async (req, res) => {
         .input('paymentScreenshot', sql.NVarChar(sql.MAX), paymentScreenshot || null)
         .input('createdAt', sql.DateTime2, createdDate)
         .query(`
-          INSERT INTO orders (order_number, subtotal_amount, gst_amount, shipping_charge, total_amount, customer_email, customer_name, shipping_address, payment_screenshot, status, created_at)
+          INSERT INTO orders (order_number, subtotal_amount, gst_amount, shipping_charge, discount_amount, discount_code, reward_code_used, total_amount, customer_email, customer_name, shipping_address, payment_screenshot, status, created_at)
           OUTPUT INSERTED.id, INSERTED.order_number, INSERTED.total_amount, INSERTED.status, 
                  INSERTED.customer_email, INSERTED.customer_name, INSERTED.shipping_address, 
                  INSERTED.created_at, INSERTED.updated_at
-          VALUES (@orderNumber, @subtotalAmount, @gstAmount, @shippingCharge, @totalAmount, @customerEmail, @customerName, @shippingAddress, @paymentScreenshot, 'pending', @createdAt)
+          VALUES (@orderNumber, @subtotalAmount, @gstAmount, @shippingCharge, @discountAmount, @discountCode, @rewardCodeUsed, @totalAmount, @customerEmail, @customerName, @shippingAddress, @paymentScreenshot, 'pending', @createdAt)
         `);
 
       const orderId = orderResult.recordset[0].id;

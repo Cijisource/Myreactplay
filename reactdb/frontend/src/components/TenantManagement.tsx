@@ -1,6 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { apiService } from '../api';
 import TenantForm from './TenantForm';
+import TenantCard from './TenantCard';
+import TenantHeader from './TenantHeader';
+import TenantSearchFilters, { SearchField, SortOption } from './TenantSearchFilters';
+import TenantFullScreenView from './TenantFullScreenView';
+import TenantPhotoGalleryModal from './TenantPhotoGalleryModal';
 import './TenantManagement.css';
 
 export interface Tenant {
@@ -10,9 +15,25 @@ export interface Tenant {
   address: string;
   city: string;
   photoUrl: string | null;
+  photo2Url?: string | null;
+  photo3Url?: string | null;
+  photo4Url?: string | null;
+  photo5Url?: string | null;
+  photo6Url?: string | null;
+  photo7Url?: string | null;
+  photo8Url?: string | null;
+  photo9Url?: string | null;
+  photo10Url?: string | null;
   proof1Url: string | null;
   proof2Url: string | null;
   proof3Url: string | null;
+  proof4Url?: string | null;
+  proof5Url?: string | null;
+  proof6Url?: string | null;
+  proof7Url?: string | null;
+  proof8Url?: string | null;
+  proof9Url?: string | null;
+  proof10Url?: string | null;
 }
 
 export interface TenantWithOccupancy extends Tenant {
@@ -28,9 +49,6 @@ export interface TenantWithOccupancy extends Tenant {
   lastPaymentDate?: string;
 }
 
-type SearchField = 'all' | 'name' | 'phone' | 'city' | 'address';
-type SortOption = 'name-asc' | 'name-desc' | 'phone-asc' | 'city-asc' | 'recently-added';
-
 export default function TenantManagement() {
   const [tenants, setTenants] = useState<TenantWithOccupancy[]>([]);
   const [filteredTenants, setFilteredTenants] = useState<TenantWithOccupancy[]>([]);
@@ -43,6 +61,10 @@ export default function TenantManagement() {
   const [editingTenant, setEditingTenant] = useState<TenantWithOccupancy | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [fullScreenTenant, setFullScreenTenant] = useState<TenantWithOccupancy | null>(null);
+  const [fullscreenPhotoIndex, setFullscreenPhotoIndex] = useState<number | null>(null);
+  const [fullscreenProofIndex, setFullscreenProofIndex] = useState<number | null>(null);
+  const [fullscreenMediaTab, setFullscreenMediaTab] = useState<'photos' | 'proofs'>('photos');
 
   // Helper function to normalize phone numbers
   const normalizePhone = (phone: string): string => {
@@ -68,33 +90,34 @@ export default function TenantManagement() {
         case 'name':
           return tenant.name.toLowerCase().includes(lowerQuery);
         case 'phone': {
-          // Phone search: both normalized (digits only) and as-is with case-insensitive
           const tenantPhone = tenant.phone || '';
           const normalizedPhone = normalizePhone(tenantPhone);
           
-          // Try normalized search if query contains mostly digits
           if (/^\d+/.test(query)) {
             if (normalizedPhone.includes(normalizedQuery)) return true;
           }
           
-          // Also try case-insensitive literal search
           return tenantPhone.toLowerCase().includes(lowerQuery);
         }
         case 'city':
           return tenant.city.toLowerCase().includes(lowerQuery);
         case 'address':
           return tenant.address.toLowerCase().includes(lowerQuery);
+        case 'room':
+          return (tenant.roomNumber || '').toLowerCase().includes(lowerQuery);
         case 'all':
         default: {
           const tenantPhone = tenant.phone || '';
           const normalizedPhone = normalizePhone(tenantPhone);
+          const roomNumber = tenant.roomNumber || '';
           
           return (
             tenant.name.toLowerCase().includes(lowerQuery) ||
             tenantPhone.toLowerCase().includes(lowerQuery) ||
             (/^\d+/.test(query) && normalizedPhone.includes(normalizedQuery)) ||
             tenant.city.toLowerCase().includes(lowerQuery) ||
-            tenant.address.toLowerCase().includes(lowerQuery)
+            tenant.address.toLowerCase().includes(lowerQuery) ||
+            roomNumber.toLowerCase().includes(lowerQuery)
           );
         }
       }
@@ -128,6 +151,7 @@ export default function TenantManagement() {
     try {
       const response = await apiService.getAllTenantsWithOccupancy();
       setTenants(response.data);
+      console.log('Fetched tenants with occupancy details:', response.data);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to fetch tenants';
       setError(errorMsg);
@@ -185,13 +209,19 @@ export default function TenantManagement() {
     }
   };
 
-  const searchFieldOptions: { value: SearchField; label: string }[] = [
-    { value: 'all', label: 'All Fields' },
-    { value: 'name', label: 'Name' },
-    { value: 'phone', label: 'Phone Number' },
-    { value: 'city', label: 'City' },
-    { value: 'address', label: 'Address' },
-  ];
+  const handleViewTenant = (tenant: TenantWithOccupancy) => {
+    setFullScreenTenant(tenant);
+    setFullscreenPhotoIndex(null);
+    setFullscreenProofIndex(null);
+    setFullscreenMediaTab('photos');
+  };
+
+  const handleCloseFullscreen = () => {
+    setFullScreenTenant(null);
+    setFullscreenPhotoIndex(null);
+    setFullscreenProofIndex(null);
+    setFullscreenMediaTab('photos');
+  };
 
   const stats = useMemo(() => {
     return {
@@ -204,25 +234,12 @@ export default function TenantManagement() {
   return (
     <div className="tenant-management-container">
       {/* Header with Stats and Create Button */}
-      <div className="tenant-header">
-        <div className="tenant-stats">
-          <div className="stat-card">
-            <div className="stat-label">Total Tenants</div>
-            <div className="stat-value">{stats.totalTenants}</div>
-          </div>
-          <div className="stat-card occupied">
-            <div className="stat-label">Occupied Rooms</div>
-            <div className="stat-value">{stats.occupiedTenants}</div>
-          </div>
-          <div className="stat-card vacant">
-            <div className="stat-label">Vacant Rooms</div>
-            <div className="stat-value">{stats.vacantTenants}</div>
-          </div>
-        </div>
-        <button className="btn-primary btn-create" onClick={handleAddTenant}>
-          + Add New Tenant
-        </button>
-      </div>
+      <TenantHeader
+        totalTenants={stats.totalTenants}
+        occupiedTenants={stats.occupiedTenants}
+        vacantTenants={stats.vacantTenants}
+        onAddTenant={handleAddTenant}
+      />
 
       {/* Success Message */}
       {successMessage && (
@@ -241,56 +258,15 @@ export default function TenantManagement() {
       )}
 
       {/* Search and Filter Section */}
-      <div className="search-section">
-        <div className="search-container">
-          <input
-            type="text"
-            placeholder={searchField === 'phone' ? 'Search phone numbers...' : 'Search tenants...'}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="search-input"
-          />
-          <span className="search-icon">🔍</span>
-        </div>
-        <div className="filter-container">
-          <label htmlFor="search-field">Search by:</label>
-          <select
-            id="search-field"
-            value={searchField}
-            onChange={(e) => setSearchField(e.target.value as SearchField)}
-            className="search-field-select"
-          >
-            {searchFieldOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="sort-container">
-          <label htmlFor="sort-by">Sort by:</label>
-          <select
-            id="sort-by"
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as SortOption)}
-            className="sort-select"
-          >
-            <option value="name-asc">Name (A→Z)</option>
-            <option value="name-desc">Name (Z→A)</option>
-            <option value="phone-asc">Phone Number</option>
-            <option value="city-asc">City</option>
-            <option value="recently-added">Recently Added</option>
-          </select>
-        </div>
-        {searchQuery && (
-          <button
-            className="btn-secondary btn-clear"
-            onClick={() => setSearchQuery('')}
-          >
-            Clear Search
-          </button>
-        )}
-      </div>
+      <TenantSearchFilters
+        searchQuery={searchQuery}
+        searchField={searchField}
+        sortBy={sortBy}
+        onSearchQueryChange={setSearchQuery}
+        onSearchFieldChange={setSearchField}
+        onSortByChange={setSortBy}
+        onClearSearch={() => setSearchQuery('')}
+      />
 
       {/* Loading State */}
       {loading && (
@@ -304,141 +280,15 @@ export default function TenantManagement() {
       {!loading && sortedAndFilteredTenants.length > 0 && (
         <div className="tenants-grid">
           {sortedAndFilteredTenants.map((tenant) => (
-            <div key={tenant.id} className="tenant-card">
-              {/* Tenant Image */}
-              <div className="tenant-image-container">
-                {tenant.photoUrl ? (
-                  <img
-                    src={tenant.photoUrl}
-                    alt={tenant.name}
-                    className="tenant-image"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src =
-                        'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"%3E%3Ccircle cx="100" cy="70" r="40" fill="%23ccc"/%3E%3Cpath d="M20 200 Q20 140 100 140 Q180 140 180 200" fill="%23ccc"/%3E%3C/svg%3E';
-                    }}
-                  />
-                ) : (
-                  <div className="tenant-avatar">
-                    {tenant.name.charAt(0).toUpperCase()}
-                  </div>
-                )}
-                <div
-                  className={`occupancy-badge ${
-                    tenant.isCurrentlyOccupied ? 'occupied' : 'vacant'
-                  }`}
-                >
-                  {tenant.isCurrentlyOccupied ? 'Occupied' : 'Vacant'}
-                </div>
-              </div>
-
-              {/* Tenant Info */}
-              <div className="tenant-info">
-                <h3 className="tenant-name">{tenant.name}</h3>
-                <div className="tenant-detail">
-                  <span className="detail-label">Phone:</span>
-                  <span className="detail-value">{tenant.phone}</span>
-                </div>
-                <div className="tenant-detail">
-                  <span className="detail-label">City:</span>
-                  <span className="detail-value">{tenant.city}</span>
-                </div>
-                <div className="tenant-detail">
-                  <span className="detail-label">Address:</span>
-                  <span className="detail-value">{tenant.address}</span>
-                </div>
-              </div>
-
-              {/* Room Details (if occupied) */}
-              {tenant.isCurrentlyOccupied && (
-                <div className="room-details">
-                  <h4>Room & Payment Details</h4>
-                  <div className="room-info">
-                    <div className="room-item">
-                      <span className="room-label">Room:</span>
-                      <span className="room-value">{tenant.roomNumber}</span>
-                    </div>
-                    <div className="room-item">
-                      <span className="room-label">Rent Fixed:</span>
-                      <span className="room-value">₹{tenant.rentFixed?.toLocaleString()}</span>
-                    </div>
-                    <div className="room-item">
-                      <span className="room-label">Check-in:</span>
-                      <span className="room-value">
-                        {tenant.checkInDate
-                          ? new Date(tenant.checkInDate).toLocaleDateString()
-                          : '-'}
-                      </span>
-                    </div>
-                    {tenant.checkOutDate && (
-                      <div className="room-item">
-                        <span className="room-label">Check-out:</span>
-                        <span className="room-value">
-                          {new Date(tenant.checkOutDate).toLocaleDateString()}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Payment Status */}
-                  <div className="payment-status">
-                    <h5>Current Month Payment</h5>
-                    <div className="payment-row">
-                      <div className="payment-item received">
-                        <span className="payment-label">Received</span>
-                        <span className="payment-amount">₹{tenant.currentRentReceived?.toLocaleString() || '0'}</span>
-                      </div>
-                      <div className={`payment-item ${tenant.currentPendingPayment && tenant.currentPendingPayment > 0 ? 'pending' : 'cleared'}`}>
-                        <span className="payment-label">Pending</span>
-                        <span className="payment-amount">₹{tenant.currentPendingPayment?.toLocaleString() || '0'}</span>
-                      </div>
-                    </div>
-                    {tenant.lastPaymentDate && (
-                      <div className="last-payment">
-                        <span className="payment-label">Last Payment:</span>
-                        <span className="payment-date">{new Date(tenant.lastPaymentDate).toLocaleDateString()}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div className="tenant-actions">
-                <button
-                  className="btn-secondary btn-edit"
-                  onClick={() => handleEditTenant(tenant)}
-                >
-                  ✎ Edit
-                </button>
-                <button
-                  className="btn-danger btn-delete"
-                  onClick={() => setShowDeleteConfirm(tenant.id)}
-                >
-                  🗑 Delete
-                </button>
-              </div>
-
-              {/* Delete Confirmation */}
-              {showDeleteConfirm === tenant.id && (
-                <div className="delete-confirmation">
-                  <p>Are you sure you want to delete this tenant?</p>
-                  <div className="confirmation-buttons">
-                    <button
-                      className="btn-confirm"
-                      onClick={() => handleDeleteTenant(tenant.id)}
-                    >
-                      Yes, Delete
-                    </button>
-                    <button
-                      className="btn-cancel"
-                      onClick={() => setShowDeleteConfirm(null)}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+            <TenantCard
+              key={tenant.id}
+              tenant={tenant}
+              onView={handleViewTenant}
+              onEdit={handleEditTenant}
+              onDeleteClick={setShowDeleteConfirm}
+              onDeleteConfirm={handleDeleteTenant}
+              showDeleteConfirm={showDeleteConfirm}
+            />
           ))}
         </div>
       )}
@@ -476,6 +326,28 @@ export default function TenantManagement() {
           onSubmit={handleFormSubmit}
           onCancel={handleFormClose}
         />
+      )}
+
+      {/* Full Screen Tenant View */}
+      {fullScreenTenant && (
+        <>
+          {/* Main Tenant View */}
+          <TenantFullScreenView
+            tenant={fullScreenTenant}
+            onClose={handleCloseFullscreen}
+          />
+
+          {/* Photo Gallery Modal (overlays on top) */}
+          {(fullscreenPhotoIndex !== null || fullscreenProofIndex !== null) && (
+            <TenantPhotoGalleryModal
+              tenant={fullScreenTenant}
+              onClose={handleCloseFullscreen}
+              initialPhotoIndex={fullscreenPhotoIndex}
+              initialProofIndex={fullscreenProofIndex}
+              initialTab={fullscreenMediaTab}
+            />
+          )}
+        </>
       )}
     </div>
   );
