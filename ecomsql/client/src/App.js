@@ -403,10 +403,10 @@ function MainApp() {
                 </button>
               )}
               {user && (
-                <>
+                <div className="nav-user-section">
                   <button 
                     onClick={() => setCurrentPage('profile')} 
-                    className={`nav-link ${currentPage === 'profile' ? 'active' : ''}`}
+                    className={`nav-link nav-name ${currentPage === 'profile' ? 'active' : ''}`}
                   >
                     👤 {user.name}
                   </button>
@@ -416,11 +416,12 @@ function MainApp() {
                   >
                     🚪 Logout
                   </button>
-                </>
+                </div>
               )}
             </nav>
           )}
-          {isAuthenticated() && (
+          
+          {/* Search box visible to all users (authenticated and unauthenticated) */}
           <div className="header-search">
             <input
               type="text"
@@ -433,6 +434,17 @@ function MainApp() {
               onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
               title="Type to search products (searches automatically after 500ms of inactivity)"
             />
+            <select 
+              value={selectedCategory} 
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              title="Filter products by category"
+              className="header-category-select"
+            >
+              <option value="">All Categories</option>
+              {categories.map(cat => (
+                <option key={cat.id} value={cat.id}>{cat.name}</option>
+              ))}
+            </select>
             <button 
               onClick={handleSearch}
               style={{
@@ -448,15 +460,32 @@ function MainApp() {
               <button 
                 onClick={handleClearSearch}
                 style={{
-                  background: '#dc3545',
+                  background: 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
                   color: 'white',
                   border: 'none',
-                  padding: '12px 16px',
+                  padding: '8px 14px',
                   borderRadius: '6px',
                   cursor: 'pointer',
                   fontWeight: '600',
                   marginLeft: '8px',
-                  transition: 'all 0.3s'
+                  transition: 'all 0.3s ease',
+                  fontSize: '14px',
+                  minHeight: '36px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 2px 6px rgba(220, 53, 69, 0.25)',
+                  whiteSpace: 'nowrap'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = 'linear-gradient(135deg, #c82333 0%, #a91e2c 100%)';
+                  e.target.style.boxShadow = '0 4px 12px rgba(220, 53, 69, 0.35)';
+                  e.target.style.transform = 'translateY(-1px)';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)';
+                  e.target.style.boxShadow = '0 2px 6px rgba(220, 53, 69, 0.25)';
+                  e.target.style.transform = 'translateY(0)';
                 }}
                 title="Clear search"
               >
@@ -464,22 +493,6 @@ function MainApp() {
               </button>
             )}
           </div>
-          )}
-
-          {isAuthenticated() && (
-            <div className="header-category">
-              <select 
-                value={selectedCategory} 
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                title="Filter products by category"
-              >
-                <option value="">All Categories</option>
-                {categories.map(cat => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
 
           {!isAuthenticated() && (
             <div className="header-icons">

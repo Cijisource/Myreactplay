@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "build": "npm install --production && npm prune --production",
+    "build": "npm ci --omit=dev",
     "build:check": "node -c server.js && node -c middleware/auth.js && node -c services/userService.js && echo 'Build check passed'",
     "test": "node -e \"require('http').get('http://localhost:5000/api/health', (r) => {if (r.statusCode === 200) console.log('OK'); else process.exit(1)})\" || exit 1"
   },
@@ -15,7 +15,7 @@
     "cors": "^2.8.5",
     "compression": "^1.7.4",
     "dotenv": "^16.0.3",
-    "multer": "^1.4.5-lts.1",
+    "multer": "^2.0.0",
     "express-validator": "^7.0.0",
     "mssql": "^9.1.1",
     "jsonwebtoken": "^9.0.0",

@@ -77,6 +77,7 @@ router.get('/me', verifyToken, async (req, res) => {
     res.json({
       id: user.Id,
       userName: user.UserName,
+      email: user.UserName,  // Email is stored in UserName field
       name: user.Name,
       role: user.RoleName,
       roleType: user.RoleType,

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getCurrentUser, logout as logoutAPI, getUserRoles } from '../api';
+import { getCurrentUser, logout as logoutAPI, getUserRoles, getCustomerLoyalty } from '../api';
 import { getUser, clearAuth } from '../utils/authUtils';
 import CustomerRewards from './CustomerRewards';
 import './UserProfile.css';
@@ -11,6 +11,7 @@ function UserProfile() {
   const [loading, setLoading] = useState(true);
   const [rolesLoading, setRolesLoading] = useState(false);
   const [error, setError] = useState('');
+  const [rewards, setRewards] = useState(null);
   const navigate = useNavigate();
 
   const loadUserProfileMemo = useCallback(() => {
@@ -23,8 +24,21 @@ function UserProfile() {
 
   useEffect(() => {
     loadUserProfileMemo();
-    fetchRolesMemo();
-  }, [loadUserProfileMemo, fetchRolesMemo]);
+  }, [loadUserProfileMemo]);
+
+  // Fetch roles only for administrator users after user is loaded
+  useEffect(() => {
+    if (user && user.roleType === 'Administrator') {
+      fetchRolesMemo();
+    }
+  }, [user, fetchRolesMemo]);
+
+  // Fetch rewards after user is loaded
+  useEffect(() => {
+    if (user && user.userName) {
+      fetchRewards();
+    }
+  }, [user]);
 
   const loadUserProfile = async () => {
     try {
@@ -59,6 +73,28 @@ function UserProfile() {
       setError('Failed to load available roles');
     } finally {
       setRolesLoading(false);
+    }
+  };
+
+  const fetchRewards = async () => {
+    try {
+      const currentUser = getUser();
+      console.log('[DEBUG] fetchRewards - currentUser:', currentUser);
+      
+      if (currentUser && currentUser.userName) {
+        // userName field contains the email address
+        const email = currentUser.userName;
+        console.log('[DEBUG] fetchRewards - using email from userName:', email);
+        
+        const response = await getCustomerLoyalty(email);
+        console.log('[DEBUG] fetchRewards - response:', response.data);
+        setRewards(response.data);
+      } else {
+        console.warn('[DEBUG] fetchRewards - no currentUser or userName found');
+      }
+    } catch (error) {
+      console.error('Failed to fetch rewards data:', error);
+      // Rewards data is optional, so don't set error state
     }
   };
 
@@ -120,6 +156,52 @@ function UserProfile() {
         </div>
       </div>
 
+      {rewards && (
+        <div className="rewards-card">
+          <div className="rewards-header">
+            <h3>Reward Points</h3>
+            <div className="tier-badge">{rewards.loyalty_tier || 'Silver'}</div>
+          </div>
+
+          <div className="rewards-content">
+            <div className="rewards-grid">
+              <div className="reward-item">
+                <div className="reward-label">Total Points</div>
+                <div className="reward-value">{rewards.total_points || 0}</div>
+              </div>
+
+              <div className="reward-item highlight">
+                <div className="reward-label">Available Points</div>
+                <div className="reward-value">{rewards.available_points || 0}</div>
+              </div>
+
+              <div className="reward-item">
+                <div className="reward-label">Redeemed Points</div>
+                <div className="reward-value">{rewards.redeemed_points || 0}</div>
+              </div>
+
+              <div className="reward-item">
+                <div className="reward-label">Total Spent</div>
+                <div className="reward-value">₹{(rewards.total_spent || 0).toFixed(2)}</div>
+              </div>
+
+              <div className="reward-item">
+                <div className="reward-label">Orders Placed</div>
+                <div className="reward-value">{rewards.order_count || 0}</div>
+              </div>
+
+              {rewards.last_order_date && (
+                <div className="reward-item">
+                  <div className="reward-label">Last Order</div>
+                  <div className="reward-value">{new Date(rewards.last_order_date).toLocaleDateString()}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {user.roleType === 'Administrator' && (
       <div className="roles-card">
         <div className="roles-header">
           <h3>Available Roles</h3>
@@ -144,8 +226,7 @@ function UserProfile() {
           </div>
         )}
       </div>
-
-      <CustomerRewards email={user.email || user.userName} />
+      )}
     </div>
   );
 }

@@ -4,11 +4,11 @@ import ShippingZoneManagement from './ShippingZoneManagement';
 import CityManagement from './CityManagement';
 import CouponManagement from './CouponManagement';
 import CustomerRewardsManagement from './CustomerRewardsManagement';
-import { hasAnyRole } from '../utils/authUtils';
+import { hasAnyRole, isAdmin } from '../utils/authUtils';
 import './AdminPanel.css';
 
 const AdminPanel = () => {
-  const [activeTab, setActiveTab] = useState('roles');
+  const [activeTab, setActiveTab] = useState('shipping');
   const [showShippingZones, setShowShippingZones] = useState(false);
   const [showCities, setShowCities] = useState(false);
   const [showCoupons, setShowCoupons] = useState(false);
@@ -25,12 +25,14 @@ const AdminPanel = () => {
       </div>
 
       <div className="admin-tabs">
-        <button
-          className={`tab-button ${activeTab === 'roles' ? 'active' : ''}`}
-          onClick={() => setActiveTab('roles')}
-        >
-          👥 Role Management
-        </button>
+        {isAdmin() && (
+          <button
+            className={`tab-button ${activeTab === 'roles' ? 'active' : ''}`}
+            onClick={() => setActiveTab('roles')}
+          >
+            👥 Role Management
+          </button>
+        )}
         {isSellerOrAdmin && (
           <button
             className={`tab-button ${activeTab === 'shipping' ? 'active' : ''}`}
@@ -57,7 +59,7 @@ const AdminPanel = () => {
       </div>
 
       <div className="admin-content">
-        {activeTab === 'roles' && (
+        {activeTab === 'roles' && isAdmin() && (
           <div className="tab-content">
             <RoleManagement />
           </div>

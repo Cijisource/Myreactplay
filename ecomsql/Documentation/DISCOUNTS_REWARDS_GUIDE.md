@@ -20,9 +20,16 @@ A comprehensive discount and loyalty rewards system that includes:
   - Maximum discount caps
 - **One Coupon Per Order**: Only one coupon code can be applied per order
 
+### 1.5. Minimum Order Value Requirement
+- **Global Minimum**: ₹200 (applies to all orders)
+- **Validation**: Checked during order placement
+- **Error Handling**: Order is rejected if subtotal < ₹200 with clear error message
+- **Scope**: Applies before GST and shipping charges are added
+
 ### 2. Loyalty Points Program
-- **Earn Rate**: 1 point per ₹10 spent
-- **Redemption**: 1 point = ₹1 discount
+- **Earn Rate**: 1 point per ₹10 spent (10% of order value)
+- **Redemption**: 1 point = ₹0.10 (10 paisa)
+- **Minimum Order Value**: ₹200 (orders below this amount cannot be placed)
 - **Automatic Tier Upgrade**: Based on total spending
   - **Silver**: ₹0+ (default)
   - **Gold**: ₹10,000+
@@ -234,7 +241,7 @@ POST /api/discounts/earn-rewards
 }
 ```
 
-**Calculation:** Points = floor(orderAmount / 10)
+**Calculation:** Points = floor(orderAmount / 10) = 10% of order value
 
 #### 3. Redeem Loyalty Points
 ```
@@ -255,10 +262,12 @@ POST /api/discounts/redeem-points
 {
   "success": true,
   "pointsRedeemed": 200,
-  "discountAmount": 200,
+  "discountAmount": 20,
   "availablePointsRemaining": 250
 }
 ```
+
+**Calculation:** Discount = pointsToRedeem * 0.10 (1 point = ₹0.10)
 
 **Validation:** 
 - Customer must have sufficient available points

@@ -461,13 +461,15 @@ const Checkout = ({
       // Normalize email for consistency
       const normalizedEmail = formData.customerEmail.trim().toLowerCase();
 
-      // Calculate discount amounts
+      // Calculate discount amounts (applies ONLY to product value, never to GST)
       const discountAmount = (appliedDiscount?.amount || 0) + (appliedRewards?.discountAmount || 0);
       
-      // Calculate GST: Only waived if loyalty points are redeemed
-      const gstForOrder = (appliedRewards && appliedRewards.discountAmount > 0) ? 0 : gstAmount;
+      // GST MUST NEVER be discounted - always charged on original product value
+      // GST is independent of any coupons or loyalty point redemptions
+      const gstForOrder = gstAmount;
       
-      // Calculate total: discounts apply only to product value, then GST on discounted value, then add shipping
+      // Calculate total: (subtotal - discount) + original GST + shipping
+      // GST is never reduced under any circumstances
       const subtotalAfterDiscount = Math.max(0, subtotalAmount - discountAmount);
       const calculatedTotal = subtotalAfterDiscount + gstForOrder + calculatedShippingCharge;
 
@@ -554,21 +556,28 @@ const Checkout = ({
                   </div>
                   <div className="breakdown-row">
                     <span>GST (18%):</span>
-                    <span>₹{(appliedRewards && appliedRewards.discountAmount > 0 ? 0 : gstAmount).toFixed(2)}</span>
+                    <span>₹{gstAmount.toFixed(2)}</span>
                   </div>
                   <div className="breakdown-row">
                     <span>Shipping:</span>
                     <span>{calculatedShippingCharge === 0 ? <span style={{ color: '#28a745' }}>Free</span> : <span style={{ color: '#FFC107' }}>₹{calculatedShippingCharge.toFixed(2)}</span>}</span>
                   </div>
                   
-                  {/* Applied Discounts in Summary Table */}
+                  {/* Applied Discounts in Summary Table - Always show divider if any discount exists */}
+                  {(appliedDiscount || appliedRewards) && (
+                    <div className="breakdown-divider"></div>
+                  )}
+                  
+                  {/* Coupon Discount */}
                   {appliedDiscount && (
                     <div className="breakdown-row discount-breakdown-row">
-                      <span style={{ color: '#FFC107', fontWeight: '600' }}>{appliedDiscount.code || 'Coupon Discount'}:</span>
-                      <span style={{ color: '#FFC107', fontWeight: '600' }}>-₹{appliedDiscount.amount.toFixed(2)}</span>
+                      <span style={{ color: '#FF6B6B', fontWeight: '600' }}>Coupon ({appliedDiscount.code}):</span>
+                      <span style={{ color: '#FF6B6B', fontWeight: '600' }}>-₹{appliedDiscount.amount.toFixed(2)}</span>
                     </div>
                   )}
-                  {appliedRewards && (
+                  
+                  {/* Loyalty Points Discount */}
+                  {appliedRewards && appliedRewards.points > 0 && (
                     <div className="breakdown-row discount-breakdown-row">
                       <span style={{ color: '#FFC107', fontWeight: '600' }}>Loyalty Points ({appliedRewards.points}):</span>
                       <span style={{ color: '#FFC107', fontWeight: '600' }}>-₹{appliedRewards.discountAmount.toFixed(2)}</span>
@@ -581,8 +590,8 @@ const Checkout = ({
                     <p className="total-price">₹{(() => {
                       const discountAmount = (appliedDiscount?.amount || 0) + (appliedRewards?.discountAmount || 0);
                       const subtotalAfterDiscount = Math.max(0, subtotalAmount - discountAmount);
-                      const gstOnDiscountedValue = subtotalAfterDiscount * 0.18;
-                      return (subtotalAfterDiscount + gstOnDiscountedValue + calculatedShippingCharge).toFixed(2);
+                      // GST is calculated on ORIGINAL subtotal and never discounted
+                      return (subtotalAfterDiscount + gstAmount + calculatedShippingCharge).toFixed(2);
                     })()}</p>
                   </div>
                 </div>
@@ -870,8 +879,47 @@ const Checkout = ({
             </div>
 
             <div className="payment-summary">
-              <h4>Order Total</h4>
-              <p className="total-amount">₹{(subtotalAmount + gstAmount + calculatedShippingCharge).toFixed(2)}</p>
+              <h4>Order Summary</h4>
+              <div className="payment-summary-breakdown">
+                <div className="summary-line">
+                  <span>Subtotal:</span>
+                  <span>₹{subtotalAmount.toFixed(2)}</span>
+                </div>
+                <div className="summary-line">
+                  <span>GST (18%):</span>
+                  <span>₹{gstAmount.toFixed(2)}</span>
+                </div>
+                <div className="summary-line">
+                  <span>Shipping:</span>
+                  <span>{calculatedShippingCharge === 0 ? 'Free' : `₹${calculatedShippingCharge.toFixed(2)}`}</span>
+                </div>
+                {(appliedDiscount || appliedRewards) && (
+                  <>
+                    <div className="summary-divider"></div>
+                    {appliedDiscount && (
+                      <div className="summary-line discount">
+                        <span style={{ color: '#FF6B6B' }}>Coupon ({appliedDiscount.code}):</span>
+                        <span style={{ color: '#FF6B6B' }}>-₹{appliedDiscount.amount.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {appliedRewards && appliedRewards.points > 0 && (
+                      <div className="summary-line discount">
+                        <span style={{ color: '#FFC107' }}>Loyalty Points ({appliedRewards.points}):</span>
+                        <span style={{ color: '#FFC107' }}>-₹{appliedRewards.discountAmount.toFixed(2)}</span>
+                      </div>
+                    )}
+                  </>
+                )}
+                <div className="summary-divider"></div>
+                <div className="summary-total">
+                  <strong>Total:</strong>
+                  <strong style={{ fontSize: '18px', color: '#FF9900' }}>₹{(() => {
+                    const discountAmount = (appliedDiscount?.amount || 0) + (appliedRewards?.discountAmount || 0);
+                    const subtotalAfterDiscount = Math.max(0, subtotalAmount - discountAmount);
+                    return (subtotalAfterDiscount + gstAmount + calculatedShippingCharge).toFixed(2);
+                  })()}</strong>
+                </div>
+              </div>
             </div>
 
             {/* Payment Screenshot Upload */}
@@ -951,8 +999,26 @@ const Checkout = ({
               Your order has been placed successfully. You will receive a confirmation email shortly.
             </p>
             <div className="confirmation-details">
-              <p><strong>Total Paid:</strong> ₹{(subtotalAmount + gstAmount + calculatedShippingCharge).toFixed(2)}</p>
-              <p><strong>Payment Method:</strong> {selectedPayment === 'gpay' ? 'Google Pay/UPI' : selectedPayment}</p>
+              <p><strong>Subtotal:</strong> ₹{subtotalAmount.toFixed(2)}</p>
+              {(appliedDiscount || appliedRewards) && (
+                <>
+                  {appliedDiscount && (
+                    <p><strong>Coupon Discount:</strong> -₹{appliedDiscount.amount.toFixed(2)}</p>
+                  )}
+                  {appliedRewards && appliedRewards.points > 0 && (
+                    <p><strong>Loyalty Discount:</strong> -₹{appliedRewards.discountAmount.toFixed(2)}</p>
+                  )}
+                </>
+              )}
+              <p><strong>GST (18%):</strong> ₹{gstAmount.toFixed(2)}</p>
+              <p><strong>Shipping:</strong> {calculatedShippingCharge === 0 ? 'Free' : `₹${calculatedShippingCharge.toFixed(2)}`}</p>
+              <p style={{ borderTop: '1px solid #ddd', paddingTop: '10px', marginTop: '10px', fontSize: '16px' }}>
+                <strong>Total Paid:</strong> <strong style={{ color: '#FF9900' }}>₹{(() => {
+                  const discountAmount = (appliedDiscount?.amount || 0) + (appliedRewards?.discountAmount || 0);
+                  const subtotalAfterDiscount = Math.max(0, subtotalAmount - discountAmount);
+                  return (subtotalAfterDiscount + gstAmount + calculatedShippingCharge).toFixed(2);
+                })()}</strong>
+              </p>
             </div>
             <button
               type="button"

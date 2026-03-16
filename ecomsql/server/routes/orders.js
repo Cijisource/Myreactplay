@@ -29,7 +29,27 @@ router.get('/seller/orders', verifyToken, async (req, res) => {
     
     console.log('[DEBUG] Seller orders query returned:', result.recordset.length, 'records');
     
-    res.json(result.recordset);
+    // Fetch discounts for each order
+    const ordersWithDiscounts = await Promise.all(
+      result.recordset.map(async (order) => {
+        try {
+          const discountsResult = await pool.request()
+            .input('orderId', sql.Int, order.id)
+            .query(`
+              SELECT discount_code, discount_type, discount_amount
+              FROM order_discounts
+              WHERE order_id = @orderId
+            `);
+          order.discounts = discountsResult.recordset || [];
+        } catch (err) {
+          console.error(`[DEBUG] Error fetching discounts for order ${order.id}:`, err);
+          order.discounts = [];
+        }
+        return order;
+      })
+    );
+    
+    res.json(ordersWithDiscounts);
   } catch (error) {
     console.error('[ERROR] Seller orders endpoint error:', error);
     res.status(500).json({ 
@@ -72,7 +92,27 @@ router.get('/', verifyToken, async (req, res) => {
       console.log('[ORDERS Get] Orders found:', result.recordset.map(o => ({ id: o.id, email: o.customer_email, order_number: o.order_number })));
     }
     
-    res.json(result.recordset);
+    // Fetch discounts for each order
+    const ordersWithDiscounts = await Promise.all(
+      result.recordset.map(async (order) => {
+        try {
+          const discountsResult = await pool.request()
+            .input('orderId', sql.Int, order.id)
+            .query(`
+              SELECT discount_code, discount_type, discount_amount
+              FROM order_discounts
+              WHERE order_id = @orderId
+            `);
+          order.discounts = discountsResult.recordset || [];
+        } catch (err) {
+          console.error(`[ORDERS Get] Error fetching discounts for order ${order.id}:`, err);
+          order.discounts = [];
+        }
+        return order;
+      })
+    );
+    
+    res.json(ordersWithDiscounts);
   } catch (error) {
     console.error('[ORDERS Get] Error endpoint error:', error);
     console.error('[ORDERS Get] Error details:', {
@@ -160,6 +200,14 @@ router.post('/', async (req, res) => {
     
     if (!customerEmail || !customerName || !items || items.length === 0) {
       return res.status(400).json({ error: 'Missing required order information' });
+    }
+
+    // Validate minimum order value of ₹200
+    const MINIMUM_ORDER_VALUE = 200;
+    if (subtotalAmount < MINIMUM_ORDER_VALUE) {
+      return res.status(400).json({ 
+        error: `Minimum order value of ₹${MINIMUM_ORDER_VALUE} required. Current order value: ₹${subtotalAmount.toFixed(2)}` 
+      });
     }
 
     const pool = await getConnection();
@@ -375,10 +423,22 @@ router.post('/', async (req, res) => {
                   VALUES (@email, @type, @points, @orderId, @description)
                 `);
 
+              // Insert order discount record for loyalty rewards
+              await pool.request()
+                .input('orderId', sql.Int, orderId)
+                .input('code', sql.NVarChar, `LOYALTY_POINTS_${redeemCount}`)
+                .input('discountAmount', sql.Decimal(10, 2), appliedRewards.discountAmount || 0)
+                .input('discountType', sql.NVarChar, 'loyalty_points')
+                .query(`
+                  INSERT INTO order_discounts (order_id, discount_code, discount_type, discount_amount)
+                  VALUES (@orderId, @code, @discountType, @discountAmount)
+                `);
+
               console.log('[ORDERS Post] Reward points redeemed successfully:', {
                 email: orderEmail,
                 pointsRedeemed: redeemCount,
-                newAvailable: newAvailableAfterRedeem
+                newAvailable: newAvailableAfterRedeem,
+                discountAmountRecorded: appliedRewards.discountAmount
               });
             }
           }
