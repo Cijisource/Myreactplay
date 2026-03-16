@@ -4,14 +4,12 @@ import {
   createCoupon, 
   updateCoupon, 
   deleteCoupon,
-  getCouponStats,
   checkDiscountsHealth
 } from '../api';
 import './CouponManagement.css';
 
 const CouponManagement = ({ onClose }) => {
   const [coupons, setCoupons] = useState([]);
-  const [stats, setStats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('');
@@ -39,16 +37,6 @@ const CouponManagement = ({ onClose }) => {
       const response = await getSellerCoupons();
       console.log('[CouponManagement] Coupons response:', response);
       setCoupons(Array.isArray(response.data) ? response.data : []);
-      
-      // Load stats separately - don't let stats failure block coupons
-      try {
-        const statsResponse = await getCouponStats();
-        console.log('[CouponManagement] Stats response:', statsResponse);
-        setStats(Array.isArray(statsResponse.data) ? statsResponse.data : []);
-      } catch (statsError) {
-        console.warn('[CouponManagement] Stats loading failed (non-critical):', statsError);
-        setStats([]);
-      }
     } catch (error) {
       console.error('[CouponManagement] Error loading coupons:', error);
       const errorMsg = error.response?.data?.error || error.message || 'Error loading coupons';
@@ -225,7 +213,6 @@ const CouponManagement = ({ onClose }) => {
                     </thead>
                     <tbody>
                       {filteredCoupons.map(coupon => {
-                        const stat = stats.find(s => s.code === coupon.code);
                         return (
                           <tr key={coupon.id}>
                             <td><strong>{coupon.code}</strong></td>

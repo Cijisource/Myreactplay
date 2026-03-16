@@ -209,14 +209,14 @@ const OrderManagement = () => {
                     </div>
                   )}
 
-                  {(selectedOrder.discount_amount > 0 || 
-                    (selectedOrder.discounts && selectedOrder.discounts.filter(d => d.discount_type === 'loyalty_points').reduce((sum, d) => sum + (d.discount_amount || 0), 0) > 0)) && (
+                  {((selectedOrder.discount_amount > 0) || 
+                    ((selectedOrder.discounts && selectedOrder.discounts.filter(d => d.discount_type === 'loyalty_points').reduce((sum, d) => sum + (d.discount_amount || 0), 0)) > 0)) && (
                     <div className="summary-item highlight">
                       <span className="summary-label">You Save:</span>
                       <span className="summary-value savings-highlight">
                         ₹{(
                           (selectedOrder.discount_amount || 0) + 
-                          (selectedOrder.discounts && selectedOrder.discounts.filter(d => d.discount_type === 'loyalty_points').reduce((sum, d) => sum + (d.discount_amount || 0), 0) || 0)
+                          ((selectedOrder.discounts && selectedOrder.discounts.filter(d => d.discount_type === 'loyalty_points').reduce((sum, d) => sum + (d.discount_amount || 0), 0)) || 0)
                         ).toFixed(2)}
                       </span>
                     </div>

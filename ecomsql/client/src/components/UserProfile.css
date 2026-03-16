@@ -204,19 +204,97 @@
   font-size: 14px;
 }
 
+.rewards-card {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  width: 100%;
+  max-width: 500px;
+  margin-top: 20px;
+  overflow: hidden;
+}
+
+.rewards-header {
+  background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+  color: white;
+  padding: 20px 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.rewards-header h3 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.tier-badge {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.25);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.rewards-content {
+  padding: 20px 30px;
+}
+
+.rewards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 15px;
+}
+
+.reward-item {
+  background: #f5f5f5;
+  padding: 15px;
+  border-radius: 8px;
+  text-align: center;
+  border: 1px solid #e0e0e0;
+  transition: all 0.3s;
+}
+
+.reward-item.highlight {
+  background: #fff3e0;
+  border-color: #ffb733;
+  box-shadow: 0 4px 12px rgba(255, 152, 0, 0.15);
+}
+
+.reward-label {
+  font-size: 12px;
+  color: #666;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.reward-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #ff9800;
+}
+
 @media (max-width: 768px) {
   .profile-card,
-  .roles-card {
+  .roles-card,
+  .rewards-card {
     max-width: 100%;
   }
 
   .profile-header,
-  .roles-header {
+  .roles-header,
+  .rewards-header {
     padding: 20px 15px;
   }
 
   .profile-header h2,
-  .roles-header h3 {
+  .roles-header h3,
+  .rewards-header h3 {
     font-size: 20px;
   }
 
@@ -245,21 +323,28 @@
   .roles-list {
     grid-template-columns: 1fr;
   }
+
+  .rewards-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 600px) {
   .profile-card,
-  .roles-card {
+  .roles-card,
+  .rewards-card {
     padding: 15px;
   }
 
   .profile-header,
-  .roles-header {
+  .roles-header,
+  .rewards-header {
     padding: 15px;
   }
 
   .profile-header h2,
-  .roles-header h3 {
+  .roles-header h3,
+  .rewards-header h3 {
     font-size: 18px;
   }
 
@@ -273,12 +358,14 @@
 
 @media (max-width: 480px) {
   .profile-card,
-  .roles-card {
+  .roles-card,
+  .rewards-card {
     padding: 12px;
   }
 
   .profile-header h2,
-  .roles-header h3 {
+  .roles-header h3,
+  .rewards-header h3 {
     font-size: 16px;
   }
 
@@ -286,5 +373,18 @@
     padding: 6px 10px;
     font-size: 11px;
     min-height: 36px;
+  }
+
+  .tier-badge {
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+
+  .rewards-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reward-value {
+    font-size: 20px;
   }
 }
