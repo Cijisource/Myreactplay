@@ -183,6 +183,12 @@ router.post('/', async (req, res) => {
   try {
     const { sessionId, customerEmail, customerName, shippingAddress, items, subtotalAmount, gstAmount, shippingCharge, totalAmount, paymentScreenshot, orderDate, appliedDiscount, appliedRewards } = req.body;
     
+    // Extract discount and reward values from objects
+    const discountAmount = appliedDiscount?.amount || 0;
+    const discountCode = appliedDiscount?.code || null;
+    const rewardAmount = appliedRewards?.discountAmount || 0;
+    const rewardCode = appliedRewards?.type === 'loyalty_points' ? `LOYALTY_POINTS_${appliedRewards?.points}` : null;
+    
     console.log('[ORDERS Post] Received order creation request:', {
       customerEmail: customerEmail,
       customerName: customerName,

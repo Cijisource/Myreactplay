@@ -196,8 +196,8 @@ const ShoppingCart = ({ onCartCountChange, onOrderComplete }) => {
 
               {appliedRewards && (
                 <div className="summary-row promo-row">
-                  <span>Reward ({appliedRewards.code}):</span>
-                  <span className="amount promo-amount">-₹{appliedRewards.amount.toFixed(2)}</span>
+                  <span>Reward (Loyalty Points - {appliedRewards.points}):</span>
+                  <span className="amount promo-amount">-₹{appliedRewards.discountAmount.toFixed(2)}</span>
                 </div>
               )}
 
@@ -292,8 +292,8 @@ const ShoppingCart = ({ onCartCountChange, onOrderComplete }) => {
               shippingCharge={shippingCharge}
               discountAmount={appliedDiscount?.amount}  
               discountCode={appliedDiscount?.code}
-              rewardAmount={appliedRewards?.amount}
-              rewardCode={appliedRewards?.code}
+              rewardAmount={appliedRewards?.discountAmount}
+              rewardCode={appliedRewards?.type === 'loyalty_points' ? `Loyalty Points (${appliedRewards?.points})` : appliedRewards?.code}
               totalAmount={totalAmount}
               appliedDiscount={appliedDiscount}
               appliedRewards={appliedRewards}
