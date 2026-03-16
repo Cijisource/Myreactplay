@@ -170,6 +170,9 @@ export const getCityByName = (cityName) => apiClient.get(`/shipping/by-city/${ci
 export const getCitiesByState = (state) => apiClient.get(`/shipping/by-state/${state}`);
 export const getShippingCharge = (zoneCode) => apiClient.get(`/shipping/shipping/${zoneCode}`);
 export const getAllStates = () => apiClient.get('/shipping/states/all');
+export const getLocationFromIP = () => apiClient.get('/shipping/location-from-ip');
+export const getShippingRateByCity = (city, qty = 1, orderAmount = 0) => 
+  apiClient.get('/shipping/rate-by-city', { params: { city, qty, orderAmount } });
 
 // Shipping Management API (Seller & Admin Only)
 export const addCity = (cityData) => apiClient.post('/shipping/manage/cities', cityData);
@@ -248,6 +251,15 @@ export const adjustCustomerPoints = (customerEmail, pointsAdjustment, reason) =>
 };
 
 export const getCouponStats = () => apiClient.get('/discounts/seller/coupon-stats');
+
+export const getAvailableRewards = (customerEmail) => 
+  apiClient.get(`/discounts/available-rewards/${encodeURIComponent(customerEmail)}`);
+
+export const getAllRewards = () => apiClient.get('/discounts/all-rewards');
+
+export const getRewardsStats = () => apiClient.get('/discounts/rewards-stats');
+
+export const getRewardsByStatus = (status) => apiClient.get(`/discounts/rewards-by-status/${status}`);
 
 // Diagnostic endpoint
 export const checkDiscountsHealth = () => apiClient.get('/discounts/health');
