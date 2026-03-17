@@ -15,6 +15,7 @@ import AdminPanel from './components/AdminPanel';
 import Login from './components/Login';
 import Register from './components/Register';
 import UserProfile from './components/UserProfile';
+import SearchableCategoryDropdown from './components/SearchableCategoryDropdown';
 import { RoleBasedRoute } from './components/ProtectedRoute';
 import { getUser, hasRole, hasAnyRole, isAuthenticated } from './utils/authUtils';
 import { getCartItems, getCategories } from './api';
@@ -434,17 +435,12 @@ function MainApp() {
               onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
               title="Type to search products (searches automatically after 500ms of inactivity)"
             />
-            <select 
-              value={selectedCategory} 
+            <SearchableCategoryDropdown 
+              categories={categories}
+              value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              title="Filter products by category"
-              className="header-category-select"
-            >
-              <option value="">All Categories</option>
-              {categories.map(cat => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
-              ))}
-            </select>
+              placeholder="All Categories"
+            />
             <button 
               onClick={handleSearch}
               style={{

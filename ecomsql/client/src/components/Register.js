@@ -8,6 +8,8 @@ function Register() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [shippingAddress, setShippingAddress] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
@@ -44,6 +46,10 @@ function Register() {
       setError('Name is required');
       return false;
     }
+    if (!phoneNumber.trim()) {
+      setError('Phone number is required');
+      return false;
+    }
     return true;
   };
 
@@ -61,7 +67,13 @@ function Register() {
     try {
       // Register user with email (always as Customer)
       const normalizedEmail = email.trim().toLowerCase();
-      await registerUser(normalizedEmail, password, name);
+      await registerUser(
+        normalizedEmail, 
+        password, 
+        name, 
+        phoneNumber.trim(),
+        shippingAddress.trim() || null
+      );
       
       setSuccess('Registration successful! Logging you in...');
       
@@ -128,6 +140,19 @@ function Register() {
           </div>
 
           <div className="form-group">
+            <label htmlFor="phoneNumber">Phone Number:</label>
+            <input
+              type="tel"
+              id="phoneNumber"
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value)}
+              required
+              disabled={loading}
+              placeholder="Enter your phone number"
+            />
+          </div>
+
+          <div className="form-group">
             <label htmlFor="password">Password:</label>
             <input
               type="password"
@@ -150,6 +175,19 @@ function Register() {
               required
               disabled={loading}
               placeholder="Re-enter your password"
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="shippingAddress">Shipping Address (Optional):</label>
+            <textarea
+              id="shippingAddress"
+              value={shippingAddress}
+              onChange={(e) => setShippingAddress(e.target.value)}
+              disabled={loading}
+              placeholder="Enter your shipping address"
+              rows="3"
+              style={{ resize: 'none' }}
             />
           </div>
 

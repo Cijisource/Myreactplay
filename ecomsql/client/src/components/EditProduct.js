@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { updateProduct, getCategories } from '../api';
+import SearchableCategoryDropdown from './SearchableCategoryDropdown';
 import './EditProduct.css';
 
 const EditProduct = ({ product, onClose, onSaved }) => {
@@ -133,19 +134,12 @@ const EditProduct = ({ product, onClose, onSaved }) => {
           <div className="form-row">
             <div className="form-group">
               <label>Category *</label>
-              <select
-                name="category_id"
+              <SearchableCategoryDropdown
+                categories={categories}
                 value={formData.category_id}
-                onChange={handleChange}
-                required
-              >
-                <option value="">Select a category</option>
-                {categories.map(cat => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </option>
-                ))}
-              </select>
+                onChange={(e) => setFormData(prev => ({ ...prev, category_id: e.target.value }))}
+                placeholder="Select a category"
+              />
             </div>
 
             <div className="form-group">

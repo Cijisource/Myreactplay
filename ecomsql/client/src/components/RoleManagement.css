@@ -219,6 +219,37 @@
   box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2);
 }
 
+.password-reset-group {
+  margin-bottom: 15px;
+}
+
+.password-field {
+  margin-bottom: 10px;
+}
+
+.password-field label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 500;
+  color: #333;
+  font-size: 12px;
+}
+
+.password-input {
+  width: 100%;
+  padding: 6px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #333;
+}
+
+.password-input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2);
+}
+
 .role-editor-actions {
   display: flex;
   gap: 6px;
@@ -255,6 +286,20 @@
 
 .btn-secondary:hover {
   background-color: #5a6268;
+}
+
+.btn-warning {
+  background-color: #ffc107;
+  color: black;
+}
+
+.btn-warning:hover {
+  background-color: #e0a800;
+}
+
+.btn-warning:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
 }
 
 /* Roles Reference */

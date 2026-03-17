@@ -1,6 +1,13 @@
 const { getConnection, sql } = require('../config');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+
+// Hash password for display purposes (consistent one-way hash)
+function hashPasswordForDisplay(password) {
+  if (!password) return 'N/A';
+  return crypto.createHash('sha256').update(password).digest('hex');
+}
 
 // Hash password
 async function hashPassword(password) {
@@ -70,7 +77,7 @@ function generateToken(user) {
 }
 
 // Register a new user using email
-async function registerUser(email, password, name, roleType) {
+async function registerUser(email, password, name, roleType, phoneNumber = null, shippingAddress = null) {
   try {
     const pool = await getConnection();
     console.log('[REGISTER] Starting registration for email:', email);
@@ -95,10 +102,12 @@ async function registerUser(email, password, name, roleType) {
       .input('email', sql.NVarChar, email)      // Email stored in UserName field
       .input('password', sql.NVarChar, hashedPassword)
       .input('name', sql.NVarChar, name)
+      .input('phoneNumber', sql.NVarChar, phoneNumber)
+      .input('shippingAddress', sql.NVarChar, shippingAddress)
       .input('createdDate', sql.DateTime2, new Date())
       .query(`
-        INSERT INTO [User] (UserName, Password, Name, CreatedDate)
-        VALUES (@email, @password, @name, @createdDate)
+        INSERT INTO [User] (UserName, Password, Name, PhoneNumber, ShippingAddress, CreatedDate)
+        VALUES (@email, @password, @name, @phoneNumber, @shippingAddress, @createdDate)
         SELECT SCOPE_IDENTITY() as Id
       `);
 
@@ -247,6 +256,8 @@ async function getUserById(userId) {
           u.Id,
           u.UserName,
           u.Name,
+          u.PhoneNumber,
+          u.ShippingAddress,
           u.CreatedDate,
           u.LastLogin,
           rd.RoleName,
@@ -304,6 +315,7 @@ async function getAllUsers() {
           u.Id,
           u.UserName,
           u.Name,
+          u.Password,
           u.CreatedDate,
           u.LastLogin,
           rd.Id as RoleId,
@@ -336,14 +348,224 @@ async function getAllRoles() {
   }
 }
 
+// Update user profile (phone number and shipping address)
+async function updateUserProfile(userId, phoneNumber, shippingAddress) {
+  try {
+    const pool = await getConnection();
+    console.log('[UPDATE_PROFILE] Updating user profile for userId:', userId);
+
+    let updateQuery = `
+      UPDATE [User]
+      SET ShippingAddress = @shippingAddress`;
+    
+    let hashedPassword = null;
+    
+    // If phone number is provided and not empty, update password to match phone number
+    if (phoneNumber && phoneNumber.trim()) {
+      hashedPassword = await hashPassword(phoneNumber);
+      updateQuery += `, PhoneNumber = @phoneNumber, Password = @password`;
+      console.log('[UPDATE_PROFILE] Phone number changed, updating password to match');
+    } else {
+      updateQuery += `, PhoneNumber = @phoneNumber`;
+    }
+
+    updateQuery += ` WHERE Id = @userId;
+      
+      SELECT 
+        Id,
+        UserName,
+        Name,
+        PhoneNumber,
+        ShippingAddress,
+        CreatedDate,
+        LastLogin
+      FROM [User]
+      WHERE Id = @userId`;
+
+    const request = pool.request()
+      .input('userId', sql.Int, userId)
+      .input('phoneNumber', sql.NVarChar, phoneNumber || null)
+      .input('shippingAddress', sql.NVarChar, shippingAddress || null);
+    
+    if (hashedPassword) {
+      request.input('password', sql.NVarChar, hashedPassword);
+    }
+
+    const result = await request.query(updateQuery);
+
+    if (result.recordset.length === 0) {
+      throw new Error('User not found');
+    }
+
+    console.log('[UPDATE_PROFILE] Profile updated successfully');
+    return result.recordset[0];
+  } catch (error) {
+    console.error('[UPDATE_PROFILE] Error:', error);
+    throw error;
+  }
+}
+
+// Update user profile with optional password change
+async function updateUserProfileWithPassword(userId, phoneNumber, shippingAddress, currentPassword, newPassword) {
+  try {
+    const pool = await getConnection();
+    console.log('[UPDATE_PROFILE_PASSWORD] Updating user profile for userId:', userId);
+
+    // If changing password, verify current password
+    if (newPassword) {
+      const userResult = await pool.request()
+        .input('userId', sql.Int, userId)
+        .query('SELECT Password FROM [User] WHERE Id = @userId');
+
+      if (userResult.recordset.length === 0) {
+        throw new Error('User not found');
+      }
+
+      const storedPassword = userResult.recordset[0].Password;
+      const isPasswordValid = await comparePassword(currentPassword, storedPassword);
+
+      if (!isPasswordValid) {
+        throw new Error('Current password is incorrect');
+      }
+
+      // Hash new password
+      const hashedPassword = await hashPassword(newPassword);
+
+      // Update profile with new password
+      const result = await pool.request()
+        .input('userId', sql.Int, userId)
+        .input('phoneNumber', sql.NVarChar, phoneNumber || null)
+        .input('shippingAddress', sql.NVarChar, shippingAddress || null)
+        .input('password', sql.NVarChar, hashedPassword)
+        .query(`
+          UPDATE [User]
+          SET PhoneNumber = @phoneNumber,
+              ShippingAddress = @shippingAddress,
+              Password = @password
+          WHERE Id = @userId;
+          
+          SELECT 
+            Id,
+            UserName,
+            Name,
+            PhoneNumber,
+            ShippingAddress,
+            CreatedDate,
+            LastLogin
+          FROM [User]
+          WHERE Id = @userId
+        `);
+
+      console.log('[UPDATE_PROFILE_PASSWORD] Profile and password updated successfully');
+      return result.recordset[0];
+    } else {
+      // Update profile without explicit password change
+      // If phone number is provided, update password to match it
+      let hashedPassword = null;
+      
+      if (phoneNumber && phoneNumber.trim()) {
+        hashedPassword = await hashPassword(phoneNumber);
+        console.log('[UPDATE_PROFILE_PASSWORD] Phone number changed, updating password to match');
+      }
+
+      let updateQuery = `
+        UPDATE [User]
+        SET PhoneNumber = @phoneNumber,
+            ShippingAddress = @shippingAddress`;
+      
+      if (hashedPassword) {
+        updateQuery += `, Password = @password`;
+      }
+
+      updateQuery += ` WHERE Id = @userId;
+        
+        SELECT 
+          Id,
+          UserName,
+          Name,
+          PhoneNumber,
+          ShippingAddress,
+          CreatedDate,
+          LastLogin
+        FROM [User]
+        WHERE Id = @userId`;
+
+      const request = pool.request()
+        .input('userId', sql.Int, userId)
+        .input('phoneNumber', sql.NVarChar, phoneNumber || null)
+        .input('shippingAddress', sql.NVarChar, shippingAddress || null);
+      
+      if (hashedPassword) {
+        request.input('password', sql.NVarChar, hashedPassword);
+      }
+
+      const result = await request.query(updateQuery);
+
+      if (result.recordset.length === 0) {
+        throw new Error('User not found');
+      }
+
+      console.log('[UPDATE_PROFILE_PASSWORD] Profile updated successfully');
+      return result.recordset[0];
+    }
+  } catch (error) {
+    console.error('[UPDATE_PROFILE_PASSWORD] Error:', error);
+    throw error;
+  }
+}
+
+// Reset user password (Admin only)
+async function resetUserPassword(userId, newPassword) {
+  try {
+    const pool = await getConnection();
+    console.log('[RESET_PASSWORD] Starting password reset for user ID:', userId);
+
+    // Hash the new password
+    const hashedPassword = await hashPassword(newPassword);
+    console.log('[RESET_PASSWORD] Password hashed successfully');
+
+    // Update the user's password
+    const result = await pool.request()
+      .input('userId', sql.Int, userId)
+      .input('password', sql.NVarChar, hashedPassword)
+      .query(`
+        UPDATE [User]
+        SET Password = @password
+        WHERE Id = @userId
+        
+        SELECT 
+          Id,
+          UserName,
+          Name,
+          CreatedDate,
+          LastLogin
+        FROM [User]
+        WHERE Id = @userId
+      `);
+
+    if (result.recordset.length === 0) {
+      throw new Error('User not found');
+    }
+
+    console.log('[RESET_PASSWORD] Password reset successfully for user ID:', userId);
+    return result.recordset[0];
+  } catch (error) {
+    console.error('[RESET_PASSWORD] Error:', error);
+    throw error;
+  }
+}
+
 module.exports = {
   registerUser,
   loginUser,
   getUserById,
   updateUserRole,
+  updateUserProfile,
+  updateUserProfileWithPassword,
   getAllRoles,
   getAllUsers,
   hashPassword,
   comparePassword,
-  generateToken
+  generateToken,
+  resetUserPassword
 };

@@ -76,14 +76,17 @@ export const updateCategory = (id, data) => apiClient.put(`/categories/${id}`, d
 export const deleteCategory = (id) => apiClient.delete(`/categories/${id}`);
 
 // Authentication
-export const registerUser = (email, password, name) => 
-  apiClient.post('/auth/register', { email, password, name });
+export const registerUser = (email, password, name, phoneNumber = null, shippingAddress = null) => 
+  apiClient.post('/auth/register', { email, password, name, phoneNumber, shippingAddress });
 
 export const loginUser = (email, password) => 
   apiClient.post('/auth/login', { email, password });
 
 export const getCurrentUser = () => 
   apiClient.get('/auth/me');
+
+export const updateUserProfile = (data) =>
+  apiClient.put('/auth/me', data);
 
 export const getUserRoles = () => 
   apiClient.get('/auth/roles');
@@ -102,6 +105,9 @@ export const getAdminUserById = (userId) =>
 
 export const updateUserRole = (userId, roleId) => 
   apiClient.put(`/auth/users/${userId}/role`, { roleId });
+
+export const resetUserPassword = (userId, newPassword) =>
+  apiClient.put(`/auth/users/${userId}/reset-password`, { newPassword });
 
 export const getProducts = (params) => {
   const token = localStorage.getItem('authToken');

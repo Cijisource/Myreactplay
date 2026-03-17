@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getCurrentUser, logout as logoutAPI, getUserRoles, getCustomerLoyalty } from '../api';
+import { getCurrentUser, updateUserProfile, logout as logoutAPI, getUserRoles, getCustomerLoyalty } from '../api';
 import { getUser, clearAuth } from '../utils/authUtils';
 
 import './UserProfile.css';
@@ -12,6 +12,16 @@ function UserProfile() {
   const [rolesLoading, setRolesLoading] = useState(false);
   const [error, setError] = useState('');
   const [rewards, setRewards] = useState(null);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    phoneNumber: '',
+    shippingAddress: '',
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [updateLoading, setUpdateLoading] = useState(false);
+  const [updateMessage, setUpdateMessage] = useState('');
   const navigate = useNavigate();
 
   const loadUserProfileMemo = useCallback(() => {
@@ -39,6 +49,20 @@ function UserProfile() {
       fetchRewards();
     }
   }, [user]);
+
+  // Initialize form data when user is loaded
+  useEffect(() => {
+    if (user && isEditingProfile) {
+      const storedPassword = localStorage.getItem('userPassword') || '';
+      setEditFormData({
+        phoneNumber: user.phoneNumber || '',
+        shippingAddress: user.shippingAddress || '',
+        currentPassword: storedPassword,
+        newPassword: user.phoneNumber || '',
+        confirmPassword: user.phoneNumber || ''
+      });
+    }
+  }, [user, isEditingProfile]);
 
   const loadUserProfile = async () => {
     try {
@@ -98,6 +122,94 @@ function UserProfile() {
     }
   };
 
+  const handleEditClick = () => {
+    setIsEditingProfile(true);
+    setUpdateMessage('');
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingProfile(false);
+    setUpdateMessage('');
+  };
+
+  const handleEditFormChange = (e) => {
+    const { name, value } = e.target;
+    
+    // If phone number is being changed, auto-populate password fields
+    if (name === 'phoneNumber') {
+      setEditFormData(prev => ({
+        ...prev,
+        [name]: value,
+        newPassword: value,
+        confirmPassword: value
+      }));
+    } else {
+      setEditFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
+  };
+
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    setUpdateLoading(true);
+    setUpdateMessage('');
+
+    try {
+      // Validate password if provided
+      const isPasswordChange = editFormData.newPassword || editFormData.currentPassword;
+      
+      if (isPasswordChange) {
+        if (!editFormData.currentPassword) {
+          setUpdateMessage('Current password is required to change password');
+          setUpdateLoading(false);
+          return;
+        }
+        if (!editFormData.newPassword) {
+          setUpdateMessage('New password is required');
+          setUpdateLoading(false);
+          return;
+        }
+        if (editFormData.newPassword.length < 6) {
+          setUpdateMessage('New password must be at least 6 characters');
+          setUpdateLoading(false);
+          return;
+        }
+        if (editFormData.newPassword !== editFormData.confirmPassword) {
+          setUpdateMessage('New passwords do not match');
+          setUpdateLoading(false);
+          return;
+        }
+      }
+
+      const response = await updateUserProfile({
+        phoneNumber: editFormData.phoneNumber.trim() || null,
+        shippingAddress: editFormData.shippingAddress.trim() || null,
+        currentPassword: editFormData.currentPassword || undefined,
+        newPassword: editFormData.newPassword || undefined
+      });
+
+      setUser(response.data.user);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+      
+      // Update stored password if a new password was set
+      if (editFormData.newPassword) {
+        localStorage.setItem('userPassword', editFormData.newPassword);
+      }
+      
+      setIsEditingProfile(false);
+      setUpdateMessage('Profile updated successfully!');
+      setTimeout(() => setUpdateMessage(''), 3000);
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+      const errorMsg = error.response?.data?.error || 'Failed to update profile. Please try again.';
+      setUpdateMessage(errorMsg);
+    } finally {
+      setUpdateLoading(false);
+    }
+  };
+
   const handleLogout = () => {
     logoutAPI();
     clearAuth();
@@ -121,39 +233,185 @@ function UserProfile() {
         </div>
 
         {error && <div className="profile-error">{error}</div>}
+        {updateMessage && <div className={`profile-message ${updateMessage.includes('success') ? 'success' : 'error'}`}>
+          {updateMessage}
+        </div>}
 
-        <div className="profile-content">
-          <div className="profile-field">
-            <label>Username:</label>
-            <span>{user.userName}</span>
-          </div>
-
-          <div className="profile-field">
-            <label>Full Name:</label>
-            <span>{user.name}</span>
-          </div>
-
-          <div className="profile-field">
-            <label>Role:</label>
-            <span className={`role-badge role-${user.roleType?.toLowerCase()}`}>
-              {user.role || user.roleType || 'N/A'}
-            </span>
-          </div>
-
-          {user.createdDate && (
+        {isEditingProfile ? (
+          <form onSubmit={handleSaveProfile} className="profile-edit-form">
             <div className="profile-field">
-              <label>Member Since:</label>
-              <span>{new Date(user.createdDate).toLocaleDateString()}</span>
+              <label>Username:</label>
+              <span>{user.userName}</span>
             </div>
-          )}
 
-          {user.lastLogin && (
             <div className="profile-field">
-              <label>Last Login:</label>
-              <span>{new Date(user.lastLogin).toLocaleString()}</span>
+              <label>Full Name:</label>
+              <span>{user.name}</span>
             </div>
-          )}
-        </div>
+
+            <div className="profile-field">
+              <label htmlFor="phoneNumber">Phone Number:</label>
+              <input
+                type="tel"
+                id="phoneNumber"
+                name="phoneNumber"
+                value={editFormData.phoneNumber}
+                onChange={handleEditFormChange}
+                placeholder="Enter your phone number"
+              />
+            </div>
+
+            <div className="profile-field">
+              <label htmlFor="shippingAddress">Shipping Address:</label>
+              <textarea
+                id="shippingAddress"
+                name="shippingAddress"
+                value={editFormData.shippingAddress}
+                onChange={handleEditFormChange}
+                placeholder="Enter your shipping address"
+                rows="3"
+                style={{ resize: 'none' }}
+              />
+            </div>
+
+            <div className="password-divider">Change Password (Optional)</div>
+
+            <div className="profile-field">
+              <label htmlFor="currentPassword">Current Password:</label>
+              <input
+                type="text"
+                id="currentPassword"
+                name="currentPassword"
+                value={editFormData.currentPassword}
+                onChange={handleEditFormChange}
+                placeholder="Enter your current password"
+                autoComplete="off"
+              />
+            </div>
+
+            <div className="profile-field">
+              <label htmlFor="newPassword">New Password:</label>
+              <input
+                type="text"
+                id="newPassword"
+                name="newPassword"
+                value={editFormData.newPassword}
+                onChange={handleEditFormChange}
+                placeholder="Enter a new password (min 6 characters)"
+                autoComplete="off"
+              />
+            </div>
+
+            <div className="profile-field">
+              <label htmlFor="confirmPassword">Confirm New Password:</label>
+              <input
+                type="text"
+                id="confirmPassword"
+                name="confirmPassword"
+                value={editFormData.confirmPassword}
+                onChange={handleEditFormChange}
+                placeholder="Re-enter your new password"
+                autoComplete="off"
+              />
+            </div>
+
+            <div className="profile-field">
+              <label>Role:</label>
+              <span className={`role-badge role-${user.roleType?.toLowerCase()}`}>
+                {user.role || user.roleType || 'N/A'}
+              </span>
+            </div>
+
+            {user.createdDate && (
+              <div className="profile-field">
+                <label>Member Since:</label>
+                <span>{new Date(user.createdDate).toLocaleDateString()}</span>
+              </div>
+            )}
+
+            {user.lastLogin && (
+              <div className="profile-field">
+                <label>Last Login:</label>
+                <span>{new Date(user.lastLogin).toLocaleString()}</span>
+              </div>
+            )}
+
+            <div className="profile-actions">
+              <button 
+                type="submit" 
+                disabled={updateLoading}
+                className="save-button"
+              >
+                {updateLoading ? 'Saving...' : 'Save Changes'}
+              </button>
+              <button 
+                type="button" 
+                onClick={handleCancelEdit}
+                className="cancel-button"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="profile-content">
+            <div className="profile-field">
+              <label>Username:</label>
+              <span>{user.userName}</span>
+            </div>
+
+            <div className="profile-field">
+              <label>Full Name:</label>
+              <span>{user.name}</span>
+            </div>
+
+            {user.phoneNumber && (
+              <div className="profile-field">
+                <label>Phone Number:</label>
+                <span>{user.phoneNumber}</span>
+              </div>
+            )}
+
+            {user.shippingAddress && (
+              <div className="profile-field">
+                <label>Shipping Address:</label>
+                <span className="address-text">{user.shippingAddress}</span>
+              </div>
+            )}
+
+            <div className="profile-field">
+              <label>Role:</label>
+              <span className={`role-badge role-${user.roleType?.toLowerCase()}`}>
+                {user.role || user.roleType || 'N/A'}
+              </span>
+            </div>
+
+            {user.createdDate && (
+              <div className="profile-field">
+                <label>Member Since:</label>
+                <span>{new Date(user.createdDate).toLocaleDateString()}</span>
+              </div>
+            )}
+
+            {user.lastLogin && (
+              <div className="profile-field">
+                <label>Last Login:</label>
+                <span>{new Date(user.lastLogin).toLocaleString()}</span>
+              </div>
+            )}
+
+            {user.roleType === 'Customer' && (
+              <div className="profile-actions">
+                <button 
+                  onClick={handleEditClick}
+                  className="edit-button"
+                >
+                  Edit Profile
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {rewards && (

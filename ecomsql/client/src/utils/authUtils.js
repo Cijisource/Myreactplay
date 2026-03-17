@@ -23,6 +23,7 @@ export const setUser = (user) => {
 export const clearAuth = () => {
   localStorage.removeItem('authToken');
   localStorage.removeItem('user');
+  localStorage.removeItem('userPassword');
 };
 
 export const hasRole = (requiredRole) => {
