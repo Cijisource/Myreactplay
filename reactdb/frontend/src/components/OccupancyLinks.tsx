@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { getOccupancyLinks } from '../api';
+import SearchableDropdown from './SearchableDropdown';
 import './OccupancyLinks.css';
 
 interface OccupancyLink {
@@ -38,8 +39,15 @@ export default function OccupancyLinks(): JSX.Element {
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'tenant' | 'room' | 'checkIn'>('checkIn');
-  const [showStatsGrid, setShowStatsGrid] = useState(true);
+  const [showStatsGrid, setShowStatsGrid] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedRoom, setSelectedRoom] = useState<string>('');
+  const [selectedTenant, setSelectedTenant] = useState<string>('');
+  const [selectedPhone, setSelectedPhone] = useState<string>('');
+  const [checkInDateFrom, setCheckInDateFrom] = useState<string>('');
+  const [checkInDateTo, setCheckInDateTo] = useState<string>('');
+  const [checkOutDateFrom, setCheckOutDateFrom] = useState<string>('');
+  const [checkOutDateTo, setCheckOutDateTo] = useState<string>('');
 
   useEffect(() => {
     const fetchOccupancies = async () => {
@@ -75,12 +83,124 @@ export default function OccupancyLinks(): JSX.Element {
     };
   }, [occupancies]);
 
+  // Generate room options
+  const roomOptions = useMemo(() => {
+    const uniqueRooms = new Set<string>();
+    occupancies.forEach((o) => {
+      if (o.roomNumber) {
+        uniqueRooms.add(String(o.roomNumber).trim());
+      }
+    });
+    
+    const sortedRooms = Array.from(uniqueRooms).sort((a, b) => {
+      const numA = parseInt(a, 10);
+      const numB = parseInt(b, 10);
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB;
+      }
+      return a.localeCompare(b);
+    });
+
+    return sortedRooms.map((room) => ({
+      id: room,
+      label: `Room ${room}`,
+    }));
+  }, [occupancies]);
+
+  // Generate tenant options
+  const tenantOptions = useMemo(() => {
+    // Count rooms per tenant
+    const tenantRoomCount = new Map<string, Set<string>>();
+    occupancies.forEach((o) => {
+      if (o.tenantName) {
+        const tenantName = o.tenantName.trim();
+        if (!tenantRoomCount.has(tenantName)) {
+          tenantRoomCount.set(tenantName, new Set<string>());
+        }
+        if (o.roomNumber) {
+          tenantRoomCount.get(tenantName)!.add(String(o.roomNumber).trim());
+        }
+      }
+    });
+
+    // Get unique tenants and create options
+    const uniqueTenants = new Set<string>();
+    occupancies.forEach((o) => {
+      if (o.tenantName) {
+        uniqueTenants.add(o.tenantName.trim());
+      }
+    });
+    
+    const sortedTenants = Array.from(uniqueTenants).sort((a, b) => a.localeCompare(b));
+    return sortedTenants.map((tenant) => ({
+      id: tenant,
+      label: tenantRoomCount.get(tenant)!.size > 1 ? `${tenant} +` : tenant,
+    }));
+  }, [occupancies]);
+
+  // Generate phone options
+  const phoneOptions = useMemo(() => {
+    const uniquePhones = new Set<string>();
+    occupancies.forEach((o) => {
+      if (o.tenantPhone) {
+        uniquePhones.add(o.tenantPhone.trim());
+      }
+    });
+    
+    const sortedPhones = Array.from(uniquePhones).sort();
+    return sortedPhones.map((phone) => ({
+      id: phone,
+      label: phone,
+    }));
+  }, [occupancies]);
+
   // Filter and sort occupancies
   const filteredAndSorted = useMemo(() => {
     let filtered = occupancies.filter(occ => {
       // Filter by status
       if (filterStatus === 'active' && !occ.isActive) return false;
       if (filterStatus === 'inactive' && occ.isActive) return false;
+
+      // Filter by room
+      if (selectedRoom && String(occ.roomNumber).trim() !== selectedRoom) return false;
+
+      // Filter by tenant
+      if (selectedTenant && occ.tenantName.trim() !== selectedTenant) return false;
+
+      // Filter by phone
+      if (selectedPhone && occ.tenantPhone.trim() !== selectedPhone) return false;
+
+      // Filter by check-in date range
+      if (checkInDateFrom || checkInDateTo) {
+        const checkInDate = new Date(occ.checkInDate);
+        checkInDate.setHours(0, 0, 0, 0);
+        if (checkInDateFrom) {
+          const fromDate = new Date(checkInDateFrom);
+          fromDate.setHours(0, 0, 0, 0);
+          if (checkInDate < fromDate) return false;
+        }
+        if (checkInDateTo) {
+          const toDate = new Date(checkInDateTo);
+          toDate.setHours(0, 0, 0, 0);
+          if (checkInDate > toDate) return false;
+        }
+      }
+
+      // Filter by check-out date range
+      if ((checkOutDateFrom || checkOutDateTo) && occ.checkOutDate) {
+        const checkOutDate = new Date(occ.checkOutDate);
+        checkOutDate.setHours(0, 0, 0, 0);
+        if (checkOutDateFrom) {
+          const fromDate = new Date(checkOutDateFrom);
+          fromDate.setHours(0, 0, 0, 0);
+          if (checkOutDate < fromDate) return false;
+        }
+        if (checkOutDateTo) {
+          const toDate = new Date(checkOutDateTo);
+          toDate.setHours(0, 0, 0, 0);
+          if (checkOutDate > toDate) return false;
+        }
+      }
 
       // Filter by search term
       if (searchTerm) {
@@ -103,7 +223,7 @@ export default function OccupancyLinks(): JSX.Element {
       // Default: checkIn
       return new Date(b.checkInDate).getTime() - new Date(a.checkInDate).getTime();
     });
-  }, [occupancies, filterStatus, searchTerm, sortBy]);
+  }, [occupancies, filterStatus, searchTerm, sortBy, selectedRoom, selectedTenant, selectedPhone, checkInDateFrom, checkInDateTo, checkOutDateFrom, checkOutDateTo]);
 
   const formatCurrency = (value: number | undefined): string => {
     return new Intl.NumberFormat('en-US', {
@@ -216,51 +336,183 @@ export default function OccupancyLinks(): JSX.Element {
 
       <div className={`collapsible-content ${showFilters ? 'open' : 'closed'}`}>
         <div className="filters-section">
-        <div className="filter-group">
-          <input
-            type="text"
-            placeholder="Search by tenant name, room, phone or city..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="search-input"
-          />
-        </div>
-
-        <div className="filter-controls">
-          <div className="filter-buttons">
-            <button
-              className={`filter-btn ${filterStatus === 'all' ? 'active' : ''}`}
-              onClick={() => setFilterStatus('all')}
-            >
-              All ({stats.totalOccupancies})
-            </button>
-            <button
-              className={`filter-btn ${filterStatus === 'active' ? 'active' : ''}`}
-              onClick={() => setFilterStatus('active')}
-            >
-              Active ({stats.activeOccupancies})
-            </button>
-            <button
-              className={`filter-btn ${filterStatus === 'inactive' ? 'active' : ''}`}
-              onClick={() => setFilterStatus('inactive')}
-            >
-              Inactive ({stats.inactiveOccupancies})
-            </button>
+          {/* Search Input */}
+          <div className="filter-group">
+            <input
+              type="text"
+              placeholder="Search by tenant name, room, phone or city..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="search-input"
+            />
           </div>
 
-          <div className="sort-controls">
-            <label>Sort by:</label>
-            <select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} className="sort-select">
-              <option value="checkIn">Check-In Date (Newest)</option>
-              <option value="tenant">Tenant Name</option>
-              <option value="room">Room Number</option>
-            </select>
+          {/* Status & Sort Controls Row */}
+          <div className="filter-controls">
+            <div className="filter-buttons">
+              <button
+                className={`filter-btn ${filterStatus === 'all' ? 'active' : ''}`}
+                onClick={() => setFilterStatus('all')}
+              >
+                All ({stats.totalOccupancies})
+              </button>
+              <button
+                className={`filter-btn ${filterStatus === 'active' ? 'active' : ''}`}
+                onClick={() => setFilterStatus('active')}
+              >
+                Active ({stats.activeOccupancies})
+              </button>
+              <button
+                className={`filter-btn ${filterStatus === 'inactive' ? 'active' : ''}`}
+                onClick={() => setFilterStatus('inactive')}
+              >
+                Inactive ({stats.inactiveOccupancies})
+              </button>
+            </div>
+
+            <div className="sort-controls">
+              <label>Sort by:</label>
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} className="sort-select">
+                <option value="checkIn">Check-In Date (Newest)</option>
+                <option value="tenant">Tenant Name</option>
+                <option value="room">Room Number</option>
+              </select>
+            </div>
           </div>
-        </div>
+
+          {/* Dropdowns Row */}
+          <div className="filter-dropdowns">
+            <div className="dropdown-container">
+              <label>Room:</label>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <SearchableDropdown
+                  options={roomOptions}
+                  value={selectedRoom}
+                  onChange={(option) => setSelectedRoom(String(option?.id || ''))}
+                  placeholder="Select room"
+                />
+                {selectedRoom && (
+                  <button
+                    className="clear-filter-btn"
+                    onClick={() => setSelectedRoom('')}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="dropdown-container">
+              <label>Tenant:</label>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <SearchableDropdown
+                  options={tenantOptions}
+                  value={selectedTenant}
+                  onChange={(option) => setSelectedTenant(String(option?.id || ''))}
+                  placeholder="Select tenant"
+                />
+                {selectedTenant && (
+                  <button
+                    className="clear-filter-btn"
+                    onClick={() => setSelectedTenant('')}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="dropdown-container">
+              <label>Phone:</label>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <SearchableDropdown
+                  options={phoneOptions}
+                  value={selectedPhone}
+                  onChange={(option) => setSelectedPhone(String(option?.id || ''))}
+                  placeholder="Select phone"
+                />
+                {selectedPhone && (
+                  <button
+                    className="clear-filter-btn"
+                    onClick={() => setSelectedPhone('')}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Date Ranges Row */}
+          <div className="filter-date-ranges">
+            <div className="date-range-container">
+              <label>Check-In Date:</label>
+              <div className="date-inputs">
+                <input
+                  type="date"
+                  value={checkInDateFrom}
+                  onChange={(e) => setCheckInDateFrom(e.target.value)}
+                  className="date-input"
+                  placeholder="From"
+                />
+                <span className="date-range-sep">to</span>
+                <input
+                  type="date"
+                  value={checkInDateTo}
+                  onChange={(e) => setCheckInDateTo(e.target.value)}
+                  className="date-input"
+                  placeholder="To"
+                />
+                {(checkInDateFrom || checkInDateTo) && (
+                  <button
+                    className="clear-filter-btn"
+                    onClick={() => {
+                      setCheckInDateFrom('');
+                      setCheckInDateTo('');
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="date-range-container">
+              <label>Check-Out Date:</label>
+              <div className="date-inputs">
+                <input
+                  type="date"
+                  value={checkOutDateFrom}
+                  onChange={(e) => setCheckOutDateFrom(e.target.value)}
+                  className="date-input"
+                  placeholder="From"
+                />
+                <span className="date-range-sep">to</span>
+                <input
+                  type="date"
+                  value={checkOutDateTo}
+                  onChange={(e) => setCheckOutDateTo(e.target.value)}
+                  className="date-input"
+                  placeholder="To"
+                />
+                {(checkOutDateFrom || checkOutDateTo) && (
+                  <button
+                    className="clear-filter-btn"
+                    onClick={() => {
+                      setCheckOutDateFrom('');
+                      setCheckOutDateTo('');
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Occupancy Links Table */}
+      {/* Occupancy History Table */}
       <div className="table-wrapper">
         <table className="occupancy-table">
           <thead>
@@ -312,37 +564,12 @@ export default function OccupancyLinks(): JSX.Element {
             ) : (
               <tr className="no-data">
                 <td colSpan={10}>
-                  <p>📭 No occupancy links found matching your criteria</p>
+                  <p>📭 No occupancy history found matching your criteria</p>
                 </td>
               </tr>
             )}
           </tbody>
         </table>
-      </div>
-
-      {/* Database Relationship Info */}
-      <div className="relationship-info">
-        <h3>🗄️ Database Relationship (FK_Occupancy_Tenant)</h3>
-        <div className="relationship-diagram">
-          <div className="entity room-entity">
-            <strong>RoomDetail</strong>
-            <small>Id, Number, Rent, Beds</small>
-          </div>
-          <div className="connection">↔</div>
-          <div className="entity occupancy-entity">
-            <strong>Occupancy</strong>
-            <small>Id, TenantId (FK), RoomId (FK)</small>
-          </div>
-          <div className="connection">↔</div>
-          <div className="entity tenant-entity">
-            <strong>Tenant</strong>
-            <small>Id, Name, Phone, City</small>
-          </div>
-        </div>
-        <p className="relationship-desc">
-          The Occupancy table serves as the junction table linking Rooms to Tenants.
-          Each occupancy record (FK_Occupancy_Tenant) represents a tenant's assignment to a room for a specific time period.
-        </p>
       </div>
     </div>
     </div>

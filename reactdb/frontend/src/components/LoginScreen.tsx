@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from './AuthContext';
+import RollingBanner from './RollingBanner';
 import './LoginScreen.css';
 
 export default function LoginScreen() {
@@ -40,6 +41,8 @@ export default function LoginScreen() {
 
   return (
     <div className="login-container">
+      <RollingBanner />
+      
       <div className="login-background">
         <div className="background-blur"></div>
       </div>

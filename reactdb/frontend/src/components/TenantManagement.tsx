@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { apiService } from '../api';
+import SearchableDropdown from './SearchableDropdown';
 import TenantForm from './TenantForm';
 import TenantCard from './TenantCard';
 import TenantHeader from './TenantHeader';
@@ -65,6 +66,8 @@ export default function TenantManagement() {
   const [fullscreenPhotoIndex, setFullscreenPhotoIndex] = useState<number | null>(null);
   const [fullscreenProofIndex, setFullscreenProofIndex] = useState<number | null>(null);
   const [fullscreenMediaTab, setFullscreenMediaTab] = useState<'photos' | 'proofs'>('photos');
+  const [selectedRoom, setSelectedRoom] = useState<string>('');
+  const [showFilters, setShowFilters] = useState(false);
 
   // Helper function to normalize phone numbers
   const normalizePhone = (phone: string): string => {
@@ -77,9 +80,21 @@ export default function TenantManagement() {
     fetchTenants();
   }, []);
 
-  // Filter tenants based on search query
+  // Filter tenants based on search query and room filter
   useEffect(() => {
+    console.log('Starting filter. selectedRoom:', selectedRoom, 'tenants count:', tenants.length);
     const filtered = tenants.filter((tenant) => {
+      // Apply room filter first - convert roomNumber to string and trim for comparison
+      if (selectedRoom) {
+        const tenantRoom = String(tenant.roomNumber || '').trim();
+        const selectedRoomTrimmed = String(selectedRoom).trim();
+        const isMatch = tenantRoom === selectedRoomTrimmed;
+        console.log(`Tenant "${tenant.name}": room="${tenantRoom}" vs selected="${selectedRoomTrimmed}" -> ${isMatch}`);
+        if (!isMatch) {
+          return false;
+        }
+      }
+
       if (!searchQuery.trim()) return true;
       
       const query = searchQuery.trim();
@@ -123,7 +138,35 @@ export default function TenantManagement() {
       }
     });
     setFilteredTenants(filtered);
-  }, [searchQuery, searchField, tenants]);
+  }, [searchQuery, searchField, tenants, selectedRoom]);
+
+  // Generate available room options
+  const roomOptions = useMemo(() => {
+    const uniqueRooms = new Set<string>();
+    tenants.forEach((t) => {
+      if (t.roomNumber) {
+        // Convert to string and trim to ensure consistent type
+        const room = String(t.roomNumber).trim();
+        uniqueRooms.add(room);
+      }
+    });
+    
+    // Sort rooms numerically if they're numbers, otherwise alphabetically
+    const sortedRooms = Array.from(uniqueRooms).sort((a, b) => {
+      const numA = parseInt(a, 10);
+      const numB = parseInt(b, 10);
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB;
+      }
+      return a.localeCompare(b);
+    });
+
+    console.log('Room options generated:', sortedRooms);
+    return sortedRooms.map((room) => ({
+      id: room,
+      label: `Room ${room}`,
+    }));
+  }, [tenants]);
 
   // Sort filtered tenants
   const sortedAndFilteredTenants = useMemo(() => {
@@ -257,16 +300,47 @@ export default function TenantManagement() {
         </div>
       )}
 
-      {/* Search and Filter Section */}
-      <TenantSearchFilters
-        searchQuery={searchQuery}
-        searchField={searchField}
-        sortBy={sortBy}
-        onSearchQueryChange={setSearchQuery}
-        onSearchFieldChange={setSearchField}
-        onSortByChange={setSortBy}
-        onClearSearch={() => setSearchQuery('')}
-      />
+      {/* Filter Toggle Button */}
+      <button className="filter-toggle-btn" onClick={() => setShowFilters(!showFilters)}>
+        {showFilters ? '▼' : '▶'} {showFilters ? 'Hide' : 'Show'} Filters
+      </button>
+
+      {/* Search and Filter Sections */}
+      {showFilters && (
+        <>
+          {/* Search and Filter Section */}
+          <TenantSearchFilters
+            searchQuery={searchQuery}
+            searchField={searchField}
+            sortBy={sortBy}
+            onSearchQueryChange={setSearchQuery}
+            onSearchFieldChange={setSearchField}
+            onSortByChange={setSortBy}
+            onClearSearch={() => setSearchQuery('')}
+          />
+
+          {/* Room Filter Section */}
+          <div className="room-filter">
+            <SearchableDropdown
+              options={roomOptions}
+              value={selectedRoom}
+              onChange={(option) => {
+                console.log('Room selected:', option);
+                setSelectedRoom(option.id as string);
+              }}
+              placeholder="Filter by Room"
+            />
+            {selectedRoom && (
+              <button
+                onClick={() => setSelectedRoom('')}
+                className="clear-room-filter"
+              >
+                Clear Room Filter
+              </button>
+            )}
+          </div>
+        </>
+      )}
 
       {/* Loading State */}
       {loading && (

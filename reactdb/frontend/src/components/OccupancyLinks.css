@@ -119,7 +119,12 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 1.5rem;
-  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+  margin: 1.5rem;
+  margin-top: 0.75rem;
 }
 
 .stat-card {
@@ -186,11 +191,12 @@
 
 /* Filters Section */
 .filters-section {
-  background: white;
+  background: transparent;
   padding: 1.5rem;
-  border-radius: 12px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
-  margin-bottom: 2rem;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
 }
 
 .filter-group {
@@ -281,6 +287,212 @@
   outline: none;
   border-color: #667eea;
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+/* Filter Layout */
+.filter-group {
+  margin-bottom: 1.5rem;
+  width: 100%;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: inherit;
+  transition: all 0.3s;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.search-input::placeholder {
+  color: #a0aec0;
+}
+
+/* Filter Controls (Status & Sort) */
+.filter-controls {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.filter-buttons {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.filter-btn {
+  padding: 0.75rem 1.5rem;
+  border: 2px solid #e2e8f0;
+  background: white;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s;
+  color: #4a5568;
+  font-size: 0.95rem;
+}
+
+.filter-btn:hover {
+  border-color: #cbd5e0;
+  background: #f7fafc;
+}
+
+.filter-btn.active {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+}
+
+.sort-controls {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-left: auto;
+}
+
+.sort-controls label {
+  color: #2d3748;
+  font-weight: 600;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+.sort-select {
+  padding: 0.75rem 1rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: white;
+  cursor: pointer;
+  transition: all 0.3s;
+  color: #2d3748;
+  min-width: 180px;
+}
+
+/* Filter Dropdowns */
+.filter-dropdowns {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+.dropdown-container {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dropdown-container label {
+  color: #2d3748;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.dropdown-container > div {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+/* Filter Date Ranges */
+.filter-date-ranges {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+.date-range-container {
+  flex: 1;
+  min-width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.date-range-container label {
+  color: #2d3748;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.date-inputs {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.date-input {
+  padding: 0.75rem 1rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: white;
+  color: #2d3748;
+  cursor: pointer;
+  transition: all 0.3s;
+  flex: 1;
+  min-width: 120px;
+}
+
+.date-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.date-range-sep {
+  color: #a0aec0;
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 0 0.25rem;
+}
+
+/* Clear Filter Button */
+.clear-filter-btn {
+  padding: 0.5rem 0.75rem;
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  white-space: nowrap;
+  height: fit-content;
+  min-width: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.clear-filter-btn:hover {
+  background: #dc2626;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3);
+}
+
+.clear-filter-btn:active {
+  transform: translateY(0);
 }
 
 /* Table Wrapper */
@@ -488,15 +700,23 @@
   .filter-controls {
     flex-direction: column;
     gap: 1rem;
-    align-items: flex-start;
+    align-items: stretch;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .filter-buttons {
+    width: 100%;
   }
 
   .sort-controls {
     width: 100%;
+    margin-left: 0;
   }
 
   .sort-select {
-    flex: 1;
+    width: 100%;
   }
 }
 
@@ -565,11 +785,57 @@
   .filter-controls {
     flex-direction: column;
     gap: clamp(0.75rem, 2vw, 1rem);
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 1.5rem;
+    margin-bottom: 1.5rem;
   }
 
   .filter-buttons {
     width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .filter-btn {
+    flex: 1;
+    min-width: 70px;
+    padding: 0.6rem 0.75rem;
+  }
+
+  .sort-controls {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .sort-select {
+    width: 100%;
+  }
+
+  .filter-dropdowns {
     flex-direction: column;
+  }
+
+  .dropdown-container {
+    min-width: 100%;
+  }
+
+  .filter-date-ranges {
+    flex-direction: column;
+  }
+
+  .date-range-container {
+    min-width: 100%;
+  }
+
+  .date-inputs {
+    flex-wrap: wrap;
+  }
+
+  .date-input {
+    flex: 1;
+    min-width: 100px;
+  }
   }
 
   .filter-btn {
@@ -671,7 +937,59 @@
 
   .sort-select {
     padding: 0.6rem;
+    font-size: 0.75rem;
+    width: 100%;
+  }
+
+  .sort-controls {
+    width: 100%;
+    margin-left: 0;
+    flex-direction: row;
+    gap: 0.5rem;
+  }
+
+  .sort-controls label {
     font-size: 0.8rem;
+    white-space: nowrap;
+  }
+
+  .filter-dropdowns {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .dropdown-container {
+    min-width: 100%;
+  }
+
+  .filter-date-ranges {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .date-range-container {
+    min-width: 100%;
+  }
+
+  .date-inputs {
+    flex-wrap: wrap;
+    gap: 0.3rem;
+  }
+
+  .date-input {
+    flex: 1;
+    min-width: 80px;
+    padding: 0.6rem 0.5rem;
+    font-size: 0.8rem;
+  }
+
+  .date-range-sep {
+    font-size: 0.8rem;
+  }
+
+  .clear-filter-btn {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.7rem;
   }
 
   .occupancy-table {
@@ -711,12 +1029,15 @@
   justify-content: space-between;
   align-items: center;
   margin-top: 2rem;
-  margin-bottom: 0;
+  margin-bottom: 0.75rem;
   padding: 1.25rem 1.5rem;
   background: white;
-  border-radius: 12px 12px 0 0;
+  border-radius: 12px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
-  border-bottom: 1px solid #e2e8f0;
+}
+
+.collapsible-content + .section-header {
+  margin-top: 2.5rem;
 }
 
 .section-header h2 {
@@ -754,7 +1075,7 @@
 .collapsible-content {
   overflow: hidden;
   transition: max-height 0.3s ease, opacity 0.3s ease;
-  margin-bottom: 2rem;
+  margin-bottom: 0;
 }
 
 .collapsible-content.open {
@@ -766,4 +1087,5 @@
   max-height: 0;
   opacity: 0;
   margin-bottom: 0;
+  display: none;
 }

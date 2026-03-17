@@ -1765,6 +1765,64 @@
   backdrop-filter: blur(2px);
 }
 
+/* Filter Toggle */
+.filter-toggle-btn {
+  padding: 0.75rem 1.5rem;
+  background-color: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  margin-bottom: 2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.filter-toggle-btn:hover {
+  background-color: #1d4ed8;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(37, 99, 235, 0.3);
+}
+
+.filter-toggle-btn:active {
+  transform: translateY(0);
+}
+
+/* Room Filter */
+.room-filter {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+
+.clear-room-filter {
+  padding: 0.75rem 1.5rem;
+  background-color: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.clear-room-filter:hover {
+  background-color: #991b1b;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(220, 38, 38, 0.3);
+}
+
+.clear-room-filter:active {
+  transform: translateY(0);
+}
+
 /* Responsive Design */
 @media (max-width: 1024px) {
   .tenants-grid {
@@ -1789,6 +1847,15 @@
 @media (max-width: 768px) {
   .tenant-management-container {
     padding: clamp(0.75rem, 3vw, 1rem);
+  }
+
+  .filter-toggle-btn {
+    padding: 0.65rem 1.25rem;
+    font-size: 0.85rem;
+  }
+
+  .room-filter {
+    gap: 0.75rem;
   }
 
   .tenant-management-container h1 {
@@ -2078,6 +2145,21 @@
 @media (max-width: 480px) {
   .stat-value {
     font-size: clamp(1.2rem, 3vw, 1.5rem);
+  }
+
+  .filter-toggle-btn {
+    padding: 0.6rem 1rem;
+    font-size: 0.8rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .room-filter {
+    gap: 0.5rem;
+    flex-direction: column;
+  }
+
+  .clear-room-filter {
+    width: 100%;
   }
 
   .tenant-name {

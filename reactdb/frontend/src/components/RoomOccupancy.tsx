@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { getRoomOccupancyData } from '../api';
+import SearchableDropdown from './SearchableDropdown';
 import './RoomOccupancy.css';
 
 interface OccupancyData {
@@ -33,8 +34,10 @@ export default function RoomOccupancy(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [filterOccupancy, setFilterOccupancy] = useState<'all' | 'occupied' | 'vacant'>('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [showStatsGrid, setShowStatsGrid] = useState(true);
+  const [showStatsGrid, setShowStatsGrid] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedRoom, setSelectedRoom] = useState<string>('');
+  const [expandedRooms, setExpandedRooms] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     const fetchRoomData = async () => {
@@ -53,6 +56,35 @@ export default function RoomOccupancy(): JSX.Element {
 
     fetchRoomData();
   }, []);
+
+  // Generate available room options based on occupancy filter
+  const roomOptions = useMemo(() => {
+    const uniqueRooms = new Set<string>();
+    rooms.forEach((r) => {
+      // Filter rooms based on occupancy status
+      if (filterOccupancy === 'occupied' && !r.isOccupied) return;
+      if (filterOccupancy === 'vacant' && r.isOccupied) return;
+      
+      if (r.roomNumber) {
+        uniqueRooms.add(String(r.roomNumber));
+      }
+    });
+    
+    // Sort rooms numerically if they're numbers, otherwise alphabetically
+    const sortedRooms = Array.from(uniqueRooms).sort((a, b) => {
+      const numA = parseInt(a, 10);
+      const numB = parseInt(b, 10);
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB;
+      }
+      return a.localeCompare(b);
+    });
+
+    return sortedRooms.map((room) => ({
+      id: room,
+      label: `Room ${room}`,
+    }));
+  }, [rooms, filterOccupancy]);
 
   // Calculate statistics
   const stats = useMemo((): Stats => {
@@ -75,6 +107,11 @@ export default function RoomOccupancy(): JSX.Element {
   // Filter rooms based on search and occupancy status
   const filteredRooms = useMemo(() => {
     return rooms.filter(room => {
+      // Filter by room selection
+      if (selectedRoom && String(room.roomNumber || '') !== selectedRoom) {
+        return false;
+      }
+      
       // Filter by occupancy status
       if (filterOccupancy === 'occupied' && !room.isOccupied) return false;
       if (filterOccupancy === 'vacant' && room.isOccupied) return false;
@@ -90,7 +127,7 @@ export default function RoomOccupancy(): JSX.Element {
 
       return true;
     });
-  }, [rooms, filterOccupancy, searchTerm]);
+  }, [rooms, filterOccupancy, searchTerm, selectedRoom]);
 
   const formatCurrency = (value: number | undefined): string => {
     return new Intl.NumberFormat('en-US', {
@@ -144,6 +181,18 @@ export default function RoomOccupancy(): JSX.Element {
     if (days === 1) return '1 day';
     if (days < 30) return `${days} days`;
     return `${Math.floor(days / 30)} months`;
+  };
+
+  const toggleRoomExpanded = (roomId: number) => {
+    setExpandedRooms(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(roomId)) {
+        newSet.delete(roomId);
+      } else {
+        newSet.add(roomId);
+      }
+      return newSet;
+    });
   };
 
   const getOccupancyStatus = (checkOutDate: string | null | undefined): string => {
@@ -252,6 +301,7 @@ export default function RoomOccupancy(): JSX.Element {
           </div>
         </div>
       </div>
+      </div>
 
       {/* Filters */}
       <div className="section-header">
@@ -297,7 +347,30 @@ export default function RoomOccupancy(): JSX.Element {
             Vacant ({stats.vacantRooms})
           </button>
         </div>
+
+        {/* Room Filter Dropdown */}
+        <div className="room-filter">
+          <SearchableDropdown
+            options={roomOptions}
+            value={selectedRoom}
+            onChange={(option) => setSelectedRoom(option.id as string)}
+            placeholder="Filter by Room"
+          />
+          {selectedRoom && (
+            <button
+              onClick={() => setSelectedRoom('')}
+              className="clear-room-filter"
+            >
+              Clear Room Filter
+            </button>
+          )}
         </div>
+        </div>
+      </div>
+
+      {/* Rooms Section */}
+      <div className="section-header">
+        <h2>Rooms</h2>
       </div>
 
       {/* Room Grid */}
@@ -313,10 +386,19 @@ export default function RoomOccupancy(): JSX.Element {
                 <div className={`occupancy-badge ${room.isOccupied ? 'occupied' : 'vacant'}`}>
                   {room.isOccupied ? '🟢 Occupied' : '🔴 Vacant'}
                 </div>
+                <button
+                  className="toggle-room-info-btn"
+                  onClick={() => toggleRoomExpanded(room.roomId)}
+                  title={expandedRooms.has(room.roomId) ? 'Hide Details' : 'Show Details'}
+                >
+                  {expandedRooms.has(room.roomId) ? '−' : '+'}
+                </button>
               </div>
 
               {room.isOccupied && room.tenantName ? (
-                <div className="room-tenant-info">
+                <>
+                  {expandedRooms.has(room.roomId) && (
+                    <div className="room-tenant-info">
                   <div className="tenant-section">
                     <h4>Tenant Information</h4>
                     <p className="tenant-name">👤 {room.tenantName}</p>
@@ -349,13 +431,19 @@ export default function RoomOccupancy(): JSX.Element {
                       <p className="last-payment">Last Payment: {formatDate(room.lastPaymentDate)}</p>
                     )}
                   </div>
-                </div>
+                    </div>
+                  )}
+                </>
               ) : (
-                <div className="room-vacant-info">
-                  <p className="vacant-message">No tenant assigned</p>
-                  <p className="vacant-action">Ready for new occupant</p>
-                  <p className="vacancy-aging">⏱️ Vacancy Aging: {calculateVacancyAging(null)} (No previous checkout data)</p>
-                </div>
+                <>
+                  {expandedRooms.has(room.roomId) && (
+                    <div className="room-vacant-info">
+                      <p className="vacant-message">No tenant assigned</p>
+                      <p className="vacant-action">Ready for new occupant</p>
+                      <p className="vacancy-aging">⏱️ Vacancy Aging: {calculateVacancyAging(null)} (No previous checkout data)</p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           ))
@@ -366,7 +454,6 @@ export default function RoomOccupancy(): JSX.Element {
           </div>
         )}
       </div>
-    </div>
     </div>
   );
 }

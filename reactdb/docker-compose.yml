@@ -16,11 +16,15 @@ services:
       - NODE_ENV=production
       - COMPLAINS_DIR=/app/complains
       - DAILY_STATUS_DIR=/app/dailystatus
+      - TENANT_PHOTOS_DIR=/app/tenantphotos
+      - PAYMENT_RECEIPTS_DIR=/app/paymentreceipts
+      - BANNER_DIR=/app/banner
     volumes:
       - complains-data:/app/complains
       - daily-status-media:/app/daily-status-media
       - tenantphotos:/app/tenantphotos
       - paymentreceipts:/app/paymentreceipts
+      - banner:/app/banner
     deploy:
       replicas: 3   # Run 3 containers for the API service
       restart_policy:
@@ -85,3 +89,4 @@ volumes:
   daily-status-media:
   tenantphotos:
   paymentreceipts:
+  banner:

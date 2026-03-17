@@ -492,7 +492,10 @@ export default function TenantForm({ tenant, onSubmit, onCancel }: TenantFormPro
               <div className="progress-bar">
                 <div className="progress-fill" style={{ width: `${uploadProgress}%` }}></div>
               </div>
-              <span className="progress-text">{uploadProgress}%</span>
+              <span className="progress-text">
+                <span>📸 Uploading photos & proofs...</span>
+                <span>{uploadProgress}%</span>
+              </span>
             </div>
           )}
 
