@@ -19,6 +19,7 @@ services:
       - ./mansion/photos/daily-status:/app/daily-status-media
       - ./mansion/photos/tenantphotos:/app/tenantphotos
       - ./mansion/photos/paymentreceipts:/app/paymentreceipts
+      - ./mnasion/photos/banner:/app/banner
     deploy:
       replicas: 3   # Run 3 containers for the API service
       restart_policy:
@@ -34,29 +35,29 @@ services:
       - mansion-network
     restart: unless-stopped
 
-  nginx:
-    image: nginx:latest
-    container_name: nginx_proxy
-    ports:
-      - "80:90"   # host:container mapping
-      - "443:443"
-    volumes:
-      - /home/ubuntu/config/nginx.conf:/etc/nginx/nginx.conf:ro
-      - /home/ubuntu/config/certs:/etc/letsencrypt:ro
-      - /home/ubuntu/config/html:/var/www/html
-    depends_on:
-      - frontend
-      - backend
-    deploy:
-      resources:
-        limits:
-          cpus: "0.2"      # Max 50% of a CPU per container
-          memory: 64M     # Max 512 MB RAM per container
-        reservations:
-          cpus: "0.1"     # Reserve 25% of a CPU
-          memory: 32M     # Reserve 256 MB RAM
-    networks:
-      - mansion-network
+  # nginx:
+  #   image: nginx:latest
+  #   container_name: nginx_proxy
+  #   ports:
+  #     - "80:90"   # host:container mapping
+  #     - "443:443"
+  #   volumes:
+  #     - /home/ubuntu/config/nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - /home/ubuntu/config/certs:/etc/letsencrypt:ro
+  #     - /home/ubuntu/config/html:/var/www/html
+  #   depends_on:
+  #     - frontend
+  #     - backend
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: "0.2"      # Max 50% of a CPU per container
+  #         memory: 64M     # Max 512 MB RAM per container
+  #       reservations:
+  #         cpus: "0.1"     # Reserve 25% of a CPU
+  #         memory: 32M     # Reserve 256 MB RAM
+  #   networks:
+  #     - mansion-network
 
   frontend:
     image: 555cijaiz555/rfront:v7
