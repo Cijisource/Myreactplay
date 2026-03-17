@@ -29,11 +29,16 @@ const tenantPhotosDir = process.env.TENANT_PHOTOS_DIR ||
 const paymentsDir = process.env.PAYMENTS_DIR || 
   (isDocker ? '/app/payments' : path.resolve(process.cwd(), 'payments'));
 
+// Determine banner directory
+const bannerDir = process.env.BANNER_DIR || 
+  (isDocker ? '/app/banner' : path.resolve(process.cwd(), 'banner'));
+
 console.log('Environment:', { NODE_ENV: process.env.NODE_ENV, isDocker });
 console.log('Complains directory:', complainsDir);
 console.log('Daily Status Media directory:', dailyStatusMediaDir);
 console.log('Tenant Photos directory:', tenantPhotosDir);
 console.log('Payments directory:', paymentsDir);
+console.log('Banner directory:', bannerDir);
 
 if (!fs.existsSync(complainsDir)) {
   fs.mkdirSync(complainsDir, { recursive: true });
@@ -63,6 +68,13 @@ if (!fs.existsSync(paymentsDir)) {
   console.log('Payments directory already exists');
 }
 
+if (!fs.existsSync(bannerDir)) {
+  fs.mkdirSync(bannerDir, { recursive: true });
+  console.log('Created banner directory:', bannerDir);
+} else {
+  console.log('Banner directory already exists');
+}
+
 // Verify directories are readable/writable
 try {
   fs.accessSync(complainsDir, fs.constants.R_OK | fs.constants.W_OK);
@@ -90,6 +102,13 @@ try {
   console.log('Payments directory is readable and writable');
 } catch (err) {
   console.error('ERROR: Payments directory is not accessible:', err);
+}
+
+try {
+  fs.accessSync(bannerDir, fs.constants.R_OK);
+  console.log('Banner directory is readable');
+} catch (err) {
+  console.error('ERROR: Banner directory is not accessible:', err);
 }
 
 // Configure multer for file uploads
@@ -194,6 +213,11 @@ console.log('Static file serving enabled at /api/tenantphotos and /tenantphotos 
 app.use('/api/payments', express.static(paymentsDir));
 app.use('/payments', express.static(paymentsDir));
 console.log('Static file serving enabled at /api/payments and /payments from:', paymentsDir);
+
+// Serve static files from banner folder
+app.use('/api/banner', express.static(bannerDir));
+app.use('/banner', express.static(bannerDir));
+console.log('Static file serving enabled at /api/banner and /banner from:', bannerDir);
 
 // Routes
 app.get('/api/health', (req: Request, res: Response) => {

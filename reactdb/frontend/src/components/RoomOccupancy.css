@@ -258,6 +258,37 @@
   border-color: #667eea;
 }
 
+/* Room Filter Dropdown */
+.room-filter {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.clear-room-filter {
+  padding: 0.75rem 1.5rem;
+  background-color: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.clear-room-filter:hover {
+  background-color: #991b1b;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(220, 38, 38, 0.3);
+}
+
+.clear-room-filter:active {
+  transform: translateY(0);
+}
+
 /* Rooms Grid */
 .rooms-grid {
   display: grid;
@@ -293,7 +324,7 @@
   background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 1rem;
 }
 
@@ -325,6 +356,34 @@
 .occupancy-badge.vacant {
   background: #fed7d7;
   color: #742a2a;
+}
+/* Room Info Toggle */
+.toggle-room-info-btn {
+  padding: 0.5rem 0.75rem;
+  background-color: #667eea;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+}
+
+.toggle-room-info-btn:hover {
+  background-color: #5568d3;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+}
+
+.toggle-room-info-btn:active {
+  transform: translateY(0);
 }
 
 /* Tenant Info Section */
@@ -574,6 +633,15 @@
     min-height: 44px;
     font-size: clamp(0.85rem, 2vw, 1rem);
   }
+
+  .room-filter {
+    gap: 0.75rem;
+  }
+
+  .clear-room-filter {
+    padding: 0.65rem 1.25rem;
+    font-size: 0.85rem;
+  }
 }
 
 @media (max-width: 480px) {
@@ -622,9 +690,27 @@
     padding: clamp(0.75rem, 2vw, 1rem);
   }
 
+  .toggle-room-info-btn {
+    padding: 0.45rem 0.65rem;
+    font-size: 0.85rem;
+    width: 36px;
+    height: 36px;
+  }
+
   .filter-btn {
     font-size: 0.8rem;
     padding: 0.6rem;
+  }
+
+  .room-filter {
+    gap: 0.5rem;
+    flex-direction: column;
+  }
+
+  .clear-room-filter {
+    width: 100%;
+    padding: 0.6rem 1rem;
+    font-size: 0.8rem;
   }
 }
 

@@ -61,6 +61,7 @@ export default function PaymentTracking() {
   const [error, setError] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<'paid' | 'pending' | 'partial' | null>(null);
+  const [selectedRoom, setSelectedRoom] = useState<string>('');
 
   // Generate available month-year options (current month and last 12 months)
   const monthYearOptions = useMemo(() => {
@@ -81,24 +82,88 @@ export default function PaymentTracking() {
     return options;
   }, []);
 
-  // Calculate summary statistics
+  // Generate available room options
+  const roomOptions = useMemo(() => {
+    const uniqueRooms = new Set<string>();
+    payments.forEach((p) => {
+      if (p.roomNumber) {
+        uniqueRooms.add(p.roomNumber);
+      }
+    });
+    
+    // Sort rooms numerically if they're numbers, otherwise alphabetically
+    const sortedRooms = Array.from(uniqueRooms).sort((a, b) => {
+      const numA = parseInt(a, 10);
+      const numB = parseInt(b, 10);
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB;
+      }
+      return a.localeCompare(b);
+    });
+
+    return sortedRooms.map((room) => ({
+      id: room,
+      label: `Room ${room}`,
+    }));
+  }, [payments]);
+
+  // Calculate summary statistics based on filtered payments (checkout >= today)
   const summary = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const activePayments = payments.filter((p) => {
+      // If no checkOutDate, include the record
+      if (!p.checkOutDate) return true;
+      
+      // Parse the checkout date
+      const checkoutDate = new Date(p.checkOutDate);
+      checkoutDate.setHours(0, 0, 0, 0);
+      
+      // Include if checkout date is >= today
+      return checkoutDate >= today;
+    });
+
     return {
-      totalTenants: payments.length,
-      totalRent: payments.reduce((sum, p) => sum + p.rentFixed, 0),
-      totalReceived: payments.reduce((sum, p) => sum + p.rentReceived, 0),
-      totalPending: payments.reduce((sum, p) => sum + Math.max(0, p.rentBalance), 0),
-      paidCount: payments.filter((p) => p.paymentStatus === 'paid').length,
-      partialCount: payments.filter((p) => p.paymentStatus === 'partial').length,
-      pendingCount: payments.filter((p) => p.paymentStatus === 'pending').length,
+      totalTenants: activePayments.length,
+      totalRent: activePayments.reduce((sum, p) => sum + p.rentFixed, 0),
+      totalReceived: activePayments.reduce((sum, p) => sum + p.rentReceived, 0),
+      totalPending: activePayments.reduce((sum, p) => sum + Math.max(0, p.rentBalance), 0),
+      paidCount: activePayments.filter((p) => p.paymentStatus === 'paid').length,
+      partialCount: activePayments.filter((p) => p.paymentStatus === 'partial').length,
+      pendingCount: activePayments.filter((p) => p.paymentStatus === 'pending').length,
     };
   }, [payments]);
 
-  // Filter payments based on selected status
+  // Filter payments based on selected status and checkout date >= today
   const filteredPayments = useMemo(() => {
-    if (!selectedStatusFilter) return payments;
-    return payments.filter((p) => p.paymentStatus === selectedStatusFilter);
-  }, [payments, selectedStatusFilter]);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let filtered = payments.filter((p) => {
+      // If no checkOutDate, include the record
+      if (!p.checkOutDate) return true;
+      
+      // Parse the checkout date
+      const checkoutDate = new Date(p.checkOutDate);
+      checkoutDate.setHours(0, 0, 0, 0);
+      
+      // Include if checkout date is >= today
+      return checkoutDate >= today;
+    });
+
+    // Apply status filter if selected
+    if (selectedStatusFilter) {
+      filtered = filtered.filter((p) => p.paymentStatus === selectedStatusFilter);
+    }
+
+    // Apply room filter if selected
+    if (selectedRoom) {
+      filtered = filtered.filter((p) => p.roomNumber === selectedRoom);
+    }
+
+    return filtered;
+  }, [payments, selectedStatusFilter, selectedRoom]);
 
   // Fetch payment data for selected month
   useEffect(() => {
@@ -141,7 +206,7 @@ export default function PaymentTracking() {
 
   return (
     <div className="payment-tracking-container">
-      {/* Month/Year Selection */}
+      {/* Month/Year Selection and Room Filter */}
       <div className="month-selector-wrapper">
         <div className="month-selector">
           <SearchableDropdown
@@ -155,6 +220,27 @@ export default function PaymentTracking() {
             placeholder="Search month and year..."
           />
         </div>
+        
+        {selectedMonth && roomOptions.length > 0 && (
+          <div className="room-filter">
+            <SearchableDropdown
+              label="Filter by Room"
+              value={selectedRoom}
+              onChange={(option) => setSelectedRoom(option.id.toString())}
+              options={roomOptions}
+              placeholder="Search room..."
+            />
+            {selectedRoom && (
+              <button 
+                className="clear-room-filter"
+                onClick={() => setSelectedRoom('')}
+                title="Clear room filter"
+              >
+                ✕ Clear
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Summary Cards */}

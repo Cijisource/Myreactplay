@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { apiService } from './api';
 import './App.css';
 //import RentalCollection from './components/RentalCollection';
 import RentalCollectionDetails from './components/RentalCollectionDetails';
@@ -18,6 +17,7 @@ import TransactionManagement from './components/TransactionManagement';
 import StockManagement from './components/StockManagement';
 import DailyStatusManagement from './components/DailyStatusManagement';
 import ServiceAllocationManagement from './components/ServiceAllocationManagement';
+import RollingBanner from './components/RollingBanner';
 import ServiceConsumptionDetails from './components/ServiceConsumptionDetails';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -48,7 +48,7 @@ const SCREEN_ROLES: Record<Page, string[]> = {
 // Navigation menu items with labels and required roles
 const NAV_ITEMS: Array<{ page: Page; label: string; roles: string[] }> = [
   { page: 'home', label: 'Home', roles: [] },
-  { page: 'occupancy-links', label: 'Occupancy Links', roles: SCREEN_ROLES['occupancy-links'] },
+  { page: 'occupancy-links', label: 'Occupancy History', roles: SCREEN_ROLES['occupancy-links'] },
   { page: 'occupancy', label: 'Room Occupancy', roles: SCREEN_ROLES.occupancy },
   { page: 'tenants', label: 'Tenant Management', roles: SCREEN_ROLES.tenants },
   { page: 'payment', label: 'Payment Tracking', roles: SCREEN_ROLES.payment },
@@ -70,10 +70,6 @@ function AppContent() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [backendStatus, setBackendStatus] = useState<string>('loading');
-  const [dbStatus, setDbStatus] = useState<string>('loading');
-  const [tables, setTables] = useState<any[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [headerHidden, setHeaderHidden] = useState(false);
   const lastScrollPosRef = useRef(0);
   const { isAuthenticated, user, logout } = useAuth();
@@ -152,40 +148,6 @@ function AppContent() {
       if (scrollTimeout) clearTimeout(scrollTimeout);
     };
   }, [headerHidden]);
-
-  useEffect(() => {
-    const fetchStatus = async () => {
-      try {
-        const apiBaseUrl = import.meta.env.VITE_API_URL || '/api';
-        console.log('API Base URL:', apiBaseUrl);
-        console.log('Fetching backend health...');
-        // Check backend health
-        const healthRes = await apiService.getHealth();
-        console.log('Backend health:', healthRes.data);
-        setBackendStatus('connected');
-
-        // Check database connection
-        const dbRes = await apiService.getDatabaseStatus();
-        console.log('Database status:', dbRes.data);
-        setDbStatus('connected');
-
-        // Fetch tables
-        const tablesRes = await apiService.getTables();
-        console.log('Tables:', tablesRes.data);
-        setTables(tablesRes.data);
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'Unknown error occurred';
-        console.error('Error fetching data:', errorMsg);
-        setError(errorMsg);
-        setBackendStatus('error');
-        setDbStatus('error');
-      }
-    };
-
-    if (currentPage === 'home' && isAuthenticated) {
-      fetchStatus();
-    }
-  }, [currentPage, isAuthenticated]);
 
   // If not authenticated, show login screen
   if (!isAuthenticated) {
@@ -326,42 +288,11 @@ function AppContent() {
 
     console.log('[AppContent] Rendering home page for user:', user?.username);
     return (
-      <div className="container">
-        <div className="status-section">
-          <h2>System Status</h2>
-          <div className={`status-item ${backendStatus}`}>
-            <span>Backend:</span>
-            <span className="badge">{backendStatus.toUpperCase()}</span>
-          </div>
-          <div className={`status-item ${dbStatus}`}>
-            <span>Database:</span>
-            <span className="badge">{dbStatus.toUpperCase()}</span>
-          </div>
+      <>
+        <RollingBanner />
+        <div className="container">
         </div>
-
-        {error && (
-          <div className="error-box">
-            <strong>Error:</strong> {error}
-          </div>
-        )}
-
-        {tables.length > 0 && (
-          <div className="tables-section">
-            <h2>Database Tables</h2>
-            <ul className="table-list">
-              {tables.map((table: any, idx: number) => (
-                <li key={idx}>{table.TABLE_NAME}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {!error && tables.length === 0 && backendStatus !== 'loading' && (
-          <div className="info-box">
-            No tables found in database or still loading...
-          </div>
-        )}
-      </div>
+      </>
     );
   };
 
@@ -388,7 +319,7 @@ function AppContent() {
               if (currentPage === 'home') return 'Dashboard';
               const pageNames: { [key in Page]?: string } = {
                 'occupancy': 'Room Occupancy',
-                'occupancy-links': 'Occupancy Links',
+                'occupancy-links': 'Occupancy History',
                 'tenants': 'Tenants',
                 'payment': 'Payments',
                 'complaints': 'Complaints',

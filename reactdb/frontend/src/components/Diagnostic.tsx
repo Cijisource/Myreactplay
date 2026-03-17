@@ -4,21 +4,32 @@ import { apiService } from '../api';
 export default function Diagnostic() {
   const [schema, setSchema] = useState<any[]>([]);
   const [sample, setSample] = useState<any[]>([]);
+  const [backendStatus, setBackendStatus] = useState<string>('loading');
+  const [dbStatus, setDbStatus] = useState<string>('loading');
+  const [tables, setTables] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [schemaRes, sampleRes] = await Promise.all([
+        const [schemaRes, sampleRes, _healthRes, _dbRes, tablesRes] = await Promise.all([
           apiService.getRentalSchema(),
           apiService.getRentalSample(),
+          apiService.getHealth(),
+          apiService.getDatabaseStatus(),
+          apiService.getTables()
         ]);
         setSchema(schemaRes.data);
         setSample(sampleRes.data);
+        setBackendStatus('connected');
+        setDbStatus('connected');
+        setTables(tablesRes.data);
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Error fetching diagnostic data';
         setError(msg);
+        setBackendStatus('error');
+        setDbStatus('error');
         console.error('Diagnostic error:', err);
       } finally {
         setLoading(false);
@@ -91,7 +102,7 @@ export default function Diagnostic() {
 
   return (
     <div style={{ padding: 'clamp(12px, 3vw, 20px)', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
-      <h1>RentalCollection Table Diagnostic</h1>
+      <h1>System Diagnostic</h1>
 
       {error && (
         <div style={{ 
@@ -106,7 +117,75 @@ export default function Diagnostic() {
       )}
 
       <div style={{ marginBottom: '30px' }}>
-        <h2>Table Schema</h2>
+        <h2>System Status</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
+          <div style={{ 
+            background: '#f9f9f9', 
+            padding: '15px', 
+            borderRadius: '8px',
+            border: `3px solid ${backendStatus === 'connected' ? '#28a745' : '#dc3545'}`
+          }}>
+            <strong>Backend Status:</strong>
+            <span style={{ 
+              marginLeft: '10px',
+              padding: '4px 8px',
+              background: backendStatus === 'connected' ? '#d4edda' : '#f8d7da',
+              color: backendStatus === 'connected' ? '#155724' : '#721c24',
+              borderRadius: '4px',
+              fontWeight: 'bold'
+            }}>
+              {backendStatus.toUpperCase()}
+            </span>
+          </div>
+          <div style={{ 
+            background: '#f9f9f9', 
+            padding: '15px', 
+            borderRadius: '8px',
+            border: `3px solid ${dbStatus === 'connected' ? '#28a745' : '#dc3545'}`
+          }}>
+            <strong>Database Status:</strong>
+            <span style={{ 
+              marginLeft: '10px',
+              padding: '4px 8px',
+              background: dbStatus === 'connected' ? '#d4edda' : '#f8d7da',
+              color: dbStatus === 'connected' ? '#155724' : '#721c24',
+              borderRadius: '4px',
+              fontWeight: 'bold'
+            }}>
+              {dbStatus.toUpperCase()}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {tables.length > 0 && (
+        <div style={{ marginBottom: '30px' }}>
+          <h2>Database Tables</h2>
+          <div style={{ 
+            background: '#f9f9f9', 
+            padding: '15px',
+            borderRadius: '8px',
+            overflowX: 'auto'
+          }}>
+            <ul style={{ 
+              margin: 0,
+              paddingLeft: '20px',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+              gap: '10px'
+            }}>
+              {tables.map((table: any, idx: number) => (
+                <li key={idx} style={{ padding: '8px', background: 'white', borderRadius: '4px', border: '1px solid #ddd' }}>
+                  {table.TABLE_NAME}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginBottom: '30px' }}>
+        <h2>RentalCollection Table Schema</h2>
         <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           <table style={{ 
             width: '100%',

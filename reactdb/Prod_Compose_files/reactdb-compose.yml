@@ -18,6 +18,7 @@ services:
       - ./mansion/photos/complains:/app/complains
       - ./mansion/photos/daily-status:/app/daily-status-media
       - ./mansion/photos/tenantphotos:/app/tenantphotos
+      - ./mansion/photos/paymentreceipts:/app/paymentreceipts
     deploy:
       replicas: 3   # Run 3 containers for the API service
       restart_policy:

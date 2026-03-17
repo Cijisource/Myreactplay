@@ -16,6 +16,9 @@
 /* Month/Year Selector */
 .month-selector-wrapper {
   margin-bottom: 2rem;
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
 }
 
 .month-selector {
@@ -23,6 +26,46 @@
   padding: 1.5rem;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  flex: 1;
+  min-width: 250px;
+}
+
+.room-filter {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  flex: 1;
+  min-width: 250px;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.room-filter > div {
+  flex: 1;
+}
+
+.clear-room-filter {
+  background: #ef4444;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.25rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.clear-room-filter:hover {
+  background: #dc2626;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.clear-room-filter:active {
+  transform: translateY(0);
 }
 
 .month-selector label {
@@ -518,6 +561,31 @@
     margin-bottom: 1rem;
   }
 
+  .month-selector-wrapper {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .month-selector,
+  .room-filter {
+    flex: none;
+    width: 100%;
+    min-width: unset;
+  }
+
+  .room-filter {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .room-filter > div {
+    width: 100%;
+  }
+
+  .clear-room-filter {
+    width: 100%;
+  }
+
   .summary-cards {
     grid-template-columns: 1fr;
     gap: clamp(1rem, 3vw, 1.5rem);
@@ -554,11 +622,6 @@
 
   .dropdown-list {
     max-height: 200px;
-  }
-
-  .month-selector {
-    flex-direction: column;
-    width: 100%;
   }
 
   .dropdown-container {
