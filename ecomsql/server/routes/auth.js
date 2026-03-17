@@ -9,7 +9,9 @@ const router = express.Router();
 router.post('/register', [
   body('email').isEmail().normalizeEmail(),
   body('password').isLength({ min: 6 }),
-  body('name').notEmpty().trim()
+  body('name').notEmpty().trim(),
+  body('phoneNumber').optional().trim(),
+  body('shippingAddress').optional().trim()
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -19,10 +21,10 @@ router.post('/register', [
 
     // Support both 'email' and 'userName' for backwards compatibility
     const email = req.body.email || req.body.userName;
-    const { password, name } = req.body;
+    const { password, name, phoneNumber, shippingAddress } = req.body;
 
     // Always register as Customer role
-    const user = await userService.registerUser(email, password, name, 'Customer');
+    const user = await userService.registerUser(email, password, name, 'Customer', phoneNumber, shippingAddress);
 
     res.status(201).json({
       message: 'User registered successfully',
@@ -79,6 +81,8 @@ router.get('/me', verifyToken, async (req, res) => {
       userName: user.UserName,
       email: user.UserName,  // Email is stored in UserName field
       name: user.Name,
+      phoneNumber: user.PhoneNumber,
+      shippingAddress: user.ShippingAddress,
       role: user.RoleName,
       roleType: user.RoleType,
       createdDate: user.CreatedDate,
@@ -87,6 +91,72 @@ router.get('/me', verifyToken, async (req, res) => {
   } catch (error) {
     console.error('Get user error:', error);
     res.status(500).json({ error: 'Failed to get user profile' });
+  }
+});
+
+// Update current user profile
+router.put('/me', verifyToken, [
+  body('phoneNumber').optional().trim(),
+  body('shippingAddress').optional().trim(),
+  body('currentPassword').optional().trim(),
+  body('newPassword').optional().trim()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { phoneNumber, shippingAddress, currentPassword, newPassword } = req.body;
+    const userId = req.user.userId;
+
+    // If password change is requested, use the password-aware update function
+    if (newPassword) {
+      const updatedUser = await userService.updateUserProfileWithPassword(
+        userId,
+        phoneNumber,
+        shippingAddress,
+        currentPassword,
+        newPassword
+      );
+
+      res.json({
+        message: 'Profile updated successfully',
+        user: {
+          id: updatedUser.Id,
+          userName: updatedUser.UserName,
+          email: updatedUser.UserName,
+          name: updatedUser.Name,
+          phoneNumber: updatedUser.PhoneNumber,
+          shippingAddress: updatedUser.ShippingAddress,
+          createdDate: updatedUser.CreatedDate,
+          lastLogin: updatedUser.LastLogin
+        }
+      });
+    } else {
+      // Update profile without password
+      const updatedUser = await userService.updateUserProfile(userId, phoneNumber, shippingAddress);
+
+      res.json({
+        message: 'Profile updated successfully',
+        user: {
+          id: updatedUser.Id,
+          userName: updatedUser.UserName,
+          email: updatedUser.UserName,
+          name: updatedUser.Name,
+          phoneNumber: updatedUser.PhoneNumber,
+          shippingAddress: updatedUser.ShippingAddress,
+          createdDate: updatedUser.CreatedDate,
+          lastLogin: updatedUser.LastLogin
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Update profile error:', error);
+    const errorMessage = error.message === 'Current password is incorrect' 
+      ? 'Current password is incorrect'
+      : 'Failed to update profile';
+    res.status(error.message === 'Current password is incorrect' ? 401 : 500).json({ error: errorMessage });
   }
 });
 
@@ -123,6 +193,31 @@ router.put('/users/:userId/role', verifyToken, isAdmin, [
   } catch (error) {
     console.error('Update user role error:', error);
     res.status(500).json({ error: 'Failed to update user role' });
+  }
+});
+
+// Reset user password (Admin only)
+router.put('/users/:userId/reset-password', verifyToken, isAdmin, [
+  body('newPassword').notEmpty().isLength({ min: 6 })
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { userId } = req.params;
+    const { newPassword } = req.body;
+
+    const result = await userService.resetUserPassword(parseInt(userId), newPassword);
+
+    res.json({
+      message: 'User password reset successfully',
+      user: result
+    });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ error: 'Failed to reset user password' });
   }
 });
 

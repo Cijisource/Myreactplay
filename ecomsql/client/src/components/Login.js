@@ -49,6 +49,7 @@ function Login() {
       // Store token and user data
       localStorage.setItem('authToken', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
+      localStorage.setItem('userPassword', password);
 
       console.log('[Login] Token saved to localStorage');
       console.log('[Login] Stored token:', localStorage.getItem('authToken')?.substring(0, 20) + '...');
@@ -89,15 +90,16 @@ function Login() {
           </div>
 
           <div className="form-group">
-            <label htmlFor="password">Password:</label>
+            <label htmlFor="password">Phone Number:</label>
             <input
-              type="password"
+              type="text"
               id="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               disabled={loading}
-              placeholder="Enter your password"
+              placeholder="Enter your phone number"
+              autoComplete="off"
             />
           </div>
 
