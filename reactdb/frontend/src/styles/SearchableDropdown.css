@@ -176,6 +176,30 @@
 
 /* Mobile Responsive Styles for SearchableDropdown */
 
+/* Backdrop overlay for mobile dropdown */
+@media (max-width: 480px) {
+  .searchable-dropdown.open::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 99998;
+    animation: fadeIn 0.2s ease-out;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 @media (max-width: 1024px) {
   .searchable-dropdown-wrapper {
     margin-bottom: 1.2rem;
@@ -271,14 +295,17 @@
 
   .dropdown-options {
     position: fixed;
-    max-height: 60vh;
+    max-height: 50vh;
     width: 90vw;
     left: 5vw;
     right: 5vw;
     border-radius: 8px;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
     z-index: 99999;
-    top: auto;
+    /* Position dropdown relative to viewport center */
+    top: 50%;
+    transform: translateY(-50%);
+    overflow-y: auto;
     /* Ensure dropdown is visible above all content */
     will-change: transform;
     touch-action: manipulation;

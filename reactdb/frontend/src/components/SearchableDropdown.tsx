@@ -88,6 +88,27 @@ export default function SearchableDropdown({
     }
   }, [isOpen]);
 
+  // Prevent body scroll on mobile when dropdown is open
+  useEffect(() => {
+    if (isOpen && window.innerWidth <= 480) {
+      // Store the current scroll position
+      const scrollY = window.scrollY;
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      
+      return () => {
+        // Restore scroll position
+        document.body.style.overflow = '';
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+        window.scrollTo(0, scrollY);
+      };
+    }
+  }, [isOpen]);
+
   const handleSelect = (option: Option) => {
     onChange(option);
     setSearchTerm('');
