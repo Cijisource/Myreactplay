@@ -57,7 +57,8 @@ export default function TenantManagement() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchField, setSearchField] = useState<SearchField>('all');
-  const [sortBy, setSortBy] = useState<SortOption>('name-asc');
+  const [sortBy, setSortBy] = useState<SortOption>('recently-added');
+  const [occupancyFilter, setOccupancyFilter] = useState<'all' | 'occupied' | 'vacant'>('all');
   const [showForm, setShowForm] = useState(false);
   const [editingTenant, setEditingTenant] = useState<TenantWithOccupancy | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
@@ -83,6 +84,10 @@ export default function TenantManagement() {
   // Filter tenants based on search query and room filter
   useEffect(() => {
     const filtered = tenants.filter((tenant) => {
+      // Apply occupancy status filter
+      if (occupancyFilter === 'occupied' && !tenant.isCurrentlyOccupied) return false;
+      if (occupancyFilter === 'vacant' && tenant.isCurrentlyOccupied) return false;
+
       // Apply room filter first
       if (selectedRoom) {
         // Normalize room numbers for comparison: remove whitespace, handle numbers
@@ -147,7 +152,7 @@ export default function TenantManagement() {
       }
     });
     setFilteredTenants(filtered);
-  }, [searchQuery, searchField, tenants, selectedRoom]);
+  }, [searchQuery, searchField, tenants, selectedRoom, occupancyFilter]);
 
   // Generate available room options
   const roomOptions = useMemo(() => {
@@ -202,7 +207,11 @@ export default function TenantManagement() {
       case 'city-asc':
         return sorted.sort((a, b) => a.city.localeCompare(b.city));
       case 'recently-added':
-        return sorted;
+        return sorted.sort((a, b) => {
+          const dateA = a.checkInDate ? new Date(a.checkInDate).getTime() : 0;
+          const dateB = b.checkInDate ? new Date(b.checkInDate).getTime() : 0;
+          return dateB - dateA; // Most recent first
+        });
       default:
         return sorted;
     }
@@ -331,6 +340,8 @@ export default function TenantManagement() {
         vacantTenants={stats.vacantTenants}
         onAddTenant={handleAddTenant}
         isFormVisible={showForm}
+        occupancyFilter={occupancyFilter}
+        onOccupancyFilterChange={setOccupancyFilter}
       />
 
       {/* Success Message */}

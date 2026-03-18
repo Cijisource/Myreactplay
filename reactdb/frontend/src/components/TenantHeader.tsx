@@ -4,6 +4,8 @@ interface TenantHeaderProps {
   vacantTenants: number;
   onAddTenant: () => void;
   isFormVisible?: boolean;
+  occupancyFilter?: 'all' | 'occupied' | 'vacant';
+  onOccupancyFilterChange?: (filter: 'all' | 'occupied' | 'vacant') => void;
 }
 
 export default function TenantHeader({
@@ -12,19 +14,39 @@ export default function TenantHeader({
   vacantTenants,
   onAddTenant,
   isFormVisible = false,
+  occupancyFilter = 'all',
+  onOccupancyFilterChange,
 }: TenantHeaderProps) {
+  const handleStatCardClick = (filter: 'all' | 'occupied' | 'vacant') => {
+    if (onOccupancyFilterChange) {
+      onOccupancyFilterChange(filter === occupancyFilter ? 'all' : filter);
+    }
+  };
+
   return (
     <div className="tenant-header">
       <div className="tenant-stats">
-        <div className="stat-card">
+        <div
+          className={`stat-card ${occupancyFilter === 'all' ? 'active' : ''}`}
+          onClick={() => handleStatCardClick('all')}
+          style={{ cursor: 'pointer' }}
+        >
           <div className="stat-label">Total Tenants</div>
           <div className="stat-value">{totalTenants}</div>
         </div>
-        <div className="stat-card occupied">
+        <div
+          className={`stat-card occupied ${occupancyFilter === 'occupied' ? 'active' : ''}`}
+          onClick={() => handleStatCardClick('occupied')}
+          style={{ cursor: 'pointer' }}
+        >
           <div className="stat-label">Occupied Rooms</div>
           <div className="stat-value">{occupiedTenants}</div>
         </div>
-        <div className="stat-card vacant">
+        <div
+          className={`stat-card vacant ${occupancyFilter === 'vacant' ? 'active' : ''}`}
+          onClick={() => handleStatCardClick('vacant')}
+          style={{ cursor: 'pointer' }}
+        >
           <div className="stat-label">Vacant Rooms</div>
           <div className="stat-value">{vacantTenants}</div>
         </div>

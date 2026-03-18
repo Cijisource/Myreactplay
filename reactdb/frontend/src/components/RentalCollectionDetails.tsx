@@ -295,9 +295,11 @@ export default function RentalCollectionDetails() {
 
     try {
       setLoading(true);
+      setUploadProgress(0);
       
-      // Create FormData for potential file upload
+      // Create FormData for update
       const updateData = new FormData();
+      updateData.append('occupancyId', editingRecord.occupancyId.toString());
       updateData.append('rentReceived', editFormData.rentReceived?.toString() || '0');
       updateData.append('charges', editFormData.charges?.toString() || '0');
       updateData.append('modeOfPayment', editFormData.modeOfPayment?.toString() || 'cash');
@@ -307,21 +309,11 @@ export default function RentalCollectionDetails() {
         updateData.append('screenshot', editFormData.screenshot);
       }
 
-      // Use the updateRentalRecord method with FormData
-      const response = await fetch(
-        `/api/rental/record/${editingRecord.id}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-          },
-          body: updateData
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to update payment record');
-      }
+      // Use the uploadPaymentScreenshot method which handles both create and update
+      // Pass progress callback for file upload feedback
+      await apiService.uploadPaymentScreenshot(updateData, (progress) => {
+        setUploadProgress(progress);
+      });
 
       // Refresh rental details
       await fetchRentalDetails();
@@ -338,6 +330,7 @@ export default function RentalCollectionDetails() {
       console.error('Error updating payment:', err);
     } finally {
       setLoading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -725,7 +718,10 @@ export default function RentalCollectionDetails() {
                   id="editPaymentDate"
                   value={editFormData.rentReceivedOn || ''}
                   onChange={(e) => handleEditFormChange('rentReceivedOn', e.target.value)}
+                  disabled
+                  title="Payment date cannot be changed. Create a new payment record if the date needs to be corrected."
                 />
+                <small className="field-note">Payment date cannot be edited (uniquely identifies this payment)</small>
               </div>
 
               <div className="edit-form-group">
@@ -799,6 +795,15 @@ export default function RentalCollectionDetails() {
                 )}
               </div>
             </div>
+
+            {uploadProgress > 0 && uploadProgress < 100 && (
+              <div className="progress-section">
+                <div className="progress-bar">
+                  <div className="progress-fill" style={{ width: `${uploadProgress}%` }}></div>
+                </div>
+                <p className="progress-text">Uploading... {uploadProgress}%</p>
+              </div>
+            )}
 
             <div className="edit-modal-buttons">
               <button 

@@ -37,7 +37,7 @@ export default function OccupancyLinks(): JSX.Element {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'tenant' | 'room' | 'checkIn'>('checkIn');
   const [showStatsGrid, setShowStatsGrid] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
@@ -85,14 +85,20 @@ export default function OccupancyLinks(): JSX.Element {
 
   // Generate room options
   const roomOptions = useMemo(() => {
-    const uniqueRooms = new Set<string>();
+    const roomStatusMap = new Map<string, boolean>(); // room -> has active occupancy
     occupancies.forEach((o) => {
       if (o.roomNumber) {
-        uniqueRooms.add(String(o.roomNumber).trim());
+        const room = String(o.roomNumber).trim();
+        if (o.isActive) {
+          roomStatusMap.set(room, true);
+        } else if (!roomStatusMap.has(room)) {
+          roomStatusMap.set(room, false);
+        }
       }
     });
     
-    const sortedRooms = Array.from(uniqueRooms).sort((a, b) => {
+    const uniqueRooms = Array.from(roomStatusMap.keys());
+    const sortedRooms = uniqueRooms.sort((a, b) => {
       const numA = parseInt(a, 10);
       const numB = parseInt(b, 10);
       if (!isNaN(numA) && !isNaN(numB)) {
@@ -103,7 +109,7 @@ export default function OccupancyLinks(): JSX.Element {
 
     return sortedRooms.map((room) => ({
       id: room,
-      label: `Room ${room}`,
+      label: roomStatusMap.get(room) ? `Room ${room} (Occupied)` : `Room ${room} (Vacant)`,
     }));
   }, [occupancies]);
 
@@ -336,17 +342,6 @@ export default function OccupancyLinks(): JSX.Element {
 
       <div className={`collapsible-content ${showFilters ? 'open' : 'closed'}`}>
         <div className="filters-section">
-          {/* Search Input */}
-          <div className="filter-group">
-            <input
-              type="text"
-              placeholder="Search by tenant name, room, phone or city..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="search-input"
-            />
-          </div>
-
           {/* Status & Sort Controls Row */}
           <div className="filter-controls">
             <div className="filter-buttons">
@@ -384,42 +379,34 @@ export default function OccupancyLinks(): JSX.Element {
           <div className="filter-dropdowns">
             <div className="dropdown-container">
               <label>Room:</label>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                <SearchableDropdown
-                  options={roomOptions}
-                  value={selectedRoom}
-                  onChange={(option) => setSelectedRoom(String(option?.id || ''))}
-                  placeholder="Select room"
-                />
-                {selectedRoom && (
-                  <button
-                    className="clear-filter-btn"
-                    onClick={() => setSelectedRoom('')}
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
+              <select
+                value={selectedRoom}
+                onChange={(e) => setSelectedRoom(e.target.value)}
+                className="filter-select"
+              >
+                <option value="">Select room</option>
+                {roomOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="dropdown-container">
               <label>Tenant:</label>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                <SearchableDropdown
-                  options={tenantOptions}
-                  value={selectedTenant}
-                  onChange={(option) => setSelectedTenant(String(option?.id || ''))}
-                  placeholder="Select tenant"
-                />
-                {selectedTenant && (
-                  <button
-                    className="clear-filter-btn"
-                    onClick={() => setSelectedTenant('')}
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
+              <select
+                value={selectedTenant}
+                onChange={(e) => setSelectedTenant(e.target.value)}
+                className="filter-select"
+              >
+                <option value="">Select tenant</option>
+                {tenantOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="dropdown-container">

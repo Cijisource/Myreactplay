@@ -24,6 +24,19 @@ export default function TenantCard({
     onView(tenant);
   };
 
+  // Check if payment is missing or not from current month
+  const isPaymentMissing = (): boolean => {
+    if (!tenant.lastPaymentDate) return true;
+    
+    const lastPaymentDate = new Date(tenant.lastPaymentDate);
+    const today = new Date();
+    
+    return (
+      lastPaymentDate.getMonth() !== today.getMonth() ||
+      lastPaymentDate.getFullYear() !== today.getFullYear()
+    );
+  };
+
   const hasAdditionalMedia = Boolean(
     tenant.photo2Url ||
       tenant.photo3Url ||
@@ -103,6 +116,14 @@ export default function TenantCard({
       {/* Tenant Info */}
       <div className="tenant-info">
         <h3 className="tenant-name">{tenant.name}</h3>
+        {tenant.checkInDate && (
+          <div className="tenant-detail added-date">
+            <span className="detail-label">Added:</span>
+            <span className="detail-value">
+              {new Date(tenant.checkInDate).toLocaleDateString()} {new Date(tenant.checkInDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </div>
+        )}
         <div className="tenant-detail">
           <span className="detail-label">Phone:</span>
           <span className="detail-value">{tenant.phone}</span>
@@ -151,7 +172,7 @@ export default function TenantCard({
           </div>
 
           {/* Payment Status */}
-          <div className="payment-status">
+          <div className={`payment-status ${tenant.isCurrentlyOccupied && isPaymentMissing() ? 'payment-pending' : ''}`}>
             <h5>Current Month Payment</h5>
             <div className="payment-row">
               <div className="payment-item received">
@@ -174,12 +195,17 @@ export default function TenantCard({
                 </span>
               </div>
             </div>
-            {tenant.lastPaymentDate && (
-              <div className="last-payment">
+            {tenant.lastPaymentDate ? (
+              <div className={`last-payment ${isPaymentMissing() ? 'outdated' : ''}`}>
                 <span className="payment-label">Last Payment:</span>
                 <span className="payment-date">
                   {new Date(tenant.lastPaymentDate).toLocaleDateString()}
                 </span>
+              </div>
+            ) : (
+              <div className="last-payment missing">
+                <span className="payment-label">Last Payment:</span>
+                <span className="payment-date">No payment recorded</span>
               </div>
             )}
           </div>

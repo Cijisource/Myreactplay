@@ -37,6 +37,12 @@
   border-radius: 8px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
   border-left: 4px solid #2563eb;
+  transition: all 0.2s;
+}
+
+.stat-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
 }
 
 .stat-card.occupied {
@@ -44,6 +50,22 @@
 }
 
 .stat-card.vacant {
+  border-left-color: #cb2431;
+}
+
+.stat-card.active {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  transform: translateY(-4px);
+  font-weight: 600;
+}
+
+.stat-card.active.occupied {
+  background: #f0fdf4;
+  border-left-color: #22863a;
+}
+
+.stat-card.active.vacant {
+  background: #fef2f2;
   border-left-color: #cb2431;
 }
 
@@ -545,6 +567,25 @@
   gap: 0.5rem;
 }
 
+.tenant-detail.added-date {
+  background: #f0fdf4;
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid #22863a;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
+.tenant-detail.added-date .detail-label {
+  color: #22863a;
+  font-weight: 700;
+}
+
+.tenant-detail.added-date .detail-value {
+  color: #1b4620;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
 .detail-label {
   font-weight: 600;
   color: #718096;
@@ -683,6 +724,42 @@
 .payment-date {
   font-weight: 600;
   color: #2d3748;
+}
+
+.last-payment.outdated {
+  background: #fffaf0;
+  padding: 0.75rem;
+  border-radius: 4px;
+  border-left: 3px solid #d69e2e;
+  margin-top: 0.75rem;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.last-payment.outdated .payment-date {
+  color: #c05621;
+  font-weight: 700;
+}
+
+.last-payment.missing {
+  background: #fef2f2;
+  padding: 0.75rem;
+  border-radius: 4px;
+  border-left: 3px solid #e53e3e;
+  margin-top: 0.75rem;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.last-payment.missing .payment-date {
+  color: #742a2a;
+  font-weight: 700;
+}
+
+.payment-status.payment-pending {
+  background: #fef2f2;
+  border: 2px solid #fc8181;
+  box-shadow: 0 0 0 3px rgba(252, 129, 129, 0.1);
 }
 
 /* Tenant Documents */
@@ -1443,7 +1520,7 @@
 }
 
 .gallery-header-content {
-  display: flex;
+  display: none;
   justify-content: space-between;
   align-items: center;
   padding: 1.5rem 2rem;
@@ -1682,6 +1759,7 @@
 }
 
 .gallery-thumbnails {
+  display: none;
   background: #f8fafc;
   border-top: 2px solid #e2e8f0;
   padding: 1rem;
@@ -1689,11 +1767,10 @@
   height: auto;
   max-height: 150px;
   overflow: hidden;
-  display: flex;
 }
 
 .thumbnails-scroll {
-  display: flex;
+  display: none;
   gap: 0.75rem;
   overflow-x: auto;
   overflow-y: hidden;

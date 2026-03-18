@@ -1903,6 +1903,50 @@ app.get('/api/rooms', async (req: Request, res: Response) => {
   }
 });
 
+// Update room rent
+app.put('/api/rooms/:id', async (req: Request, res: Response) => {
+  try {
+    const roomId = req.params.id;
+    const { rent } = req.body;
+
+    // Validate input
+    if (rent === undefined || rent === null) {
+      return res.status(400).json({ error: 'Rent value is required' });
+    }
+
+    const rentValue = parseFloat(rent);
+    if (isNaN(rentValue) || rentValue < 0) {
+      return res.status(400).json({ error: 'Invalid rent amount' });
+    }
+
+    const pool = getPool();
+    
+    // Update the room
+    await pool.request()
+      .input('Id', roomId)
+      .input('Rent', rentValue)
+      .query(`
+        UPDATE RoomDetail
+        SET Rent = @Rent
+        WHERE Id = @Id
+      `);
+
+    res.json({ 
+      success: true,
+      message: 'Room rent updated successfully',
+      id: roomId,
+      rent: rentValue
+    });
+  } catch (error) {
+    console.error('Update room error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to update room rent',
+      details: errorMessage
+    });
+  }
+});
+
 // ============ USER MANAGEMENT ENDPOINTS ============
 
 // Get all users

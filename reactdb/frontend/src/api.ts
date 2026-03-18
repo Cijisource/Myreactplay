@@ -265,6 +265,7 @@ export const apiService = {
     });
   },
   getRooms: () => api.get('/rooms'),
+  updateRoom: (roomId: number, data: { rent: number }) => api.put(`/rooms/${roomId}`, data),
 
   // Service Details APIs
   getServiceDetails: () => api.get('/services/details'),
