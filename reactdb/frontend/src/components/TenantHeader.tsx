@@ -3,6 +3,7 @@ interface TenantHeaderProps {
   occupiedTenants: number;
   vacantTenants: number;
   onAddTenant: () => void;
+  isFormVisible?: boolean;
 }
 
 export default function TenantHeader({
@@ -10,6 +11,7 @@ export default function TenantHeader({
   occupiedTenants,
   vacantTenants,
   onAddTenant,
+  isFormVisible = false,
 }: TenantHeaderProps) {
   return (
     <div className="tenant-header">
@@ -27,9 +29,11 @@ export default function TenantHeader({
           <div className="stat-value">{vacantTenants}</div>
         </div>
       </div>
-      <button className="btn-primary btn-create" onClick={onAddTenant}>
-        + Add New Tenant
-      </button>
+      {!isFormVisible && (
+        <button className="btn-primary btn-create" onClick={onAddTenant}>
+          + Add New Tenant
+        </button>
+      )}
     </div>
   );
 }

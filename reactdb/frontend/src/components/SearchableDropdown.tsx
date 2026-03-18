@@ -59,7 +59,7 @@ export default function SearchableDropdown({
     }
   }, [searchTerm, options, onSearch]);
 
-  // Handle click outside
+  // Handle click/touch outside
   useEffect(() => {
     function handleClickOutside(event: Event) {
       // Check if click is within the dropdown wrapper
@@ -72,11 +72,13 @@ export default function SearchableDropdown({
     if (isOpen) {
       const timeoutId = setTimeout(() => {
         document.addEventListener('pointerdown', handleClickOutside, true);
+        document.addEventListener('touchstart', handleClickOutside, true);
       }, 50);
       
       return () => {
         clearTimeout(timeoutId);
         document.removeEventListener('pointerdown', handleClickOutside, true);
+        document.removeEventListener('touchstart', handleClickOutside, true);
       };
     }
   }, [isOpen]);
@@ -93,15 +95,18 @@ export default function SearchableDropdown({
     if (isOpen && window.innerWidth <= 480) {
       // Store the current scroll position
       const scrollY = window.scrollY;
+      const originalOverflow = document.body.style.overflow;
+      const originalPosition = document.body.style.position;
+      
       document.body.style.overflow = 'hidden';
       document.body.style.position = 'fixed';
       document.body.style.top = `-${scrollY}px`;
       document.body.style.width = '100%';
       
       return () => {
-        // Restore scroll position
-        document.body.style.overflow = '';
-        document.body.style.position = '';
+        // Restore scroll position and styles
+        document.body.style.overflow = originalOverflow;
+        document.body.style.position = originalPosition;
         document.body.style.top = '';
         document.body.style.width = '';
         window.scrollTo(0, scrollY);
@@ -129,6 +134,12 @@ export default function SearchableDropdown({
       e.stopPropagation();
       e.preventDefault();
     }
+    handleSelect(option);
+  };
+
+  const handleOptionTouchStart = (option: Option, e: React.TouchEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
     handleSelect(option);
   };
 
@@ -175,12 +186,7 @@ export default function SearchableDropdown({
                   key={option.id}
                   className={`dropdown-option ${value === option.id ? 'selected' : ''}`}
                   onClick={(e) => handleOptionSelect(option, e)}
-                  onPointerDown={(e) => {
-                    // For touch devices, handle immediately on pointer down
-                    if (e.pointerType === 'touch') {
-                      handleOptionSelect(option, e);
-                    }
-                  }}
+                  onTouchStart={(e) => handleOptionTouchStart(option, e)}
                   role="option"
                   aria-selected={value === option.id}
                 >
