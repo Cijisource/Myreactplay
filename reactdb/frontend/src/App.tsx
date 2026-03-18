@@ -6,6 +6,7 @@ import Diagnostic from './components/Diagnostic';
 import PaymentTracking from './components/PaymentTracking';
 import TenantManagement from './components/TenantManagement';
 import RoomOccupancy from './components/RoomOccupancy';
+import RoomManagement from './components/RoomManagement';
 import OccupancyLinks from './components/OccupancyLinks';
 import ComplaintsManagement from './components/ComplaintsManagement';
 import ServiceDetailsManagement from './components/ServiceDetailsManagement';
@@ -22,7 +23,7 @@ import ServiceConsumptionDetails from './components/ServiceConsumptionDetails';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
-type Page = 'home' | 'diagnostic' | 'payment' | 'rental-collection' | 'tenants' | 'occupancy' | 'occupancy-links' | 'complaints' | 'services' | 'eb-payments' | 'users' | 'roles' | 'transactions' | 'stock' | 'daily-status' | 'service-allocation' | 'consumption';
+type Page = 'home' | 'diagnostic' | 'payment' | 'rental-collection' | 'tenants' | 'occupancy' | 'room-management' | 'occupancy-links' | 'complaints' | 'services' | 'eb-payments' | 'users' | 'roles' | 'transactions' | 'stock' | 'daily-status' | 'service-allocation' | 'consumption';
 
 // Role requirements for each screen
 const SCREEN_ROLES: Record<Page, string[]> = {
@@ -32,6 +33,7 @@ const SCREEN_ROLES: Record<Page, string[]> = {
   'rental-collection': ['admin', 'manager', 'accountant', 'property_manager'],
   tenants: ['admin', 'manager', 'property_manager'],
   occupancy: ['admin', 'manager', 'property_manager'],
+  'room-management': ['admin', 'manager', 'property_manager'],
   'occupancy-links': ['admin', 'manager', 'property_manager'],
   complaints: ['admin', 'manager', 'maintenance'],
   services: ['admin', 'manager', 'utilities_manager'],
@@ -50,6 +52,7 @@ const NAV_ITEMS: Array<{ page: Page; label: string; roles: string[] }> = [
   { page: 'home', label: 'Home', roles: [] },
   { page: 'occupancy-links', label: 'Occupancy History', roles: SCREEN_ROLES['occupancy-links'] },
   { page: 'occupancy', label: 'Room Occupancy', roles: SCREEN_ROLES.occupancy },
+  { page: 'room-management', label: 'Room Management', roles: SCREEN_ROLES['room-management'] },
   { page: 'tenants', label: 'Tenant Management', roles: SCREEN_ROLES.tenants },
   { page: 'payment', label: 'Payment Tracking', roles: SCREEN_ROLES.payment },
   { page: 'rental-collection', label: 'Rental Collection', roles: SCREEN_ROLES['rental-collection'] },
@@ -194,6 +197,14 @@ function AppContent() {
       return (
         <ProtectedRoute requiredRoles={SCREEN_ROLES.occupancy}>
           <RoomOccupancy />
+        </ProtectedRoute>
+      );
+    }
+
+    if (currentPage === 'room-management') {
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES['room-management']}>
+          <RoomManagement />
         </ProtectedRoute>
       );
     }
