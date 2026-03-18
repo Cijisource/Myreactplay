@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { apiService, getFileUrl } from '../api';
 import { TenantWithOccupancy } from './TenantManagement';
 import './TenantForm.css';
@@ -8,6 +8,7 @@ interface TenantFormProps {
   tenant?: TenantWithOccupancy | null;
   onSubmit: (data: Omit<TenantWithOccupancy, 'id'>) => Promise<void>;
   onCancel: () => void;
+  cardMode?: boolean;
 }
 
 interface FilePreview {
@@ -25,7 +26,7 @@ const MAX_PHOTOS = 10;
 const MAX_PROOFS = 10;
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
-export default function TenantForm({ tenant, onSubmit, onCancel }: TenantFormProps) {
+export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = false }: TenantFormProps) {
   const [formData, setFormData] = useState({
     name: tenant?.name || '',
     phone: tenant?.phone || '',
@@ -81,6 +82,26 @@ export default function TenantForm({ tenant, onSubmit, onCancel }: TenantFormPro
       { url: tenant.proof10Url, field: 'proof10Url' },
     ].filter((item): item is ExistingFile => !!item.url);
   }, [tenant]);
+
+  // Reset form when tenant changes (for edit mode switching between different tenants)
+  useEffect(() => {
+    setFormData({
+      name: tenant?.name || '',
+      phone: tenant?.phone || '',
+      address: tenant?.address || '',
+      city: tenant?.city || '',
+    });
+    setPhotos([]);
+    setProofs([]);
+    setDeletedPhotoFields(new Set());
+    setDeletedProofFields(new Set());
+    setReplacementPhotos(new Map());
+    setReplacementProofs(new Map());
+    setReplacingPhotoField(null);
+    setReplacingProofField(null);
+    setError(null);
+    setUploadProgress(0);
+  }, [tenant?.id]); // Only reset when tenant ID changes
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -475,57 +496,48 @@ export default function TenantForm({ tenant, onSubmit, onCancel }: TenantFormPro
     }
   };
 
-  return (
-    <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal-content modal-large" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>{tenant ? 'Edit Tenant' : 'Add New Tenant'}</h2>
-          <button className="btn-close" onClick={onCancel} disabled={loading}>
-            ✕
-          </button>
+  const formContent = (
+    <form onSubmit={handleSubmit} className="tenant-form">
+      {error && <div className="form-error">{error}</div>}
+      {uploadProgress > 0 && uploadProgress < 100 && (
+        <div className="upload-progress">
+          <div className="progress-bar">
+            <div className="progress-fill" style={{ width: `${uploadProgress}%` }}></div>
+          </div>
+          <span className="progress-text">
+            <span>📸 Uploading photos & proofs...</span>
+            <span>{uploadProgress}%</span>
+          </span>
+        </div>
+      )}
+
+      {/* Basic Information */}
+      <div className="form-section">
+        <h3>Basic Information</h3>
+
+        <div className="form-group">
+          <label htmlFor="name">Name *</label>
+          <input
+            id="name"
+            type="text"
+            name="name"
+            value={formData.name}
+            onChange={handleInputChange}
+            placeholder="Enter tenant name"
+            disabled={loading}
+            required
+          />
         </div>
 
-        <form onSubmit={handleSubmit} className="tenant-form">
-          {error && <div className="form-error">{error}</div>}
-          {uploadProgress > 0 && uploadProgress < 100 && (
-            <div className="upload-progress">
-              <div className="progress-bar">
-                <div className="progress-fill" style={{ width: `${uploadProgress}%` }}></div>
-              </div>
-              <span className="progress-text">
-                <span>📸 Uploading photos & proofs...</span>
-                <span>{uploadProgress}%</span>
-              </span>
-            </div>
-          )}
-
-          {/* Basic Information */}
-          <div className="form-section">
-            <h3>Basic Information</h3>
-
-            <div className="form-group">
-              <label htmlFor="name">Name *</label>
-              <input
-                id="name"
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-                placeholder="Enter tenant name"
-                disabled={loading}
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="phone">Phone Number *</label>
-              <input
-                id="phone"
-                type="tel"
-                name="phone"
-                value={formData.phone}
-                onChange={handleInputChange}
-                placeholder="Enter phone number (10-15 digits)"
+        <div className="form-group">
+          <label htmlFor="phone">Phone Number *</label>
+          <input
+            id="phone"
+            type="tel"
+            name="phone"
+            value={formData.phone}
+            onChange={handleInputChange}
+            placeholder="Enter phone number (10-15 digits)"
                 disabled={loading}
                 required
               />
@@ -837,6 +849,23 @@ export default function TenantForm({ tenant, onSubmit, onCancel }: TenantFormPro
             </button>
           </div>
         </form>
+  );
+
+  // Render form in card mode or as modal
+  if (cardMode) {
+    return formContent;
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onCancel}>
+      <div className="modal-content modal-large" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>{tenant ? 'Edit Tenant' : 'Add New Tenant'}</h2>
+          <button className="btn-close" onClick={onCancel} disabled={loading}>
+            ✕
+          </button>
+        </div>
+        {formContent}
       </div>
     </div>
   );

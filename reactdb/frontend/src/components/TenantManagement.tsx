@@ -82,21 +82,30 @@ export default function TenantManagement() {
 
   // Filter tenants based on search query and room filter
   useEffect(() => {
-    console.log('Starting filter. selectedRoom:', selectedRoom, 'tenants count:', tenants.length);
     const filtered = tenants.filter((tenant) => {
-      // Apply room filter first - convert roomNumber to string and trim for comparison
+      // Apply room filter first
       if (selectedRoom) {
-        const tenantRoom = String(tenant.roomNumber || '').trim();
-        const selectedRoomTrimmed = String(selectedRoom).trim();
-        const isMatch = tenantRoom === selectedRoomTrimmed;
-        console.log(`Tenant "${tenant.name}": room="${tenantRoom}" vs selected="${selectedRoomTrimmed}" -> ${isMatch}`);
+        // Normalize room numbers for comparison: remove whitespace, handle numbers
+        const tenantRoom = tenant.roomNumber ? String(tenant.roomNumber).trim() : '';
+        const selectedRoomValue = String(selectedRoom).trim();
+        
+        // Try exact match first
+        let isMatch = tenantRoom === selectedRoomValue;
+        
+        // Also try numeric comparison if both are numeric
+        if (!isMatch && !isNaN(Number(tenantRoom)) && !isNaN(Number(selectedRoomValue))) {
+          isMatch = Number(tenantRoom) === Number(selectedRoomValue);
+        }
+        
         if (!isMatch) {
-          return false;
+          return false;  // Exclude if room doesn't match
         }
       }
 
+      // If no search query, include tenant (already passed room filter if applicable)
       if (!searchQuery.trim()) return true;
       
+      // Apply search filters only if search query exists
       const query = searchQuery.trim();
       const lowerQuery = query.toLowerCase();
       const normalizedQuery = normalizePhone(query);
@@ -119,7 +128,7 @@ export default function TenantManagement() {
         case 'address':
           return tenant.address.toLowerCase().includes(lowerQuery);
         case 'room':
-          return (tenant.roomNumber || '').toLowerCase().includes(lowerQuery);
+          return (tenant.roomNumber || '').toString().toLowerCase().includes(lowerQuery);
         case 'all':
         default: {
           const tenantPhone = tenant.phone || '';
@@ -132,7 +141,7 @@ export default function TenantManagement() {
             (/^\d+/.test(query) && normalizedPhone.includes(normalizedQuery)) ||
             tenant.city.toLowerCase().includes(lowerQuery) ||
             tenant.address.toLowerCase().includes(lowerQuery) ||
-            roomNumber.toLowerCase().includes(lowerQuery)
+            roomNumber.toString().toLowerCase().includes(lowerQuery)
           );
         }
       }
@@ -145,27 +154,38 @@ export default function TenantManagement() {
     const uniqueRooms = new Set<string>();
     tenants.forEach((t) => {
       if (t.roomNumber) {
-        // Convert to string and trim to ensure consistent type
+        // Convert to string and trim to ensure consistent format
         const room = String(t.roomNumber).trim();
-        uniqueRooms.add(room);
+        if (room) {  // Also check that it's not an empty string after trimming
+          uniqueRooms.add(room);
+        }
       }
     });
     
-    // Sort rooms numerically if they're numbers, otherwise alphabetically
+    // Sort rooms numerically if they're all numbers, otherwise alphabetically
     const sortedRooms = Array.from(uniqueRooms).sort((a, b) => {
       const numA = parseInt(a, 10);
       const numB = parseInt(b, 10);
+      // If both can be parsed as numbers, sort numerically
       if (!isNaN(numA) && !isNaN(numB)) {
         return numA - numB;
       }
+      // Otherwise sort alphabetically
       return a.localeCompare(b);
     });
 
-    console.log('Room options generated:', sortedRooms);
-    return sortedRooms.map((room) => ({
-      id: room,
-      label: `Room ${room}`,
-    }));
+    // Create dropdown options with room, and count tenants in each room
+    return sortedRooms.map((room) => {
+      const tenantCount = tenants.filter(t => {
+        const tenantRoom = t.roomNumber ? String(t.roomNumber).trim() : '';
+        return tenantRoom === room;
+      }).length;
+      
+      return {
+        id: room,
+        label: `Room ${room} (${tenantCount})`,
+      };
+    });
   }, [tenants]);
 
   // Sort filtered tenants
@@ -193,8 +213,24 @@ export default function TenantManagement() {
     setError(null);
     try {
       const response = await apiService.getAllTenantsWithOccupancy();
-      setTenants(response.data);
-      console.log('Fetched tenants with occupancy details:', response.data);
+      // Normalize room numbers by trimming whitespace - ensures consistency
+      const normalizedTenants = response.data.map((tenant: TenantWithOccupancy) => ({
+        ...tenant,
+        roomNumber: tenant.roomNumber ? String(tenant.roomNumber).trim() : tenant.roomNumber,
+      }));
+      
+      // Remove duplicate tenant IDs (keep first occurrence)
+      const seenIds = new Set<number>();
+      const uniqueTenants = normalizedTenants.filter((tenant: TenantWithOccupancy) => {
+        if (seenIds.has(tenant.id)) {
+          console.warn(`Duplicate tenant ID found: ${tenant.id} (${tenant.name}). Filtering out duplicate.`);
+          return false;
+        }
+        seenIds.add(tenant.id);
+        return true;
+      });
+      
+      setTenants(uniqueTenants);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to fetch tenants';
       setError(errorMsg);
@@ -282,6 +318,7 @@ export default function TenantManagement() {
         occupiedTenants={stats.occupiedTenants}
         vacantTenants={stats.vacantTenants}
         onAddTenant={handleAddTenant}
+        isFormVisible={showForm}
       />
 
       {/* Success Message */}
@@ -297,6 +334,32 @@ export default function TenantManagement() {
         <div className="error-message">
           <span>{error}</span>
           <button onClick={() => setError(null)}>✕</button>
+        </div>
+      )}
+
+      {/* Add Tenant Form Card */}
+      {showForm && !editingTenant && (
+        <div className="tenant-form-card">
+          <h3>Add New Tenant</h3>
+          <TenantForm
+            tenant={null}
+            onSubmit={handleFormSubmit}
+            onCancel={handleFormClose}
+            cardMode={true}
+          />
+        </div>
+      )}
+
+      {/* Edit Tenant Form Card */}
+      {showForm && editingTenant && (
+        <div className="tenant-form-card">
+          <h3>Edit Tenant - {editingTenant.name}</h3>
+          <TenantForm
+            tenant={editingTenant}
+            onSubmit={handleFormSubmit}
+            onCancel={handleFormClose}
+            cardMode={true}
+          />
         </div>
       )}
 
@@ -325,7 +388,6 @@ export default function TenantManagement() {
               options={roomOptions}
               value={selectedRoom}
               onChange={(option) => {
-                console.log('Room selected:', option);
                 setSelectedRoom(option.id as string);
               }}
               placeholder="Filter by Room"
@@ -393,15 +455,6 @@ export default function TenantManagement() {
         </div>
       )}
 
-      {/* Tenant Form Modal */}
-      {showForm && (
-        <TenantForm
-          tenant={editingTenant}
-          onSubmit={handleFormSubmit}
-          onCancel={handleFormClose}
-        />
-      )}
-
       {/* Full Screen Tenant View */}
       {fullScreenTenant && (
         <>
@@ -422,6 +475,19 @@ export default function TenantManagement() {
             />
           )}
         </>
+      )}
+
+      {/* Edit Tenant Form Card */}
+      {showForm && editingTenant && (
+        <div className="tenant-form-card">
+          <h3>Edit Tenant - {editingTenant.name}</h3>
+          <TenantForm
+            tenant={editingTenant}
+            onSubmit={handleFormSubmit}
+            onCancel={handleFormClose}
+            cardMode={true}
+          />
+        </div>
       )}
     </div>
   );

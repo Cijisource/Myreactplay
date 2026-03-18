@@ -34,7 +34,7 @@ export default function RoomOccupancy(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [filterOccupancy, setFilterOccupancy] = useState<'all' | 'occupied' | 'vacant'>('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [showStatsGrid, setShowStatsGrid] = useState(false);
+  const [showStatsGrid, setShowStatsGrid] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<string>('');
   const [expandedRooms, setExpandedRooms] = useState<Set<number>>(new Set());

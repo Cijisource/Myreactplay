@@ -39,7 +39,7 @@ export default function OccupancyLinks(): JSX.Element {
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'tenant' | 'room' | 'checkIn'>('checkIn');
-  const [showStatsGrid, setShowStatsGrid] = useState(false);
+  const [showStatsGrid, setShowStatsGrid] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<string>('');
   const [selectedTenant, setSelectedTenant] = useState<string>('');
