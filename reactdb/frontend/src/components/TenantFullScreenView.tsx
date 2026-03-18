@@ -4,11 +4,15 @@ import { getFileUrl } from '../api';
 interface TenantFullScreenViewProps {
   tenant: TenantWithOccupancy;
   onClose?: () => void;
+  onViewPhoto?: (photoIndex: number) => void;
+  onViewProof?: (proofIndex: number) => void;
 }
 
 export default function TenantFullScreenView({
   tenant,
   onClose,
+  onViewPhoto,
+  onViewProof,
 }: TenantFullScreenViewProps) {
 
   const getTenantPhotos = (tenant: TenantWithOccupancy): string[] => {
@@ -161,6 +165,9 @@ export default function TenantFullScreenView({
                     src={getFileUrl(photo)}
                     alt={`Photo ${idx + 1}`}
                     loading="lazy"
+                    onClick={() => onViewPhoto?.(idx)}
+                    style={{ cursor: 'pointer' }}
+                    title="Click to view full size"
                   />
                 ))}
               </div>
@@ -173,7 +180,13 @@ export default function TenantFullScreenView({
               <h3>Documents & Proofs</h3>
               <div className="fullscreen-proofs-grid">
                 {getTenantProofs(tenant).map((proof, idx) => (
-                  <div key={idx} className="proof-item">
+                  <div 
+                    key={idx} 
+                    className="proof-item"
+                    onClick={() => onViewProof?.(idx)}
+                    style={{ cursor: 'pointer' }}
+                    title="Click to view full size"
+                  >
                     <img
                       src={getFileUrl(proof)}
                       alt={`Proof ${idx + 1}`}
