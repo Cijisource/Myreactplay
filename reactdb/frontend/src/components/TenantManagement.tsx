@@ -302,6 +302,18 @@ export default function TenantManagement() {
     setFullscreenMediaTab('photos');
   };
 
+  const handleViewPhoto = (photoIndex: number) => {
+    setFullscreenPhotoIndex(photoIndex);
+    setFullscreenProofIndex(null);
+    setFullscreenMediaTab('photos');
+  };
+
+  const handleViewProof = (proofIndex: number) => {
+    setFullscreenPhotoIndex(null);
+    setFullscreenProofIndex(proofIndex);
+    setFullscreenMediaTab('proofs');
+  };
+
   const stats = useMemo(() => {
     return {
       totalTenants: tenants.length,
@@ -462,6 +474,8 @@ export default function TenantManagement() {
           <TenantFullScreenView
             tenant={fullScreenTenant}
             onClose={handleCloseFullscreen}
+            onViewPhoto={handleViewPhoto}
+            onViewProof={handleViewProof}
           />
 
           {/* Photo Gallery Modal (overlays on top) */}
