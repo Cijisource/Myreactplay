@@ -352,7 +352,7 @@ LEFT JOIN RoomDetail rd ON o.RoomId = rd.Id
 
 ### Frontend Validation
 - Name: Required, non-empty
-- Phone: Required, 10-15 digits
+- Phone: Required, exactly 10 digits
 - City: Required, non-empty
 - Address: Required, non-empty
 - Photo: Optional, image file only

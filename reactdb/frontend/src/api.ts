@@ -104,6 +104,15 @@ export const apiService = {
   deleteTenant: (tenantId: number) => api.delete(`/tenants/${tenantId}`),
   searchTenants: (field: string, query: string) => 
     api.get(`/tenants/search?field=${field}&query=${query}`),
+  checkPhoneNumber: (phone: string, excludeTenantId?: number) => {
+    let url = `/tenants/check-phone/${encodeURIComponent(phone)}`;
+    if (excludeTenantId) {
+      url += `?excludeId=${excludeTenantId}`;
+    }
+    return api.get(url);
+  },
+  searchCities: (query: string) => 
+    api.get(`/cities/search?query=${encodeURIComponent(query)}`),
   uploadTenantFiles: (formData: FormData, onProgress?: (progress: number) => void): Promise<ApiUploadResponse> => {
     const token = localStorage.getItem('authToken');
 
@@ -224,6 +233,8 @@ export const apiService = {
   // Room Occupancy APIs
   getRoomOccupancyData: () => api.get('/rooms/occupancy'),
   getOccupancyLinks: () => api.get('/occupancy/links'),  // Explicit room-tenant linking
+  getVacantRooms: () => api.get('/rooms/vacant'),  // Get list of vacant rooms
+  getRooms: () => api.get('/rooms'),
   
   // Complaints Management APIs
   getComplaints: () => api.get('/complaints'),
@@ -264,7 +275,6 @@ export const apiService = {
       throw error;
     });
   },
-  getRooms: () => api.get('/rooms'),
   updateRoom: (roomId: number, data: { rent: number }) => api.put(`/rooms/${roomId}`, data),
 
   // Service Details APIs

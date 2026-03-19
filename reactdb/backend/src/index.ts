@@ -730,6 +730,77 @@ app.get('/api/rooms/occupancy', async (req: Request, res: Response) => {
   }
 });
 
+// Get vacant rooms (rooms with no active occupancy)
+app.get('/api/rooms/vacant', async (req: Request, res: Response) => {
+  try {
+    console.log('[Vacant Rooms API] Request received');
+    const pool = getPool();
+    const result = await pool.request().query(`
+      SELECT 
+        rd.Id as id,
+        LTRIM(RTRIM(rd.Number)) as number,
+        ISNULL(CAST(rd.Rent AS FLOAT), 0) as rent,
+        rd.Beds as beds,
+        -- Last occupancy details
+        (SELECT TOP 1 CONVERT(DATE, o2.CheckOutDate) 
+         FROM Occupancy o2 
+         WHERE o2.RoomId = rd.Id 
+         AND o2.CheckOutDate IS NOT NULL
+         ORDER BY o2.CheckOutDate DESC) as lastCheckOutDate,
+        -- Last tenant details
+        (SELECT TOP 1 LTRIM(RTRIM(t2.Name))
+         FROM Occupancy o2
+         INNER JOIN Tenant t2 ON o2.TenantId = t2.Id
+         WHERE o2.RoomId = rd.Id 
+         AND o2.CheckOutDate IS NOT NULL
+         ORDER BY o2.CheckOutDate DESC) as lastTenantName,
+        (SELECT TOP 1 LTRIM(RTRIM(t2.Phone))
+         FROM Occupancy o2
+         INNER JOIN Tenant t2 ON o2.TenantId = t2.Id
+         WHERE o2.RoomId = rd.Id 
+         AND o2.CheckOutDate IS NOT NULL
+         ORDER BY o2.CheckOutDate DESC) as lastTenantPhone,
+        -- Days vacant since last checkout
+        (SELECT TOP 1 DATEDIFF(DAY, CONVERT(DATE, o2.CheckOutDate), CONVERT(DATE, GETDATE()))
+         FROM Occupancy o2 
+         WHERE o2.RoomId = rd.Id 
+         AND o2.CheckOutDate IS NOT NULL
+         ORDER BY o2.CheckOutDate DESC) as daysVacant,
+        -- Check if room has ever been occupied
+        CASE WHEN EXISTS (
+          SELECT 1 FROM Occupancy o2 WHERE o2.RoomId = rd.Id
+        ) THEN 'Previously Occupied' ELSE 'Never Occupied' END as vacancyStatus
+      FROM RoomDetail rd
+      WHERE NOT EXISTS (
+        SELECT 1 FROM Occupancy o 
+        WHERE o.RoomId = rd.Id 
+        AND (o.CheckOutDate IS NULL OR CONVERT(DATE, o.CheckOutDate) > CONVERT(DATE, GETDATE()))
+      )
+      ORDER BY ISNULL((SELECT TOP 1 DATEDIFF(DAY, CONVERT(DATE, o2.CheckOutDate), CONVERT(DATE, GETDATE()))
+                       FROM Occupancy o2 
+                       WHERE o2.RoomId = rd.Id 
+                       AND o2.CheckOutDate IS NOT NULL
+                       ORDER BY o2.CheckOutDate DESC), 0) DESC,
+               CASE WHEN ISNUMERIC(LTRIM(RTRIM(rd.Number))) = 1 
+                   THEN CAST(LTRIM(RTRIM(rd.Number)) AS INT) 
+                   ELSE 999999 END,
+               LTRIM(RTRIM(rd.Number))
+    `);
+    console.log('[Vacant Rooms API] Query executed. Results:', {
+      count: result.recordset.length,
+      rooms: result.recordset
+    });
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('[Vacant Rooms API] Error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve vacant rooms',
+      details: errorMessage
+    });
+  }
+});
+
 // Tenant Management Endpoints
 
 // Get all tenants with occupancy details and pending payments
@@ -860,11 +931,79 @@ app.get('/api/tenants/:id', async (req: Request, res: Response) => {
   }
 });
 
+// Check if phone number already exists
+app.get('/api/tenants/check-phone/:phone', async (req: Request, res: Response) => {
+  try {
+    const { phone } = req.params;
+    const excludeTenantId = req.query.excludeId ? parseInt(req.query.excludeId as string) : null;
+    
+    console.log('[Phone Check] Checking phone:', { phone, excludeTenantId });
+    
+    const pool = getPool();
+    let query = `SELECT Id, Name, LTRIM(RTRIM(Name)) as name FROM Tenant WHERE LTRIM(RTRIM(Phone)) = LTRIM(RTRIM(@phone))`;
+    const request = pool.request().input('phone', sql.NChar(15), phone);
+    
+    // If editing a tenant, exclude the current tenant from the check
+    if (excludeTenantId) {
+      query += ` AND Id != @excludeId`;
+      request.input('excludeId', sql.Int, excludeTenantId);
+    }
+    
+    console.log('[Phone Check] Query:', query);
+    
+    const result = await request.query(query);
+    
+    console.log('[Phone Check] Raw result:', JSON.stringify(result.recordset));
+    
+    const exists = result.recordset.length > 0;
+    let tenantName = null;
+    
+    if (exists) {
+      const raw = result.recordset[0];
+      console.log('[Phone Check] Raw record:', raw);
+      
+      // Try different approaches to get the name
+      tenantName = raw.name || raw.Name || raw['name'] || null;
+      
+      if (tenantName && typeof tenantName === 'string') {
+        tenantName = tenantName.trim();
+      }
+      
+      // Fallback if name is empty after all attempts
+      if (!tenantName) {
+        console.log('[Phone Check] Name was empty, using fallback');
+        tenantName = 'Unnamed Tenant';
+      }
+      
+      console.log('[Phone Check] Final tenant name:', tenantName);
+    }
+    
+    console.log('[Phone Check] Final result:', { 
+      phone: phone.trim(), 
+      exists, 
+      tenantName
+    });
+    
+    res.json({ 
+      exists, 
+      phone: phone.trim(),
+      tenantName: tenantName 
+    });
+  } catch (error) {
+    console.error('Check phone error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to check phone number',
+      details: errorMessage
+    });
+  }
+});
+
 // Create tenant
 app.post('/api/tenants', async (req: Request, res: Response) => {
   try {
     const { 
-      name, phone, address, city, 
+      name, phone, address, city, roomId, checkInDate,
       photoUrl, photo2Url, photo3Url, photo4Url, photo5Url, photo6Url, photo7Url, photo8Url, photo9Url, photo10Url,
       proof1Url, proof2Url, proof3Url, proof4Url, proof5Url, proof6Url, proof7Url, proof8Url, proof9Url, proof10Url
     } = req.body;
@@ -873,7 +1012,40 @@ app.post('/api/tenants', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
     
+    // Validate phone format - must be exactly 10 digits
+    const phoneDigits = phone.replace(/\D/g, '');
+    if (phoneDigits.length !== 10) {
+      return res.status(400).json({ 
+        error: 'Invalid phone format',
+        details: `Phone number must be exactly 10 digits (received ${phoneDigits.length} digits)`
+      });
+    }
+    
+    // If creating occupancy, validate the parameters
+    const creatingOccupancy = roomId && checkInDate;
+    if (creatingOccupancy) {
+      if (!roomId || !checkInDate) {
+        return res.status(400).json({ 
+          error: 'Both roomId and checkInDate are required to create an occupancy'
+        });
+      }
+    }
+    
     const pool = getPool();
+    
+    // Check if phone number already exists
+    const phoneCheckResult = await pool
+      .request()
+      .input('phone', sql.NChar(15), phone)
+      .query(`SELECT COUNT(*) as count FROM Tenant WHERE TRIM(Phone) = TRIM(@phone)`);
+    
+    if (phoneCheckResult.recordset[0].count > 0) {
+      return res.status(400).json({ 
+        error: 'Phone number already exists',
+        details: `A tenant with phone number ${phone.trim()} already exists in the database.`
+      });
+    }
+    
     const result = await pool
       .request()
       .input('name', sql.NChar(100), name)
@@ -907,7 +1079,58 @@ app.post('/api/tenants', async (req: Request, res: Response) => {
       `);
     
     const tenantId = result.recordset[0].id;
-    res.status(201).json({ id: tenantId, message: 'Tenant created successfully' });
+    let occupancyId = null;
+
+    // Create occupancy if room and check-in date are provided
+    if (creatingOccupancy) {
+      try {
+        // Get the room rent value for RentFixed
+        const roomResult = await pool
+          .request()
+          .input('roomId', sql.Int, roomId)
+          .query(`SELECT Rent FROM RoomDetail WHERE Id = @roomId`);
+        
+        if (roomResult.recordset.length === 0) {
+          return res.status(400).json({ 
+            error: 'Invalid room ID',
+            details: `Room with ID ${roomId} does not exist`
+          });
+        }
+
+        const roomRent = roomResult.recordset[0].Rent;
+
+        // Create occupancy record
+        const occupancyResult = await pool
+          .request()
+          .input('tenantId', sql.Int, tenantId)
+          .input('roomId', sql.Int, roomId)
+          .input('checkInDate', sql.NChar(10), checkInDate)
+          .input('rentFixed', sql.Money, roomRent || 0)
+          .query(`
+            INSERT INTO Occupancy (TenantId, RoomId, CheckInDate, CheckOutDate, CreatedDate, UpdatedDate, RentFixed)
+            VALUES (@tenantId, @roomId, @checkInDate, NULL, GETUTCDATE(), GETUTCDATE(), @rentFixed);
+            SELECT SCOPE_IDENTITY() as occupancyId;
+          `);
+        
+        occupancyId = occupancyResult.recordset[0].occupancyId;
+        console.log(`[Tenant Creation] Created occupancy ${occupancyId} for tenant ${tenantId} in room ${roomId}`);
+      } catch (occupancyError) {
+        console.error('Error creating occupancy:', occupancyError);
+        // Still return success for tenant creation, but note the occupancy creation failed
+        return res.status(500).json({ 
+          error: 'Failed to create occupancy',
+          details: occupancyError instanceof Error ? occupancyError.message : String(occupancyError),
+          tenantId: tenantId,
+          message: 'Tenant was created but occupancy creation failed'
+        });
+      }
+    }
+
+    res.status(201).json({ 
+      id: tenantId, 
+      occupancyId: occupancyId,
+      message: creatingOccupancy ? 'Tenant and occupancy created successfully' : 'Tenant created successfully' 
+    });
   } catch (error) {
     console.error('Create tenant error:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -1007,10 +1230,35 @@ app.put('/api/tenants/:id', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
     
+    // Validate phone format - must be exactly 10 digits
+    const phoneDigits = phone.replace(/\D/g, '');
+    if (phoneDigits.length !== 10) {
+      return res.status(400).json({ 
+        error: 'Invalid phone format',
+        details: `Phone number must be exactly 10 digits (received ${phoneDigits.length} digits)`
+      });
+    }
+    
     const pool = getPool();
+    const tenantId = parseInt(id);
+    
+    // Check if phone number already exists (excluding current tenant)
+    const phoneCheckResult = await pool
+      .request()
+      .input('phone', sql.NChar(15), phone)
+      .input('id', sql.Int, tenantId)
+      .query(`SELECT COUNT(*) as count FROM Tenant WHERE TRIM(Phone) = TRIM(@phone) AND Id != @id`);
+    
+    if (phoneCheckResult.recordset[0].count > 0) {
+      return res.status(400).json({ 
+        error: 'Phone number already exists',
+        details: `Phone number ${phone.trim()} is already used by another tenant.`
+      });
+    }
+    
     const result = await pool
       .request()
-      .input('id', sql.Int, parseInt(id))
+      .input('id', sql.Int, tenantId)
       .input('name', sql.NChar(100), name)
       .input('phone', sql.NChar(15), phone)
       .input('address', sql.NChar(100), address)
@@ -1141,6 +1389,67 @@ app.delete('/api/tenants/:id', async (req: Request, res: Response) => {
     res.status(500).json({ 
       error: 'Failed to delete tenant',
       details: errorMessage
+    });
+  }
+});
+
+// Cache for Indian cities
+let citiesCache: string[] | null = null;
+let cacheTimestamp = 0;
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+
+// Search Indian cities
+app.get('/api/cities/search', async (req: Request, res: Response) => {
+  try {
+    const { query } = req.query;
+    
+    if (!query || typeof query !== 'string') {
+      return res.status(400).json({ 
+        error: 'Missing query parameter',
+        cities: []
+      });
+    }
+
+    // Check if cache is still valid
+    const now = Date.now();
+    if (!citiesCache || (now - cacheTimestamp > CACHE_DURATION)) {
+      console.log('[Cities] Fetching fresh city data from database');
+      // Load cities from database (distinct cities from tenants)
+      const pool = getPool();
+      const result = await pool
+        .request()
+        .query(`
+          SELECT DISTINCT LTRIM(RTRIM(City)) as city 
+          FROM Tenant 
+          WHERE City IS NOT NULL AND LTRIM(RTRIM(City)) != ''
+          ORDER BY LTRIM(RTRIM(City)) ASC
+        `);
+      
+      citiesCache = result.recordset.map((r: any) => r.city).filter(Boolean);
+      cacheTimestamp = now;
+      console.log('[Cities] Loaded', citiesCache.length, 'cities from database');
+    }
+
+    // Search in cache
+    const searchTerm = query.toString().toLowerCase().trim();
+    const filteredCities = citiesCache
+      .filter(city => city.toLowerCase().includes(searchTerm))
+      .slice(0, 50); // Limit to 50 results
+
+    console.log('[Cities] Search results for "' + searchTerm + '":', filteredCities.length);
+
+    res.json({ 
+      cities: filteredCities,
+      query: searchTerm,
+      total: filteredCities.length
+    });
+  } catch (error) {
+    console.error('Cities search error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to search cities',
+      details: errorMessage,
+      cities: []
     });
   }
 });

@@ -120,7 +120,7 @@ interface TenantWithOccupancy extends Tenant {
 
 **Fields**:
 - Name (required)
-- Phone Number (required, 10-15 digits)
+- Phone Number (required, exactly 10 digits)
 - City (required)
 - Address (required)
 - Photo (optional, file upload)
@@ -130,7 +130,7 @@ interface TenantWithOccupancy extends Tenant {
 
 **Validation**:
 - Required field validation
-- Phone number format (10-15 digits)
+- Phone number format (exactly 10 digits)
 - Photo upload with preview
 - Base64 encoding for image storage
 
@@ -369,7 +369,7 @@ searchTenants: (field: string, query: string) =>
 
 ### Frontend Validation
 - Required field checking
-- Phone format validation (10-15 digits)
+- Phone format validation (exactly 10 digits)
 - URL format validation for proof documents
 - Image file type and size checking
 
