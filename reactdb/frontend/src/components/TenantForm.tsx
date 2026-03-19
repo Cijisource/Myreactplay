@@ -32,6 +32,8 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
     phone: tenant?.phone || '',
     address: tenant?.address || '',
     city: tenant?.city || '',
+    roomId: '',
+    checkInDate: '',
   });
 
   const [photos, setPhotos] = useState<FilePreview[]>([]);
@@ -45,6 +47,25 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+  
+  // Phone validation states
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [isCheckingPhone, setIsCheckingPhone] = useState(false);
+  const [phoneExists, setPhoneExists] = useState(false);
+  const [existingTenantName, setExistingTenantName] = useState<string | null>(null);
+  const phoneCheckTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // City search states
+  const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
+  const [isSearchingCities, setIsSearchingCities] = useState(false);
+  const [showCitySuggestions, setShowCitySuggestions] = useState(false);
+  const citySearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const citySuggestionsRef = useRef<HTMLDivElement>(null);
+  
+  // Room selection states
+  const [vacantRooms, setVacantRooms] = useState<Array<{id: number; number: string; rent: number; beds: number; lastCheckOutDate?: string | null; lastTenantName?: string | null; lastTenantPhone?: string | null; daysVacant?: number | null; vacancyStatus?: string}>>([]);
+  const [isLoadingRooms, setIsLoadingRooms] = useState(false);
+  
   const photoInputRef = useRef<HTMLInputElement>(null);
   const proofInputRef = useRef<HTMLInputElement>(null);
   const replacePhotoInputRef = useRef<HTMLInputElement>(null);
@@ -90,6 +111,8 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
       phone: tenant?.phone || '',
       address: tenant?.address || '',
       city: tenant?.city || '',
+      roomId: '',
+      checkInDate: '',
     });
     setPhotos([]);
     setProofs([]);
@@ -101,7 +124,149 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
     setReplacingProofField(null);
     setError(null);
     setUploadProgress(0);
+    setPhoneError(null);
+    setPhoneExists(false);
+    setIsCheckingPhone(false);
+    setExistingTenantName(null);
   }, [tenant?.id]); // Only reset when tenant ID changes
+
+  // Fetch vacant rooms on component mount
+  useEffect(() => {
+    const fetchVacantRooms = async () => {
+      try {
+        console.log('[TenantForm] Fetching vacant rooms...');
+        setIsLoadingRooms(true);
+        const response = await apiService.getVacantRooms();
+        console.log('[TenantForm] Vacant rooms response:', response);
+        console.log('[TenantForm] Vacant rooms data:', response.data);
+        setVacantRooms(response.data || []);
+        console.log('[TenantForm] Vacant rooms set:', response.data?.length || 0);
+      } catch (err) {
+        console.error('[TenantForm] Error fetching vacant rooms:', err);
+        if (err instanceof Error) {
+          console.error('[TenantForm] Error message:', err.message);
+          console.error('[TenantForm] Error stack:', err.stack);
+        }
+        setVacantRooms([]);
+      } finally {
+        setIsLoadingRooms(false);
+      }
+    };
+    
+    // Fetch when adding new tenant (not editing)
+    console.log('[TenantForm] Checking if should fetch vacant rooms. tenant?.id:', tenant?.id);
+    if (!tenant?.id) {
+      console.log('[TenantForm] Fetching vacant rooms for new tenant');
+      fetchVacantRooms();
+    } else {
+      console.log('[TenantForm] Editing existing tenant, skipping vacant rooms fetch');
+    }
+  }, [tenant?.id]);
+
+  // Cleanup phone check timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (phoneCheckTimeoutRef.current) {
+        clearTimeout(phoneCheckTimeoutRef.current);
+      }
+      if (citySearchTimeoutRef.current) {
+        clearTimeout(citySearchTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Validate phone number format and check database for duplicates
+  const validatePhoneNumber = async (phone: string) => {
+    setPhoneError(null);
+    setPhoneExists(false);
+    setExistingTenantName(null);
+
+    // If phone is empty, clear error
+    if (!phone.trim()) {
+      setPhoneError(null);
+      return;
+    }
+
+    // Validate phone format
+    const phoneDigits = phone.replace(/\D/g, '');
+    if (phoneDigits.length === 0) {
+      setPhoneError('Please enter at least one digit');
+      return;
+    }
+    if (phoneDigits.length < 10) {
+      setPhoneError(`Phone number must be exactly 10 digits (currently ${phoneDigits.length})`);
+      return;
+    }
+    if (phoneDigits.length > 10) {
+      setPhoneError('Phone number must be exactly 10 digits');
+      return;
+    }
+
+    // Check database for duplicate (debounced)
+    setIsCheckingPhone(true);
+    if (phoneCheckTimeoutRef.current) {
+      clearTimeout(phoneCheckTimeoutRef.current);
+    }
+
+    phoneCheckTimeoutRef.current = setTimeout(async () => {
+      try {
+        const response = await apiService.checkPhoneNumber(
+          phone.trim(),
+          tenant?.id // Exclude current tenant if editing
+        );
+        if (response.data.exists) {
+          const conflictingName = response.data.tenantName?.trim() || 'Unknown Tenant';
+          setPhoneError(`Phone number ${phone.trim()} is already registered to ${conflictingName}`);
+          setExistingTenantName(conflictingName);
+          setPhoneExists(true);
+        } else {
+          setPhoneError(null);
+          setPhoneExists(false);
+          setExistingTenantName(null);
+        }
+      } catch (err) {
+        console.error('Error checking phone number:', err);
+        // Don't show error for API failures, just log it
+      } finally {
+        setIsCheckingPhone(false);
+      }
+    }, 500); // Wait 500ms after user stops typing
+  };
+
+  // Search for cities
+  const searchCities = async (searchQuery: string) => {
+    setCitySuggestions([]);
+    
+    if (!searchQuery.trim()) {
+      setShowCitySuggestions(false);
+      return;
+    }
+
+    setIsSearchingCities(true);
+    
+    if (citySearchTimeoutRef.current) {
+      clearTimeout(citySearchTimeoutRef.current);
+    }
+
+    citySearchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const response = await apiService.searchCities(searchQuery.trim());
+        if (response.data.cities && response.data.cities.length > 0) {
+          setCitySuggestions(response.data.cities);
+          setShowCitySuggestions(true);
+        } else {
+          setCitySuggestions([]);
+          setShowCitySuggestions(false);
+        }
+      } catch (err) {
+        console.error('Error searching cities:', err);
+        setCitySuggestions([]);
+        setShowCitySuggestions(false);
+      } finally {
+        setIsSearchingCities(false);
+      }
+    }, 300); // Wait 300ms after user stops typing
+  };
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -111,6 +276,49 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
       ...prev,
       [name]: value,
     }));
+
+    // Real-time phone validation
+    if (name === 'phone') {
+      validatePhoneNumber(value);
+    }
+    
+    // Real-time city search
+    if (name === 'city') {
+      searchCities(value);
+    }
+  };
+
+  const handleSelectChange = (
+    e: React.ChangeEvent<HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+
+    // Load check-in date field when room is selected
+    if (name === 'roomId' && value) {
+      setFormData((prev) => ({
+        ...prev,
+        checkInDate: new Date().toISOString().split('T')[0],
+      }));
+    }
+  };
+
+  const handleSelectCity = (city: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      city: city,
+    }));
+    setShowCitySuggestions(false);
+    setCitySuggestions([]);
+  };
+
+  const handleClickOutside = (e: React.MouseEvent) => {
+    if (citySuggestionsRef.current && !citySuggestionsRef.current.contains(e.target as Node)) {
+      setShowCitySuggestions(false);
+    }
   };
 
   const validateFile = (file: File): string | null => {
@@ -312,9 +520,31 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
       setError('Address is required');
       return false;
     }
-    // Validate phone format (basic)
-    if (!/^\d{10,15}$/.test(formData.phone.replace(/\D/g, ''))) {
-      setError('Phone number should be 10-15 digits');
+    // Validate phone format - must be exactly 10 digits
+    if (!/^\d{10}$/.test(formData.phone.replace(/\D/g, ''))) {
+      setError('Phone number must be exactly 10 digits');
+      return false;
+    }
+    // Check if phone validation errors exist
+    if (phoneError) {
+      setError(phoneError);
+      return false;
+    }
+    // Check if phone exists in database
+    if (phoneExists) {
+      const message = existingTenantName 
+        ? `Phone number ${formData.phone.trim()} is already registered to ${existingTenantName}`
+        : `Phone number ${formData.phone.trim()} already exists in the database`;
+      setError(message);
+      return false;
+    }
+    // Validate occupancy fields - if room is selected, check-in date is required
+    if (formData.roomId && !formData.checkInDate) {
+      setError('Check-in date is required when selecting a room');
+      return false;
+    }
+    if (formData.checkInDate && !formData.roomId) {
+      setError('Room is required when setting a check-in date');
       return false;
     }
     return true;
@@ -462,6 +692,8 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
         phone: formData.phone.trim(),
         address: formData.address.trim(),
         city: formData.city.trim(),
+        roomId: formData.roomId ? parseInt(formData.roomId) : undefined,
+        checkInDate: formData.checkInDate || undefined,
         photoUrl: photoUrls[0] || null,
         photo2Url: photoUrls[1] || null,
         photo3Url: photoUrls[2] || null,
@@ -530,32 +762,82 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
         </div>
 
         <div className="form-group">
-          <label htmlFor="phone">Phone Number *</label>
+          <label htmlFor="phone">
+            Phone Number *
+            {isCheckingPhone && (
+              <span className="validation-loading" title="Checking database...">
+                ⟳
+              </span>
+            )}
+            {!isCheckingPhone && formData.phone.trim() && !phoneError && (
+              <span className="validation-success" title="Phone number is valid and available">
+                ✓
+              </span>
+            )}
+          </label>
           <input
             id="phone"
             type="tel"
             name="phone"
             value={formData.phone}
             onChange={handleInputChange}
-            placeholder="Enter phone number (10-15 digits)"
-                disabled={loading}
-                required
-              />
+            placeholder="Enter phone number (exactly 10 digits)"
+            disabled={loading}
+            required
+            className={phoneError ? 'input-error' : formData.phone.trim() && !isCheckingPhone && !phoneError ? 'input-success' : ''}
+          />
+          {phoneError && (
+            <div className="validation-error-message">
+              ✗ {phoneError}
             </div>
+          )}
+          {isCheckingPhone && (
+            <div className="validation-checking-message">
+              Checking phone number...
+            </div>
+          )}
+          {!phoneError && formData.phone.trim() && !isCheckingPhone && (
+            <div className="validation-success-message">
+              ✓ Phone number is valid and available
+            </div>
+          )}
+        </div>
 
             <div className="form-row">
-              <div className="form-group">
-                <label htmlFor="city">City *</label>
+              <div className="form-group city-autocomplete-container" onClick={handleClickOutside}>
+                <label htmlFor="city">
+                  City *
+                  {isSearchingCities && (
+                    <span className="validation-loading" title="Searching cities...">
+                      ⟳
+                    </span>
+                  )}
+                </label>
                 <input
                   id="city"
                   type="text"
                   name="city"
                   value={formData.city}
                   onChange={handleInputChange}
-                  placeholder="Enter city"
+                  onFocus={() => formData.city && setShowCitySuggestions(true)}
+                  placeholder="Start typing to search cities..."
                   disabled={loading}
                   required
+                  autoComplete="off"
                 />
+                {showCitySuggestions && citySuggestions.length > 0 && (
+                  <div className="city-suggestions" ref={citySuggestionsRef}>
+                    {citySuggestions.map((city, index) => (
+                      <div
+                        key={index}
+                        className="city-suggestion-item"
+                        onClick={() => handleSelectCity(city)}
+                      >
+                        {city}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="form-group">
@@ -572,6 +854,70 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
                 />
               </div>
             </div>
+
+            {/* Occupancy Fields - Only shown when adding new tenant */}
+            {!tenant?.id && (
+              <>
+                <div className="form-group">
+                  <label htmlFor="roomId">Room (Optional - leave blank to add tenant without occupancy)</label>
+                  <select
+                    id="roomId"
+                    name="roomId"
+                    value={formData.roomId}
+                    onChange={handleSelectChange}
+                    disabled={loading || isLoadingRooms || vacantRooms.length === 0}
+                  >
+                    <option value="">
+                      {isLoadingRooms ? 'Loading rooms...' : vacantRooms.length === 0 ? 'No vacant rooms available' : 'Select a room (Optional)'}
+                    </option>
+                    {vacantRooms.map((room) => {
+                      // Format age display
+                      let ageInfo = '';
+                      if (room.daysVacant !== null && room.daysVacant !== undefined) {
+                        const days = room.daysVacant;
+                        if (days === 0) {
+                          ageInfo = ' | Age: New';
+                        } else if (days < 30) {
+                          ageInfo = ` | Age: ${days}d`;
+                        } else {
+                          const months = Math.floor(days / 30);
+                          const remainingDays = days % 30;
+                          ageInfo = remainingDays > 0 
+                            ? ` | Age: ${months}m ${remainingDays}d`
+                            : ` | Age: ${months}m`;
+                        }
+                      } else if (room.vacancyStatus === 'Never Occupied') {
+                        ageInfo = ' | Age: New/Never Occupied';
+                      }
+                      
+                      const tooltipText = room.lastTenantName 
+                        ? `Last tenant: ${room.lastTenantName} (${room.lastTenantPhone || 'N/A'}) | Checked out: ${room.lastCheckOutDate || 'N/A'} | Vacant for ${room.daysVacant || 0} days | Status: ${room.vacancyStatus}`
+                        : 'This room has never been occupied';
+                      return (
+                        <option key={room.id} value={room.id} title={tooltipText}>
+                          Room {room.number} - ₹{room.rent} ({room.beds} bed{room.beds !== 1 ? 's' : ''}){ageInfo}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                {formData.roomId && (
+                  <div className="form-group">
+                    <label htmlFor="checkInDate">Check-in Date *</label>
+                    <input
+                      id="checkInDate"
+                      type="date"
+                      name="checkInDate"
+                      value={formData.checkInDate}
+                      onChange={handleInputChange}
+                      disabled={loading}
+                      required
+                    />
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           {/* Photo Upload Section */}

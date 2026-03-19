@@ -240,7 +240,7 @@ GET http://localhost:5000/api/tenants/search?field=name&query=john
 | Field | Rule | Error Message |
 |---|---|---|
 | Name | Required | "Name is required" |
-| Phone | 10-15 digits | "Phone should be 10-15 digits" |
+| Phone | Exactly 10 digits | "Phone number must be exactly 10 digits" |
 | City | Required | "City is required" |
 | Address | Required | "Address is required" |
 
@@ -267,7 +267,7 @@ GET http://localhost:5000/api/tenants/search?field=name&query=john
 
 ### Form validation errors
 - Check all required fields (marked with *)
-- Verify phone format (numeric, 10-15 digits)
+- Verify phone format (numeric, exactly 10 digits)
 - Check for extra spaces in input
 
 ## 📂 File Locations
