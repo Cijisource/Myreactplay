@@ -234,6 +234,10 @@ export const apiService = {
   getRoomOccupancyData: () => api.get('/rooms/occupancy'),
   getOccupancyLinks: () => api.get('/occupancy/links'),  // Explicit room-tenant linking
   getVacantRooms: () => api.get('/rooms/vacant'),  // Get list of vacant rooms
+  checkoutOccupancy: (occupancyId: number, checkOutDate: string, depositRefunded?: number, charges?: number) => 
+    api.post(`/occupancy/${occupancyId}/checkout`, { checkOutDate, depositRefunded, charges }),
+  checkInTenant: (tenantId: number, roomId: number, checkInDate: string, checkOutDate: string, rentFixed: number, depositReceived?: number) =>
+    api.post('/occupancy/checkin', { tenantId, roomId, checkInDate, checkOutDate, rentFixed, depositReceived }),
   getRooms: () => api.get('/rooms'),
   
   // Complaints Management APIs

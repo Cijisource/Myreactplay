@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { getOccupancyLinks } from '../api';
 import SearchableDropdown from './SearchableDropdown';
+import CheckoutModal from './CheckoutModal';
 import './OccupancyLinks.css';
 
 interface OccupancyLink {
@@ -48,6 +49,7 @@ export default function OccupancyLinks(): JSX.Element {
   const [checkInDateTo, setCheckInDateTo] = useState<string>('');
   const [checkOutDateFrom, setCheckOutDateFrom] = useState<string>('');
   const [checkOutDateTo, setCheckOutDateTo] = useState<string>('');
+  const [selectedOccupancy, setSelectedOccupancy] = useState<OccupancyLink | null>(null);
 
   useEffect(() => {
     const fetchOccupancies = async () => {
@@ -514,6 +516,7 @@ export default function OccupancyLinks(): JSX.Element {
               <th>Collected</th>
               <th>Pending</th>
               <th>Last Payment</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -546,11 +549,24 @@ export default function OccupancyLinks(): JSX.Element {
                     {formatCurrency(occ.currentPendingPayment)}
                   </td>
                   <td>{occ.lastPaymentDate ? formatDate(occ.lastPaymentDate) : '-'}</td>
+                  <td className="actions-cell">
+                    {occ.isActive && (
+                      <button
+                        className="action-btn checkout-btn"
+                        onClick={() => {
+                          setSelectedOccupancy(occ);
+                        }}
+                        title="Checkout tenant"
+                      >
+                        Checkout
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))
             ) : (
               <tr className="no-data">
-                <td colSpan={10}>
+                <td colSpan={11}>
                   <p>📭 No occupancy history found matching your criteria</p>
                 </td>
               </tr>
@@ -558,6 +574,32 @@ export default function OccupancyLinks(): JSX.Element {
           </tbody>
         </table>
       </div>
+
+      {/* Checkout Modal */}
+      {selectedOccupancy && (
+        <CheckoutModal
+          occupancyId={selectedOccupancy.occupancyId}
+          tenantName={selectedOccupancy.tenantName}
+          roomNumber={selectedOccupancy.roomNumber}
+          checkInDate={selectedOccupancy.checkInDate}
+          onClose={() => {
+            setSelectedOccupancy(null);
+          }}
+          onCheckoutSuccess={() => {
+            setSelectedOccupancy(null);
+            // Refresh the occupancies list
+            const fetchOccupancies = async () => {
+              try {
+                const data = await getOccupancyLinks();
+                setOccupancies(data);
+              } catch (err) {
+                console.error('Error refreshing occupancies:', err);
+              }
+            };
+            fetchOccupancies();
+          }}
+        />
+      )}
     </div>
     </div>
   );

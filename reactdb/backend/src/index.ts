@@ -1394,6 +1394,282 @@ app.delete('/api/tenants/:id', async (req: Request, res: Response) => {
   }
 });
 
+// Check in tenant to a room
+app.post('/api/occupancy/checkin', async (req: Request, res: Response) => {
+  try {
+    const { tenantId, roomId, checkInDate, checkOutDate, rentFixed, depositReceived } = req.body;
+
+    if (!tenantId || !roomId || !checkInDate || !checkOutDate) {
+      return res.status(400).json({ 
+        error: 'Tenant ID, Room ID, check-in date, and check-out date are required' 
+      });
+    }
+
+    if (rentFixed === undefined || rentFixed === null || rentFixed <= 0) {
+      return res.status(400).json({ 
+        error: 'Rent fixed amount is required and must be greater than 0'
+      });
+    }
+
+    // Validate depositReceived if provided
+    if (depositReceived !== undefined && depositReceived !== null && parseFloat(depositReceived) < 0) {
+      return res.status(400).json({ 
+        error: 'Deposit received amount cannot be negative'
+      });
+    }
+
+    // Validate that checkInDate is a valid date string (YYYY-MM-DD format)
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(checkInDate)) {
+      return res.status(400).json({ 
+        error: 'Invalid check-in date format',
+        details: 'Date must be in YYYY-MM-DD format'
+      });
+    }
+
+    // Validate that check-in date is not in the future
+    if (new Date(checkInDate) > new Date()) {
+      return res.status(400).json({ 
+        error: 'Check-in date cannot be in the future'
+      });
+    }
+
+    // Validate checkout date format
+    if (!dateRegex.test(checkOutDate)) {
+      return res.status(400).json({ 
+        error: 'Invalid check-out date format',
+        details: 'Date must be in YYYY-MM-DD format'
+      });
+    }
+
+    // Validate check-out date is after check-in date
+    if (new Date(checkOutDate) <= new Date(checkInDate)) {
+      return res.status(400).json({ 
+        error: 'Check-out date must be after check-in date'
+      });
+    }
+
+    const pool = getPool();
+
+    // Verify tenant exists
+    const tenantResult = await pool
+      .request()
+      .input('tenantId', sql.Int, tenantId)
+      .query(`SELECT Id, Name FROM Tenant WHERE Id = @tenantId`);
+
+    if (tenantResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Tenant not found' });
+    }
+
+    // Verify room exists
+    const roomResult = await pool
+      .request()
+      .input('roomId', sql.Int, roomId)
+      .query(`SELECT Id, Number FROM RoomDetail WHERE Id = @roomId`);
+
+    if (roomResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Room not found' });
+    }
+
+    // Check if tenant already has an active occupancy
+    const activeOccupancyResult = await pool
+      .request()
+      .input('tenantId', sql.Int, tenantId)
+      .query(`
+        SELECT Id, RoomId FROM Occupancy 
+        WHERE TenantId = @tenantId AND (CheckOutDate IS NULL OR CheckOutDate > CAST(GETDATE() AS DATE))
+      `);
+
+    if (activeOccupancyResult.recordset.length > 0) {
+      return res.status(400).json({ 
+        error: 'Tenant already has an active occupancy',
+        details: `Tenant is currently in Room ${activeOccupancyResult.recordset[0].RoomId}`
+      });
+    }
+
+    // Create new occupancy record
+    const insertResult = await pool
+      .request()
+      .input('tenantId', sql.Int, tenantId)
+      .input('roomId', sql.Int, roomId)
+      .input('checkInDate', sql.NChar(10), checkInDate)
+      .input('checkOutDate', sql.NChar(10), checkOutDate)
+      .input('rentFixed', sql.Decimal(10, 2), rentFixed)
+      .input('depositReceived', sql.Money, depositReceived || 0)
+      .query(`
+        INSERT INTO Occupancy (TenantId, RoomId, CheckInDate, CheckOutDate, CreatedDate, UpdatedDate, RentFixed, DepositReceived)
+        VALUES (@tenantId, @roomId, @checkInDate, @checkOutDate, GETUTCDATE(), GETUTCDATE(), @rentFixed, @depositReceived)
+        SELECT SCOPE_IDENTITY() as id;
+      `);
+
+    const occupancyId = insertResult.recordset[0]?.id;
+
+    if (!occupancyId) {
+      return res.status(500).json({ error: 'Failed to create occupancy' });
+    }
+
+    // Get the created occupancy details to return
+    const detailsResult = await pool
+      .request()
+      .input('occupancyId', sql.Int, occupancyId)
+      .query(`
+        SELECT 
+          o.Id as occupancyId,
+          o.TenantId as tenantId,
+          t.Name as tenantName,
+          o.RoomId as roomId,
+          rd.Number as roomNumber,
+          o.CheckInDate as checkInDate,
+          o.CheckOutDate as checkOutDate,
+          rd.Rent as roomRent,
+          ISNULL(CAST(o.RentFixed AS FLOAT), 0) as rentFixed,
+          ISNULL(CAST(o.DepositReceived AS FLOAT), 0) as depositReceived,
+          CASE WHEN o.CheckOutDate > CAST(GETDATE() AS DATE) THEN 1 ELSE 0 END as isActive
+        FROM Occupancy o
+        JOIN Tenant t ON o.TenantId = t.Id
+        JOIN RoomDetail rd ON o.RoomId = rd.Id
+        WHERE o.Id = @occupancyId
+      `);
+
+    const occupancy = detailsResult.recordset[0];
+
+    console.log(`[Occupancy Check-In] Tenant ${occupancy.tenantName} (ID: ${occupancy.tenantId}) checked in to Room ${occupancy.roomNumber} on ${checkInDate}`);
+
+    res.json({ 
+      message: 'Occupancy check-in completed successfully',
+      occupancy: occupancy
+    });
+  } catch (error) {
+    console.error('Check-in occupancy error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to check in occupancy',
+      details: errorMessage
+    });
+  }
+});
+
+// Checkout tenant from occupancy
+app.post('/api/occupancy/:occupancyId/checkout', async (req: Request, res: Response) => {
+  try {
+    const { occupancyId } = req.params;
+    const { checkOutDate, depositRefunded, charges } = req.body;
+
+    if (!checkOutDate) {
+      return res.status(400).json({ error: 'Checkout date is required' });
+    }
+
+    // Validate depositRefunded if provided
+    if (depositRefunded !== undefined && depositRefunded !== null && parseFloat(depositRefunded) < 0) {
+      return res.status(400).json({ 
+        error: 'Deposit refunded amount cannot be negative'
+      });
+    }
+
+    // Validate charges if provided
+    if (charges !== undefined && charges !== null && parseFloat(charges) < 0) {
+      return res.status(400).json({ 
+        error: 'Charges amount cannot be negative'
+      });
+    }
+
+    // Validate that checkOutDate is a valid date string (YYYY-MM-DD format)
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(checkOutDate)) {
+      return res.status(400).json({ 
+        error: 'Invalid checkout date format',
+        details: 'Date must be in YYYY-MM-DD format'
+      });
+    }
+
+    const pool = getPool();
+    
+    // Verify occupancy exists and is currently active (CheckOutDate is NULL or in future)
+    const checkResult = await pool
+      .request()
+      .input('occupancyId', sql.Int, parseInt(occupancyId))
+      .query(`
+        SELECT Id, TenantId, RoomId, CheckInDate, CheckOutDate FROM Occupancy 
+        WHERE Id = @occupancyId
+      `);
+
+    if (checkResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Occupancy not found' });
+    }
+
+    const occupancy = checkResult.recordset[0];
+
+    // Check if occupancy is already checked out
+    if (occupancy.CheckOutDate && new Date(occupancy.CheckOutDate) <= new Date(checkOutDate)) {
+      return res.status(400).json({ 
+        error: 'Occupancy is already checked out or checkout date is invalid'
+      });
+    }
+
+    // Validate checkout date is not before check-in date
+    if (new Date(checkOutDate) < new Date(occupancy.CheckInDate)) {
+      return res.status(400).json({ 
+        error: 'Checkout date cannot be before check-in date'
+      });
+    }
+
+    // Update occupancy with checkout date, deposit refunded, and charges
+    const updateResult = await pool
+      .request()
+      .input('occupancyId', sql.Int, parseInt(occupancyId))
+      .input('checkOutDate', sql.NChar(10), checkOutDate)
+      .input('depositRefunded', sql.Money, depositRefunded || 0)
+      .input('charges', sql.Money, charges || 0)
+      .query(`
+        UPDATE Occupancy 
+        SET CheckOutDate = @checkOutDate, DepositRefunded = @depositRefunded, Charges = @charges, UpdatedDate = GETUTCDATE()
+        WHERE Id = @occupancyId
+      `);
+
+    if (updateResult.rowsAffected[0] === 0) {
+      return res.status(500).json({ error: 'Failed to update occupancy' });
+    }
+
+    // Get updated occupancy details to return to client
+    const updatedResult = await pool
+      .request()
+      .input('occupancyId', sql.Int, parseInt(occupancyId))
+      .query(`
+        SELECT 
+          o.Id as occupancyId,
+          o.TenantId as tenantId,
+          t.Name as tenantName,
+          o.RoomId as roomId,
+          rd.Number as roomNumber,
+          o.CheckInDate as checkInDate,
+          o.CheckOutDate as checkOutDate,
+          ISNULL(CAST(o.DepositRefunded AS FLOAT), 0) as depositRefunded,
+          ISNULL(CAST(o.Charges AS FLOAT), 0) as charges,
+          CASE WHEN o.CheckOutDate > CAST(GETDATE() AS DATE) THEN 1 ELSE 0 END as isActive
+        FROM Occupancy o
+        JOIN Tenant t ON o.TenantId = t.Id
+        JOIN RoomDetail rd ON o.RoomId = rd.Id
+        WHERE o.Id = @occupancyId
+      `);
+
+    const updatedOccupancy = updatedResult.recordset[0];
+
+    console.log(`[Occupancy Checkout] Tenant ${updatedOccupancy.tenantName} (ID: ${updatedOccupancy.tenantId}) checked out from Room ${updatedOccupancy.roomNumber} on ${checkOutDate}`);
+
+    res.json({ 
+      message: 'Occupancy checkout completed successfully',
+      occupancy: updatedOccupancy
+    });
+  } catch (error) {
+    console.error('Checkout occupancy error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to checkout occupancy',
+      details: errorMessage
+    });
+  }
+});
+
 // Cache for Indian cities
 let citiesCache: string[] | null = null;
 let cacheTimestamp = 0;
@@ -3804,8 +4080,17 @@ app.get('/api/rental/occupancy/:occupancyId/summary', async (req: Request, res: 
           t.Name as tenantName,
           rd.Number as roomNumber,
           ISNULL(o.RentFixed, rd.Rent) as rentFixed,
+          ISNULL(CAST(o.DepositReceived AS FLOAT), 0) as depositReceived,
           ISNULL(SUM(CAST(rc.RentReceived AS FLOAT)), 0) as totalRentReceived,
           ISNULL(SUM(CAST(rc.Charges AS FLOAT)), 0) as totalCharges,
+          ISNULL(CAST(COALESCE(
+            (SELECT TOP 1 CAST(RentBalance AS FLOAT) 
+             FROM RentalCollection 
+             WHERE OccupancyId = o.Id 
+             AND YEAR(RentReceivedOn) = YEAR(GETDATE())
+             AND MONTH(RentReceivedOn) = MONTH(GETDATE())
+             ORDER BY RentReceivedOn DESC),
+            0) AS FLOAT), 0) as currentMonthPending,
           COUNT(rc.Id) as paymentRecordsCount,
           MAX(rc.RentReceivedOn) as lastPaymentDate,
           o.CheckInDate as checkInDate,
@@ -3815,7 +4100,7 @@ app.get('/api/rental/occupancy/:occupancyId/summary', async (req: Request, res: 
         INNER JOIN RoomDetail rd ON o.RoomId = rd.Id
         LEFT JOIN RentalCollection rc ON o.Id = rc.OccupancyId
         WHERE o.Id = @occupancyId
-        GROUP BY o.Id, t.Name, rd.Number, o.RentFixed, rd.Rent, o.CheckInDate, o.CheckOutDate
+        GROUP BY o.Id, t.Name, rd.Number, o.RentFixed, o.DepositReceived, rd.Rent, o.CheckInDate, o.CheckOutDate
       `);
     
     if (result.recordset.length === 0) {

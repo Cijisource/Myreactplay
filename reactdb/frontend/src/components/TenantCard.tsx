@@ -6,6 +6,8 @@ interface TenantCardProps {
   tenant: TenantWithOccupancy;
   onView: (tenant: TenantWithOccupancy) => void;
   onEdit: (tenant: TenantWithOccupancy) => void;
+  onCheckout: (occupancy: any) => void;
+  onCheckIn: (tenant: TenantWithOccupancy) => void;
   onDeleteClick: (tenantId: number | null) => void;
   onDeleteConfirm: (tenantId: number) => Promise<void>;
   showDeleteConfirm: number | null;
@@ -15,10 +17,13 @@ export default function TenantCard({
   tenant,
   onView,
   onEdit,
+  onCheckout,
+  onCheckIn,
   onDeleteClick,
   onDeleteConfirm,
   showDeleteConfirm,
 }: TenantCardProps) {
+  
   const handlePhotoClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     onView(tenant);
@@ -62,6 +67,31 @@ export default function TenantCard({
           aria-label="View photos"
         >
           👁
+        </button>
+      )}
+      {tenant.isCurrentlyOccupied && (
+        <button
+          className="action-icon-btn action-checkout"
+          onClick={() => onCheckout({
+            id: tenant.occupancyId,
+            tenantName: tenant.name,
+            roomNumber: tenant.roomNumber,
+            checkInDate: tenant.checkInDate
+          })}
+          title="Checkout tenant"
+          aria-label="Checkout"
+        >
+          👤
+        </button>
+      )}
+      {!tenant.isCurrentlyOccupied && (
+        <button
+          className="action-icon-btn action-checkin"
+          onClick={() => onCheckIn(tenant)}
+          title="Check in tenant to a room"
+          aria-label="Check In"
+        >
+          🏠
         </button>
       )}
       <button
