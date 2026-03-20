@@ -6,6 +6,7 @@ import jwt from 'jsonwebtoken';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { initializeAzureClient, isAzureConfigured, downloadAzureBlob, getAzureBlobSasUrl } from './azureService';
 
 const app: Express = express();
 const PORT: number = parseInt(process.env.EXPRESS_PORT || '5000');
@@ -3836,6 +3837,9 @@ app.get('/api/rental/occupancy/:occupancyId/summary', async (req: Request, res: 
 const startServer = async () => {
   try {
     await initializeDatabase();
+    
+    // Initialize Azure Blob Storage if configured
+    initializeAzureClient();
     
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`✓ Express server running on port ${PORT}`);

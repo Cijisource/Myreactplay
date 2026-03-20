@@ -180,26 +180,40 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #c6f6d5;
+  background: linear-gradient(135deg, #c6f6d5 0%, #a8e6c1 100%);
   color: #22543d;
   padding: 1rem 1.5rem;
   border-radius: 8px;
   margin-bottom: 1.5rem;
-  border-left: 4px solid #22863a;
-  animation: slideDown 0.3s ease-out;
+  border-left: 5px solid #22863a;
+  animation: slideDown 0.3s ease-out, successPulse 0.5s ease-out;
+  box-shadow: 0 4px 12px rgba(34, 134, 58, 0.15);
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.success-message span {
+  flex: 1;
 }
 
 .error-message {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #fed7d7;
+  background: linear-gradient(135deg, #fed7d7 0%, #fc8181 100%);
   color: #742a2a;
   padding: 1rem 1.5rem;
   border-radius: 8px;
   margin-bottom: 1.5rem;
-  border-left: 4px solid #cb2431;
+  border-left: 5px solid #cb2431;
   animation: slideDown 0.3s ease-out;
+  box-shadow: 0 4px 12px rgba(202, 36, 49, 0.15);
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.error-message span {
+  flex: 1;
 }
 
 .success-message button,
@@ -211,6 +225,37 @@
   color: inherit;
   padding: 0;
   margin-left: 1rem;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+  flex-shrink: 0;
+}
+
+.success-message button:hover,
+.error-message button:hover {
+  opacity: 1;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes successPulse {
+  0% {
+    box-shadow: 0 4px 12px rgba(34, 134, 58, 0.15);
+  }
+  50% {
+    box-shadow: 0 6px 20px rgba(34, 134, 58, 0.25);
+  }
+  100% {
+    box-shadow: 0 4px 12px rgba(34, 134, 58, 0.15);
+  }
 }
 
 @keyframes slideDown {
@@ -384,11 +429,36 @@
   margin-bottom: 1.5rem;
 }
 
+/* Loading More Indicator */
+.loading-more-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem 1rem;
+  margin-top: 2rem;
+  min-height: 100px;
+}
+
+.loading-more-indicator .loading-spinner {
+  width: 40px;
+  height: 40px;
+  border-width: 3px;
+}
+
+.loading-more-indicator p {
+  color: #718096;
+  font-size: 0.95rem;
+  margin: 0;
+  font-weight: 500;
+}
+
 /* Tenants Grid */
 .tenants-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
 }
 
 .tenant-card {
@@ -406,11 +476,21 @@
   transform: translateY(-4px);
 }
 
+.tenant-card.no-payment-received {
+  border-left: 5px solid #dc2626;
+  background: #fef2f2;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.15);
+}
+
+.tenant-card.no-payment-received:hover {
+  box-shadow: 0 8px 16px rgba(220, 38, 38, 0.25);
+}
+
 /* Tenant Image */
 .tenant-image-container {
   position: relative;
   width: 100%;
-  height: 200px;
+  height: 150px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   overflow: hidden;
 }
@@ -427,7 +507,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 3rem;
+  font-size: 2.5rem;
   font-weight: bold;
   color: white;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -498,12 +578,12 @@
 }
 
 .action-icon-btn {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   border: none;
   color: white;
-  font-size: 1.3rem;
+  font-size: 1.1rem;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -549,30 +629,32 @@
 
 /* Tenant Info */
 .tenant-info {
-  padding: 1.5rem;
+  padding: 1rem;
   flex: 1;
 }
 
 .tenant-name {
-  font-size: 1.25rem;
+  font-size: 1.1rem;
   font-weight: 700;
   color: #1a202c;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
 }
 
 .tenant-detail {
   display: flex;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
   flex-wrap: wrap;
   gap: 0.5rem;
+  font-size: 0.9rem;
 }
 
 .tenant-detail.added-date {
   background: #f0fdf4;
-  padding: 0.5rem 0.75rem;
+  padding: 0.4rem 0.6rem;
   border-left: 3px solid #22863a;
   border-radius: 4px;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.85rem;
 }
 
 .tenant-detail.added-date .detail-label {
@@ -589,9 +671,9 @@
 .detail-label {
   font-weight: 600;
   color: #718096;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   text-transform: uppercase;
-  min-width: 60px;
+  min-width: 50px;
 }
 
 .detail-value {
@@ -601,15 +683,15 @@
 
 /* Room Details */
 .room-details {
-  padding: 1.5rem;
+  padding: 1rem;
   background: #f7fafc;
   border-top: 1px solid #e2e8f0;
 }
 
 .room-details h4 {
   color: #1a202c;
-  font-size: 0.95rem;
-  margin-bottom: 1rem;
+  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
   text-transform: uppercase;
   font-weight: 600;
   letter-spacing: 0.5px;
@@ -618,8 +700,8 @@
 .room-info {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 1rem;
-  margin-bottom: 1.5rem;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
 }
 
 .room-item {
@@ -628,15 +710,15 @@
 }
 
 .room-label {
-  font-size: 0.8rem;
+  font-size: 0.7rem;
   color: #718096;
   text-transform: uppercase;
   font-weight: 600;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.15rem;
 }
 
 .room-value {
-  font-size: 1rem;
+  font-size: 0.9rem;
   font-weight: 600;
   color: #1a202c;
 }
@@ -644,34 +726,34 @@
 /* Payment Status */
 .payment-status {
   background: white;
-  padding: 1rem;
+  padding: 0.75rem;
   border-radius: 6px;
   border: 1px solid #e2e8f0;
 }
 
 .payment-status h5 {
   color: #2d3748;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   text-transform: uppercase;
   font-weight: 600;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
   letter-spacing: 0.5px;
 }
 
 .payment-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  margin-bottom: 0.75rem;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
 }
 
 .payment-item {
-  padding: 0.75rem;
+  padding: 0.6rem;
   border-radius: 6px;
   text-align: center;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.3rem;
 }
 
 .payment-item.received {
@@ -690,14 +772,14 @@
 }
 
 .payment-label {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: #2d3748;
   font-weight: 600;
   text-transform: uppercase;
 }
 
 .payment-amount {
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 700;
   color: #1a202c;
   font-family: 'Courier New', monospace;
@@ -715,10 +797,10 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.85rem;
-  padding-top: 0.75rem;
+  font-size: 0.75rem;
+  padding-top: 0.5rem;
   border-top: 1px solid #e2e8f0;
-  margin-top: 0.75rem;
+  margin-top: 0.5rem;
 }
 
 .payment-date {

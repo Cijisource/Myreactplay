@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { TenantWithOccupancy } from './TenantManagement';
 import { getFileUrl } from '../api';
 
@@ -24,6 +24,8 @@ export default function TenantCard({
     onView(tenant);
   };
 
+  const [expandRoomDetails, setExpandRoomDetails] = useState(false);
+
   // Check if payment is missing or not from current month
   const isPaymentMissing = (): boolean => {
     if (!tenant.lastPaymentDate) return true;
@@ -35,6 +37,11 @@ export default function TenantCard({
       lastPaymentDate.getMonth() !== today.getMonth() ||
       lastPaymentDate.getFullYear() !== today.getFullYear()
     );
+  };
+
+  // Check if no payment has been received for current month
+  const isPaymentNotReceived = (): boolean => {
+    return !tenant.currentRentReceived || tenant.currentRentReceived === 0;
   };
 
   const hasAdditionalMedia = Boolean(
@@ -82,7 +89,7 @@ export default function TenantCard({
   };
 
   return (
-    <div className="tenant-card">
+    <div className={`tenant-card ${tenant.isCurrentlyOccupied && isPaymentNotReceived() ? 'no-payment-received' : ''}`}>
       {/* Tenant Image */}
       <div className="tenant-image-container">
         {tenant.photoUrl ? (
@@ -141,74 +148,88 @@ export default function TenantCard({
       {/* Room Details (if occupied) */}
       {tenant.isCurrentlyOccupied && (
         <div className="room-details">
-          <h4>Room & Payment Details</h4>
-          <div className="room-info">
-            <div className="room-item">
-              <span className="room-label">Room:</span>
-              <span className="room-value">{tenant.roomNumber}</span>
-            </div>
-            <div className="room-item">
-              <span className="room-label">Rent Fixed:</span>
-              <span className="room-value">
-                ₹{tenant.rentFixed?.toLocaleString() ?? '0'}
-              </span>
-            </div>
-            <div className="room-item">
-              <span className="room-label">Check-in:</span>
-              <span className="room-value">
-                {tenant.checkInDate
-                  ? new Date(tenant.checkInDate).toLocaleDateString()
-                  : '-'}
-              </span>
-            </div>
-            {tenant.checkOutDate && (
-              <div className="room-item">
-                <span className="room-label">Check-out:</span>
-                <span className="room-value">
-                  {new Date(tenant.checkOutDate).toLocaleDateString()}
-                </span>
-              </div>
-            )}
+          <div 
+            className="room-details-header" 
+            onClick={() => setExpandRoomDetails(!expandRoomDetails)}
+            style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+          >
+            <h4>Room & Payment Details</h4>
+            <span style={{ fontSize: '1.2em' }}>
+              {expandRoomDetails ? '▼' : '▶'}
+            </span>
           </div>
+          
+          {expandRoomDetails && (
+            <>
+              <div className="room-info">
+                <div className="room-item">
+                  <span className="room-label">Room:</span>
+                  <span className="room-value">{tenant.roomNumber}</span>
+                </div>
+                <div className="room-item">
+                  <span className="room-label">Rent Fixed:</span>
+                  <span className="room-value">
+                    ₹{tenant.rentFixed?.toLocaleString() ?? '0'}
+                  </span>
+                </div>
+                <div className="room-item">
+                  <span className="room-label">Check-in:</span>
+                  <span className="room-value">
+                    {tenant.checkInDate
+                      ? new Date(tenant.checkInDate).toLocaleDateString()
+                      : '-'}
+                  </span>
+                </div>
+                {tenant.checkOutDate && (
+                  <div className="room-item">
+                    <span className="room-label">Check-out:</span>
+                    <span className="room-value">
+                      {new Date(tenant.checkOutDate).toLocaleDateString()}
+                    </span>
+                  </div>
+                )}
+              </div>
 
-          {/* Payment Status */}
-          <div className={`payment-status ${tenant.isCurrentlyOccupied && isPaymentMissing() ? 'payment-pending' : ''}`}>
-            <h5>Current Month Payment</h5>
-            <div className="payment-row">
-              <div className="payment-item received">
-                <span className="payment-label">Received</span>
-                <span className="payment-amount">
-                  ₹{tenant.currentRentReceived?.toLocaleString() ?? '0'}
-                </span>
+              {/* Payment Status */}
+              <div className={`payment-status ${tenant.isCurrentlyOccupied && isPaymentMissing() ? 'payment-pending' : ''}`}>
+                <h5>Current Month Payment</h5>
+                <div className="payment-row">
+                  <div className="payment-item received">
+                    <span className="payment-label">Received</span>
+                    <span className="payment-amount">
+                      ₹{tenant.currentRentReceived?.toLocaleString() ?? '0'}
+                    </span>
+                  </div>
+                  <div
+                    className={`payment-item ${
+                      tenant.currentPendingPayment &&
+                      tenant.currentPendingPayment > 0
+                        ? 'pending'
+                        : 'cleared'
+                    }`}
+                  >
+                    <span className="payment-label">Pending</span>
+                    <span className="payment-amount">
+                      ₹{tenant.currentPendingPayment?.toLocaleString() ?? '0'}
+                    </span>
+                  </div>
+                </div>
+                {tenant.lastPaymentDate ? (
+                  <div className={`last-payment ${isPaymentMissing() ? 'outdated' : ''}`}>
+                    <span className="payment-label">Last Payment:</span>
+                    <span className="payment-date">
+                      {new Date(tenant.lastPaymentDate).toLocaleDateString()}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="last-payment missing">
+                    <span className="payment-label">Last Payment:</span>
+                    <span className="payment-date">No payment recorded</span>
+                  </div>
+                )}
               </div>
-              <div
-                className={`payment-item ${
-                  tenant.currentPendingPayment &&
-                  tenant.currentPendingPayment > 0
-                    ? 'pending'
-                    : 'cleared'
-                }`}
-              >
-                <span className="payment-label">Pending</span>
-                <span className="payment-amount">
-                  ₹{tenant.currentPendingPayment?.toLocaleString() ?? '0'}
-                </span>
-              </div>
-            </div>
-            {tenant.lastPaymentDate ? (
-              <div className={`last-payment ${isPaymentMissing() ? 'outdated' : ''}`}>
-                <span className="payment-label">Last Payment:</span>
-                <span className="payment-date">
-                  {new Date(tenant.lastPaymentDate).toLocaleDateString()}
-                </span>
-              </div>
-            ) : (
-              <div className="last-payment missing">
-                <span className="payment-label">Last Payment:</span>
-                <span className="payment-date">No payment recorded</span>
-              </div>
-            )}
-          </div>
+            </>
+          )}
         </div>
       )}
 

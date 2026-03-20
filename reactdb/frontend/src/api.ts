@@ -420,6 +420,12 @@ export const apiService = {
   // Diagnostic APIs
   getRentalSchema: () => api.get('/diagnostic/rental-schema'),
   getRentalSample: () => api.get('/diagnostic/rental-sample'),
+
+  // Azure Blob Storage APIs
+  getTenantMainPhotoFromAzure: (tenantId: number, format: 'url' | 'blob' = 'url') => 
+    api.get(`/tenants/${tenantId}/main-photo/azure${format === 'url' ? '?format=url' : ''}`),
+  getTenantMainPhotoUrl: (tenantId: number) => 
+    api.get(`/tenants/${tenantId}/main-photo/azure?format=url`),
 };
 
 // Helper functions

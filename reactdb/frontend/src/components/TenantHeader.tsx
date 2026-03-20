@@ -39,7 +39,7 @@ export default function TenantHeader({
           onClick={() => handleStatCardClick('occupied')}
           style={{ cursor: 'pointer' }}
         >
-          <div className="stat-label">Occupied Rooms</div>
+          <div className="stat-label">Occupied Tenants</div>
           <div className="stat-value">{occupiedTenants}</div>
         </div>
         <div
@@ -47,7 +47,7 @@ export default function TenantHeader({
           onClick={() => handleStatCardClick('vacant')}
           style={{ cursor: 'pointer' }}
         >
-          <div className="stat-label">Vacant Rooms</div>
+          <div className="stat-label">Vacant Tenants</div>
           <div className="stat-value">{vacantTenants}</div>
         </div>
       </div>
