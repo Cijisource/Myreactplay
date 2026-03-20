@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { apiService } from '../api';
 import SearchableDropdown from './SearchableDropdown';
 import TenantForm from './TenantForm';
@@ -48,10 +48,10 @@ export interface TenantWithOccupancy extends Tenant {
   currentPendingPayment?: number;
   currentRentReceived?: number;
   lastPaymentDate?: string;
+  azurePhotoUrl?: string | null;
 }
 
 export default function TenantManagement() {
-  const [tenants, setTenants] = useState<TenantWithOccupancy[]>([]);
   const [filteredTenants, setFilteredTenants] = useState<TenantWithOccupancy[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +69,7 @@ export default function TenantManagement() {
   const [fullscreenMediaTab, setFullscreenMediaTab] = useState<'photos' | 'proofs'>('photos');
   const [selectedRoom, setSelectedRoom] = useState<string>('');
   const [showFilters, setShowFilters] = useState(false);
+  const [allUniqueTenants, setAllUniqueTenants] = useState<TenantWithOccupancy[]>([]); // Store all tenants
 
   // Helper function to normalize phone numbers
   const normalizePhone = (phone: string): string => {
@@ -76,14 +77,59 @@ export default function TenantManagement() {
     return phone.replace(/[\s\-()+.]/g, '').toLowerCase();
   };
 
+  const fetchTenants = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await apiService.getAllTenantsWithOccupancy();
+      // Normalize room numbers by trimming whitespace - ensures consistency
+      const normalizedTenants = response.data.map((tenant: TenantWithOccupancy) => ({
+        ...tenant,
+        roomNumber: tenant.roomNumber ? String(tenant.roomNumber).trim() : tenant.roomNumber,
+      }));
+      
+      // Remove duplicate tenant IDs (keep first occurrence)
+      const seenIds = new Set<number>();
+      const uniqueTenants = normalizedTenants.filter((tenant: TenantWithOccupancy) => {
+        if (seenIds.has(tenant.id)) {
+          console.warn(`Duplicate tenant ID found: ${tenant.id} (${tenant.name}). Filtering out duplicate.`);
+          return false;
+        }
+        seenIds.add(tenant.id);
+        return true;
+      });
+      
+      // Construct Azure photo URLs for all tenants
+      const tenantsWithAzurePhotos = uniqueTenants.map((tenant: TenantWithOccupancy) => {
+        if (tenant.photoUrl) {
+          const azureUrl = `https://complexstore.blob.core.windows.net/proofs/${tenant.photoUrl}`;
+          return {
+            ...tenant,
+            azurePhotoUrl: azureUrl,
+          };
+        }
+        return tenant;
+      });
+      
+      // Store all tenants (no pagination)
+      setAllUniqueTenants(tenantsWithAzurePhotos);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to fetch tenants';
+      setError(errorMsg);
+      console.error('Error fetching tenants:', errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   // Fetch tenants with occupancy details
   useEffect(() => {
     fetchTenants();
-  }, []);
+  }, [fetchTenants]);
 
-  // Filter tenants based on search query and room filter
+  // Filter tenants based on search query, occupancy filter, and room filter
   useEffect(() => {
-    const filtered = tenants.filter((tenant) => {
+    const filtered = allUniqueTenants.filter((tenant) => {
       // Apply occupancy status filter
       if (occupancyFilter === 'occupied' && !tenant.isCurrentlyOccupied) return false;
       if (occupancyFilter === 'vacant' && tenant.isCurrentlyOccupied) return false;
@@ -152,12 +198,12 @@ export default function TenantManagement() {
       }
     });
     setFilteredTenants(filtered);
-  }, [searchQuery, searchField, tenants, selectedRoom, occupancyFilter]);
+  }, [searchQuery, searchField, allUniqueTenants, selectedRoom, occupancyFilter]);
 
   // Generate available room options
   const roomOptions = useMemo(() => {
     const uniqueRooms = new Set<string>();
-    tenants.forEach((t) => {
+    allUniqueTenants.forEach((t) => {
       if (t.roomNumber) {
         // Convert to string and trim to ensure consistent format
         const room = String(t.roomNumber).trim();
@@ -181,7 +227,7 @@ export default function TenantManagement() {
 
     // Create dropdown options with room, and count tenants in each room
     return sortedRooms.map((room) => {
-      const tenantCount = tenants.filter(t => {
+      const tenantCount = allUniqueTenants.filter(t => {
         const tenantRoom = t.roomNumber ? String(t.roomNumber).trim() : '';
         return tenantRoom === room;
       }).length;
@@ -191,7 +237,7 @@ export default function TenantManagement() {
         label: `Room ${room} (${tenantCount})`,
       };
     });
-  }, [tenants]);
+  }, [allUniqueTenants]);
 
   // Sort filtered tenants
   const sortedAndFilteredTenants = useMemo(() => {
@@ -208,46 +254,32 @@ export default function TenantManagement() {
         return sorted.sort((a, b) => a.city.localeCompare(b.city));
       case 'recently-added':
         return sorted.sort((a, b) => {
+          // Primary sort: by checkInDate (most recent first)
           const dateA = a.checkInDate ? new Date(a.checkInDate).getTime() : 0;
           const dateB = b.checkInDate ? new Date(b.checkInDate).getTime() : 0;
-          return dateB - dateA; // Most recent first
+          
+          if (dateB !== dateA) {
+            return dateB - dateA; // Most recent first (descending)
+          }
+          
+          // Fallback: sort by tenant ID (descending) if dates are the same
+          return b.id - a.id;
         });
       default:
-        return sorted;
+        // Default: sort by recently-added (descending order by creation)
+        return sorted.sort((a, b) => {
+          const dateA = a.checkInDate ? new Date(a.checkInDate).getTime() : 0;
+          const dateB = b.checkInDate ? new Date(b.checkInDate).getTime() : 0;
+          
+          if (dateB !== dateA) {
+            return dateB - dateA; // Most recent first (descending)
+          }
+          
+          // Fallback: sort by tenant ID (descending) if dates are the same
+          return b.id - a.id;
+        });
     }
   }, [filteredTenants, sortBy]);
-
-  const fetchTenants = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await apiService.getAllTenantsWithOccupancy();
-      // Normalize room numbers by trimming whitespace - ensures consistency
-      const normalizedTenants = response.data.map((tenant: TenantWithOccupancy) => ({
-        ...tenant,
-        roomNumber: tenant.roomNumber ? String(tenant.roomNumber).trim() : tenant.roomNumber,
-      }));
-      
-      // Remove duplicate tenant IDs (keep first occurrence)
-      const seenIds = new Set<number>();
-      const uniqueTenants = normalizedTenants.filter((tenant: TenantWithOccupancy) => {
-        if (seenIds.has(tenant.id)) {
-          console.warn(`Duplicate tenant ID found: ${tenant.id} (${tenant.name}). Filtering out duplicate.`);
-          return false;
-        }
-        seenIds.add(tenant.id);
-        return true;
-      });
-      
-      setTenants(uniqueTenants);
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to fetch tenants';
-      setError(errorMsg);
-      console.error('Error fetching tenants:', errorMsg);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleAddTenant = () => {
     setEditingTenant(null);
@@ -261,11 +293,12 @@ export default function TenantManagement() {
 
   const handleDeleteTenant = async (tenantId: number) => {
     try {
+      const tenantToDelete = allUniqueTenants.find(t => t.id === tenantId);
       await apiService.deleteTenant(tenantId);
       setShowDeleteConfirm(null);
-      setSuccessMessage('Tenant deleted successfully');
+      setSuccessMessage(`✓ Tenant "${tenantToDelete?.name}" deleted successfully`);
       await fetchTenants();
-      setTimeout(() => setSuccessMessage(null), 3000);
+      setTimeout(() => setSuccessMessage(null), 4000);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to delete tenant';
       setError(errorMsg);
@@ -281,16 +314,31 @@ export default function TenantManagement() {
     formData: Omit<TenantWithOccupancy, 'id'>
   ) => {
     try {
+      const tenantName = formData.name.trim();
+      const hasOccupancy = formData.roomId && formData.checkInDate;
+      
       if (editingTenant) {
         await apiService.updateTenant(editingTenant.id, formData);
-        setSuccessMessage('Tenant updated successfully');
+        
+        // Create contextual update message
+        if (hasOccupancy) {
+          setSuccessMessage(`✓ Tenant "${tenantName}" updated with room assignment`);
+        } else {
+          setSuccessMessage(`✓ Tenant "${tenantName}" updated successfully`);
+        }
       } else {
         await apiService.createTenant(formData);
-        setSuccessMessage('Tenant created successfully');
+        
+        // Create contextual creation message
+        if (hasOccupancy) {
+          setSuccessMessage(`✓ New tenant "${tenantName}" created & assigned to occupancy`);
+        } else {
+          setSuccessMessage(`✓ New tenant "${tenantName}" created successfully`);
+        }
       }
       handleFormClose();
       await fetchTenants();
-      setTimeout(() => setSuccessMessage(null), 3000);
+      setTimeout(() => setSuccessMessage(null), 4000);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to save tenant';
       setError(errorMsg);
@@ -325,11 +373,11 @@ export default function TenantManagement() {
 
   const stats = useMemo(() => {
     return {
-      totalTenants: tenants.length,
-      occupiedTenants: tenants.filter((t) => t.isCurrentlyOccupied).length,
-      vacantTenants: tenants.filter((t) => !t.isCurrentlyOccupied).length,
+      totalTenants: allUniqueTenants.length,
+      occupiedTenants: allUniqueTenants.filter((t) => t.isCurrentlyOccupied).length,
+      vacantTenants: allUniqueTenants.filter((t) => !t.isCurrentlyOccupied).length,
     };
-  }, [tenants]);
+  }, [allUniqueTenants]);
 
   return (
     <div className="tenant-management-container">
@@ -453,7 +501,7 @@ export default function TenantManagement() {
       )}
 
       {/* Empty State */}
-      {!loading && sortedAndFilteredTenants.length === 0 && tenants.length > 0 && (
+      {!loading && sortedAndFilteredTenants.length === 0 && allUniqueTenants.length > 0 && (
         <div className="empty-state">
           <p>No tenants found matching your search criteria</p>
           <button
@@ -469,7 +517,7 @@ export default function TenantManagement() {
       )}
 
       {/* No Tenants State */}
-      {!loading && tenants.length === 0 && !error && (
+      {!loading && allUniqueTenants.length === 0 && !error && (
         <div className="empty-state">
           <p>No tenants found. Start by adding a new tenant.</p>
           <button className="btn-primary" onClick={handleAddTenant}>

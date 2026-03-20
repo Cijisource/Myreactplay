@@ -1,11 +1,13 @@
 import { TenantWithOccupancy } from './TenantManagement';
 import { getFileUrl } from '../api';
+import { useState } from 'react';
 
 interface TenantFullScreenViewProps {
   tenant: TenantWithOccupancy;
   onClose?: () => void;
   onViewPhoto?: (photoIndex: number) => void;
   onViewProof?: (proofIndex: number) => void;
+  useAzurePhotos?: boolean; // Enable Azure Blob Storage for main photo
 }
 
 export default function TenantFullScreenView({
@@ -13,7 +15,12 @@ export default function TenantFullScreenView({
   onClose,
   onViewPhoto,
   onViewProof,
+  // useAzurePhotos is declared in props interface but always defaults to using Azure photo from tenant.azurePhotoUrl
 }: TenantFullScreenViewProps) {
+  const [azurePhotoUrl, setAzurePhotoUrl] = useState<string | null>(tenant.azurePhotoUrl || null);
+
+  // Use pre-fetched Azure photo URL from tenant data
+  const mainPhotoUrl = azurePhotoUrl || (tenant.photoUrl ? getFileUrl(tenant.photoUrl) : null);
 
   const getTenantPhotos = (tenant: TenantWithOccupancy): string[] => {
     return [
@@ -51,12 +58,19 @@ export default function TenantFullScreenView({
         <div className="fullscreen-header">
           <div className="fullscreen-title-section">
             <h1>{tenant.name}</h1>
-            {tenant.photoUrl && (
+            {mainPhotoUrl && (
               <div className="fullscreen-main-photo">
                 <img
-                  src={getFileUrl(tenant.photoUrl)}
+                  src={mainPhotoUrl}
                   alt={tenant.name}
                   loading="lazy"
+                  onError={(e) => {
+                    console.error('Failed to load image:', e);
+                    if (azurePhotoUrl && tenant.photoUrl) {
+                      // Fallback to local file if Azure fails
+                      setAzurePhotoUrl(null);
+                    }
+                  }}
                 />
               </div>
             )}

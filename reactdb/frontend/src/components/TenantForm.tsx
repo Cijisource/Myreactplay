@@ -111,8 +111,8 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
       phone: tenant?.phone || '',
       address: tenant?.address || '',
       city: tenant?.city || '',
-      roomId: '',
-      checkInDate: '',
+      roomId: tenant?.roomId ? String(tenant.roomId) : '',
+      checkInDate: tenant?.checkInDate || '',
     });
     setPhotos([]);
     setProofs([]);
@@ -139,8 +139,30 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
         const response = await apiService.getVacantRooms();
         console.log('[TenantForm] Vacant rooms response:', response);
         console.log('[TenantForm] Vacant rooms data:', response.data);
-        setVacantRooms(response.data || []);
-        console.log('[TenantForm] Vacant rooms set:', response.data?.length || 0);
+        
+        let rooms = response.data || [];
+        
+        // If editing a tenant with current occupancy, include their current room in the list
+        if (tenant?.id && tenant?.roomNumber && tenant?.roomId) {
+          const currentRoomExists = rooms.some((r: any) => r.id === tenant.roomId);
+          if (!currentRoomExists) {
+            // Add current room to the list so tenant can keep it selected
+            rooms = [{
+              id: tenant.roomId,
+              number: tenant.roomNumber,
+              rent: tenant.rentFixed || 0,
+              beds: 1, // Default value
+              lastCheckOutDate: null,
+              lastTenantName: tenant.name,
+              lastTenantPhone: tenant.phone,
+              daysVacant: 0,
+              vacancyStatus: 'Currently Occupied',
+            }, ...rooms];
+          }
+        }
+        
+        setVacantRooms(rooms);
+        console.log('[TenantForm] Vacant rooms set:', rooms?.length || 0);
       } catch (err) {
         console.error('[TenantForm] Error fetching vacant rooms:', err);
         if (err instanceof Error) {
@@ -153,14 +175,9 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
       }
     };
     
-    // Fetch when adding new tenant (not editing)
+    // Fetch for both new tenants and when editing
     console.log('[TenantForm] Checking if should fetch vacant rooms. tenant?.id:', tenant?.id);
-    if (!tenant?.id) {
-      console.log('[TenantForm] Fetching vacant rooms for new tenant');
-      fetchVacantRooms();
-    } else {
-      console.log('[TenantForm] Editing existing tenant, skipping vacant rooms fetch');
-    }
+    fetchVacantRooms();
   }, [tenant?.id]);
 
   // Cleanup phone check timeout on unmount
@@ -538,12 +555,21 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
       setError(message);
       return false;
     }
-    // Validate occupancy fields - if room is selected, check-in date is required
-    if (formData.roomId && !formData.checkInDate) {
-      setError('Check-in date is required when selecting a room');
+    // Validate occupancy fields
+    // For NEW tenants: if room is selected, check-in date is required
+    if (!tenant?.id && formData.roomId && !formData.checkInDate) {
+      setError('Check-in date is required when selecting a room for a new tenant');
       return false;
     }
-    if (formData.checkInDate && !formData.roomId) {
+    // For EXISTING tenants: if changing room to a different one, require check-in date
+    if (tenant?.id && formData.roomId && 
+        formData.roomId !== String(tenant.roomId) && 
+        !formData.checkInDate) {
+      setError('Check-in date is required when assigning to a new room');
+      return false;
+    }
+    // If check-in date is set but no room is selected on new tenant, error
+    if (!tenant?.id && formData.checkInDate && !formData.roomId) {
       setError('Room is required when setting a check-in date');
       return false;
     }
@@ -855,69 +881,70 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
               </div>
             </div>
 
-            {/* Occupancy Fields - Only shown when adding new tenant */}
-            {!tenant?.id && (
-              <>
-                <div className="form-group">
-                  <label htmlFor="roomId">Room (Optional - leave blank to add tenant without occupancy)</label>
-                  <select
-                    id="roomId"
-                    name="roomId"
-                    value={formData.roomId}
-                    onChange={handleSelectChange}
-                    disabled={loading || isLoadingRooms || vacantRooms.length === 0}
-                  >
-                    <option value="">
-                      {isLoadingRooms ? 'Loading rooms...' : vacantRooms.length === 0 ? 'No vacant rooms available' : 'Select a room (Optional)'}
-                    </option>
-                    {vacantRooms.map((room) => {
-                      // Format age display
-                      let ageInfo = '';
-                      if (room.daysVacant !== null && room.daysVacant !== undefined) {
-                        const days = room.daysVacant;
-                        if (days === 0) {
-                          ageInfo = ' | Age: New';
-                        } else if (days < 30) {
-                          ageInfo = ` | Age: ${days}d`;
-                        } else {
-                          const months = Math.floor(days / 30);
-                          const remainingDays = days % 30;
-                          ageInfo = remainingDays > 0 
-                            ? ` | Age: ${months}m ${remainingDays}d`
-                            : ` | Age: ${months}m`;
-                        }
-                      } else if (room.vacancyStatus === 'Never Occupied') {
-                        ageInfo = ' | Age: New/Never Occupied';
+            {/* Occupancy Fields - Shown for both new and existing tenants */}
+            <>
+              <div className="form-group">
+                <label htmlFor="roomId">Room {!tenant?.id && '(Optional - leave blank to add tenant without occupancy)'}</label>
+                <select
+                  id="roomId"
+                  name="roomId"
+                  value={formData.roomId}
+                  onChange={handleSelectChange}
+                  disabled={loading || isLoadingRooms || vacantRooms.length === 0}
+                >
+                  <option value="">
+                    {isLoadingRooms ? 'Loading rooms...' : vacantRooms.length === 0 ? 'No vacant rooms available' : tenant?.id ? 'Select a room to assign occupancy' : 'Select a room (Optional)'}
+                  </option>
+                  {vacantRooms.map((room) => {
+                    // Format age display
+                    let ageInfo = '';
+                    if (room.daysVacant !== null && room.daysVacant !== undefined) {
+                      const days = room.daysVacant;
+                      if (days === 0) {
+                        ageInfo = ' | Age: New';
+                      } else if (days < 30) {
+                        ageInfo = ` | Age: ${days}d`;
+                      } else {
+                        const months = Math.floor(days / 30);
+                        const remainingDays = days % 30;
+                        ageInfo = remainingDays > 0 
+                          ? ` | Age: ${months}m ${remainingDays}d`
+                          : ` | Age: ${months}m`;
                       }
-                      
-                      const tooltipText = room.lastTenantName 
-                        ? `Last tenant: ${room.lastTenantName} (${room.lastTenantPhone || 'N/A'}) | Checked out: ${room.lastCheckOutDate || 'N/A'} | Vacant for ${room.daysVacant || 0} days | Status: ${room.vacancyStatus}`
-                        : 'This room has never been occupied';
-                      return (
-                        <option key={room.id} value={room.id} title={tooltipText}>
-                          Room {room.number} - ₹{room.rent} ({room.beds} bed{room.beds !== 1 ? 's' : ''}){ageInfo}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
+                    } else if (room.vacancyStatus === 'Never Occupied') {
+                      ageInfo = ' | Age: New/Never Occupied';
+                    } else if (room.vacancyStatus === 'Currently Occupied') {
+                      ageInfo = ' | Status: Currently Occupied (Current Assignment)';
+                    }
+                    
+                    const tooltipText = room.lastTenantName 
+                      ? `Last tenant: ${room.lastTenantName} (${room.lastTenantPhone || 'N/A'}) | Checked out: ${room.lastCheckOutDate || 'N/A'} | Vacant for ${room.daysVacant || 0} days | Status: ${room.vacancyStatus}`
+                      : 'This room has never been occupied';
+                    return (
+                      <option key={room.id} value={room.id} title={tooltipText}>
+                        Room {room.number} - ₹{room.rent} ({room.beds} bed{room.beds !== 1 ? 's' : ''}){ageInfo}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
 
-                {formData.roomId && (
-                  <div className="form-group">
-                    <label htmlFor="checkInDate">Check-in Date *</label>
-                    <input
-                      id="checkInDate"
-                      type="date"
-                      name="checkInDate"
-                      value={formData.checkInDate}
-                      onChange={handleInputChange}
-                      disabled={loading}
-                      required
-                    />
-                  </div>
-                )}
-              </>
-            )}
+              {formData.roomId && (
+                <div className="form-group">
+                  <label htmlFor="checkInDate">Check-in Date {!tenant?.id && '*'}</label>
+                  <input
+                    id="checkInDate"
+                    type="date"
+                    name="checkInDate"
+                    value={formData.checkInDate}
+                    onChange={handleInputChange}
+                    disabled={loading}
+                    required={!tenant?.id}
+                  />
+                  {tenant?.id && <p className="field-hint">Optional - updates check-in date for this occupancy</p>}
+                </div>
+              )}
+            </>
           </div>
 
           {/* Photo Upload Section */}
