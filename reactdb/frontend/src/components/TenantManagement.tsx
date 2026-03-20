@@ -7,6 +7,8 @@ import TenantHeader from './TenantHeader';
 import TenantSearchFilters, { SearchField, SortOption } from './TenantSearchFilters';
 import TenantFullScreenView from './TenantFullScreenView';
 import TenantPhotoGalleryModal from './TenantPhotoGalleryModal';
+import CheckoutModal from './CheckoutModal';
+import CheckinModal from './CheckinModal';
 import './TenantManagement.css';
 
 export interface Tenant {
@@ -61,6 +63,10 @@ export default function TenantManagement() {
   const [occupancyFilter, setOccupancyFilter] = useState<'all' | 'occupied' | 'vacant'>('all');
   const [showForm, setShowForm] = useState(false);
   const [editingTenant, setEditingTenant] = useState<TenantWithOccupancy | null>(null);
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [checkoutOccupancy, setCheckoutOccupancy] = useState<any>(null);
+  const [showCheckIn, setShowCheckIn] = useState(false);
+  const [checkInTenant, setCheckInTenant] = useState<TenantWithOccupancy | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [fullScreenTenant, setFullScreenTenant] = useState<TenantWithOccupancy | null>(null);
@@ -352,6 +358,50 @@ export default function TenantManagement() {
     setFullscreenMediaTab('photos');
   };
 
+  const handleCheckoutSuccess = async () => {
+    // Refresh tenants list after successful checkout
+    try {
+      setSuccessMessage('Tenant checked out successfully');
+      await fetchTenants();
+      handleCheckoutClose();
+      setTimeout(() => setSuccessMessage(null), 4000);
+    } catch (err) {
+      console.error('Error refreshing tenants after checkout:', err);
+    }
+  };
+
+  const handleCheckoutOpen = (occupancy: any) => {
+    setCheckoutOccupancy(occupancy);
+    setShowCheckout(true);
+  };
+
+  const handleCheckoutClose = () => {
+    setShowCheckout(false);
+    setCheckoutOccupancy(null);
+  };
+
+  const handleCheckInOpen = (tenant: TenantWithOccupancy) => {
+    setCheckInTenant(tenant);
+    setShowCheckIn(true);
+  };
+
+  const handleCheckInClose = () => {
+    setShowCheckIn(false);
+    setCheckInTenant(null);
+  };
+
+  const handleCheckInSuccess = async () => {
+    // Refresh tenants list after successful check-in
+    try {
+      setSuccessMessage('Tenant checked in successfully');
+      await fetchTenants();
+      handleCheckInClose();
+      setTimeout(() => setSuccessMessage(null), 4000);
+    } catch (err) {
+      console.error('Error refreshing tenants after check-in:', err);
+    }
+  };
+
   const handleCloseFullscreen = () => {
     setFullScreenTenant(null);
     setFullscreenPhotoIndex(null);
@@ -434,6 +484,34 @@ export default function TenantManagement() {
         </div>
       )}
 
+      {/* Checkout Tenant Form Card */}
+      {showCheckout && checkoutOccupancy && (
+        <div className="tenant-form-card">
+          <h3>Checkout Tenant - {checkoutOccupancy.tenantName}</h3>
+          <CheckoutModal
+            occupancyId={checkoutOccupancy.id}
+            tenantName={checkoutOccupancy.tenantName}
+            roomNumber={checkoutOccupancy.roomNumber}
+            checkInDate={checkoutOccupancy.checkInDate}
+            onClose={handleCheckoutClose}
+            onCheckoutSuccess={handleCheckoutSuccess}
+          />
+        </div>
+      )}
+
+      {/* Check-In Tenant Form Card */}
+      {showCheckIn && checkInTenant && (
+        <div className="tenant-form-card">
+          <h3>Check-In Tenant - {checkInTenant.name}</h3>
+          <CheckinModal
+            tenantId={checkInTenant.id}
+            tenantName={checkInTenant.name}
+            onClose={handleCheckInClose}
+            onCheckInSuccess={handleCheckInSuccess}
+          />
+        </div>
+      )}
+
       {/* Filter Toggle Button */}
       <button className="filter-toggle-btn" onClick={() => setShowFilters(!showFilters)}>
         {showFilters ? '▼' : '▶'} {showFilters ? 'Hide' : 'Show'} Filters
@@ -492,6 +570,8 @@ export default function TenantManagement() {
               tenant={tenant}
               onView={handleViewTenant}
               onEdit={handleEditTenant}
+              onCheckout={handleCheckoutOpen}
+              onCheckIn={handleCheckInOpen}
               onDeleteClick={setShowDeleteConfirm}
               onDeleteConfirm={handleDeleteTenant}
               showDeleteConfirm={showDeleteConfirm}
