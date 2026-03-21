@@ -134,11 +134,11 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
   useEffect(() => {
     const fetchVacantRooms = async () => {
       try {
-        console.log('[TenantForm] Fetching vacant rooms...');
+        // console.log('[TenantForm] Fetching vacant rooms...');
         setIsLoadingRooms(true);
         const response = await apiService.getVacantRooms();
-        console.log('[TenantForm] Vacant rooms response:', response);
-        console.log('[TenantForm] Vacant rooms data:', response.data);
+        // console.log('[TenantForm] Vacant rooms response:', response);
+        // console.log('[TenantForm] Vacant rooms data:', response.data);
         
         let rooms = response.data || [];
         
@@ -162,7 +162,7 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
         }
         
         setVacantRooms(rooms);
-        console.log('[TenantForm] Vacant rooms set:', rooms?.length || 0);
+        // console.log('[TenantForm] Vacant rooms set:', rooms?.length || 0);
       } catch (err) {
         console.error('[TenantForm] Error fetching vacant rooms:', err);
         if (err instanceof Error) {
@@ -176,7 +176,7 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
     };
     
     // Fetch for both new tenants and when editing
-    console.log('[TenantForm] Checking if should fetch vacant rooms. tenant?.id:', tenant?.id);
+    // console.log('[TenantForm] Checking if should fetch vacant rooms. tenant?.id:', tenant?.id);
     fetchVacantRooms();
   }, [tenant?.id]);
 
@@ -587,7 +587,7 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
     setLoading(true);
     try {
       // Start with existing file URLs (for edit mode), excluding deleted ones
-      let photoUrls: string[] = [
+      let photoUrls: (string | null)[] = [
         tenant?.photoUrl || null,
         tenant?.photo2Url || null,
         tenant?.photo3Url || null,
@@ -601,11 +601,11 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
       ]
         .map((url, idx) => {
           const field = `photo${idx === 0 ? '' : idx + 1}Url`;
+          // Keep null for deleted photos so positional mapping is preserved for blob deletion
           return !url || deletedPhotoFields.has(field) ? null : url;
-        })
-        .filter((url): url is string => url !== null);
+        });
 
-      let proofUrls: string[] = [
+      let proofUrls: (string | null)[] = [
         tenant?.proof1Url || null,
         tenant?.proof2Url || null,
         tenant?.proof3Url || null,
@@ -619,9 +619,9 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
       ]
         .map((url, idx) => {
           const field = `proof${idx + 1}Url`;
+          // Keep null for deleted proofs so positional mapping is preserved for blob deletion
           return !url || deletedProofFields.has(field) ? null : url;
-        })
-        .filter((url): url is string => url !== null);
+        });
 
       // Collect files to upload (new photos + replacement photos + new proofs + replacement proofs)
       const filesToUpload = new FormData();
@@ -659,7 +659,7 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
           const uploadResponse = await apiService.uploadTenantFiles(filesToUpload, (progress) => {
             setUploadProgress(progress);
           });
-          console.log(`[Tenant ${tenant ? 'Update' : 'Creation'}] Upload response:`, uploadResponse);
+          // console.log(`[Tenant ${tenant ? 'Update' : 'Creation'}] Upload response:`, uploadResponse);
           
           if (uploadResponse.data) {
             const uploadedPhotos = uploadResponse.data.photoUrls || [];
@@ -679,10 +679,15 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
               }
             });
             
-            // Add remaining new photos
-            while (uploadedPhotoIndex < uploadedPhotos.length && photoUrls.length < MAX_PHOTOS) {
-              photoUrls.push(uploadedPhotos[uploadedPhotoIndex]);
-              uploadedPhotoIndex++;
+            // Add remaining new photos to first available null slots
+            while (uploadedPhotoIndex < uploadedPhotos.length) {
+              const nullIndex = photoUrls.findIndex((url) => url === null);
+              if (nullIndex !== -1) {
+                photoUrls[nullIndex] = uploadedPhotos[uploadedPhotoIndex];
+                uploadedPhotoIndex++;
+              } else {
+                break; // No more null slots available
+              }
             }
             
             // Handle replacement proofs
@@ -698,10 +703,15 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
               }
             });
             
-            // Add remaining new proofs
-            while (uploadedProofIndex < uploadedProofs.length && proofUrls.length < MAX_PROOFS) {
-              proofUrls.push(uploadedProofs[uploadedProofIndex]);
-              uploadedProofIndex++;
+            // Add remaining new proofs to first available null slots
+            while (uploadedProofIndex < uploadedProofs.length) {
+              const nullIndex = proofUrls.findIndex((url) => url === null);
+              if (nullIndex !== -1) {
+                proofUrls[nullIndex] = uploadedProofs[uploadedProofIndex];
+                uploadedProofIndex++;
+              } else {
+                break; // No more null slots available
+              }
             }
           }
         } catch (uploadErr) {
@@ -720,29 +730,29 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
         city: formData.city.trim(),
         roomId: formData.roomId ? parseInt(formData.roomId) : undefined,
         checkInDate: formData.checkInDate || undefined,
-        photoUrl: photoUrls[0] || null,
-        photo2Url: photoUrls[1] || null,
-        photo3Url: photoUrls[2] || null,
-        photo4Url: photoUrls[3] || null,
-        photo5Url: photoUrls[4] || null,
-        photo6Url: photoUrls[5] || null,
-        photo7Url: photoUrls[6] || null,
-        photo8Url: photoUrls[7] || null,
-        photo9Url: photoUrls[8] || null,
-        photo10Url: photoUrls[9] || null,
-        proof1Url: proofUrls[0] || null,
-        proof2Url: proofUrls[1] || null,
-        proof3Url: proofUrls[2] || null,
-        proof4Url: proofUrls[3] || null,
-        proof5Url: proofUrls[4] || null,
-        proof6Url: proofUrls[5] || null,
-        proof7Url: proofUrls[6] || null,
-        proof8Url: proofUrls[7] || null,
-        proof9Url: proofUrls[8] || null,
-        proof10Url: proofUrls[9] || null,
+        photoUrl: photoUrls[0],
+        photo2Url: photoUrls[1],
+        photo3Url: photoUrls[2],
+        photo4Url: photoUrls[3],
+        photo5Url: photoUrls[4],
+        photo6Url: photoUrls[5],
+        photo7Url: photoUrls[6],
+        photo8Url: photoUrls[7],
+        photo9Url: photoUrls[8],
+        photo10Url: photoUrls[9],
+        proof1Url: proofUrls[0],
+        proof2Url: proofUrls[1],
+        proof3Url: proofUrls[2],
+        proof4Url: proofUrls[3],
+        proof5Url: proofUrls[4],
+        proof6Url: proofUrls[5],
+        proof7Url: proofUrls[6],
+        proof8Url: proofUrls[7],
+        proof9Url: proofUrls[8],
+        proof10Url: proofUrls[9],
       };
 
-      console.log(`[Tenant ${tenant ? 'Update' : 'Creation'}] Submitting data:`, submitData);
+      // console.log(`[Tenant ${tenant ? 'Update' : 'Creation'}] Submitting data:`, submitData);
       await onSubmit(submitData);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to save tenant';

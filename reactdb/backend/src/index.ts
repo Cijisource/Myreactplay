@@ -6,7 +6,7 @@ import jwt from 'jsonwebtoken';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { initializeAzureClient, isAzureConfigured, downloadAzureBlob, getAzureBlobSasUrl } from './azureService';
+import { initializeAzureClient, isAzureConfigured, downloadAzureBlob, getAzureBlobSasUrl, uploadAzureBlob, deleteAzureBlob, deleteAzureBlobFromContainer } from './azureService';
 
 const app: Express = express();
 const PORT: number = parseInt(process.env.EXPRESS_PORT || '5000');
@@ -219,6 +219,48 @@ console.log('Static file serving enabled at /api/payments and /payments from:', 
 app.use('/api/banner', express.static(bannerDir));
 app.use('/banner', express.static(bannerDir));
 console.log('Static file serving enabled at /api/banner and /banner from:', bannerDir);
+
+// **HELPER FUNCTION: Transform blob names to Azure URLs**
+// Converts stored blob names to full Azure URLs or local fallback paths
+const transformPhotoUrlsForResponse = (data: any): any => {
+  const azureConfigured = isAzureConfigured();
+  const azureBlobUrl = process.env.AZURE_BLOB_URL || 'https://complexstore.blob.core.windows.net/proofs';
+  
+  // List of photo and proof URL fields
+  const imageFields = [
+    'photoUrl', 'photo2Url', 'photo3Url', 'photo4Url', 'photo5Url',
+    'photo6Url', 'photo7Url', 'photo8Url', 'photo9Url', 'photo10Url',
+    'proof1Url', 'proof2Url', 'proof3Url', 'proof4Url', 'proof5Url',
+    'proof6Url', 'proof7Url', 'proof8Url', 'proof9Url', 'proof10Url'
+  ];
+
+  // Transform each image field
+  for (const field of imageFields) {
+    if (data[field]) {
+      const blobName = data[field];
+      
+      // If already a full URL, keep as-is
+      if (blobName.startsWith('http://') || blobName.startsWith('https://')) {
+        continue;
+      }
+      
+      // If Azure is configured, construct Azure URL
+      if (azureConfigured) {
+        data[field] = `${azureBlobUrl}/${blobName}`;
+      } else {
+        // Fallback to local path
+        data[field] = `/api/tenantphotos/${blobName}`;
+      }
+    }
+  }
+  
+  return data;
+};
+
+// Helper to transform array of records
+const transformPhotoUrlsInArray = (records: any[]): any[] => {
+  return records.map(record => transformPhotoUrlsForResponse({ ...record }));
+};
 
 // Routes
 app.get('/api/health', (req: Request, res: Response) => {
@@ -787,10 +829,10 @@ app.get('/api/rooms/vacant', async (req: Request, res: Response) => {
                    ELSE 999999 END,
                LTRIM(RTRIM(rd.Number))
     `);
-    console.log('[Vacant Rooms API] Query executed. Results:', {
-      count: result.recordset.length,
-      rooms: result.recordset
-    });
+    // console.log('[Vacant Rooms API] Query executed. Results:', {
+    //   count: result.recordset.length,
+    //   rooms: result.recordset
+    // });
     res.json(result.recordset);
   } catch (error) {
     console.error('[Vacant Rooms API] Error:', error);
@@ -870,7 +912,9 @@ app.get('/api/tenants/with-occupancy', async (req: Request, res: Response) => {
       LEFT JOIN RoomDetail rd ON o.RoomId = rd.Id
       ORDER BY t.Name ASC
     `);
-    res.json(result.recordset);
+    // **Transform blob names to Azure URLs**
+    const transformedRecords = transformPhotoUrlsInArray(result.recordset);
+    res.json(transformedRecords);
   } catch (error) {
     console.error('Get tenants error:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -896,7 +940,7 @@ app.get('/api/tenants/:id', async (req: Request, res: Response) => {
           TRIM(t.Phone) as phone,
           TRIM(t.Address) as address,
           TRIM(t.City) as city,
-          t.PhotoUrl,
+          t.PhotoUrl as photoUrl,
           t.Photo2Url as photo2Url,
           t.Photo3Url as photo3Url,
           t.Photo4Url as photo4Url,
@@ -906,6 +950,16 @@ app.get('/api/tenants/:id', async (req: Request, res: Response) => {
           t.Photo8Url as photo8Url,
           t.Photo9Url as photo9Url,
           t.Photo10Url as photo10Url,
+          t.Proof1Url as proof1Url,
+          t.Proof2Url as proof2Url,
+          t.Proof3Url as proof3Url,
+          t.Proof4Url as proof4Url,
+          t.Proof5Url as proof5Url,
+          t.Proof6Url as proof6Url,
+          t.Proof7Url as proof7Url,
+          t.Proof8Url as proof8Url,
+          t.Proof9Url as proof9Url,
+          t.Proof10Url as proof10Url,
           o.Id as occupancyId,
           rd.Number as roomNumber,
           o.CheckInDate,
@@ -921,7 +975,9 @@ app.get('/api/tenants/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Tenant not found' });
     }
     
-    res.json(result.recordset[0]);
+    // **Transform blob names to Azure URLs**
+    const transformedTenant = transformPhotoUrlsForResponse(result.recordset[0]);
+    res.json(transformedTenant);
   } catch (error) {
     console.error('Get tenant error:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -1178,20 +1234,73 @@ app.post('/api/tenants/upload', tenantUpload.fields([
 
     const photoUrls: string[] = [];
     const proofUrls: string[] = [];
+    const azureConfigured = isAzureConfigured();
 
     // Process photos
     if (files.photos && Array.isArray(files.photos)) {
       for (const file of files.photos) {
-        const fileUrl = `tenantphotos/${path.basename(file.path)}`;
-        photoUrls.push(fileUrl);
+        try {
+          const fileName = path.basename(file.path);
+          
+          if (azureConfigured) {
+            // Upload to Azure Blob Storage
+            try {
+              const fileBuffer = fs.readFileSync(file.path);
+              const blobName = fileName;
+              console.log(`[Tenant Photo Upload] Uploading to Azure: ${blobName}`);
+              await uploadAzureBlob(blobName, fileBuffer, 'image/' + path.extname(fileName).slice(1));
+              photoUrls.push(blobName);
+              console.log(`[Tenant Photo Upload] Uploaded to Azure: ${blobName}`);
+              
+              // Clean up disk file after successful Azure upload
+              fs.unlinkSync(file.path);
+            } catch (azureError) {
+              console.warn(`[Tenant Photo Upload] Azure upload failed, using fallback:`, azureError);
+              // Fallback to disk - just store blob name
+              photoUrls.push(fileName);
+            }
+          } else {
+            // No Azure configured, just store blob name
+            photoUrls.push(fileName);
+          }
+        } catch (fileError) {
+          console.error(`Error processing photo file:`, fileError);
+          throw fileError;
+        }
       }
     }
 
     // Process proofs
     if (files.proofs && Array.isArray(files.proofs)) {
       for (const file of files.proofs) {
-        const fileUrl = `tenantphotos/${path.basename(file.path)}`;
-        proofUrls.push(fileUrl);
+        try {
+          const fileName = path.basename(file.path);
+          console.log(`[Tenant Proof Upload] Processing proof file: ${fileName}`);
+          console.log(azureConfigured ? '[Tenant Proof Upload] Azure is configured, attempting upload' : '[Tenant Proof Upload] Azure not configured, using fallback');
+          if (azureConfigured) {
+            // Upload to Azure Blob Storage
+            try {
+              const fileBuffer = fs.readFileSync(file.path);
+              const blobName = fileName;
+              await uploadAzureBlob(blobName, fileBuffer, 'image/' + path.extname(fileName).slice(1));
+              proofUrls.push(blobName);
+              console.log(`[Tenant Proof Upload] Uploaded to Azure: ${blobName}`);
+              
+              // Clean up disk file after successful Azure upload
+              fs.unlinkSync(file.path);
+            } catch (azureError) {
+              console.warn(`[Tenant Proof Upload] Azure upload failed, using fallback:`, azureError);
+              // Fallback to disk - just store blob name
+              proofUrls.push(fileName);
+            }
+          } else {
+            // No Azure configured, just store blob name
+            proofUrls.push(fileName);
+          }
+        } catch (fileError) {
+          console.error(`Error processing proof file:`, fileError);
+          throw fileError;
+        }
       }
     }
 
@@ -1199,13 +1308,15 @@ app.post('/api/tenants/upload', tenantUpload.fields([
       photoCount: photoUrls.length,
       proofCount: proofUrls.length,
       photoUrls,
-      proofUrls
+      proofUrls,
+      azureConfigured
     });
 
     res.status(200).json({ 
       message: 'Files uploaded successfully',
       photoUrls,
-      proofUrls
+      proofUrls,
+      uploadedToAzure: azureConfigured
     });
   } catch (error) {
     console.error('Tenant file upload error:', error);
@@ -1256,7 +1367,84 @@ app.put('/api/tenants/:id', async (req: Request, res: Response) => {
         details: `Phone number ${phone.trim()} is already used by another tenant.`
       });
     }
+
+    // **FEATURE 2 & 3: Handle file deletion for removed photos/proofs**
+    // Fetch existing tenant to get old blob names
+    const existingTenantResult = await pool
+      .request()
+      .input('id', sql.Int, tenantId)
+      .query(`SELECT PhotoUrl, Photo2Url, Photo3Url, Photo4Url, Photo5Url, Photo6Url, Photo7Url, Photo8Url, Photo9Url, Photo10Url,
+                     Proof1Url, Proof2Url, Proof3Url, Proof4Url, Proof5Url, Proof6Url, Proof7Url, Proof8Url, Proof9Url, Proof10Url
+              FROM Tenant WHERE Id = @id`);
     
+    if (existingTenantResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Tenant not found' });
+    }
+
+    const existingUrls = existingTenantResult.recordset[0];
+    const newUrls = {
+      photoUrl, photo2Url, photo3Url, photo4Url, photo5Url, photo6Url, photo7Url, photo8Url, photo9Url, photo10Url,
+      proof1Url, proof2Url, proof3Url, proof4Url, proof5Url, proof6Url, proof7Url, proof8Url, proof9Url, proof10Url
+    };
+
+    const azureConfigured = isAzureConfigured();
+    console.log(`[Tenant Update] Azure configured: ${azureConfigured}`);
+    console.log(`[Tenant Update] Existing URLs:`, existingUrls);
+    console.log(`[Tenant Update] New URLs:`, newUrls);
+
+    // Delete files that are being removed (exist in old but not in new)
+    const fieldsToCheck = [
+      'photoUrl', 'photo2Url', 'photo3Url', 'photo4Url', 'photo5Url', 
+      'photo6Url', 'photo7Url', 'photo8Url', 'photo9Url', 'photo10Url',
+      'proof1Url', 'proof2Url', 'proof3Url', 'proof4Url', 'proof5Url',
+      'proof6Url', 'proof7Url', 'proof8Url', 'proof9Url', 'proof10Url'
+    ];
+
+    console.log(fieldsToCheck.length + ' fields to check for deletion');
+
+    for (const field of fieldsToCheck) {
+      const oldBlobName = existingUrls[field];
+      const newBlobName = newUrls[field as keyof typeof newUrls];
+
+      // If blob name existed and is now being removed (set to null or different blob name)
+      if (oldBlobName && oldBlobName !== newBlobName) {
+        console.log(`[Tenant Update] Blob change detected for field ${field}: "${oldBlobName}" → "${newBlobName}"`);
+        
+        if (azureConfigured) {
+          // Delete from Azure Blob Storage
+          try {
+            console.log(`[Tenant Update] Attempting to delete from Azure: ${oldBlobName}`);
+            await deleteAzureBlob(oldBlobName);
+            console.log(`[Tenant Update] ✓ Successfully deleted from Azure: ${oldBlobName}`);
+          } catch (deleteError) {
+            const errorMsg = deleteError instanceof Error ? deleteError.message : String(deleteError);
+            console.error(`[Tenant Update] ✗ Failed to delete from Azure: ${oldBlobName} - ${errorMsg}`, deleteError);
+            // Continue with update even if Azure delete fails
+          }
+        } else {
+          // Delete from disk storage
+          try {
+            const tenantPhotosPath = process.env.TENANT_PHOTOS_DIR || 
+              (process.env.NODE_ENV === 'production' ? '/app/tenantphotos' : path.resolve(process.cwd(), 'tenantphotos'));
+            const filePath = path.join(tenantPhotosPath, oldBlobName);
+            
+            console.log(`[Tenant Update] Attempting to delete from disk: ${filePath}`);
+            
+            if (fs.existsSync(filePath)) {
+              fs.unlinkSync(filePath);
+              console.log(`[Tenant Update] ✓ Successfully deleted from disk: ${oldBlobName}`);
+            } else {
+              console.warn(`[Tenant Update] File does not exist: ${filePath}`);
+            }
+          } catch (deleteError) {
+            console.error(`[Tenant Update] ✗ Failed to delete disk file: ${oldBlobName}`, deleteError);
+            // Continue with update even if disk delete fails
+          }
+        }
+      }
+    }
+
+    // Update tenant record
     const result = await pool
       .request()
       .input('id', sql.Int, tenantId)
@@ -1296,7 +1484,7 @@ app.put('/api/tenants/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Tenant not found' });
     }
     
-    res.json({ message: 'Tenant updated successfully' });
+    res.json({ message: 'Tenant updated successfully', deletedFiles: true });
   } catch (error) {
     console.error('Update tenant error:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -1771,10 +1959,26 @@ app.get('/api/tenants/search', async (req: Request, res: Response) => {
           TRIM(t.Phone) as phone,
           TRIM(t.Address) as address,
           TRIM(t.City) as city,
-          t.PhotoUrl,
-          t.Proof1Url,
-          t.Proof2Url,
-          t.Proof3Url,
+          t.PhotoUrl as photoUrl,
+          t.Photo2Url as photo2Url,
+          t.Photo3Url as photo3Url,
+          t.Photo4Url as photo4Url,
+          t.Photo5Url as photo5Url,
+          t.Photo6Url as photo6Url,
+          t.Photo7Url as photo7Url,
+          t.Photo8Url as photo8Url,
+          t.Photo9Url as photo9Url,
+          t.Photo10Url as photo10Url,
+          t.Proof1Url as proof1Url,
+          t.Proof2Url as proof2Url,
+          t.Proof3Url as proof3Url,
+          t.Proof4Url as proof4Url,
+          t.Proof5Url as proof5Url,
+          t.Proof6Url as proof6Url,
+          t.Proof7Url as proof7Url,
+          t.Proof8Url as proof8Url,
+          t.Proof9Url as proof9Url,
+          t.Proof10Url as proof10Url,
           o.Id as occupancyId,
           rd.Number as roomNumber,
           o.CheckInDate,
@@ -1788,7 +1992,9 @@ app.get('/api/tenants/search', async (req: Request, res: Response) => {
         ORDER BY t.Name ASC
       `);
     
-    res.json(result.recordset);
+    // **Transform blob names to Azure URLs**
+    const transformedRecords = transformPhotoUrlsInArray(result.recordset);
+    res.json(transformedRecords);
   } catch (error) {
     console.error('Search tenants error:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -4115,6 +4321,38 @@ app.get('/api/rental/occupancy/:occupancyId/summary', async (req: Request, res: 
       error: 'Failed to retrieve rental summary',
       details: errorMessage
     });
+  }
+});
+
+// DEBUG: Test blob deletion endpoint
+app.post('/api/debug/test-blob-delete', async (req: Request, res: Response) => {
+  try {
+    const { blobName } = req.body;
+    
+    if (!blobName) {
+      return res.status(400).json({ error: 'blobName is required' });
+    }
+
+    const azureConfigured = isAzureConfigured();
+    console.log(`[DEBUG] Azure configured: ${azureConfigured}`);
+    
+    if (!azureConfigured) {
+      return res.status(400).json({ error: 'Azure not configured' });
+    }
+
+    console.log(`[DEBUG] Attempting to delete blob: ${blobName}`);
+    
+    try {
+      await deleteAzureBlob(blobName);
+      res.json({ success: true, message: `Deleted blob: ${blobName}` });
+    } catch (deleteError) {
+      const errorMsg = deleteError instanceof Error ? deleteError.message : String(deleteError);
+      console.error(`[DEBUG] Deletion failed:`, errorMsg);
+      res.status(500).json({ success: false, error: errorMsg });
+    }
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: errorMsg });
   }
 });
 

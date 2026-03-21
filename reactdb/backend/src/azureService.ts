@@ -4,7 +4,7 @@ import http from 'http';
 
 // Azure configuration
 const AZURE_STORAGE_CONNECTION_STRING = process.env.AZURE_STORAGE_CONNECTION_STRING;
-const AZURE_CONTAINER_NAME = process.env.AZURE_CONTAINER_NAME || 'photos';
+const AZURE_CONTAINER_NAME = process.env.AZURE_CONTAINER_NAME || 'proofs';
 const AZURE_BLOB_URL = process.env.AZURE_BLOB_URL || 'https://complexstore.blob.core.windows.net/proofs';
 
 let blobServiceClient: BlobServiceClient | null = null;
@@ -141,7 +141,7 @@ export const uploadAzureBlob = async (blobName: string, fileBuffer: Buffer, cont
   }
 };
 
-// Delete blob from Azure
+// Delete blob from Azure (using default container)
 export const deleteAzureBlob = async (blobName: string): Promise<void> => {
   if (!containerClient) {
     throw new Error('Azure Blob Storage client is not initialized');
@@ -151,8 +151,37 @@ export const deleteAzureBlob = async (blobName: string): Promise<void> => {
     const blobClient = containerClient.getBlobClient(blobName);
     await blobClient.delete();
     console.log(`✓ Deleted blob from Azure: ${blobName}`);
-  } catch (error) {
+  } catch (error: any) {
+    // Handle "blob not found" errors gracefully (they're not really failures)
+    if (error.code === 'BlobNotFound' || error.message?.includes('BlobNotFound')) {
+      console.log(`ℹ Blob not found (already deleted or never existed): ${blobName}`);
+      return; // Don't throw - this is not an error condition
+    }
+    
     console.error(`Failed to delete Azure Blob '${blobName}':`, error);
+    throw error;
+  }
+};
+
+// Delete blob from Azure (from a specific container)
+export const deleteAzureBlobFromContainer = async (blobName: string, containerName: string): Promise<void> => {
+  if (!blobServiceClient) {
+    throw new Error('Azure Blob Storage client is not initialized');
+  }
+
+  try {
+    const specificContainerClient = blobServiceClient.getContainerClient(containerName);
+    const blobClient = specificContainerClient.getBlobClient(blobName);
+    await blobClient.delete();
+    console.log(`✓ Deleted blob from Azure container '${containerName}': ${blobName}`);
+  } catch (error: any) {
+    // Handle "blob not found" errors gracefully
+    if (error.code === 'BlobNotFound' || error.message?.includes('BlobNotFound')) {
+      console.log(`ℹ Blob not found in container '${containerName}' (already deleted or never existed): ${blobName}`);
+      return; // Don't throw - this is not an error condition
+    }
+
+    console.error(`Failed to delete Azure Blob '${blobName}' from container '${containerName}':`, error);
     throw error;
   }
 };
