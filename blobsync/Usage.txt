@@ -1,0 +1,11 @@
+# Basic sync
+python upload.py sync ./sync_folder
+
+# Preview changes first
+python upload.py sync ./sync_folder --dry-run
+
+# With conflict handling
+python upload.py sync ./sync_folder prefer-local
+
+# Full synchronization with cleanup
+python upload.py sync ./sync_folder --delete-remote --delete-local
