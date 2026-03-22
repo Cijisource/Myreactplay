@@ -20,10 +20,12 @@ import DailyStatusManagement from './components/DailyStatusManagement';
 import ServiceAllocationManagement from './components/ServiceAllocationManagement';
 import RollingBanner from './components/RollingBanner';
 import ServiceConsumptionDetails from './components/ServiceConsumptionDetails';
+import MonthlyMeterReading from './components/MonthlyMeterReading';
+import TenantElectricityCharges from './components/TenantElectricityCharges';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
-type Page = 'home' | 'diagnostic' | 'payment' | 'rental-collection' | 'tenants' | 'occupancy' | 'room-management' | 'occupancy-links' | 'complaints' | 'services' | 'eb-payments' | 'users' | 'roles' | 'transactions' | 'stock' | 'daily-status' | 'service-allocation' | 'consumption';
+type Page = 'home' | 'diagnostic' | 'payment' | 'rental-collection' | 'tenants' | 'occupancy' | 'room-management' | 'occupancy-links' | 'complaints' | 'services' | 'eb-payments' | 'users' | 'roles' | 'transactions' | 'stock' | 'daily-status' | 'service-allocation' | 'consumption' | 'meter-reading' | 'electricity-charges';
 
 // Role requirements for each screen
 const SCREEN_ROLES: Record<Page, string[]> = {
@@ -44,7 +46,9 @@ const SCREEN_ROLES: Record<Page, string[]> = {
   stock: ['admin', 'manager', 'inventory_manager'],
   'daily-status': ['admin', 'manager', 'maintenance'],
   'service-allocation': ['admin', 'manager', 'utilities_manager'],
-  consumption: ['admin', 'manager', 'utilities_manager']
+  consumption: ['admin', 'manager', 'utilities_manager'],
+  'meter-reading': ['admin', 'manager', 'utilities_manager'],
+  'electricity-charges': ['admin', 'manager', 'utilities_manager', 'accountant']
 };
 
 // Navigation menu items with labels and required roles
@@ -56,6 +60,8 @@ const NAV_ITEMS: Array<{ page: Page; label: string; roles: string[] }> = [
   { page: 'tenants', label: 'Tenant Management', roles: SCREEN_ROLES.tenants },
   { page: 'payment', label: 'Payment Tracking', roles: SCREEN_ROLES.payment },
   { page: 'rental-collection', label: 'Rental Collection', roles: SCREEN_ROLES['rental-collection'] },
+  { page: 'meter-reading', label: 'EB Meter Reading', roles: SCREEN_ROLES['meter-reading'] },
+  { page: 'electricity-charges', label: 'Electricity Charges', roles: SCREEN_ROLES['electricity-charges'] },
   { page: 'complaints', label: 'Complaints', roles: SCREEN_ROLES.complaints },
   { page: 'services', label: 'Service Details', roles: SCREEN_ROLES.services },
   { page: 'consumption', label: 'Service Consumption', roles: SCREEN_ROLES.consumption },
@@ -293,6 +299,22 @@ function AppContent() {
       return (
         <ProtectedRoute requiredRoles={SCREEN_ROLES.consumption}>
           <ServiceConsumptionDetails />
+        </ProtectedRoute>
+      );
+    }
+
+    if (currentPage === 'meter-reading') {
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES['meter-reading']}>
+          <MonthlyMeterReading />
+        </ProtectedRoute>
+      );
+    }
+
+    if (currentPage === 'electricity-charges') {
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES['electricity-charges']}>
+          <TenantElectricityCharges />
         </ProtectedRoute>
       );
     }

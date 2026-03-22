@@ -421,6 +421,40 @@ export const apiService = {
   createServiceConsumption: (data: any) => api.post('/service-consumption', data),
   deleteServiceConsumption: (consumptionId: number) => api.delete(`/service-consumption/${consumptionId}`),
   
+  // Tenant Service Charges (Pro-Rata Electricity Distribution) APIs
+  calculateProRataCharges: (serviceConsumptionId: number, chargePerUnit: number = 15) =>
+    api.post(`/tenant-service-charges/calculate/${serviceConsumptionId}`, { chargePerUnit }),
+  getTenantChargesForMonth: (billingYear: number, billingMonth: number, tenantId?: number, roomId?: number) => {
+    const params = new URLSearchParams();
+    if (tenantId) params.append('tenantId', tenantId.toString());
+    if (roomId) params.append('roomId', roomId.toString());
+    return api.get(`/tenant-service-charges/${billingYear}/${billingMonth}${params.toString() ? '?' + params.toString() : ''}`);
+  },
+  getRoomBillingSummary: (billingYear: number, billingMonth: number, roomId?: number) => {
+    const params = new URLSearchParams();
+    if (roomId) params.append('roomId', roomId.toString());
+    return api.get(`/room-billing-summary/${billingYear}/${billingMonth}${params.toString() ? '?' + params.toString() : ''}`);
+  },
+  getMonthlyBillingReport: (billingYear: number, billingMonth: number) =>
+    api.get(`/monthly-billing-report/${billingYear}/${billingMonth}`),
+  getTenantMonthlyBill: (tenantId: number) =>
+    api.get(`/tenant-monthly-bill/${tenantId}`),
+  recalculateMonthlyCharges: (billingYear: number, billingMonth: number, chargePerUnit: number = 15) =>
+    api.post(`/tenant-service-charges/recalculate/${billingYear}/${billingMonth}`, { chargePerUnit }),
+  getAllTenantServiceCharges: (filters?: any) => {
+    const params = new URLSearchParams();
+    if (filters?.billingYear) params.append('billingYear', filters.billingYear);
+    if (filters?.billingMonth) params.append('billingMonth', filters.billingMonth);
+    if (filters?.tenantId) params.append('tenantId', filters.tenantId);
+    if (filters?.roomId) params.append('roomId', filters.roomId);
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.page) params.append('page', filters.page);
+    if (filters?.limit) params.append('limit', filters.limit);
+    return api.get(`/tenant-service-charges${params.toString() ? '?' + params.toString() : ''}`);
+  },
+  updateChargeStatus: (chargeId: number, status: string, notes?: string) =>
+    api.put(`/tenant-service-charges/${chargeId}/status`, { status, notes }),
+  
   // Diagnostic APIs
   getRentalSchema: () => api.get('/diagnostic/rental-schema'),
   getRentalSample: () => api.get('/diagnostic/rental-sample'),
