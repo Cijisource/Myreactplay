@@ -352,10 +352,14 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
     const files = e.target.files;
     if (!files) return;
 
+    // Calculate total current count: existing + new + replacement
+    const totalCurrentPhotos = (existingPhotos.length - deletedPhotoFields.size) + photos.length + replacementPhotos.size;
+
     const newPhotos: FilePreview[] = [];
     for (let i = 0; i < files.length; i++) {
-      if (photos.length + newPhotos.length >= MAX_PHOTOS) {
-        setError(`Maximum ${MAX_PHOTOS} photos allowed`);
+      const projectedTotal = totalCurrentPhotos + newPhotos.length + 1;
+      if (projectedTotal > MAX_PHOTOS) {
+        setError(`Maximum ${MAX_PHOTOS} photos allowed. You currently have ${totalCurrentPhotos} photos. Cannot add more.`);
         break;
       }
 
@@ -390,10 +394,14 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
     const files = e.target.files;
     if (!files) return;
 
+    // Calculate total current count: existing + new + replacement
+    const totalCurrentProofs = (existingProofs.length - deletedProofFields.size) + proofs.length + replacementProofs.size;
+
     const newProofs: FilePreview[] = [];
     for (let i = 0; i < files.length; i++) {
-      if (proofs.length + newProofs.length >= MAX_PROOFS) {
-        setError(`Maximum ${MAX_PROOFS} proofs allowed`);
+      const projectedTotal = totalCurrentProofs + newProofs.length + 1;
+      if (projectedTotal > MAX_PROOFS) {
+        setError(`Maximum ${MAX_PROOFS} proofs allowed. You currently have ${totalCurrentProofs} proofs. Cannot add more.`);
         break;
       }
 
@@ -587,6 +595,8 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
     setLoading(true);
     try {
       // Start with existing file URLs (for edit mode), excluding deleted ones
+      // Extract just the filename (blob name) from URLs
+      // This ensures old photos are ALWAYS preserved during updates
       let photoUrls: (string | null)[] = [
         tenant?.photoUrl || null,
         tenant?.photo2Url || null,
@@ -601,9 +611,20 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
       ]
         .map((url, idx) => {
           const field = `photo${idx === 0 ? '' : idx + 1}Url`;
-          // Keep null for deleted photos so positional mapping is preserved for blob deletion
-          return !url || deletedPhotoFields.has(field) ? null : url;
+          // Keep the existing photo URL unless it was explicitly deleted
+          // This guarantees old photos are retained
+          if (deletedPhotoFields.has(field)) {
+            return null; // Only set to null if user explicitly deleted it
+          }
+          // Extract just the filename from the URL (everything after the last '/')
+          if (url) {
+            return url.split('/').pop() || null;
+          }
+          return null;
         });
+      
+      console.log('[Tenant Form Submit] Initial photo URLs (with existing preserved):', photoUrls);
+
 
       let proofUrls: (string | null)[] = [
         tenant?.proof1Url || null,
@@ -619,9 +640,19 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
       ]
         .map((url, idx) => {
           const field = `proof${idx + 1}Url`;
-          // Keep null for deleted proofs so positional mapping is preserved for blob deletion
-          return !url || deletedProofFields.has(field) ? null : url;
+          // Keep the existing proof URL unless it was explicitly deleted
+          // This guarantees old proofs are retained
+          if (deletedProofFields.has(field)) {
+            return null; // Only set to null if user explicitly deleted it
+          }
+          // Extract just the filename from the URL (everything after the last '/')
+          if (url) {
+            return url.split('/').pop() || null;
+          }
+          return null;
         });
+      
+      console.log('[Tenant Form Submit] Initial proof URLs (with existing preserved):', proofUrls);
 
       // Collect files to upload (new photos + replacement photos + new proofs + replacement proofs)
       const filesToUpload = new FormData();
@@ -665,7 +696,14 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
             const uploadedPhotos = uploadResponse.data.photoUrls || [];
             const uploadedProofs = uploadResponse.data.proofUrls || [];
             
-            // Handle replacement photos
+            console.log('[Tenant Form Submit] Processing uploaded files:', {
+              uploadedPhotos: uploadedPhotos.length,
+              uploadedProofs: uploadedProofs.length,
+              hasReplacements: replacementPhotos.size > 0,
+              hasProofReplacements: replacementProofs.size > 0
+            });
+            
+            // Handle replacement photos - these overwrite at specific positions
             let uploadedPhotoIndex = 0;
             replacementPhotos.forEach((_, field) => {
               // Get the position of the field to replace
@@ -675,22 +713,26 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
               if (uploadedPhotoIndex < uploadedPhotos.length) {
                 // Replace at the correct position
                 photoUrls[position] = uploadedPhotos[uploadedPhotoIndex];
+                console.log(`[Tenant Form Submit] Replacing photo at position ${position}`);
                 uploadedPhotoIndex++;
               }
             });
             
             // Add remaining new photos to first available null slots
+            // This preserves existing photos while adding new ones
             while (uploadedPhotoIndex < uploadedPhotos.length) {
               const nullIndex = photoUrls.findIndex((url) => url === null);
               if (nullIndex !== -1) {
                 photoUrls[nullIndex] = uploadedPhotos[uploadedPhotoIndex];
+                console.log(`[Tenant Form Submit] Adding new photo to position ${nullIndex}`);
                 uploadedPhotoIndex++;
               } else {
+                console.warn('[Tenant Form Submit] No more empty photo slots available');
                 break; // No more null slots available
               }
             }
             
-            // Handle replacement proofs
+            // Handle replacement proofs - these overwrite at specific positions
             let uploadedProofIndex = 0;
             replacementProofs.forEach((_, field) => {
               // Get the position of the field to replace
@@ -699,24 +741,46 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
               if (uploadedProofIndex < uploadedProofs.length) {
                 // Replace at the correct position
                 proofUrls[position] = uploadedProofs[uploadedProofIndex];
+                console.log(`[Tenant Form Submit] Replacing proof at position ${position}`);
                 uploadedProofIndex++;
               }
             });
             
             // Add remaining new proofs to first available null slots
+            // This preserves existing proofs while adding new ones
             while (uploadedProofIndex < uploadedProofs.length) {
               const nullIndex = proofUrls.findIndex((url) => url === null);
               if (nullIndex !== -1) {
                 proofUrls[nullIndex] = uploadedProofs[uploadedProofIndex];
+                console.log(`[Tenant Form Submit] Adding new proof to position ${nullIndex}`);
                 uploadedProofIndex++;
               } else {
+                console.warn('[Tenant Form Submit] No more empty proof slots available');
                 break; // No more null slots available
               }
             }
+            
+            console.log('[Tenant Form Submit] Final photo URLs:', photoUrls);
+            console.log('[Tenant Form Submit] Final proof URLs:', proofUrls);
           }
         } catch (uploadErr) {
-          const uploadError = uploadErr instanceof Error ? uploadErr.message : 'File upload failed';
-          setError(`Upload failed: ${uploadError}`);
+          let errorMessage = 'File upload failed';
+          
+          // Handle response error with specific error details
+          if (uploadErr && typeof uploadErr === 'object' && 'response' in uploadErr) {
+            const axiosErr = uploadErr as any;
+            if (axiosErr.response?.data?.error) {
+              errorMessage = axiosErr.response.data.error;
+            } else if (axiosErr.response?.status === 413) {
+              errorMessage = 'File(s) are too large. Maximum 10MB per file.';
+            } else if (axiosErr.response?.statusText) {
+              errorMessage = axiosErr.response.statusText;
+            }
+          } else if (uploadErr instanceof Error) {
+            errorMessage = uploadErr.message;
+          }
+          
+          setError(`Upload failed: ${errorMessage}`);
           setLoading(false);
           return;
         }

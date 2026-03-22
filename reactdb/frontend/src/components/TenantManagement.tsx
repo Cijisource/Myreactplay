@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { apiService } from '../api';
 import SearchableDropdown from './SearchableDropdown';
 import TenantForm from './TenantForm';
@@ -63,6 +63,9 @@ export default function TenantManagement() {
   const [occupancyFilter, setOccupancyFilter] = useState<'all' | 'occupied' | 'vacant'>('all');
   const [showForm, setShowForm] = useState(false);
   const [editingTenant, setEditingTenant] = useState<TenantWithOccupancy | null>(null);
+  const editFormRef = useRef<HTMLDivElement>(null);
+  const checkoutFormRef = useRef<HTMLDivElement>(null);
+  const checkInFormRef = useRef<HTMLDivElement>(null);
   const [showCheckout, setShowCheckout] = useState(false);
   const [checkoutOccupancy, setCheckoutOccupancy] = useState<any>(null);
   const [showCheckIn, setShowCheckIn] = useState(false);
@@ -76,6 +79,33 @@ export default function TenantManagement() {
   const [selectedRoom, setSelectedRoom] = useState<string>('');
   const [showFilters, setShowFilters] = useState(false);
   const [allUniqueTenants, setAllUniqueTenants] = useState<TenantWithOccupancy[]>([]); // Store all tenants
+
+  // Scroll to edit form when editing is triggered
+  useEffect(() => {
+    if (showForm && editingTenant && editFormRef.current) {
+      setTimeout(() => {
+        editFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 0);
+    }
+  }, [showForm, editingTenant]);
+
+  // Scroll to checkout form when checkout is triggered
+  useEffect(() => {
+    if (showCheckout && checkoutOccupancy && checkoutFormRef.current) {
+      setTimeout(() => {
+        checkoutFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 0);
+    }
+  }, [showCheckout, checkoutOccupancy]);
+
+  // Scroll to check-in form when check-in is triggered
+  useEffect(() => {
+    if (showCheckIn && checkInTenant && checkInFormRef.current) {
+      setTimeout(() => {
+        checkInFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 0);
+    }
+  }, [showCheckIn, checkInTenant]);
 
   // Helper function to normalize phone numbers
   const normalizePhone = (phone: string): string => {
@@ -108,7 +138,7 @@ export default function TenantManagement() {
       // Construct Azure photo URLs for all tenants
       const tenantsWithAzurePhotos = uniqueTenants.map((tenant: TenantWithOccupancy) => {
         if (tenant.photoUrl) {
-          const azureUrl = `https://complexstore.blob.core.windows.net/proofs/${tenant.photoUrl}`;
+          const azureUrl = `${tenant.photoUrl}`;
           return {
             ...tenant,
             azurePhotoUrl: azureUrl,
@@ -293,6 +323,7 @@ export default function TenantManagement() {
   };
 
   const handleEditTenant = (tenant: TenantWithOccupancy) => {
+    console.log('Editing tenant:', tenant);
     setEditingTenant(tenant);
     setShowForm(true);
   };
@@ -473,7 +504,7 @@ export default function TenantManagement() {
 
       {/* Edit Tenant Form Card */}
       {showForm && editingTenant && (
-        <div className="tenant-form-card">
+        <div className="tenant-form-card" ref={editFormRef}>
           <h3>Edit Tenant - {editingTenant.name}</h3>
           <TenantForm
             tenant={editingTenant}
@@ -486,7 +517,7 @@ export default function TenantManagement() {
 
       {/* Checkout Tenant Form Card */}
       {showCheckout && checkoutOccupancy && (
-        <div className="tenant-form-card">
+        <div className="tenant-form-card" ref={checkoutFormRef}>
           <h3>Checkout Tenant - {checkoutOccupancy.tenantName}</h3>
           <CheckoutModal
             occupancyId={checkoutOccupancy.id}
@@ -501,7 +532,7 @@ export default function TenantManagement() {
 
       {/* Check-In Tenant Form Card */}
       {showCheckIn && checkInTenant && (
-        <div className="tenant-form-card">
+        <div className="tenant-form-card" ref={checkInFormRef}>
           <h3>Check-In Tenant - {checkInTenant.name}</h3>
           <CheckinModal
             tenantId={checkInTenant.id}

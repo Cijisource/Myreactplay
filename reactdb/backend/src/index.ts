@@ -7,6 +7,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { initializeAzureClient, isAzureConfigured, downloadAzureBlob, getAzureBlobSasUrl, uploadAzureBlob, deleteAzureBlob, deleteAzureBlobFromContainer } from './azureService';
+import { calculateProRataCharges, getTenantChargesForMonth, getRoomBillingsSummary, getMonthlyBillingReport, getTenantMonthlyBill, recalculateMonthlyCharges } from './services/proRataService';
 
 const app: Express = express();
 const PORT: number = parseInt(process.env.EXPRESS_PORT || '5000');
@@ -1221,10 +1222,31 @@ const tenantUpload = multer({
 });
 
 // Tenant file upload endpoint
-app.post('/api/tenants/upload', tenantUpload.fields([
-  { name: 'photos', maxCount: 10 },
-  { name: 'proofs', maxCount: 10 }
-]), async (req: Request, res: Response) => {
+app.post('/api/tenants/upload', (req: Request, res: Response, next: Function) => {
+  tenantUpload.fields([
+    { name: 'photos', maxCount: 10 },
+    { name: 'proofs', maxCount: 10 }
+  ])(req, res, (err: any) => {
+    if (err) {
+      // Handle multer errors
+      if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+        return res.status(400).json({
+          error: 'Too many files uploaded. Maximum 10 photos and 10 proofs allowed.'
+        });
+      }
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({
+          error: 'File size exceeds 10MB limit.'
+        });
+      }
+      // Other multer errors
+      return res.status(400).json({
+        error: err.message || 'File upload error'
+      });
+    }
+    next();
+  });
+}, async (req: Request, res: Response) => {
   try {
     const files = req.files as any;
     
@@ -1247,10 +1269,10 @@ app.post('/api/tenants/upload', tenantUpload.fields([
             try {
               const fileBuffer = fs.readFileSync(file.path);
               const blobName = fileName;
-              console.log(`[Tenant Photo Upload] Uploading to Azure: ${blobName}`);
+              // console.log(`[Tenant Photo Upload] Uploading to Azure: ${blobName}`);
               await uploadAzureBlob(blobName, fileBuffer, 'image/' + path.extname(fileName).slice(1));
               photoUrls.push(blobName);
-              console.log(`[Tenant Photo Upload] Uploaded to Azure: ${blobName}`);
+              // console.log(`[Tenant Photo Upload] Uploaded to Azure: ${blobName}`);
               
               // Clean up disk file after successful Azure upload
               fs.unlinkSync(file.path);
@@ -1275,8 +1297,8 @@ app.post('/api/tenants/upload', tenantUpload.fields([
       for (const file of files.proofs) {
         try {
           const fileName = path.basename(file.path);
-          console.log(`[Tenant Proof Upload] Processing proof file: ${fileName}`);
-          console.log(azureConfigured ? '[Tenant Proof Upload] Azure is configured, attempting upload' : '[Tenant Proof Upload] Azure not configured, using fallback');
+          // console.log(`[Tenant Proof Upload] Processing proof file: ${fileName}`);
+          // console.log(azureConfigured ? '[Tenant Proof Upload] Azure is configured, attempting upload' : '[Tenant Proof Upload] Azure not configured, using fallback');
           if (azureConfigured) {
             // Upload to Azure Blob Storage
             try {
@@ -1304,13 +1326,13 @@ app.post('/api/tenants/upload', tenantUpload.fields([
       }
     }
 
-    console.log('[Tenant Upload] Files uploaded successfully:', {
-      photoCount: photoUrls.length,
-      proofCount: proofUrls.length,
-      photoUrls,
-      proofUrls,
-      azureConfigured
-    });
+    // console.log('[Tenant Upload] Files uploaded successfully:', {
+    //   photoCount: photoUrls.length,
+    //   proofCount: proofUrls.length,
+    //   photoUrls,
+    //   proofUrls,
+    //   azureConfigured
+    // });
 
     res.status(200).json({ 
       message: 'Files uploaded successfully',
@@ -1382,37 +1404,73 @@ app.put('/api/tenants/:id', async (req: Request, res: Response) => {
     }
 
     const existingUrls = existingTenantResult.recordset[0];
+    
+    // Trim all URL values from database (NVarChar may have trailing spaces)
+    const trimmedExistingUrls: any = {};
+    for (const key in existingUrls) {
+      trimmedExistingUrls[key] = existingUrls[key] ? String(existingUrls[key]).trim() : null;
+    }
+    
     const newUrls = {
       photoUrl, photo2Url, photo3Url, photo4Url, photo5Url, photo6Url, photo7Url, photo8Url, photo9Url, photo10Url,
       proof1Url, proof2Url, proof3Url, proof4Url, proof5Url, proof6Url, proof7Url, proof8Url, proof9Url, proof10Url
     };
 
     const azureConfigured = isAzureConfigured();
-    console.log(`[Tenant Update] Azure configured: ${azureConfigured}`);
-    console.log(`[Tenant Update] Existing URLs:`, existingUrls);
-    console.log(`[Tenant Update] New URLs:`, newUrls);
+    // console.log(`[Tenant Update] Azure configured: ${azureConfigured}`);
+    // console.log(`[Tenant Update] Existing URLs (trimmed):`, trimmedExistingUrls);
+    // console.log(`[Tenant Update] New URLs:`, newUrls);
 
     // Delete files that are being removed (exist in old but not in new)
     const fieldsToCheck = [
-      'photoUrl', 'photo2Url', 'photo3Url', 'photo4Url', 'photo5Url', 
-      'photo6Url', 'photo7Url', 'photo8Url', 'photo9Url', 'photo10Url',
-      'proof1Url', 'proof2Url', 'proof3Url', 'proof4Url', 'proof5Url',
-      'proof6Url', 'proof7Url', 'proof8Url', 'proof9Url', 'proof10Url'
+      { dbField: 'PhotoUrl', newField: 'photoUrl' },
+      { dbField: 'Photo2Url', newField: 'photo2Url' },
+      { dbField: 'Photo3Url', newField: 'photo3Url' },
+      { dbField: 'Photo4Url', newField: 'photo4Url' },
+      { dbField: 'Photo5Url', newField: 'photo5Url' },
+      { dbField: 'Photo6Url', newField: 'photo6Url' },
+      { dbField: 'Photo7Url', newField: 'photo7Url' },
+      { dbField: 'Photo8Url', newField: 'photo8Url' },
+      { dbField: 'Photo9Url', newField: 'photo9Url' },
+      { dbField: 'Photo10Url', newField: 'photo10Url' },
+      { dbField: 'Proof1Url', newField: 'proof1Url' },
+      { dbField: 'Proof2Url', newField: 'proof2Url' },
+      { dbField: 'Proof3Url', newField: 'proof3Url' },
+      { dbField: 'Proof4Url', newField: 'proof4Url' },
+      { dbField: 'Proof5Url', newField: 'proof5Url' },
+      { dbField: 'Proof6Url', newField: 'proof6Url' },
+      { dbField: 'Proof7Url', newField: 'proof7Url' },
+      { dbField: 'Proof8Url', newField: 'proof8Url' },
+      { dbField: 'Proof9Url', newField: 'proof9Url' },
+      { dbField: 'Proof10Url', newField: 'proof10Url' }
     ];
 
-    console.log(fieldsToCheck.length + ' fields to check for deletion');
+    for (const fieldMap of fieldsToCheck) {
+      const oldBlobName = trimmedExistingUrls[fieldMap.dbField];
+      const newBlobName = newUrls[fieldMap.newField as keyof typeof newUrls];
 
-    for (const field of fieldsToCheck) {
-      const oldBlobName = existingUrls[field];
-      const newBlobName = newUrls[field as keyof typeof newUrls];
+      // Extract just the filename from both old and new blob names for comparison
+      // This handles cases where oldBlobName might be a full URL or path
+      const oldFilename = oldBlobName ? oldBlobName.split('/').pop() : null;
+      const newFilename = newBlobName ? newBlobName.split('/').pop() : null;
+
+      // console.log(`[Tenant Update] Comparing field ${fieldMap.dbField}:`, {
+      //   oldBlobName,
+      //   newBlobName,
+      //   oldFilename,
+      //   newFilename,
+      //   isChanged: oldFilename && oldFilename !== newFilename
+      // });
 
       // If blob name existed and is now being removed (set to null or different blob name)
-      if (oldBlobName && oldBlobName !== newBlobName) {
-        console.log(`[Tenant Update] Blob change detected for field ${field}: "${oldBlobName}" → "${newBlobName}"`);
+      // Only delete if there's actually a different filename
+      if (oldFilename && oldFilename !== newFilename) {
+        console.log(`[Tenant Update] ⚠️ Blob change detected for field ${fieldMap.dbField}: "${oldFilename}" !== "${newFilename}"`);
         
         if (azureConfigured) {
           // Delete from Azure Blob Storage
           try {
+            // Use the original oldBlobName for Azure deletion (it should be just the blob name)
             console.log(`[Tenant Update] Attempting to delete from Azure: ${oldBlobName}`);
             await deleteAzureBlob(oldBlobName);
             console.log(`[Tenant Update] ✓ Successfully deleted from Azure: ${oldBlobName}`);
@@ -1426,7 +1484,8 @@ app.put('/api/tenants/:id', async (req: Request, res: Response) => {
           try {
             const tenantPhotosPath = process.env.TENANT_PHOTOS_DIR || 
               (process.env.NODE_ENV === 'production' ? '/app/tenantphotos' : path.resolve(process.cwd(), 'tenantphotos'));
-            const filePath = path.join(tenantPhotosPath, oldBlobName);
+            const filePath = path.join(tenantPhotosPath, oldFilename);
+            
             
             console.log(`[Tenant Update] Attempting to delete from disk: ${filePath}`);
             
@@ -3751,11 +3810,24 @@ app.get('/api/service-allocations-for-reading', async (req: Request, res: Respon
         sra.Id as id,
         sra.ServiceId as serviceId,
         sra.RoomId as roomId,
-        rd.Number as roomNumber,
-        sd.ConsumerNo as consumerNo,
-        sd.ConsumerName as consumerName,
-        sd.MeterNo as meterNo,
-        CONCAT(rd.Number, ' - ', sd.ConsumerName, ' (', sd.ConsumerNo, ')') as displayName
+        sd.Id as 'service.id',
+        sd.ConsumerNo as 'service.consumerNo',
+        sd.ConsumerName as 'service.consumerName',
+        sd.MeterNo as 'service.meterNo',
+        sd.Load as 'service.load',
+        sd.ServiceCategory as 'service.serviceCategory',
+        rd.Id as 'room.id',
+        rd.Number as 'room.number',
+        rd.Rent as 'room.rent',
+        rd.Beds as 'room.beds',
+        (SELECT TOP 1 scd.ReadingTakenDate 
+         FROM ServiceConsumptionDetails scd 
+         WHERE scd.ServiceAllocId = sra.Id 
+         ORDER BY scd.ReadingTakenDate DESC) as lastReadingDate,
+        (SELECT TOP 1 scd.EndingMeterReading 
+         FROM ServiceConsumptionDetails scd 
+         WHERE scd.ServiceAllocId = sra.Id 
+         ORDER BY scd.ReadingTakenDate DESC) as lastEndingReading
       FROM ServiceRoomAllocation sra
       INNER JOIN ServiceDetails sd ON sra.ServiceId = sd.Id
       INNER JOIN RoomDetail rd ON sra.RoomId = rd.Id
@@ -3773,7 +3845,31 @@ app.get('/api/service-allocations-for-reading', async (req: Request, res: Respon
     query += ` ORDER BY rd.Number ASC, sd.ConsumerName ASC`;
     
     const result = await request.query(query);
-    res.json(result.recordset);
+    
+    // Transform flat result into nested structure
+    const transformedData = result.recordset.map((row: any) => ({
+      id: row.id,
+      serviceId: row.serviceId,
+      roomId: row.roomId,
+      lastReadingDate: row.lastReadingDate,
+      lastEndingReading: row.lastEndingReading,
+      service: {
+        id: row['service.id'],
+        consumerNo: row['service.consumerNo'],
+        consumerName: row['service.consumerName'],
+        meterNo: row['service.meterNo'],
+        load: row['service.load'],
+        serviceCategory: row['service.serviceCategory']
+      },
+      room: {
+        id: row['room.id'],
+        number: row['room.number'],
+        rent: row['room.rent'],
+        beds: row['room.beds']
+      }
+    }));
+    
+    res.json(transformedData);
   } catch (error) {
     console.error('Get service allocations for reading error:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -4353,6 +4449,281 @@ app.post('/api/debug/test-blob-delete', async (req: Request, res: Response) => {
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     res.status(500).json({ error: errorMsg });
+  }
+});
+
+// =====================================================
+// TENANT SERVICE CHARGES API ENDPOINTS
+// =====================================================
+
+// Calculate pro-rata charges for a service consumption record
+app.post('/api/tenant-service-charges/calculate/:serviceConsumptionId', async (req: Request, res: Response) => {
+  try {
+    const { serviceConsumptionId } = req.params;
+    const { chargePerUnit } = req.body;
+
+    const result = await calculateProRataCharges(
+      parseInt(serviceConsumptionId),
+      chargePerUnit || 15.00
+    );
+
+    res.json({ 
+      success: result.success, 
+      message: result.message,
+      chargesCreated: result.chargesCreated,
+      serviceConsumptionId: parseInt(serviceConsumptionId)
+    });
+  } catch (error) {
+    console.error('Calculate pro-rata charges error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to calculate pro-rata charges',
+      details: errorMessage
+    });
+  }
+});
+
+// Get tenant charges for a specific month
+app.get('/api/tenant-service-charges/:billingYear/:billingMonth', async (req: Request, res: Response) => {
+  try {
+    const { billingYear, billingMonth } = req.params;
+    const { tenantId, roomId } = req.query;
+
+    const charges = await getTenantChargesForMonth(
+      parseInt(billingYear),
+      parseInt(billingMonth),
+      tenantId ? parseInt(tenantId as string) : undefined,
+      roomId ? parseInt(roomId as string) : undefined
+    );
+
+    res.json(charges);
+  } catch (error) {
+    console.error('Get tenant charges error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve tenant charges',
+      details: errorMessage
+    });
+  }
+});
+
+// Get room billing summary for a month
+app.get('/api/room-billing-summary/:billingYear/:billingMonth', async (req: Request, res: Response) => {
+  try {
+    const { billingYear, billingMonth } = req.params;
+    const { roomId } = req.query;
+
+    const summary = await getRoomBillingsSummary(
+      parseInt(billingYear),
+      parseInt(billingMonth),
+      roomId ? parseInt(roomId as string) : undefined
+    );
+
+    res.json(summary);
+  } catch (error) {
+    console.error('Get room billing summary error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve room billing summary',
+      details: errorMessage
+    });
+  }
+});
+
+// Get monthly billing report
+app.get('/api/monthly-billing-report/:billingYear/:billingMonth', async (req: Request, res: Response) => {
+  try {
+    const { billingYear, billingMonth } = req.params;
+
+    const report = await getMonthlyBillingReport(
+      parseInt(billingYear),
+      parseInt(billingMonth)
+    );
+
+    res.json(report || {});
+  } catch (error) {
+    console.error('Get monthly billing report error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve monthly billing report',
+      details: errorMessage
+    });
+  }
+});
+
+// Get tenant's monthly bill
+app.get('/api/tenant-monthly-bill/:tenantId', async (req: Request, res: Response) => {
+  try {
+    const { tenantId } = req.params;
+
+    const bill = await getTenantMonthlyBill(parseInt(tenantId));
+
+    res.json(bill);
+  } catch (error) {
+    console.error('Get tenant monthly bill error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve tenant monthly bill',
+      details: errorMessage
+    });
+  }
+});
+
+// Recalculate all charges for a month (administrative function)
+app.post('/api/tenant-service-charges/recalculate/:billingYear/:billingMonth', async (req: Request, res: Response) => {
+  try {
+    const { billingYear, billingMonth } = req.params;
+    const { chargePerUnit } = req.body;
+
+    const result = await recalculateMonthlyCharges(
+      parseInt(billingYear),
+      parseInt(billingMonth),
+      chargePerUnit || 15.00
+    );
+
+    res.json({ 
+      success: result.success, 
+      message: result.message,
+      servicesProcessed: result.servicesProcessed,
+      totalChargesCreated: result.totalChargesCreated,
+      billingPeriod: `${billingMonth}/${billingYear}`
+    });
+  } catch (error) {
+    console.error('Recalculate monthly charges error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to recalculate monthly charges',
+      details: errorMessage
+    });
+  }
+});
+
+// Get all tenant service charges (with pagination/filtering)
+app.get('/api/tenant-service-charges', async (req: Request, res: Response) => {
+  try {
+    const { billingYear, billingMonth, tenantId, roomId, status, page = '1', limit = '50' } = req.query;
+    const pool = getPool();
+    
+    let query = `
+      SELECT 
+        tsc.[Id],
+        tsc.[ServiceConsumptionId],
+        tsc.[TenantId],
+        t.[Name] as TenantName,
+        t.[Phone] as TenantPhone,
+        tsc.[RoomId],
+        rd.[Number] as RoomNumber,
+        tsc.[ServiceId],
+        sd.[ConsumerName] as ServiceName,
+        sd.[MeterNo],
+        tsc.[BillingMonth],
+        tsc.[BillingYear],
+        tsc.[TotalUnitsForRoom],
+        tsc.[ProRataUnits],
+        tsc.[ProRataPercentage],
+        tsc.[ChargePerUnit],
+        tsc.[TotalCharge],
+        tsc.[OccupancyDaysInMonth],
+        tsc.[TotalDaysInMonth],
+        tsc.[Status],
+        tsc.[CreatedDate],
+        tsc.[UpdatedDate]
+      FROM [dbo].[TenantServiceCharges] tsc
+      INNER JOIN [dbo].[Tenant] t ON tsc.[TenantId] = t.[Id]
+      INNER JOIN [dbo].[RoomDetail] rd ON tsc.[RoomId] = rd.[Id]
+      INNER JOIN [dbo].[ServiceDetails] sd ON tsc.[ServiceId] = sd.[Id]
+      WHERE 1=1
+    `;
+    
+    const request = pool.request();
+    
+    if (billingYear) {
+      query += ` AND tsc.[BillingYear] = @billingYear`;
+      request.input('billingYear', sql.Int, parseInt(billingYear as string));
+    }
+    
+    if (billingMonth) {
+      query += ` AND tsc.[BillingMonth] = @billingMonth`;
+      request.input('billingMonth', sql.Int, parseInt(billingMonth as string));
+    }
+    
+    if (tenantId) {
+      query += ` AND tsc.[TenantId] = @tenantId`;
+      request.input('tenantId', sql.Int, parseInt(tenantId as string));
+    }
+    
+    if (roomId) {
+      query += ` AND tsc.[RoomId] = @roomId`;
+      request.input('roomId', sql.Int, parseInt(roomId as string));
+    }
+    
+    if (status) {
+      query += ` AND tsc.[Status] = @status`;
+      request.input('status', sql.NVarChar, status as string);
+    }
+    
+    query += ` ORDER BY tsc.[BillingYear] DESC, tsc.[BillingMonth] DESC, tsc.[RoomId], tsc.[TenantId]`;
+    
+    const pageNum = parseInt(page as string) || 1;
+    const pageSize = parseInt(limit as string) || 50;
+    const offset = (pageNum - 1) * pageSize;
+    
+    query += ` OFFSET ${offset} ROWS FETCH NEXT ${pageSize} ROWS ONLY`;
+    
+    const result = await request.query(query);
+    res.json({
+      data: result.recordset,
+      pagination: {
+        page: pageNum,
+        limit: pageSize,
+        total: result.recordset.length
+      }
+    });
+  } catch (error) {
+    console.error('Get tenant service charges error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve tenant service charges',
+      details: errorMessage
+    });
+  }
+});
+
+// Update charge status (Calculated, Billed, Paid)
+app.put('/api/tenant-service-charges/:id/status', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status, notes } = req.body;
+    const pool = getPool();
+
+    const result = await pool
+      .request()
+      .input('id', sql.Int, parseInt(id))
+      .input('status', sql.NVarChar, status)
+      .input('notes', sql.NVarChar, notes || null)
+      .query(`
+        UPDATE [dbo].[TenantServiceCharges]
+        SET [Status] = @status,
+            [Notes] = @notes,
+            [UpdatedDate] = GETDATE()
+        WHERE [Id] = @id
+      `);
+
+    if (result.rowsAffected[0] === 0) {
+      return res.status(404).json({ error: 'Tenant service charge record not found' });
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Charge status updated successfully'
+    });
+  } catch (error) {
+    console.error('Update charge status error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to update charge status',
+      details: errorMessage
+    });
   }
 });
 
