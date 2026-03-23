@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../api';
+import { calculateCheckOutProRataRent, ProRataRentCalculation } from '../utils/proRataCalculations';
 import './CheckoutModal.css';
 import './ManagementStyles.css';
 
@@ -26,6 +27,7 @@ export default function CheckoutModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [occupancyData, setOccupancyData] = useState<any>(null);
+  const [proRataCalculation, setProRataCalculation] = useState<ProRataRentCalculation | null>(null);
 
   // Fetch occupancy details on mount
   useEffect(() => {
@@ -53,6 +55,16 @@ export default function CheckoutModal({
       setDepositRefunded(Math.max(0, calculated).toFixed(2));
     }
   }, [charges, occupancyData]);
+
+  // Calculate pro-rata rent when checkout date changes
+  useEffect(() => {
+    if (checkoutDate && occupancyData?.roomRent) {
+      const calculation = calculateCheckOutProRataRent(checkoutDate, occupancyData.roomRent);
+      setProRataCalculation(calculation);
+    } else {
+      setProRataCalculation(null);
+    }
+  }, [checkoutDate, occupancyData?.roomRent]);
   const formatDate = (dateStr: string): string => {
     if (!dateStr) return 'N/A';
     return new Date(dateStr).toLocaleDateString('en-US', {
@@ -198,6 +210,44 @@ export default function CheckoutModal({
               <div className="stay-duration-display">
                 {calculateStayDuration()}
               </div>
+            </div>
+          )}
+
+          {/* Pro-Rata Rent Calculation Display */}
+          {proRataCalculation && occupancyData?.roomRent && (
+            <div className="form-group pro-rata-calculation-checkout">
+              <label>Pro-Rata Rent Calculation for Checkout</label>
+              <div className="calculation-details-checkout">
+                <div className="calculation-row">
+                  <span className="label">Checkout Date:</span>
+                  <span className="value">{formatDate(checkoutDate)}</span>
+                </div>
+                <div className="calculation-row">
+                  <span className="label">Days in Month:</span>
+                  <span className="value">{proRataCalculation.totalDaysInMonth}</span>
+                </div>
+                <div className="calculation-row">
+                  <span className="label">Days Occupied (from month start):</span>
+                  <span className="value highlight">{proRataCalculation.occupancyDays} days</span>
+                </div>
+                <div className="calculation-row">
+                  <span className="label">Full Month Rent:</span>
+                  <span className="value">₹{proRataCalculation.fullMonthRent.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
+                </div>
+                <div className="calculation-row pro-rata-result">
+                  <span className="label"><strong>Pro-Rata Rent (by Checkout):</strong></span>
+                  <span className="value highlight-large">
+                    <strong>₹{proRataCalculation.calculatedRent.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</strong>
+                  </span>
+                </div>
+                <div className="calculation-row">
+                  <span className="label">Percentage:</span>
+                  <span className="value">{proRataCalculation.proRataPercentage}%</span>
+                </div>
+              </div>
+              <p className="calculation-note">
+                Rent owed from start of month to {formatDate(checkoutDate)} on pro-rata basis
+              </p>
             </div>
           )}
 
