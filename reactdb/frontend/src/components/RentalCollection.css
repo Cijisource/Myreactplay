@@ -436,6 +436,71 @@
   transform: translateY(0);
 }
 
+/* Pro-Rata Info Section */
+.pro-rata-info {
+  background: #f0f7ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.95rem;
+}
+
+.info-row .label {
+  color: #475569;
+  font-weight: 500;
+}
+
+.info-row .value {
+  color: #1e293b;
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+}
+
+.info-row .value.balance {
+  color: #dc3545;
+  font-size: 1.1em;
+}
+
+/* Table Cell Styles */
+.details-table td.tenant-name {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.details-table td.room-number {
+  color: #667eea;
+  font-weight: 600;
+}
+
+.details-table td.check-in-date {
+  color: #718096;
+  font-size: 0.9em;
+}
+
+.details-table td.pro-rata {
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.details-table td.outstanding {
+  color: #dc3545;
+  font-weight: 700;
+}
+
+.details-table td.text-center {
+  text-align: center;
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
   .summary-cards {

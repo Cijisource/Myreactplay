@@ -9,6 +9,7 @@ interface OccupancyInfo {
   tenantName: string;
   roomNumber: string;
   rentFixed: number;
+  proRataRent: number;
   totalRentReceived: number;
   totalCharges: number;
   paymentRecordsCount: number;
@@ -425,7 +426,7 @@ export default function RentalCollectionDetails() {
             <div className="summary-card">
               <div className="card-label">Outstanding Balance (Est.)</div>
               <div className="card-value balance">
-                {formatCurrency(Math.max(0, occupancyInfo.rentFixed - (occupancyInfo.totalRentReceived + occupancyInfo.totalCharges)))}
+                {formatCurrency(Math.max(0, occupancyInfo.proRataRent - (occupancyInfo.totalRentReceived + occupancyInfo.totalCharges)))}
               </div>
             </div>
           </div>

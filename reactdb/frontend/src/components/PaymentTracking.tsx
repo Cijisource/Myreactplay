@@ -12,6 +12,7 @@ interface PaymentRecord {
   rentReceivedOn: string | null;
   rentReceived: number;
   rentBalance: number;
+  occupancyDays: number;
   month: number;
   year: number;
   checkInDate: string;
@@ -53,6 +54,20 @@ const formatDate = (dateString: string | null | undefined): string => {
   } catch (err) {
     return 'Invalid date';
   }
+};
+
+// Helper function to get days in month
+const getDaysInMonth = (month: number, year: number): number => {
+  return new Date(year, month, 0).getDate();
+};
+
+// Helper function to format balance tooltip
+const getBalanceTooltip = (payment: PaymentRecord): string => {
+  const daysInMonth = getDaysInMonth(payment.month, payment.year);
+  const occupancyDays = payment.occupancyDays || daysInMonth;
+  const monthName = new Date(payment.year, payment.month - 1).toLocaleDateString('en-US', { month: 'long' });
+  
+  return `Occupancy: ${occupancyDays} of ${daysInMonth} days in ${monthName} ${payment.year}\nPro-rata rent balance`;
 };
 
 export default function PaymentTracking() {
@@ -358,6 +373,7 @@ export default function PaymentTracking() {
                       payment.rentBalance > 0 ? 'pending' : 'success'
                     }`}
                     data-label="Balance"
+                    title={getBalanceTooltip(payment)}
                   >
                     ₹{payment.rentBalance.toLocaleString()}
                   </td>

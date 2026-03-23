@@ -1,6 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || '/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://mansion.gnanabi.info/api';
 
 // Interface for upload response
 interface UploadResponse {
@@ -171,6 +171,7 @@ export const apiService = {
   getPaymentsByMonth: (monthYear: string) => api.get(`/rental/payments/${monthYear}`),
   getRentalCollectionByOccupancy: (occupancyId: number) => api.get(`/rental/occupancy/${occupancyId}`),
   getRentalSummaryByOccupancy: (occupancyId: number) => api.get(`/rental/occupancy/${occupancyId}/summary`),
+  getPaymentBalance: () => api.get('/rental/payment-balance'),
   updateRentalPayment: (occupancyId: number, data: { collectedAmount: number; month: string }) => 
     api.put(`/rental/payment/${occupancyId}`, data),
   updateRentalRecord: (recordId: number, data: any) => 

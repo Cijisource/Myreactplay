@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../api';
+import { calculateCheckInProRataRent, ProRataRentCalculation } from '../utils/proRataCalculations';
 import './CheckinModal.css';
 import './ManagementStyles.css';
 
@@ -15,6 +16,10 @@ interface VacantRoom {
   number: string;
   rent: number;
   beds: number;
+  daysVacant?: number | null;
+  vacancyStatus?: string;
+  lastCheckOutDate?: string | null;
+  lastTenantName?: string | null;
 }
 
 export default function CheckinModal({
@@ -32,6 +37,7 @@ export default function CheckinModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoadingRooms, setIsLoadingRooms] = useState(false);
+  const [proRataCalculation, setProRataCalculation] = useState<ProRataRentCalculation | null>(null);
 
   // Fetch vacant rooms on mount
   useEffect(() => {
@@ -61,6 +67,16 @@ export default function CheckinModal({
     }
   }, [checkInDate]);
 
+  // Calculate pro-rata rent when check-in date or rent amount changes
+  useEffect(() => {
+    if (checkInDate && rentFixed && parseFloat(rentFixed) > 0) {
+      const calculation = calculateCheckInProRataRent(checkInDate, parseFloat(rentFixed));
+      setProRataCalculation(calculation);
+    } else {
+      setProRataCalculation(null);
+    }
+  }, [checkInDate, rentFixed]);
+
   // Format date for display
   const formatDate = (dateStr: string): string => {
     if (!dateStr) return 'N/A';
@@ -81,6 +97,36 @@ export default function CheckinModal({
     const minDate = new Date(checkInDate);
     minDate.setDate(minDate.getDate() + 1);
     return minDate.toISOString().split('T')[0];
+  };
+
+  // Format vacancy age for display
+  const formatVacancyAge = (daysVacant: number | null | undefined): string => {
+    if (daysVacant === null || daysVacant === undefined) {
+      return 'Never Occupied';
+    }
+    if (daysVacant === 0) {
+      return 'Just Vacated';
+    }
+    if (daysVacant === 1) {
+      return 'Vacant 1 day';
+    }
+    if (daysVacant < 7) {
+      return `Vacant ${daysVacant} days`;
+    }
+    if (daysVacant < 30) {
+      const weeks = Math.floor(daysVacant / 7);
+      const days = daysVacant % 7;
+      if (days === 0) {
+        return `Vacant ${weeks} week${weeks > 1 ? 's' : ''}`;
+      }
+      return `Vacant ${weeks}w ${days}d`;
+    }
+    const months = Math.floor(daysVacant / 30);
+    const days = daysVacant % 30;
+    if (days === 0) {
+      return `Vacant ${months} month${months > 1 ? 's' : ''}`;
+    }
+    return `Vacant ${months}m ${days}d`;
   };
 
   const handleCheckIn = async () => {
@@ -197,12 +243,45 @@ export default function CheckinModal({
               <option value="">-- Select a vacant room --</option>
               {vacantRooms.map(room => (
                 <option key={room.id} value={room.id}>
-                  Room {room.number} (₹{room.rent}/mo, {room.beds} bed{room.beds > 1 ? 's' : ''})
+                  Room {room.number} (₹{room.rent}/mo, {room.beds} bed{room.beds > 1 ? 's' : ''}) - {formatVacancyAge(room.daysVacant)}
                 </option>
               ))}
             </select>
           )}
         </div>
+
+        {roomId && (
+          <div className="room-details-section" style={{
+            backgroundColor: '#f5f5f5',
+            padding: '1rem',
+            borderRadius: '6px',
+            marginBottom: '1rem',
+            border: '1px solid #ddd'
+          }}>
+            {(() => {
+              const selectedRoom = vacantRooms.find(r => r.id === parseInt(roomId));
+              if (!selectedRoom) return null;
+              
+              return (
+                <div>
+                  <h4 style={{ margin: '0 0 0.75rem 0', color: '#333' }}>Room Details</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.9rem' }}>
+                    <div><strong>Rent:</strong> ₹{selectedRoom.rent}/month</div>
+                    <div><strong>Beds:</strong> {selectedRoom.beds}</div>
+                    <div><strong>Vacancy Status:</strong> {selectedRoom.vacancyStatus || 'N/A'}</div>
+                    <div><strong>Days Vacant:</strong> {selectedRoom.daysVacant !== null && selectedRoom.daysVacant !== undefined ? selectedRoom.daysVacant : 'N/A'}</div>
+                    {selectedRoom.lastTenantName && (
+                      <div><strong>Last Tenant:</strong> {selectedRoom.lastTenantName}</div>
+                    )}
+                    {selectedRoom.lastCheckOutDate && (
+                      <div><strong>Last Checkout:</strong> {formatDate(selectedRoom.lastCheckOutDate)}</div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
 
         <div className="form-group">
           <label htmlFor="checkin-date">Check-In Date *</label>
@@ -294,6 +373,44 @@ export default function CheckinModal({
           </p>
         </div>
       </div>
+
+      {/* Pro-Rata Rent Calculation Display */}
+      {proRataCalculation && (
+        <div className="form-section pro-rata-calculation">
+          <h3>Pro-Rata Rent Calculation</h3>
+          <div className="calculation-details">
+            <div className="calculation-row">
+              <span className="label">Check-In Date:</span>
+              <span className="value">{formatDate(checkInDate)}</span>
+            </div>
+            <div className="calculation-row">
+              <span className="label">Days in Month:</span>
+              <span className="value">{proRataCalculation.totalDaysInMonth}</span>
+            </div>
+            <div className="calculation-row">
+              <span className="label">Occupancy Days:</span>
+              <span className="value highlight">{proRataCalculation.occupancyDays} days</span>
+            </div>
+            <div className="calculation-row">
+              <span className="label">Full Month Rent:</span>
+              <span className="value">₹{proRataCalculation.fullMonthRent.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
+            </div>
+            <div className="calculation-row pro-rata-result">
+              <span className="label"><strong>Pro-Rata Rent:</strong></span>
+              <span className="value highlight-large">
+                <strong>₹{proRataCalculation.calculatedRent.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</strong>
+              </span>
+            </div>
+            <div className="calculation-row">
+              <span className="label">Percentage:</span>
+              <span className="value">{proRataCalculation.proRataPercentage}%</span>
+            </div>
+          </div>
+          <p className="calculation-note">
+            Rent is calculated pro-rata from {formatDate(checkInDate)} to end of the month
+          </p>
+        </div>
+      )}
 
       {/* Form Actions */}
       <div className="form-actions">

@@ -19,6 +19,11 @@ interface UnpaidTenant {
 
 interface UnpaidDetail {
   OccupancyId: number;
+  TenantName: string;
+  RoomNumber: string;
+  CheckInDate: string;
+  CheckOutDate: string | null;
+  proRataRent: number;
   pending_amount: number;
   collected_amount: number;
   records_count: number;
@@ -35,6 +40,8 @@ export default function RentalCollection() {
   const [editingOccupancyId, setEditingOccupancyId] = useState<number | null>(null);
   const [editAmount, setEditAmount] = useState('');
   const [editingMonth, setEditingMonth] = useState('');
+  const [editingTenantName, setEditingTenantName] = useState('');
+  const [editingProRataRent, setEditingProRataRent] = useState(0);
 
   useEffect(() => {
     fetchData();
@@ -85,12 +92,16 @@ export default function RentalCollection() {
     setEditingOccupancyId(detail.OccupancyId);
     setEditAmount(detail.collected_amount.toString());
     setEditingMonth(month);
+    setEditingTenantName(detail.TenantName);
+    setEditingProRataRent(detail.proRataRent);
   };
 
   const handleCancelEdit = () => {
     setEditingOccupancyId(null);
     setEditAmount('');
     setEditingMonth('');
+    setEditingTenantName('');
+    setEditingProRataRent(0);
   };
 
   const handleSaveEdit = async () => {
@@ -142,9 +153,9 @@ export default function RentalCollection() {
     );
   }
 
-  const totalCollected = summary.reduce((sum, s) => sum + (s.total_collected || 0), 0);
-  const totalOutstanding = summary.reduce((sum, s) => sum + (s.total_outstanding || 0), 0);
-  const totalOccupancies = new Set(summary.map(s => s.total_occupancies)).size;
+  const totalCollected = summary.reduce((sum, s) => sum + (s.total_collected as number || 0), 0);
+  const totalOutstanding = summary.reduce((sum, s) => sum + (s.total_outstanding as number || 0), 0);
+  const totalOccupancies = summary.reduce((max, s) => Math.max(max, s.total_occupancies || 0), 0);
 
   return (
     <div className="rental-container">
@@ -158,13 +169,13 @@ export default function RentalCollection() {
         <div className="card">
           <div className="card-content">
             <h3>Total Collected</h3>
-            <p className="amount">₹ {totalCollected.toLocaleString()}</p>
+            <p className="amount">₹ {totalCollected.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
           </div>
         </div>
         <div className="card">
           <div className="card-content">
-            <h3>Outstanding Due</h3>
-            <p className="amount unpaid">₹ {totalOutstanding.toLocaleString()}</p>
+            <h3>Outstanding Due (Pro-Rata)</h3>
+            <p className="amount unpaid">₹ {totalOutstanding.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
           </div>
         </div>
         <div className="card">
@@ -196,8 +207,8 @@ export default function RentalCollection() {
                     <td><strong>{row.month}</strong></td>
                     <td>{row.total_occupancies}</td>
                     <td>{row.total_records}</td>
-                    <td className="paid">₹ {parseFloat(row.total_collected.toString()).toLocaleString()}</td>
-                    <td className="unpaid">₹ {parseFloat(row.total_outstanding.toString()).toLocaleString()}</td>
+                    <td className="paid">₹ {(row.total_collected as number).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+                    <td className="unpaid">₹ {(row.total_outstanding as number).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
                   </tr>
                 ))}
               </tbody>
@@ -231,9 +242,12 @@ export default function RentalCollection() {
                 <table className="details-table">
                   <thead>
                     <tr>
-                      <th>Occupancy ID</th>
-                      <th>Pending Amount</th>
+                      <th>Tenant Name</th>
+                      <th>Room</th>
+                      <th>Check-In Date</th>
+                      <th>Pro-Rata Rent</th>
                       <th>Collected Amount</th>
+                      <th>Outstanding Balance</th>
                       <th>Records</th>
                       <th>Action</th>
                     </tr>
@@ -241,10 +255,15 @@ export default function RentalCollection() {
                   <tbody>
                     {unpaidDetails.map((detail, idx) => (
                       <tr key={idx}>
-                        <td className="tenant-id">Occupancy #{detail.OccupancyId}</td>
-                        <td className="amount">₹ {parseFloat(detail.pending_amount.toString()).toLocaleString()}</td>
-                        <td className="paid">₹ {parseFloat(detail.collected_amount.toString()).toLocaleString()}</td>
-                        <td>{detail.records_count}</td>
+                        <td className="tenant-name"><strong>{detail.TenantName}</strong></td>
+                        <td className="room-number">{detail.RoomNumber}</td>
+                        <td className="check-in-date">
+                          {detail.CheckInDate ? new Date(detail.CheckInDate).toLocaleDateString('en-IN') : '—'}
+                        </td>
+                        <td className="pro-rata">₹ {detail.proRataRent.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+                        <td className="paid">₹ {parseFloat(detail.collected_amount.toString()).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+                        <td className="amount outstanding">₹ {parseFloat(detail.pending_amount.toString()).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+                        <td className="text-center">{detail.records_count}</td>
                         <td className="actions">
                           <button 
                             className="edit-btn"
@@ -276,8 +295,23 @@ export default function RentalCollection() {
       {editingOccupancyId !== null && (
         <div className="modal-overlay">
           <div className="modal-content">
-            <h2>Edit Payment - Occupancy #{editingOccupancyId}</h2>
+            <h2>Edit Payment - {editingTenantName}</h2>
             <p className="modal-subtitle">Month: {editingMonth}</p>
+            
+            <div className="pro-rata-info">
+              <div className="info-row">
+                <span className="label">Pro-Rata Rent:</span>
+                <span className="value">₹ {editingProRataRent.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+              </div>
+              <div className="info-row">
+                <span className="label">Already Collected:</span>
+                <span className="value">₹ {parseFloat(editAmount).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+              </div>
+              <div className="info-row">
+                <span className="label">Remaining Balance:</span>
+                <span className="value balance">₹ {Math.max(0, editingProRataRent - parseFloat(editAmount)).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+              </div>
+            </div>
             
             <div className="form-group">
               <label htmlFor="editAmount">Collected Amount (₹)</label>

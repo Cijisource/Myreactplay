@@ -8,6 +8,7 @@ import path from 'path';
 import fs from 'fs';
 import { initializeAzureClient, isAzureConfigured, downloadAzureBlob, getAzureBlobSasUrl, uploadAzureBlob, deleteAzureBlob, deleteAzureBlobFromContainer } from './azureService';
 import { calculateProRataCharges, getTenantChargesForMonth, getRoomBillingsSummary, getMonthlyBillingReport, getTenantMonthlyBill, recalculateMonthlyCharges } from './services/proRataService';
+import { calculateCheckInProRataRent, calculateCheckOutProRataRent, recordProRataRentCalculation, calculateProRataRentForMonth, calculateOccupancyDaysForMonth } from './services/proRataRentService';
 
 const app: Express = express();
 const PORT: number = parseInt(process.env.EXPRESS_PORT || '5000');
@@ -516,19 +517,107 @@ app.get('/api/diagnostic/rental-sample', async (req: Request, res: Response) => 
 app.get('/api/rental/summary', async (req: Request, res: Response) => {
   try {
     const pool = getPool();
+    
+    // Get all occupancies with their collection data
     const result = await pool.request().query(`
       SELECT 
-        CONVERT(VARCHAR(7), RentReceivedOn, 120) as month,
-        COUNT(DISTINCT OccupancyId) as total_occupancies,
-        COUNT(*) as total_records,
-        ISNULL(SUM(CAST(RentReceived AS FLOAT)), 0) as total_collected,
-        ISNULL(SUM(CAST(RentBalance AS FLOAT)), 0) as total_outstanding
-      FROM RentalCollection
-      WHERE RentReceivedOn IS NOT NULL
-      GROUP BY CONVERT(VARCHAR(7), RentReceivedOn, 120)
+        CONVERT(VARCHAR(7), rc.RentReceivedOn, 120) as month,
+        o.Id as OccupancyId,
+        o.TenantId,
+        t.Name as TenantName,
+        rd.Number as RoomNumber,
+        ISNULL(CAST(o.RentFixed AS FLOAT), rd.Rent) as RentFixed,
+        rd.Rent as RoomRent,
+        LTRIM(RTRIM(o.CheckInDate)) as CheckInDate,
+        LTRIM(RTRIM(o.CheckOutDate)) as CheckOutDate,
+        ISNULL(SUM(CAST(rc.RentReceived AS FLOAT)), 0) as collected_amount,
+        COUNT(rc.Id) as records_count
+      FROM RentalCollection rc
+      INNER JOIN Occupancy o ON rc.OccupancyId = o.Id
+      INNER JOIN Tenant t ON o.TenantId = t.Id
+      INNER JOIN RoomDetail rd ON o.RoomId = rd.Id
+      WHERE rc.RentReceivedOn IS NOT NULL
+      GROUP BY 
+        CONVERT(VARCHAR(7), rc.RentReceivedOn, 120),
+        o.Id, o.TenantId, t.Name, rd.Number, o.RentFixed, rd.Rent,
+        o.CheckInDate, o.CheckOutDate
       ORDER BY month DESC
     `);
-    res.json(result.recordset);
+    
+    // Process results to calculate pro-rata and group by month
+    const summaryByMonth: Record<string, any> = {};
+    
+    result.recordset.forEach((record: any) => {
+      const month = record.month;
+      const roomRent = parseFloat(record.RentFixed) || parseFloat(record.RoomRent) || 0;
+      const checkInDate = record.CheckInDate?.trim() || null;
+      const checkOutDate = record.CheckOutDate?.trim() || null;
+      const collectedAmount = parseFloat(record.collected_amount) || 0;
+      const recordsCount = parseInt(record.records_count) || 0;
+      
+      // Parse month
+      const [monthYear, monthNum] = month.split('-');
+      const targetYear = parseInt(monthYear);
+      const targetMonth = parseInt(monthNum);
+      const lastDay = new Date(targetYear, targetMonth, 0).getDate();
+      
+      let proRataRent = 0;
+      
+      try {
+        if (checkInDate) {
+          const checkIn = new Date(checkInDate);
+          
+          if (checkIn.getFullYear() === targetYear && checkIn.getMonth() + 1 === targetMonth) {
+            // Check-in in this month
+            const daysOccupied = lastDay - checkIn.getDate() + 1;
+            proRataRent = Math.round((roomRent * daysOccupied) / lastDay * 100) / 100;
+          } else if (checkOutDate && new Date(checkOutDate).getFullYear() === targetYear && 
+                     new Date(checkOutDate).getMonth() + 1 === targetMonth) {
+            // Check-out in this month
+            const checkOut = new Date(checkOutDate);
+            const daysOccupied = checkOut.getDate();
+            proRataRent = Math.round((roomRent * daysOccupied) / lastDay * 100) / 100;
+          } else {
+            // Full month
+            proRataRent = roomRent;
+          }
+        }
+      } catch (err) {
+        proRataRent = roomRent;
+      }
+      
+      const outstandingAmount = Math.max(0, proRataRent - collectedAmount);
+      
+      // Accumulate by month
+      if (!summaryByMonth[month]) {
+        summaryByMonth[month] = {
+          month,
+          total_occupancies: 0,
+          total_records: 0,
+          total_collected: 0,
+          total_outstanding: 0,
+          occupancies: new Set()
+        };
+      }
+      
+      summaryByMonth[month].occupancies.add(record.OccupancyId);
+      summaryByMonth[month].total_records += recordsCount;
+      summaryByMonth[month].total_collected += collectedAmount;
+      summaryByMonth[month].total_outstanding += outstandingAmount;
+    });
+    
+    // Convert to array and set total_occupancies, ensure proper numeric formatting
+    const summary = Object.values(summaryByMonth)
+      .map((item: any) => ({
+        month: item.month,
+        total_occupancies: item.occupancies.size,
+        total_records: item.total_records,
+        total_collected: Math.round(item.total_collected * 100) / 100,
+        total_outstanding: Math.round(item.total_outstanding * 100) / 100
+      }))
+      .sort((a: any, b: any) => b.month.localeCompare(a.month));
+    
+    res.json(summary);
   } catch (error) {
     console.error('Rental summary error:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -542,17 +631,92 @@ app.get('/api/rental/summary', async (req: Request, res: Response) => {
 app.get('/api/rental/unpaid-tenants', async (req: Request, res: Response) => {
   try {
     const pool = getPool();
+    
+    // Get all occupancies with their collection data
     const result = await pool.request().query(`
       SELECT 
-        CONVERT(VARCHAR(7), RentReceivedOn, 120) as month,
-        COUNT(DISTINCT OccupancyId) as outstanding_count,
-        ISNULL(SUM(CAST(RentBalance AS FLOAT)), 0) as total_outstanding
-      FROM RentalCollection
-      WHERE RentBalance > 0 AND RentReceivedOn IS NOT NULL
-      GROUP BY CONVERT(VARCHAR(7), RentReceivedOn, 120)
+        CONVERT(VARCHAR(7), rc.RentReceivedOn, 120) as month,
+        o.Id as OccupancyId,
+        ISNULL(CAST(o.RentFixed AS FLOAT), rd.Rent) as RentFixed,
+        rd.Rent as RoomRent,
+        LTRIM(RTRIM(o.CheckInDate)) as CheckInDate,
+        LTRIM(RTRIM(o.CheckOutDate)) as CheckOutDate,
+        ISNULL(SUM(CAST(rc.RentReceived AS FLOAT)), 0) as collected_amount,
+        COUNT(rc.Id) as records_count
+      FROM RentalCollection rc
+      INNER JOIN Occupancy o ON rc.OccupancyId = o.Id
+      INNER JOIN RoomDetail rd ON o.RoomId = rd.Id
+      WHERE rc.RentReceivedOn IS NOT NULL
+      GROUP BY 
+        CONVERT(VARCHAR(7), rc.RentReceivedOn, 120),
+        o.Id, o.RentFixed, rd.Rent,
+        o.CheckInDate, o.CheckOutDate
       ORDER BY month DESC
     `);
-    res.json(result.recordset);
+    
+    // Process results to calculate pro-rata and outstanding
+    const unpaidByMonth: Record<string, any> = {};
+    
+    result.recordset.forEach((record: any) => {
+      const month = record.month;
+      const roomRent = record.RentFixed || record.RoomRent || 0;
+      const checkInDate = record.CheckInDate?.trim() || null;
+      const checkOutDate = record.CheckOutDate?.trim() || null;
+      const collectedAmount = parseFloat(record.collected_amount) || 0;
+      
+      // Parse month
+      const [monthYear, monthNum] = month.split('-');
+      const targetYear = parseInt(monthYear);
+      const targetMonth = parseInt(monthNum);
+      const lastDay = new Date(targetYear, targetMonth, 0).getDate();
+      
+      let proRataRent = 0;
+      
+      try {
+        if (checkInDate) {
+          const checkIn = new Date(checkInDate);
+          
+          if (checkIn.getFullYear() === targetYear && checkIn.getMonth() + 1 === targetMonth) {
+            // Check-in in this month
+            const daysOccupied = lastDay - checkIn.getDate() + 1;
+            proRataRent = Math.round((roomRent * daysOccupied) / lastDay * 100) / 100;
+          } else if (checkOutDate && new Date(checkOutDate).getFullYear() === targetYear && 
+                     new Date(checkOutDate).getMonth() + 1 === targetMonth) {
+            // Check-out in this month
+            const checkOut = new Date(checkOutDate);
+            const daysOccupied = checkOut.getDate();
+            proRataRent = Math.round((roomRent * daysOccupied) / lastDay * 100) / 100;
+          } else {
+            // Full month
+            proRataRent = roomRent;
+          }
+        }
+      } catch (err) {
+        proRataRent = roomRent;
+      }
+      
+      const outstandingAmount = Math.max(0, proRataRent - collectedAmount);
+      
+      // Only include if there is outstanding balance
+      if (outstandingAmount > 0) {
+        if (!unpaidByMonth[month]) {
+          unpaidByMonth[month] = {
+            month,
+            outstanding_count: 0,
+            total_outstanding: 0
+          };
+        }
+        
+        unpaidByMonth[month].outstanding_count += 1;
+        unpaidByMonth[month].total_outstanding += outstandingAmount;
+      }
+    });
+    
+    const unpaidTenants = Object.values(unpaidByMonth).sort((a: any, b: any) => 
+      b.month.localeCompare(a.month)
+    );
+    
+    res.json(unpaidTenants);
   } catch (error) {
     console.error('Unpaid tenants error:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -573,18 +737,105 @@ app.get('/api/rental/unpaid-details/:month', async (req: Request, res: Response)
       .input('month', sql.VarChar(7), month)
       .query(`
         SELECT 
-          OccupancyId,
-          ISNULL(SUM(CAST(RentBalance AS FLOAT)), 0) as pending_amount,
-          ISNULL(SUM(CAST(RentReceived AS FLOAT)), 0) as collected_amount,
-          COUNT(*) as records_count,
-          MAX(RentReceivedOn) as latest_date
-        FROM RentalCollection
-        WHERE RentBalance > 0
-          AND CONVERT(VARCHAR(7), RentReceivedOn, 120) = @month
-        GROUP BY OccupancyId
-        ORDER BY SUM(CAST(RentBalance AS FLOAT)) DESC
+          o.Id as OccupancyId,
+          t.Name as TenantName,
+          LTRIM(RTRIM(rd.Number)) as RoomNumber,
+          LTRIM(RTRIM(o.CheckInDate)) as CheckInDate,
+          LTRIM(RTRIM(o.CheckOutDate)) as CheckOutDate,
+          ISNULL(CAST(o.RentFixed AS FLOAT), rd.Rent) as RentFixed,
+          rd.Rent as RoomRent,
+          ISNULL(SUM(CAST(rc.RentReceived AS FLOAT)), 0) as collected_amount,
+          COUNT(rc.Id) as records_count,
+          MAX(rc.RentReceivedOn) as latest_date
+        FROM Occupancy o
+        INNER JOIN Tenant t ON o.TenantId = t.Id
+        INNER JOIN RoomDetail rd ON o.RoomId = rd.Id
+        LEFT JOIN RentalCollection rc 
+          ON o.Id = rc.OccupancyId 
+          AND CONVERT(VARCHAR(7), rc.RentReceivedOn, 120) = @month
+        WHERE 
+          -- Tenant is active in this month
+          (CAST(o.CheckInDate AS DATE) <= EOMONTH(CAST(@month + '-01' AS DATE)))
+          AND (o.CheckOutDate IS NULL 
+            OR LTRIM(RTRIM(o.CheckOutDate)) = '' 
+            OR CAST(o.CheckOutDate AS DATE) >= CAST(@month + '-01' AS DATE))
+        GROUP BY 
+          o.Id, t.Name, rd.Number, o.CheckInDate, o.CheckOutDate, 
+          o.RentFixed, rd.Rent
+        ORDER BY t.Name ASC
       `);
-    res.json(result.recordset);
+    
+    // Process results to calculate pro-rata and outstanding balance
+    const unpaidDetails = result.recordset.map((record: any) => {
+      const roomRent = parseFloat(record.RentFixed) || parseFloat(record.RoomRent) || 0;
+      const checkInDate = record.CheckInDate?.trim() || null;
+      const checkOutDate = record.CheckOutDate?.trim() || null;
+      const collectedAmount = parseFloat(record.collected_amount) || 0;
+      const recordsCount = parseInt(record.records_count) || 0;
+      
+      // Parse the month to get year/month values
+      const [monthYear, monthNum] = month.split('-');
+      const targetYear = parseInt(monthYear);
+      const targetMonth = parseInt(monthNum);
+      
+      // Get last day of the month
+      const lastDay = new Date(targetYear, targetMonth, 0).getDate();
+      
+      let proRataRent = 0;
+      
+      try {
+        if (checkInDate) {
+          const checkIn = new Date(checkInDate);
+          const checkInYear = checkIn.getFullYear();
+          const checkInMonth = checkIn.getMonth() + 1;
+          
+          if (checkInYear === targetYear && checkInMonth === targetMonth) {
+            // Check-in is in this month - calculate from check-in to month end
+            const daysOccupied = lastDay - checkIn.getDate() + 1;
+            proRataRent = Math.round((roomRent * daysOccupied) / lastDay * 100) / 100;
+          } else if (checkOutDate) {
+            const checkOut = new Date(checkOutDate);
+            const checkOutYear = checkOut.getFullYear();
+            const checkOutMonth = checkOut.getMonth() + 1;
+            
+            if (checkOutYear === targetYear && checkOutMonth === targetMonth) {
+              // Check-out is in this month - calculate from month start to check-out
+              const daysOccupied = checkOut.getDate();
+              proRataRent = Math.round((roomRent * daysOccupied) / lastDay * 100) / 100;
+            } else if (checkInYear < targetYear || (checkInYear === targetYear && checkInMonth < targetMonth)) {
+              // Check-in before this month, check-out after - full month
+              proRataRent = roomRent;
+            }
+          } else {
+            // No check-out date (active tenant) - if check-in is before this month, full month
+            if (checkInYear < targetYear || (checkInYear === targetYear && checkInMonth < targetMonth)) {
+              proRataRent = roomRent;
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error calculating pro-rata:', err);
+        proRataRent = roomRent;
+      }
+      
+      // Calculate pending amount based on pro-rata
+      const pendingAmount = Math.round(Math.max(0, proRataRent - collectedAmount) * 100) / 100;
+      
+      return {
+        OccupancyId: record.OccupancyId,
+        TenantName: record.TenantName?.trim() || '',
+        RoomNumber: record.RoomNumber || '',
+        CheckInDate: checkInDate,
+        CheckOutDate: checkOutDate,
+        proRataRent: Math.round(proRataRent * 100) / 100,
+        pending_amount: pendingAmount,
+        collected_amount: collectedAmount,
+        records_count: recordsCount,
+        latest_date: record.latest_date
+      };
+    }).filter(detail => detail.pending_amount > 0); // Only show records with pending balance
+    
+    res.json(unpaidDetails);
   } catch (error) {
     console.error('Unpaid details error:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -623,11 +874,10 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
           ISNULL(o.RentFixed, rd.Rent) as rentFixed,
           ISNULL(CAST(rc.RentReceivedOn AS NVARCHAR), NULL) as rentReceivedOn,
           ISNULL(CAST(rc.RentReceived AS FLOAT), 0) as rentReceived,
-          ISNULL(CAST(o.RentFixed AS FLOAT), CAST(rd.Rent AS FLOAT)) - ISNULL(CAST(rc.RentReceived AS FLOAT), 0) as rentBalance,
           @month as [month],
           @year as [year],
-          CAST(o.CheckInDate AS DATE) as checkInDate,
-          CAST(o.CheckOutDate AS DATE) as checkOutDate,
+          CAST(o.CheckInDate AS NVARCHAR) as checkInDate,
+          CAST(o.CheckOutDate AS NVARCHAR) as checkOutDate,
           CASE 
             WHEN rc.Id IS NULL THEN 'pending'
             WHEN ISNULL(CAST(rc.RentBalance AS FLOAT), 0) = 0 THEN 'paid'
@@ -646,7 +896,40 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
           AND (o.CheckOutDate IS NULL OR CAST(o.CheckOutDate AS DATE) > DATEFROMPARTS(@year, @month, 1))
         ORDER BY t.Name ASC
       `);
-    res.json(result.recordset);
+    
+    // Calculate pro-rata rent balance for each record
+    const paymentRecords = result.recordset.map((record: any) => {
+      const rentFixed = record.rentFixed || 0;
+      const rentReceived = record.rentReceived || 0;
+      
+      // Calculate pro-rata rent for this specific month based on check-in/check-out dates
+      const proRataRent = calculateProRataRentForMonth(
+        record.checkInDate,
+        record.checkOutDate,
+        rentFixed,
+        year,
+        month
+      );
+      
+      // Calculate occupancy days for this month
+      const occupancyDays = calculateOccupancyDaysForMonth(
+        record.checkInDate,
+        record.checkOutDate,
+        year,
+        month
+      );
+      
+      // Calculate rent balance as: proRataRent - rentReceived
+      const rentBalance = Math.max(0, proRataRent - rentReceived);
+      
+      return {
+        ...record,
+        rentBalance,
+        occupancyDays
+      };
+    });
+    
+    res.json(paymentRecords);
   } catch (error) {
     console.error('Payment details error:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -1734,7 +2017,7 @@ app.post('/api/occupancy/checkin', async (req: Request, res: Response) => {
       });
     }
 
-    // Create new occupancy record
+    // Create new occupancy record with pro-rata rent calculation
     const insertResult = await pool
       .request()
       .input('tenantId', sql.Int, tenantId)
@@ -1754,6 +2037,21 @@ app.post('/api/occupancy/checkin', async (req: Request, res: Response) => {
     if (!occupancyId) {
       return res.status(500).json({ error: 'Failed to create occupancy' });
     }
+
+    // Calculate pro-rata rent based on check-in date
+    const proRataCalculation = calculateCheckInProRataRent(checkInDate, rentFixed);
+    
+    // Record the pro-rata calculation for audit trail
+    await recordProRataRentCalculation(
+      occupancyId,
+      checkInDate,
+      checkOutDate,
+      rentFixed,
+      proRataCalculation.calculatedRent,
+      proRataCalculation.occupancyDays,
+      proRataCalculation.totalDaysInMonth,
+      'check-in'
+    );
 
     // Get the created occupancy details to return
     const detailsResult = await pool
@@ -1781,10 +2079,19 @@ app.post('/api/occupancy/checkin', async (req: Request, res: Response) => {
     const occupancy = detailsResult.recordset[0];
 
     console.log(`[Occupancy Check-In] Tenant ${occupancy.tenantName} (ID: ${occupancy.tenantId}) checked in to Room ${occupancy.roomNumber} on ${checkInDate}`);
+    console.log(`[Pro-Rata Rent] Full month rent: ₹${rentFixed}, Check-in pro-rata: ₹${proRataCalculation.calculatedRent} for ${proRataCalculation.occupancyDays} days out of ${proRataCalculation.totalDaysInMonth}`);
 
     res.json({ 
       message: 'Occupancy check-in completed successfully',
-      occupancy: occupancy
+      occupancy: occupancy,
+      proRataCalculation: {
+        fullMonthRent: proRataCalculation.fullMonthRent,
+        calculatedRent: proRataCalculation.calculatedRent,
+        occupancyDays: proRataCalculation.occupancyDays,
+        totalDaysInMonth: proRataCalculation.totalDaysInMonth,
+        proRataPercentage: proRataCalculation.proRataPercentage,
+        calculationNote: `Rent calculated pro-rata from ${checkInDate} to end of month (${proRataCalculation.occupancyDays} days out of ${proRataCalculation.totalDaysInMonth})`
+      }
     });
   } catch (error) {
     console.error('Check-in occupancy error:', error);
@@ -1860,6 +2167,14 @@ app.post('/api/occupancy/:occupancyId/checkout', async (req: Request, res: Respo
       });
     }
 
+    // Get the room rent for pro-rata calculation
+    const roomResult = await pool
+      .request()
+      .input('roomId', sql.Int, occupancy.RoomId)
+      .query(`SELECT Rent FROM RoomDetail WHERE Id = @roomId`);
+    
+    const roomRent = roomResult.recordset[0]?.Rent || 0;
+
     // Update occupancy with checkout date, deposit refunded, and charges
     const updateResult = await pool
       .request()
@@ -1876,6 +2191,21 @@ app.post('/api/occupancy/:occupancyId/checkout', async (req: Request, res: Respo
     if (updateResult.rowsAffected[0] === 0) {
       return res.status(500).json({ error: 'Failed to update occupancy' });
     }
+
+    // Calculate pro-rata rent based on checkout date
+    const proRataCalculation = calculateCheckOutProRataRent(checkOutDate, roomRent);
+    
+    // Record the pro-rata calculation for audit trail
+    await recordProRataRentCalculation(
+      parseInt(occupancyId),
+      occupancy.CheckInDate,
+      checkOutDate,
+      roomRent,
+      proRataCalculation.calculatedRent,
+      proRataCalculation.occupancyDays,
+      proRataCalculation.totalDaysInMonth,
+      'check-out'
+    );
 
     // Get updated occupancy details to return to client
     const updatedResult = await pool
@@ -1902,10 +2232,19 @@ app.post('/api/occupancy/:occupancyId/checkout', async (req: Request, res: Respo
     const updatedOccupancy = updatedResult.recordset[0];
 
     console.log(`[Occupancy Checkout] Tenant ${updatedOccupancy.tenantName} (ID: ${updatedOccupancy.tenantId}) checked out from Room ${updatedOccupancy.roomNumber} on ${checkOutDate}`);
+    console.log(`[Pro-Rata Rent] Full month rent: ₹${roomRent}, Checkout pro-rata: ₹${proRataCalculation.calculatedRent} for ${proRataCalculation.occupancyDays} days out of ${proRataCalculation.totalDaysInMonth}`);
 
     res.json({ 
       message: 'Occupancy checkout completed successfully',
-      occupancy: updatedOccupancy
+      occupancy: updatedOccupancy,
+      proRataCalculation: {
+        fullMonthRent: proRataCalculation.fullMonthRent,
+        calculatedRent: proRataCalculation.calculatedRent,
+        occupancyDays: proRataCalculation.occupancyDays,
+        totalDaysInMonth: proRataCalculation.totalDaysInMonth,
+        proRataPercentage: proRataCalculation.proRataPercentage,
+        calculationNote: `Rent calculated pro-rata from 1st to ${checkOutDate} (${proRataCalculation.occupancyDays} days out of ${proRataCalculation.totalDaysInMonth})`
+      }
     });
   } catch (error) {
     console.error('Checkout occupancy error:', error);
@@ -4409,12 +4748,224 @@ app.get('/api/rental/occupancy/:occupancyId/summary', async (req: Request, res: 
       return res.status(404).json({ error: 'Occupancy not found' });
     }
     
-    res.json(result.recordset[0]);
+    const record = result.recordset[0];
+    
+    // Calculate pro-rata rent for current month based on check-in/check-out dates
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const rentFixed = record.rentFixed || 0;
+    const checkInDate = record.checkInDate?.trim() || null;
+    const checkOutDate = record.checkOutDate?.trim() || null;
+    
+    let proRataRent = rentFixed;
+    
+    try {
+      if (checkInDate) {
+        proRataRent = calculateProRataRentForMonth(
+          checkInDate,
+          checkOutDate,
+          rentFixed,
+          currentYear,
+          currentMonth
+        );
+      }
+    } catch (err) {
+      console.error('Error calculating pro-rata rent:', err);
+      proRataRent = rentFixed;
+    }
+    
+    // Return response with proRataRent included
+    res.json({
+      ...record,
+      proRataRent: Math.round(proRataRent * 100) / 100
+    });
   } catch (error) {
     console.error('Get rental summary error:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     res.status(500).json({ 
       error: 'Failed to retrieve rental summary',
+      details: errorMessage
+    });
+  }
+});
+
+// Get tenant payment balance with pro-rata calculations
+app.get('/api/rental/payment-balance', async (req: Request, res: Response) => {
+  try {
+    const pool = getPool();
+    
+    // Get all active occupancies with tenant and payment information
+    const result = await pool
+      .request()
+      .query(`
+        SELECT 
+          o.Id as occupancyId,
+          o.TenantId as tenantId,
+          t.Name as tenantName,
+          LTRIM(RTRIM(rd.Number)) as roomNumber,
+          rd.Rent as roomRent,
+          ISNULL(CAST(o.RentFixed AS FLOAT), rd.Rent) as rentFixed,
+          LTRIM(RTRIM(o.CheckInDate)) as checkInDate,
+          LTRIM(RTRIM(o.CheckOutDate)) as checkOutDate,
+          CASE 
+            WHEN o.CheckOutDate IS NULL OR LTRIM(RTRIM(o.CheckOutDate)) = '' THEN 1
+            WHEN CAST(o.CheckOutDate AS DATE) > CAST(GETDATE() AS DATE) THEN 1
+            ELSE 0
+          END as isActive,
+          ISNULL(SUM(CAST(rc.RentReceived AS FLOAT)), 0) as totalPaid,
+          COUNT(rc.Id) as paymentCount,
+          MAX(rc.RentReceivedOn) as lastPaymentDate
+        FROM Occupancy o
+        INNER JOIN Tenant t ON o.TenantId = t.Id
+        INNER JOIN RoomDetail rd ON o.RoomId = rd.Id
+        LEFT JOIN RentalCollection rc ON o.Id = rc.OccupancyId
+        GROUP BY 
+          o.Id, o.TenantId, t.Name, rd.Number, rd.Rent, 
+          o.RentFixed, o.CheckInDate, o.CheckOutDate
+        ORDER BY t.Name ASC
+      `);
+    
+    // Process results to include pro-rata calculations
+    const paymentBalances = result.recordset.map((record: any) => {
+      const roomRent = record.rentFixed || record.roomRent || 0;
+      
+      // Calculate pro-rata values
+      const checkInDate = record.checkInDate?.trim() || null;
+      const checkOutDate = record.checkOutDate?.trim() || null;
+      
+      let checkInProRata = 0;
+      let checkOutProRata = null;
+      let expectedRent = roomRent;
+      
+      // Helper function to calculate days in month
+      const getDaysInMonth = (date: Date): number => {
+        return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+      };
+      
+      // Helper function to add months to a date
+      const addMonths = (date: Date, months: number): Date => {
+        const newDate = new Date(date);
+        newDate.setMonth(newDate.getMonth() + months);
+        return newDate;
+      };
+      
+      if (checkInDate && checkOutDate) {
+        // Both check-in and check-out: calculate pro-rata for the entire period
+        try {
+          const checkIn = new Date(checkInDate);
+          const checkOut = new Date(checkOutDate);
+          let totalExpectedRent = 0;
+          
+          // Check-in month pro-rata
+          const checkInCalculation = calculateCheckInProRataRent(checkInDate, roomRent);
+          checkInProRata = Math.round(checkInCalculation.calculatedRent * 100) / 100;
+          totalExpectedRent += checkInProRata;
+          
+          // Check-out month pro-rata
+          const checkOutCalculation = calculateCheckOutProRataRent(checkOutDate, roomRent);
+          checkOutProRata = Math.round(checkOutCalculation.calculatedRent * 100) / 100;
+          
+          // Add full months between check-in and check-out (if any)
+          const checkInMonth = new Date(checkIn.getFullYear(), checkIn.getMonth(), 1);
+          const checkOutMonth = new Date(checkOut.getFullYear(), checkOut.getMonth(), 1);
+          
+          // Only add intermediate full months if check-in and check-out are not in same or consecutive months
+          let currentMonth = addMonths(checkInMonth, 1);
+          while (currentMonth < checkOutMonth) {
+            totalExpectedRent += roomRent; // Full month rent
+            currentMonth = addMonths(currentMonth, 1);
+          }
+          
+          // Add checkout month (only if different from check-in month)
+          if (checkOutMonth > checkInMonth) {
+            totalExpectedRent += checkOutProRata;
+          }
+          
+          expectedRent = Math.round(totalExpectedRent * 100) / 100;
+        } catch (err) {
+          console.error('Error calculating checkout pro-rata:', err);
+          expectedRent = roomRent;
+        }
+      } else if (checkInDate && !checkOutDate) {
+        // Active occupancy: calculate from check-in to current date
+        try {
+          const checkIn = new Date(checkInDate);
+          const today = new Date();
+          let totalExpectedRent = 0;
+          
+          // Check-in month pro-rata
+          const checkInCalculation = calculateCheckInProRataRent(checkInDate, roomRent);
+          checkInProRata = Math.round(checkInCalculation.calculatedRent * 100) / 100;
+          totalExpectedRent += checkInProRata;
+          
+          // Add full/partial months from month after check-in to current month
+          const checkInMonth = new Date(checkIn.getFullYear(), checkIn.getMonth(), 1);
+          const currentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+          
+          let iterMonth = addMonths(checkInMonth, 1);
+          while (iterMonth < currentMonth) {
+            totalExpectedRent += roomRent; // Full month rent
+            iterMonth = addMonths(iterMonth, 1);
+          }
+          
+          // Add current month pro-rata (from 1st to current date)
+          if (currentMonth > checkInMonth) {
+            const currentMonthDays = getDaysInMonth(today);
+            const daysInCurrentMonth = today.getDate();
+            const currentMonthProRata = Math.round((roomRent * daysInCurrentMonth) / currentMonthDays * 100) / 100;
+            totalExpectedRent += currentMonthProRata;
+          }
+          
+          expectedRent = Math.round(totalExpectedRent * 100) / 100;
+        } catch (err) {
+          console.error('Error calculating active occupancy pro-rata:', err);
+          checkInProRata = roomRent;
+          expectedRent = checkInProRata;
+        }
+      }
+      
+      // Calculate balance
+      const totalPaid = parseFloat(record.totalPaid) || 0;
+      const balance = expectedRent - totalPaid;
+      
+      // Determine status
+      let balanceStatus = 'pending';
+      if (balance <= 0) {
+        balanceStatus = 'paid';
+      } else if (totalPaid > 0) {
+        balanceStatus = 'partial';
+      }
+      
+      return {
+        occupancyId: record.occupancyId,
+        tenantId: record.tenantId,
+        tenantName: record.tenantName?.trim() || '',
+        roomNumber: record.roomNumber || '',
+        roomRent: roomRent,
+        checkInDate: checkInDate,
+        checkOutDate: checkOutDate,
+        isActive: record.isActive === 1,
+        
+        checkInProRata,
+        checkOutProRata,
+        expectedRent,
+        
+        totalPaid,
+        balance: Math.round(Math.max(0, balance) * 100) / 100,
+        balanceStatus,
+        
+        lastPaymentDate: record.lastPaymentDate,
+        paymentCount: record.paymentCount || 0
+      };
+    });
+    
+    res.json(paymentBalances);
+  } catch (error) {
+    console.error('Get payment balance error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve payment balance data',
       details: errorMessage
     });
   }
