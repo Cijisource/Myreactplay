@@ -3,7 +3,28 @@
   height: 100vh;
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+/* Banner Wrapper */
+.login-banner-wrapper {
+  position: relative;
+  z-index: 50;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+/* Map Container */
+.login-map-container {
+  position: relative;
+  top: 0;
+  left: 0;
+  width: 100%;
+  flex: 1;
+  z-index: 1;
+  overflow: hidden;
 }
 
 .login-background {
@@ -47,8 +68,9 @@
 .login-content {
   position: fixed;
   z-index: 100;
-  bottom: 40px;
+  top: 50%;
   right: 40px;
+  transform: translateY(-50%);
   width: auto;
   max-width: 420px;
   padding: 0;
@@ -61,6 +83,8 @@
   padding: 2.5rem;
   width: 100%;
   animation: slideUp 0.6s ease-out;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 @keyframes slideUp {
@@ -347,8 +371,9 @@
 /* Tablet Layout */
 @media (max-width: 1024px) {
   .login-content {
-    bottom: 30px;
+    top: 50%;
     right: 30px;
+    transform: translateY(-50%);
     max-width: 380px;
   }
 
@@ -369,9 +394,11 @@
   }
 
   .login-content {
-    bottom: 20px;
+    top: 50%;
     right: 20px;
-    max-width: 320px;
+    left: 20px;
+    transform: translateY(-50%);
+    max-width: none;
   }
 
   .login-card {

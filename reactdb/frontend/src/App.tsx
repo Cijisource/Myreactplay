@@ -346,30 +346,28 @@ function AppContent() {
           </div>
         </div>
         
-        <div className="header-center">
-          <h1 className="page-title">
-            {(() => {
-              if (currentPage === 'home') return 'Dashboard';
-              const pageNames: { [key in Page]?: string } = {
-                'occupancy': 'Room Occupancy',
-                'occupancy-links': 'Occupancy History',
-                'tenants': 'Tenants',
-                'payment': 'Payments',
-                'complaints': 'Complaints',
-                'services': 'Services',
-                'consumption': 'Consumption',
-                'eb-payments': 'EB Payments',
-                'users': 'Users',
-                'roles': 'Roles',
-                'transactions': 'Transactions',
-                'stock': 'Stock',
-                'daily-status': 'Daily Status',
-                'service-allocation': 'Allocations',
-                'diagnostic': 'Diagnostic'
-              };
-              return pageNames[currentPage] || (currentPage.charAt(0).toUpperCase() + currentPage.slice(1).replace('-', ' '));
-            })()}
-          </h1>
+        <div className={`header-nav ${mobileMenuOpen ? 'open' : ''}`}>
+          <div className={`nav-items-container`}>
+            {NAV_ITEMS.map(item => {
+              const userRoles = user?.roles?.split(',').map(r => r.trim()).filter(r => r) || [];
+              const hasAccess = item.roles.length === 0 || userRoles.some(r => item.roles.includes(r));
+              
+              if (!hasAccess) return null;
+              
+              return (
+                <button 
+                  key={item.page}
+                  className={`nav-item ${currentPage === item.page ? 'active' : ''}`}
+                  onClick={() => {
+                    setCurrentPage(item.page);
+                    setMobileMenuOpen(false);
+                  }}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
         
         <div className="header-right">
@@ -413,39 +411,6 @@ function AppContent() {
               </div>
             )}
           </div>
-        </div>
-      </div>
-      
-      <div className={`nav-sidebar ${mobileMenuOpen ? 'open' : ''} ${headerHidden ? 'header-hidden' : ''}`}>
-        <div className="nav-items-container">
-          {NAV_ITEMS.map(item => {
-            const userRoles = user?.roles?.split(',').map(r => r.trim()).filter(r => r) || [];
-            const hasAccess = item.roles.length === 0 || userRoles.some(r => item.roles.includes(r));
-            
-            if (item.label === 'Tenant Management') {
-              console.log('[Nav Debug] Tenant Management visibility:', {
-                userRoles,
-                requiredRoles: item.roles,
-                hasAccess,
-                userRolesString: user?.roles
-              });
-            }
-            
-            if (!hasAccess) return null;
-            
-            return (
-              <button 
-                key={item.page}
-                className={`nav-item ${currentPage === item.page ? 'active' : ''}`}
-                onClick={() => {
-                  setCurrentPage(item.page);
-                  setMobileMenuOpen(false);
-                }}
-              >
-                {item.label}
-              </button>
-            );
-          })}
         </div>
       </div>
       
