@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from './AuthContext';
 import RollingBanner from './RollingBanner';
+import MapNavigation from './MapNavigation';
 import './LoginScreen.css';
 
 export default function LoginScreen() {
@@ -41,12 +42,20 @@ export default function LoginScreen() {
 
   return (
     <div className="login-container">
-      <RollingBanner />
+      {/* Banner at top */}
+      <div className="login-banner-wrapper">
+        <RollingBanner />
+      </div>
       
-      <div className="login-background">
-        <div className="background-blur"></div>
+      {/* Map Background Below Banner */}
+      <div className="login-map-container">
+        <MapNavigation 
+          defaultZoom={13}
+          defaultCenter={{ lat: 9.9252, lng: 78.1198 }}
+        />
       </div>
 
+      {/* Login Form Floating Over */}
       <div className="login-content">
         <div className="login-card">
           <div className="login-header">

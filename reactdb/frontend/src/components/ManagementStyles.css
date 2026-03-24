@@ -1315,13 +1315,14 @@
 }
 
 .consumer-badge {
-  background: rgba(255, 255, 255, 0.3);
+  background: #f0f9ff;
   padding: 8px 14px;
   border-radius: 6px;
   font-weight: 700;
   font-family: monospace;
   font-size: 0.95em;
   white-space: nowrap;
+  color: #0369a1;
 }
 
 .consumer-details {
@@ -1333,13 +1334,14 @@
 .consumer-name {
   font-weight: 600;
   font-size: 1.05em;
+  color: #1e293b;
 }
 
 .last-payment {
   font-size: 0.85em;
   opacity: 1;
   white-space: nowrap;
-  color: #f9f9f9;
+  color: #64748b;
   font-weight: 600;
 }
 
@@ -1359,7 +1361,7 @@
   font-size: 0.85em;
   opacity: 0.9;
   font-weight: 500;
-  color: #dcfce7;
+  color: #64748b;
 }
 
 .stat-value {
@@ -1371,14 +1373,14 @@
   background: rgba(255, 255, 255, 0.2);
   padding: 4px 10px;
   border-radius: 4px;
-  color: greenyellow;
+  color: #0369a1;
 }
 
 .stat-value.amount {
   background: rgba(255, 255, 255, 0.2);
   padding: 4px 10px;
   border-radius: 4px;
-  color: white;
+  color: #059669;
 }
 
 .category-records {

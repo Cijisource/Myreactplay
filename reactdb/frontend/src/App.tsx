@@ -36,16 +36,16 @@ const SCREEN_ROLES: Record<Page, string[]> = {
   tenants: ['admin', 'manager', 'property_manager'],
   occupancy: ['admin', 'manager', 'property_manager'],
   'room-management': ['admin', 'manager', 'property_manager'],
-  'occupancy-links': ['admin', 'manager', 'property_manager'],
+  'occupancy-links': ['admin'],
   complaints: ['admin', 'manager', 'maintenance'],
-  services: ['admin', 'manager', 'utilities_manager'],
+  services: ['admin'],
   'eb-payments': ['admin', 'manager', 'accountant'],
   users: ['admin'],
   roles: ['admin'],
   transactions: ['admin', 'manager', 'accountant'],
   stock: ['admin', 'manager', 'inventory_manager'],
   'daily-status': ['admin', 'manager', 'maintenance'],
-  'service-allocation': ['admin', 'manager', 'utilities_manager'],
+  'service-allocation': ['admin'],
   consumption: ['admin', 'manager', 'utilities_manager'],
   'meter-reading': ['admin', 'manager', 'utilities_manager'],
   'electricity-charges': ['admin', 'manager', 'utilities_manager', 'accountant']
@@ -81,6 +81,7 @@ function AppContent() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [headerHidden, setHeaderHidden] = useState(false);
   const lastScrollPosRef = useRef(0);
+  const headerHiddenRef = useRef(false);
   const { isAuthenticated, user, logout } = useAuth();
 
   // Debug logging for authentication state
@@ -119,11 +120,16 @@ function AppContent() {
 
   // Auto-hide header on scroll
   useEffect(() => {
-    let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
+    let ticking = false;
     
     const handleScroll = () => {
-      const currentScrollPos = window.scrollY;
-      const isScrollingDown = currentScrollPos > lastScrollPosRef.current;
+      // Get scroll position from multiple sources for compatibility
+      const scrollPos = window.scrollY || 
+                       document.documentElement.scrollTop || 
+                       document.body.scrollTop || 
+                       0;
+      
+      const isScrollingDown = scrollPos > lastScrollPosRef.current;
       
       // Adaptive threshold based on screen size
       let scrollThreshold = 50; // Default for mobile
@@ -136,27 +142,43 @@ function AppContent() {
         scrollThreshold = 50; // Tablet portrait and mobile
       }
       
-      if (isScrollingDown && currentScrollPos > scrollThreshold) {
-        if (!headerHidden) {
+      // Debug: log scroll events
+      console.log('Scroll detected:', { scrollPos, isScrollingDown, scrollThreshold, headerHidden });
+      
+      if (isScrollingDown && scrollPos > scrollThreshold) {
+        if (!headerHiddenRef.current) {
+          headerHiddenRef.current = true;
           setHeaderHidden(true);
+          console.log('Header hidden at scroll pos:', scrollPos);
         }
-      } else {
-        if (headerHidden) {
+      } else if (scrollPos <= scrollThreshold || !isScrollingDown) {
+        if (headerHiddenRef.current) {
+          headerHiddenRef.current = false;
           setHeaderHidden(false);
+          console.log('Header shown at scroll pos:', scrollPos);
         }
       }
       
-      lastScrollPosRef.current = currentScrollPos;
+      lastScrollPosRef.current = scrollPos;
+      ticking = false;
     };
     
-    // Use passive listener for better scroll performance
-    window.addEventListener('scroll', handleScroll, { passive: true });
+    const onScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(handleScroll);
+        ticking = true;
+      }
+    };
+    
+    // Listen on multiple elements for compatibility
+    window.addEventListener('scroll', onScroll, { passive: true });
+    document.addEventListener('scroll', onScroll, { passive: true });
     
     return () => {
-      window.removeEventListener('scroll', handleScroll);
-      if (scrollTimeout) clearTimeout(scrollTimeout);
+      window.removeEventListener('scroll', onScroll);
+      document.removeEventListener('scroll', onScroll);
     };
-  }, [headerHidden]);
+  }, []);
 
   // If not authenticated, show login screen
   if (!isAuthenticated) {
@@ -347,29 +369,33 @@ function AppContent() {
         </div>
         
         <div className="header-center">
-          <h1 className="page-title">
-            {(() => {
-              if (currentPage === 'home') return 'Dashboard';
-              const pageNames: { [key in Page]?: string } = {
-                'occupancy': 'Room Occupancy',
-                'occupancy-links': 'Occupancy History',
-                'tenants': 'Tenants',
-                'payment': 'Payments',
-                'complaints': 'Complaints',
-                'services': 'Services',
-                'consumption': 'Consumption',
-                'eb-payments': 'EB Payments',
-                'users': 'Users',
-                'roles': 'Roles',
-                'transactions': 'Transactions',
-                'stock': 'Stock',
-                'daily-status': 'Daily Status',
-                'service-allocation': 'Allocations',
-                'diagnostic': 'Diagnostic'
-              };
-              return pageNames[currentPage] || (currentPage.charAt(0).toUpperCase() + currentPage.slice(1).replace('-', ' '));
-            })()}
-          </h1>
+          <h2 className="page-title">
+            {NAV_ITEMS.find(item => item.page === currentPage)?.label || 'Mansion'}
+          </h2>
+        </div>
+
+        <div className={`header-nav ${mobileMenuOpen ? 'open' : ''}`}>
+          <div className={`nav-items-container`}>
+            {NAV_ITEMS.map(item => {
+              const userRoles = user?.roles?.split(',').map(r => r.trim()).filter(r => r) || [];
+              const hasAccess = item.roles.length === 0 || userRoles.some(r => item.roles.includes(r));
+              
+              if (!hasAccess) return null;
+              
+              return (
+                <button 
+                  key={item.page}
+                  className={`nav-item ${currentPage === item.page ? 'active' : ''}`}
+                  onClick={() => {
+                    setCurrentPage(item.page);
+                    setMobileMenuOpen(false);
+                  }}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
         
         <div className="header-right">
@@ -413,39 +439,6 @@ function AppContent() {
               </div>
             )}
           </div>
-        </div>
-      </div>
-      
-      <div className={`nav-sidebar ${mobileMenuOpen ? 'open' : ''} ${headerHidden ? 'header-hidden' : ''}`}>
-        <div className="nav-items-container">
-          {NAV_ITEMS.map(item => {
-            const userRoles = user?.roles?.split(',').map(r => r.trim()).filter(r => r) || [];
-            const hasAccess = item.roles.length === 0 || userRoles.some(r => item.roles.includes(r));
-            
-            if (item.label === 'Tenant Management') {
-              console.log('[Nav Debug] Tenant Management visibility:', {
-                userRoles,
-                requiredRoles: item.roles,
-                hasAccess,
-                userRolesString: user?.roles
-              });
-            }
-            
-            if (!hasAccess) return null;
-            
-            return (
-              <button 
-                key={item.page}
-                className={`nav-item ${currentPage === item.page ? 'active' : ''}`}
-                onClick={() => {
-                  setCurrentPage(item.page);
-                  setMobileMenuOpen(false);
-                }}
-              >
-                {item.label}
-              </button>
-            );
-          })}
         </div>
       </div>
       
