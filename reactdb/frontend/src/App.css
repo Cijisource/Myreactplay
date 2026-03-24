@@ -236,6 +236,7 @@ h2 {
   text-overflow: ellipsis;
   letter-spacing: 0.2px;
   line-height: 1;
+  display: none;
 }
 
 .header-right {
@@ -248,6 +249,7 @@ h2 {
   z-index: 1001;
   clip-path: none;
   margin-left: auto;
+}
 
 /* Header Navigation */
 .header-nav {
@@ -334,12 +336,6 @@ h2 {
   max-height: none;
   overflow: visible !important;
   animation: slideDown 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  clip-path: none !important;
-  display: block !important;
-  visibility: visible !important;
-}
-  overflow: visible !important;
-  animation: slideDown 0.2s ease-out;
   clip-path: none !important;
   display: block !important;
   visibility: visible !important;
@@ -528,9 +524,6 @@ h2 {
   box-sizing: border-box;
   margin-top: clamp(36px, 4vw, 44px);
 }
-
-@media (min-width: 1025px) {
-  .nav-items-container {
     display: flex !important;
     flex-wrap: wrap;
     gap: clamp(2px, 0.3vw, 4px);
