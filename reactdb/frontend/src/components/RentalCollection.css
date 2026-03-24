@@ -1,65 +1,89 @@
+/* Main container: full width background, but content centered on desktop */
 .rental-container {
   width: 100%;
-  padding: clamp(1.5rem, 5vw, 30px);
+  min-width: 100%;
+  padding: 0;
   background: #f5f7fa;
   min-height: 100vh;
+  box-sizing: border-box;
+}
+
+/* Center and constrain main content on desktop */
+@media (min-width: 1200px) {
+  .section,
+  .summary-cards,
+  .table-wrapper {
+    max-width: 100vw;
+    width: 100vw;
+    margin-left: 0;
+    margin-right: 0;
+    box-sizing: border-box;
+  }
 }
 
 .rental-header {
-  max-width: 1200px;
-  margin: 0 auto clamp(2rem, 5vw, 40px);
+  margin: clamp(1.5rem, 4vw, 3rem) auto 0;
   text-align: center;
+  width: 100%;
+  padding: 0 clamp(1rem, 3vw, 2rem);
+  box-sizing: border-box;
 }
 
 .rental-header h1 {
   color: #1a202c;
-  font-size: clamp(1.5rem, 5vw, 2.5em);
-  margin: 0 0 clamp(0.5rem, 2vw, 10px);
+  font-size: clamp(1.25rem, 6vw, 2.5rem);
+  margin: 0 0 clamp(0.5rem, 2vw, 0.75rem);
+  line-height: 1.2;
 }
 
 .rental-header p {
   color: #666;
-  font-size: clamp(0.9rem, 2vw, 1.1em);
+  font-size: clamp(0.875rem, 2.5vw, 1.1rem);
   margin: 0;
 }
 
 /* Summary Cards */
 .summary-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 20px;
-  max-width: 1200px;
-  margin: 0 auto 40px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: clamp(1rem, 3vw, 1.5rem);
+  margin: clamp(1.5rem, 3vw, 2.5rem) 0 0 0;
+  width: 100%;
+  padding: 0 clamp(1rem, 3vw, 2rem);
+  box-sizing: border-box;
 }
 
 .card {
   background: white;
-  border-radius: 12px;
-  padding: 25px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  padding: clamp(1.25rem, 3vw, 1.75rem);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   border-left: 4px solid #2563eb;
   transition: transform 0.2s, box-shadow 0.2s;
+  display: flex;
+  flex-direction: column;
 }
 
 .card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
 }
 
 .card-content h3 {
   color: #64748b;
-  font-size: 0.9em;
+  font-size: clamp(0.7rem, 2vw, 0.9rem);
   text-transform: uppercase;
-  letter-spacing: 1px;
-  margin: 0 0 15px;
+  letter-spacing: 0.5px;
+  margin: 0 0 1rem;
   font-weight: 600;
 }
 
 .card-content .amount {
-  font-size: 2em;
+  font-size: clamp(1.5rem, 4vw, 2rem);
   font-weight: bold;
   color: #2563eb;
   margin: 0;
+  word-break: break-word;
 }
 
 .card-content .amount.unpaid {
@@ -68,50 +92,60 @@
 
 /* Sections */
 .section {
-  max-width: 1200px;
-  margin: 0 auto 40px;
+  margin: clamp(1.5rem, 3vw, 2.5rem) 0 0 0;
   background: white;
-  border-radius: 12px;
-  padding: 30px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  border-radius: 0;
+  padding: clamp(1.25rem, 3vw, 1.75rem) clamp(1rem, 3vw, 2rem);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  width: 100vw;
+  max-width: 100vw;
+  box-sizing: border-box;
 }
 
 .section h2 {
   color: #1e293b;
-  margin: 0 0 25px;
-  font-size: 1.8em;
+  margin: 0 0 clamp(1rem, 2vw, 1.5rem);
+  font-size: clamp(1.25rem, 4vw, 1.8rem);
   border-bottom: 3px solid #2563eb;
-  padding-bottom: 15px;
+  padding-bottom: clamp(0.75rem, 1.5vw, 1rem);
   font-weight: 700;
 }
 
 /* Tables */
 .table-wrapper {
   overflow-x: auto;
-  margin: 0 -30px;
-  padding: 0 30px;
+  width: 100vw;
+  max-width: 100vw;
+  padding: 0 clamp(1.25rem, 3vw, 1.75rem);
+  border-radius: 0 0 8px 8px;
+  box-sizing: border-box;
 }
 
 .summary-table,
 .details-table {
-  width: 100%;
+  width: 100vw;
+  max-width: 100vw;
   border-collapse: collapse;
-  font-size: 0.95em;
-  min-width: 600px;
+  font-size: clamp(0.75rem, 2vw, 0.95rem);
+  min-width: 100%;
 }
 
 .summary-table thead,
 .details-table thead {
   background: #f8f9fa;
   border-bottom: 2px solid #e0e0e0;
+  position: sticky;
+  top: 0;
 }
 
 .summary-table th,
 .details-table th {
-  padding: 15px;
+  padding: clamp(0.75rem, 1.5vw, 1rem);
   text-align: left;
   font-weight: 600;
   color: #333;
+  font-size: clamp(0.7rem, 2vw, 0.9rem);
+  white-space: nowrap;
 }
 
 .details-table th:last-child {
@@ -131,7 +165,7 @@
 
 .summary-table td,
 .details-table td {
-  padding: 15px;
+  padding: clamp(0.75rem, 1.5vw, 1rem);
   color: #555;
 }
 
@@ -157,7 +191,7 @@
 
 .details-table td.actions {
   text-align: center;
-  padding: 15px;
+  padding: clamp(0.75rem, 1.5vw, 1rem);
   white-space: nowrap;
 }
 
@@ -165,15 +199,15 @@
   background: #667eea;
   color: white;
   border: none;
-  padding: 0.6rem 1rem;
+  padding: clamp(0.5rem, 1.5vw, 0.6rem) clamp(0.75rem, 2vw, 1rem);
   border-radius: 6px;
   cursor: pointer;
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: clamp(0.7rem, 2vw, 0.9rem);
   transition: all 0.3s;
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.25rem;
   min-height: 44px;
   margin: 0;
 }
@@ -192,25 +226,30 @@
 .month-selector {
   display: flex;
   align-items: center;
-  gap: 15px;
-  margin-bottom: 25px;
+  gap: clamp(0.75rem, 2vw, 1.5rem);
+  margin-bottom: clamp(1.25rem, 2vw, 1.75rem);
+  flex-wrap: wrap;
 }
 
 .month-selector label {
   font-weight: 600;
   color: #333;
   white-space: nowrap;
+  font-size: clamp(0.875rem, 2vw, 1rem);
 }
 
 .month-selector select {
-  padding: 10px 15px;
+  padding: clamp(0.625rem, 1.5vw, 0.75rem) clamp(0.75rem, 2vw, 1rem);
   border: 2px solid #e0e0e0;
   border-radius: 6px;
-  font-size: 1em;
+  font-size: clamp(0.875rem, 2vw, 1rem);
   color: #333;
   background: white;
   cursor: pointer;
   transition: border-color 0.2s;
+  min-height: 44px;
+  flex: 1;
+  min-width: 200px;
 }
 
 .month-selector select:hover,
@@ -224,19 +263,24 @@
   background: #d1ecf1;
   border: 1px solid #bee5eb;
   color: #0c5460;
-  padding: 15px;
-  border-radius: 8px;
+  padding: clamp(1rem, 2vw, 1.25rem);
+  border-radius: 6px;
   text-align: center;
+  font-size: clamp(0.85rem, 2vw, 0.95rem);
+  line-height: 1.5;
 }
 
 .error-box {
   background: #f8d7da;
   border: 1px solid #f5c6cb;
   color: #721c24;
-  padding: 15px;
-  border-radius: 8px;
-  max-width: 1200px;
-  margin: 0 auto;
+  padding: clamp(1rem, 2vw, 1.25rem) clamp(1rem, 3vw, 2rem);
+  border-radius: 0;
+  margin: clamp(1.5rem, 3vw, 2.5rem) 0 0 0;
+  width: 100%;
+  box-sizing: border-box;
+  font-size: clamp(0.85rem, 2vw, 0.95rem);
+  line-height: 1.5;
 }
 
 .loading {
@@ -248,27 +292,28 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1rem;
+  gap: clamp(0.75rem, 2vw, 1.5rem);
   background: white;
-  padding: 3rem;
-  border-radius: 12px;
+  padding: clamp(2rem, 5vw, 3rem);
+  border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
   z-index: 10000;
   text-align: center;
-  font-size: 1.1em;
+  font-size: clamp(0.95rem, 2vw, 1.1rem);
   color: #4a5568;
   font-weight: 500;
+  max-width: 90vw;
 }
 
 .loading::before {
   content: '';
-  width: 56px;
-  height: 56px;
-  border: 4px solid rgba(66, 153, 225, 0.2);
+  width: clamp(40px, 8vw, 56px);
+  height: clamp(40px, 8vw, 56px);
+  border: clamp(3px, 0.5vw, 4px) solid rgba(66, 153, 225, 0.2);
   border-top-color: #4299e1;
   border-right-color: #667eea;
   border-radius: 50%;
-  box-shadow: 0 0 0 4px rgba(66, 153, 225, 0.08);
+  box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.08);
   animation: loading-spin 0.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
@@ -322,17 +367,20 @@
   align-items: center;
   justify-content: center;
   z-index: 10000;
-  padding: 1rem;
+  padding: clamp(0.75rem, 2vw, 1.5rem);
+  overflow-y: auto;
 }
 
 .modal-content {
   background: white;
-  border-radius: 12px;
-  padding: 2rem;
-  max-width: 400px;
+  border-radius: 8px;
+  padding: clamp(1.5rem, 3vw, 2.5rem);
+  max-width: 450px;
   width: 100%;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   animation: modal-slide-up 0.3s ease-out;
+  margin-top: auto;
+  margin-bottom: auto;
 }
 
 @keyframes modal-slide-up {
@@ -349,36 +397,38 @@
 .modal-content h2 {
   color: #1a202c;
   margin: 0 0 0.5rem 0;
-  font-size: 1.5rem;
+  font-size: clamp(1.25rem, 4vw, 1.5rem);
+  word-break: break-word;
 }
 
 .modal-subtitle {
   color: #718096;
-  margin: 0 0 1.5rem 0;
-  font-size: 0.95rem;
+  margin: 0 0 1.25rem 0;
+  font-size: clamp(0.875rem, 2vw, 0.95rem);
 }
 
 .modal-content .form-group {
-  margin-bottom: 1.5rem;
+  margin-bottom: clamp(1rem, 2vw, 1.5rem);
 }
 
 .modal-content .form-group label {
   display: block;
   color: #2d3748;
   font-weight: 600;
-  margin-bottom: 0.5rem;
-  font-size: 0.95rem;
+  margin-bottom: clamp(0.375rem, 1vw, 0.5rem);
+  font-size: clamp(0.875rem, 2vw, 0.95rem);
 }
 
 .modal-content .form-group input {
   width: 100%;
-  padding: 0.875rem 1rem;
+  padding: clamp(0.625rem, 1.5vw, 0.875rem) clamp(0.75rem, 2vw, 1rem);
   border: 2px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 1rem;
+  border-radius: 6px;
+  font-size: clamp(0.875rem, 2vw, 1rem);
   font-family: inherit;
   transition: all 0.3s;
   box-sizing: border-box;
+  min-height: 44px;
 }
 
 .modal-content .form-group input:focus {
@@ -389,18 +439,19 @@
 
 .modal-buttons {
   display: flex;
-  gap: 1rem;
-  margin-top: 2rem;
+  gap: clamp(0.75rem, 2vw, 1rem);
+  margin-top: clamp(1.5rem, 2vw, 2rem);
+  flex-direction: column;
 }
 
 .save-btn,
 .cancel-btn {
   flex: 1;
-  padding: 0.875rem 1.5rem;
+  padding: clamp(0.75rem, 2vw, 0.875rem) clamp(1rem, 2vw, 1.5rem);
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: clamp(0.875rem, 2vw, 0.95rem);
   cursor: pointer;
   transition: all 0.3s;
   min-height: 44px;
@@ -413,6 +464,7 @@
 .save-btn {
   background: #48bb78;
   color: white;
+  order: 1;
 }
 
 .save-btn:hover {
@@ -424,6 +476,7 @@
 .cancel-btn {
   background: #e2e8f0;
   color: #2d3748;
+  order: 2;
 }
 
 .cancel-btn:hover {
@@ -440,24 +493,27 @@
 .pro-rata-info {
   background: #f0f7ff;
   border: 1px solid #bfdbfe;
-  border-radius: 8px;
-  padding: 1rem;
-  margin-bottom: 1.5rem;
+  border-radius: 6px;
+  padding: clamp(0.75rem, 2vw, 1rem);
+  margin-bottom: clamp(1rem, 2vw, 1.5rem);
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: clamp(0.5rem, 1.5vw, 0.75rem);
 }
 
 .info-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.95rem;
+  font-size: clamp(0.8rem, 2vw, 0.95rem);
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .info-row .label {
   color: #475569;
   font-weight: 500;
+  min-width: fit-content;
 }
 
 .info-row .value {
@@ -468,7 +524,7 @@
 
 .info-row .value.balance {
   color: #dc3545;
-  font-size: 1.1em;
+  font-size: clamp(0.9rem, 2vw, 1.1rem);
 }
 
 /* Table Cell Styles */
@@ -484,7 +540,7 @@
 
 .details-table td.check-in-date {
   color: #718096;
-  font-size: 0.9em;
+  font-size: clamp(0.7rem, 1.5vw, 0.9rem);
 }
 
 .details-table td.pro-rata {
@@ -501,6 +557,53 @@
   text-align: center;
 }
 
+/* Action Buttons */
+.actions {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.edit-btn {
+  background: #667eea;
+  color: white;
+  border: none;
+  padding: clamp(0.5rem, 1.5vw, 0.6rem) clamp(0.75rem, 2vw, 1rem);
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: clamp(0.7rem, 2vw, 0.9rem);
+  transition: all 0.3s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 44px;
+  min-width: 44px;
+  justify-content: center;
+}
+
+.edit-btn:hover {
+  background: #5568d3;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.edit-btn:active {
+  transform: translateY(0);
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .summary-cards {
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: clamp(0.75rem, 2vw, 1.25rem);
+  }
+
+  .section {
+    margin: 0 auto clamp(1.5rem, 2vw, 2.5rem);
+    padding: clamp(1rem, 2.5vw, 1.5rem);
+  }
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
   .summary-cards {
@@ -515,58 +618,66 @@
 
 @media (max-width: 768px) {
   .rental-container {
-    padding: clamp(1rem, 3vw, 2rem);
+    padding: 0;
+  }
+
+  .rental-header {
+    padding: 0 clamp(1rem, 3vw, 1.5rem);
   }
 
   .rental-header h1 {
-    font-size: clamp(1.3rem, 4vw, 1.8em);
+    font-size: clamp(1.3rem, 4vw, 1.8rem);
   }
 
   .rental-header p {
-    font-size: clamp(0.85rem, 2vw, 1em);
+    font-size: clamp(0.85rem, 2vw, 1rem);
   }
 
   .summary-cards {
     grid-template-columns: 1fr;
-    gap: clamp(1rem, 2vw, 15px);
+    gap: clamp(1rem, 2vw, 1.25rem);
+    padding: 0 clamp(1rem, 3vw, 1.5rem);
   }
 
   .card {
-    padding: clamp(1.5rem, 3vw, 25px);
-    border-radius: 8px;
+    padding: clamp(1.25rem, 3vw, 1.5rem);
+    border-radius: 6px;
   }
 
   .card-content .amount {
-    font-size: clamp(1rem, 3vw, 2em);
+    font-size: clamp(1rem, 3vw, 1.8rem);
   }
 
   .summary-table th,
   .summary-table td,
   .details-table th,
   .details-table td {
-    padding: clamp(0.75rem, 1vw, 12px) clamp(0.5rem, 1vw, 8px);
-    font-size: clamp(0.75rem, 1.5vw, 0.95em);
+    padding: clamp(0.75rem, 1vw, 1rem) clamp(0.5rem, 1vw, 0.75rem);
+    font-size: clamp(0.75rem, 1.5vw, 0.9rem);
     word-break: break-word;
   }
 
   .table-wrapper {
-    border-radius: 8px;
+    border-radius: 0;
     overflow: hidden;
+    margin: 0 clamp(-1.25rem, -3vw, -1.75rem);
+    padding: 0 clamp(1.25rem, 3vw, 1.75rem);
   }
 
   .section {
-    padding: clamp(1.5rem, 3vw, 30px);
-    margin: 0 auto clamp(1.5rem, 3vw, 40px);
+    padding: clamp(1.25rem, 3vw, 1.5rem) clamp(1rem, 3vw, 1.5rem);
+    margin: clamp(1.5rem, 3vw, 2rem) 0 0 0;
+    border-radius: 0;
   }
 
   .section h2 {
-    font-size: clamp(1.2rem, 3vw, 1.8em);
-    margin-bottom: clamp(1rem, 2vw, 25px);
+    font-size: clamp(1.2rem, 3vw, 1.6rem);
+    margin-bottom: clamp(1rem, 2vw, 1.25rem);
   }
 
   .month-selector {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
     gap: 0.75rem;
   }
 
@@ -580,39 +691,172 @@
 
 @media (max-width: 480px) {
   .rental-container {
-    padding: clamp(0.75rem, 2vw, 1rem);
+    padding: 0;
   }
 
   .rental-header {
-    margin-bottom: clamp(1.5rem, 3vw, 2rem);
+    padding: 0 clamp(0.75rem, 2vw, 1rem);
+    margin: clamp(1rem, 2vw, 1.5rem) 0 0 0;
   }
 
   .rental-header h1 {
-    font-size: clamp(1.2rem, 3vw, 1.5em);
+    font-size: clamp(1.1rem, 3vw, 1.4rem);
+  }
+
+  .rental-header p {
+    font-size: clamp(0.75rem, 2vw, 0.9rem);
+  }
+
+  .summary-cards {
+    grid-template-columns: 1fr;
+    gap: clamp(0.75rem, 2vw, 1rem);
+    padding: 0 clamp(0.75rem, 2vw, 1rem);
+    margin: clamp(1rem, 2vw, 1.5rem) 0 0 0;
+  }
+
+  .card {
+    padding: clamp(0.85rem, 2vw, 1.2rem);
+    border-radius: 6px;
+  }
+
+  .card-content h3 {
+    font-size: clamp(0.65rem, 1.5vw, 0.8rem);
+    margin-bottom: 0.75rem;
+  }
+
+  .card-content .amount {
+    font-size: clamp(1.2rem, 3vw, 1.5rem);
   }
 
   .summary-table th,
   .summary-table td,
   .details-table th,
   .details-table td {
-    padding: 0.5rem 0.25rem;
-    font-size: 0.7em;
+    padding: 0.4rem 0.25rem;
+    font-size: 0.65rem;
   }
 
-  .card {
-    padding: clamp(1rem, 2vw, 1.5rem);
-  }
-
-  .card-content h3 {
-    font-size: clamp(0.75rem, 1.5vw, 0.9em);
+  .table-wrapper {
+    margin: 0 clamp(-0.85rem, -2vw, -1.2rem);
+    padding: 0 clamp(0.85rem, 2vw, 1.2rem);
   }
 
   .section {
-    padding: clamp(1rem, 2vw, 1.5rem);
+    padding: clamp(0.85rem, 2vw, 1.2rem) clamp(0.75rem, 2vw, 1rem);
+    margin: clamp(1rem, 2vw, 1.25rem) 0 0 0;
+    border-radius: 0;
   }
 
   .section h2 {
-    font-size: clamp(1rem, 2.5vw, 1.2em);
+    font-size: clamp(0.95rem, 2.5vw, 1.2rem);
+    margin-bottom: clamp(0.75rem, 1.5vw, 1rem);
+    padding-bottom: clamp(0.5rem, 1vw, 0.75rem);
+  }
+
+  .month-selector {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .month-selector label {
+    font-size: clamp(0.75rem, 1.5vw, 0.875rem);
+  }
+
+  .month-selector select {
+    width: 100%;
+    font-size: 16px;
+    min-height: 44px;
+    min-width: unset;
+    flex: unset;
+  }
+
+  .modal-overlay {
+    padding: 0.75rem;
+  }
+
+  .modal-content {
+    padding: clamp(1rem, 2vw, 1.5rem);
+    max-width: 100%;
+    border-radius: 6px;
+  }
+
+  .modal-content h2 {
+    font-size: clamp(1.1rem, 3vw, 1.3rem);
+    margin-bottom: 0.35rem;
+  }
+
+  .modal-subtitle {
+    font-size: clamp(0.75rem, 1.5vw, 0.85rem);
     margin-bottom: 1rem;
+  }
+
+  .modal-content .form-group {
+    margin-bottom: clamp(0.75rem, 1.5vw, 1rem);
+  }
+
+  .modal-content .form-group label {
+    font-size: clamp(0.75rem, 1.5vw, 0.85rem);
+    margin-bottom: 0.3rem;
+  }
+
+  .modal-content .form-group input {
+    padding: clamp(0.5rem, 1vw, 0.65rem) clamp(0.6rem, 1.5vw, 0.75rem);
+    font-size: clamp(0.85rem, 1.5vw, 0.95rem);
+    min-height: 44px;
+  }
+
+  .modal-buttons {
+    gap: clamp(0.5rem, 1.5vw, 0.75rem);
+    margin-top: clamp(1rem, 1.5vw, 1.5rem);
+  }
+
+  .save-btn,
+  .cancel-btn {
+    padding: clamp(0.6rem, 1.5vw, 0.7rem) clamp(0.8rem, 1.5vw, 1rem);
+    font-size: clamp(0.75rem, 1.5vw, 0.85rem);
+    min-height: 44px;
+  }
+
+  .info-box {
+    padding: clamp(1rem, 2vw, 1.25rem);
+    font-size: clamp(0.8rem, 1.5vw, 0.9rem);
+    border-radius: 0;
+    margin: clamp(1rem, 2vw, 1.25rem) 0 0 0;
+    width: 100%;
+  }
+
+  .error-box {
+    padding: clamp(1rem, 2vw, 1.25rem) clamp(0.75rem, 2vw, 1rem);
+    font-size: clamp(0.75rem, 1.5vw, 0.9rem);
+    margin: clamp(1rem, 2vw, 1.25rem) 0 0 0;
+  }
+
+  .pro-rata-info {
+    padding: clamp(0.6rem, 1.5vw, 0.85rem);
+    gap: clamp(0.4rem, 1vw, 0.6rem);
+  }
+
+  .info-row {
+    font-size: clamp(0.7rem, 1.5vw, 0.85rem);
+  }
+
+  .details-table td.actions .edit-btn {
+    padding: 0.35rem 0.5rem;
+    font-size: 0.6rem;
+    min-height: 40px;
+    min-width: 40px;
+    gap: 0.15rem;
+  }
+
+  .loading {
+    padding: clamp(2rem, 5vw, 2.5rem);
+    font-size: clamp(0.9rem, 2vw, 1rem);
+  }
+
+  .loading::before {
+    width: 44px;
+    height: 44px;
+    border-width: 3px;
   }
 }
