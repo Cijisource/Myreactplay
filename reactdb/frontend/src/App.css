@@ -523,18 +523,18 @@ h2 {
   padding-top: clamp(8px, 1.5vw, 16px);
   box-sizing: border-box;
   margin-top: clamp(36px, 4vw, 44px);
-}
-    display: flex !important;
-    flex-wrap: wrap;
-    gap: clamp(2px, 0.3vw, 4px);
-    padding: clamp(2px, 0.2vw, 3px);
-    width: 100%;
-    height: auto;
-    box-sizing: border-box;
-    align-items: center;
-    justify-content: flex-start;
-    overflow: visible;
-  }
+
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: clamp(2px, 0.3vw, 4px);
+  padding: clamp(2px, 0.2vw, 3px);
+  width: 100%;
+  height: auto;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: flex-start;
+  overflow: visible;
+  
 
   .nav-item {
     padding: clamp(4px, 0.3vw, 6px) clamp(8px, 0.8vw, 12px);
@@ -927,3 +927,4 @@ h2 {
   .main-content.with-top-space {
     margin-top: clamp(32px, 3.5vw, 38px);
   }
+}
