@@ -81,6 +81,7 @@ function AppContent() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [headerHidden, setHeaderHidden] = useState(false);
   const lastScrollPosRef = useRef(0);
+  const headerHiddenRef = useRef(false);
   const { isAuthenticated, user, logout } = useAuth();
 
   // Debug logging for authentication state
@@ -119,11 +120,16 @@ function AppContent() {
 
   // Auto-hide header on scroll
   useEffect(() => {
-    let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
+    let ticking = false;
     
     const handleScroll = () => {
-      const currentScrollPos = window.scrollY;
-      const isScrollingDown = currentScrollPos > lastScrollPosRef.current;
+      // Get scroll position from multiple sources for compatibility
+      const scrollPos = window.scrollY || 
+                       document.documentElement.scrollTop || 
+                       document.body.scrollTop || 
+                       0;
+      
+      const isScrollingDown = scrollPos > lastScrollPosRef.current;
       
       // Adaptive threshold based on screen size
       let scrollThreshold = 50; // Default for mobile
@@ -136,27 +142,43 @@ function AppContent() {
         scrollThreshold = 50; // Tablet portrait and mobile
       }
       
-      if (isScrollingDown && currentScrollPos > scrollThreshold) {
-        if (!headerHidden) {
+      // Debug: log scroll events
+      console.log('Scroll detected:', { scrollPos, isScrollingDown, scrollThreshold, headerHidden });
+      
+      if (isScrollingDown && scrollPos > scrollThreshold) {
+        if (!headerHiddenRef.current) {
+          headerHiddenRef.current = true;
           setHeaderHidden(true);
+          console.log('Header hidden at scroll pos:', scrollPos);
         }
-      } else {
-        if (headerHidden) {
+      } else if (scrollPos <= scrollThreshold || !isScrollingDown) {
+        if (headerHiddenRef.current) {
+          headerHiddenRef.current = false;
           setHeaderHidden(false);
+          console.log('Header shown at scroll pos:', scrollPos);
         }
       }
       
-      lastScrollPosRef.current = currentScrollPos;
+      lastScrollPosRef.current = scrollPos;
+      ticking = false;
     };
     
-    // Use passive listener for better scroll performance
-    window.addEventListener('scroll', handleScroll, { passive: true });
+    const onScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(handleScroll);
+        ticking = true;
+      }
+    };
+    
+    // Listen on multiple elements for compatibility
+    window.addEventListener('scroll', onScroll, { passive: true });
+    document.addEventListener('scroll', onScroll, { passive: true });
     
     return () => {
-      window.removeEventListener('scroll', handleScroll);
-      if (scrollTimeout) clearTimeout(scrollTimeout);
+      window.removeEventListener('scroll', onScroll);
+      document.removeEventListener('scroll', onScroll);
     };
-  }, [headerHidden]);
+  }, []);
 
   // If not authenticated, show login screen
   if (!isAuthenticated) {
@@ -346,6 +368,12 @@ function AppContent() {
           </div>
         </div>
         
+        <div className="header-center">
+          <h2 className="page-title">
+            {NAV_ITEMS.find(item => item.page === currentPage)?.label || 'Mansion'}
+          </h2>
+        </div>
+
         <div className={`header-nav ${mobileMenuOpen ? 'open' : ''}`}>
           <div className={`nav-items-container`}>
             {NAV_ITEMS.map(item => {
