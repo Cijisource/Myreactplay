@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import './App.css';
+import './styles/mobile.css';
 //import RentalCollection from './components/RentalCollection';
 import RentalCollectionDetails from './components/RentalCollectionDetails';
 import Diagnostic from './components/Diagnostic';
