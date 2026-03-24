@@ -940,10 +940,60 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
   }
 });
 
+// ==================== AUTHENTICATION & AUTHORIZATION MIDDLEWARE ====================
+
+// Verify JWT token and extract user info
+const verifyToken = (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+    if (!token) {
+      console.log('[Auth] No token provided');
+      return res.status(401).json({ error: 'No authorization token provided' });
+    }
+
+    const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+    const decoded = jwt.verify(token, jwtSecret) as any;
+
+    // Attach user info to request
+    (req as any).user = decoded;
+    console.log('[Auth] Token verified for user:', decoded.username, 'Roles:', decoded.roles);
+    next();
+  } catch (error) {
+    console.log('[Auth] Token verification failed:', error instanceof Error ? error.message : String(error));
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+};
+
+// Check if user has required role
+const requireRole = (allowedRoles: string[]) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const user = (req as any).user;
+    
+    if (!user) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const userRoles = user.roles || [];
+    const hasRequiredRole = allowedRoles.some(role => userRoles.includes(role));
+
+    if (!hasRequiredRole) {
+      console.log('[Auth] Access denied for user:', user.username, 'Required roles:', allowedRoles, 'User roles:', userRoles);
+      return res.status(403).json({ error: 'Insufficient permissions. Admin role required.' });
+    }
+
+    console.log('[Auth] Access granted for user:', user.username);
+    next();
+  };
+};
+
+// ==================== END MIDDLEWARE ====================
+
 // Room Occupancy Endpoint
 
 // Get occupancy records with explicit room-tenant linking (via FK_Occupancy_Tenant)
-app.get('/api/occupancy/links', async (req: Request, res: Response) => {
+app.get('/api/occupancy/links', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
   try {
     const pool = getPool();
     const result = await pool.request().query(`
@@ -2721,7 +2771,7 @@ app.post('/api/complaints/upload', upload.fields([
 // Service Details Management Endpoints
 
 // Get all service details
-app.get('/api/services/details', async (req: Request, res: Response) => {
+app.get('/api/services/details', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
   try {
     const pool = getPool();
     const result = await pool.request().query(`
@@ -2749,7 +2799,7 @@ app.get('/api/services/details', async (req: Request, res: Response) => {
 });
 
 // Get single service detail
-app.get('/api/services/details/:id', async (req: Request, res: Response) => {
+app.get('/api/services/details/:id', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const pool = getPool();
@@ -2786,7 +2836,7 @@ app.get('/api/services/details/:id', async (req: Request, res: Response) => {
 });
 
 // Create service detail
-app.post('/api/services/details', async (req: Request, res: Response) => {
+app.post('/api/services/details', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
   try {
     const { consumerNo, meterNo, load, serviceCategory, consumerName } = req.body;
     
@@ -2830,7 +2880,7 @@ app.post('/api/services/details', async (req: Request, res: Response) => {
 });
 
 // Update service detail
-app.put('/api/services/details/:id', async (req: Request, res: Response) => {
+app.put('/api/services/details/:id', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { consumerNo, meterNo, load, serviceCategory, consumerName } = req.body;
@@ -2871,7 +2921,7 @@ app.put('/api/services/details/:id', async (req: Request, res: Response) => {
 });
 
 // Delete service detail
-app.delete('/api/services/details/:id', async (req: Request, res: Response) => {
+app.delete('/api/services/details/:id', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const pool = getPool();
@@ -3140,13 +3190,14 @@ app.put('/api/rooms/:id', async (req: Request, res: Response) => {
 // ============ USER MANAGEMENT ENDPOINTS ============
 
 // Get all users
-app.get('/api/users', async (req: Request, res: Response) => {
+app.get('/api/users', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
   try {
     const pool = getPool();
     const result = await pool.request().query(`
       SELECT 
         Id as id,
         UserName as userName,
+        Password as password,
         Name as name,
         CreatedDate as createdDate,
         UpdatedDate as updatedDate,
@@ -3162,7 +3213,7 @@ app.get('/api/users', async (req: Request, res: Response) => {
 });
 
 // Get user by ID
-app.get('/api/users/:id', async (req: Request, res: Response) => {
+app.get('/api/users/:id', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const pool = getPool();
@@ -3172,6 +3223,7 @@ app.get('/api/users/:id', async (req: Request, res: Response) => {
         SELECT 
           Id as id,
           UserName as userName,
+          Password as password,
           Name as name,
           CreatedDate as createdDate,
           UpdatedDate as updatedDate,
@@ -3189,7 +3241,7 @@ app.get('/api/users/:id', async (req: Request, res: Response) => {
 });
 
 // Create user
-app.post('/api/users', async (req: Request, res: Response) => {
+app.post('/api/users', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
   try {
     const { userName, password, name, nextLoginDuration } = req.body;
     const pool = getPool();
@@ -3210,7 +3262,7 @@ app.post('/api/users', async (req: Request, res: Response) => {
 });
 
 // Update user
-app.put('/api/users/:id', async (req: Request, res: Response) => {
+app.put('/api/users/:id', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { userName, password, name, nextLoginDuration } = req.body;
@@ -3238,7 +3290,7 @@ app.put('/api/users/:id', async (req: Request, res: Response) => {
 });
 
 // Delete user
-app.delete('/api/users/:id', async (req: Request, res: Response) => {
+app.delete('/api/users/:id', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const pool = getPool();
@@ -3254,7 +3306,7 @@ app.delete('/api/users/:id', async (req: Request, res: Response) => {
 // ============ ROLE MANAGEMENT ENDPOINTS ============
 
 // Get all roles
-app.get('/api/roles', async (req: Request, res: Response) => {
+app.get('/api/roles', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
   try {
     const pool = getPool();
     const result = await pool.request().query(`
@@ -3272,7 +3324,7 @@ app.get('/api/roles', async (req: Request, res: Response) => {
 });
 
 // Get role by ID
-app.get('/api/roles/:id', async (req: Request, res: Response) => {
+app.get('/api/roles/:id', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const pool = getPool();
@@ -3296,7 +3348,7 @@ app.get('/api/roles/:id', async (req: Request, res: Response) => {
 });
 
 // Create role
-app.post('/api/roles', async (req: Request, res: Response) => {
+app.post('/api/roles', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
   try {
     const { roleName, roleType } = req.body;
     const pool = getPool();
@@ -3315,7 +3367,7 @@ app.post('/api/roles', async (req: Request, res: Response) => {
 });
 
 // Update role
-app.put('/api/roles/:id', async (req: Request, res: Response) => {
+app.put('/api/roles/:id', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { roleName, roleType } = req.body;
@@ -3332,7 +3384,7 @@ app.put('/api/roles/:id', async (req: Request, res: Response) => {
 });
 
 // Delete role
-app.delete('/api/roles/:id', async (req: Request, res: Response) => {
+app.delete('/api/roles/:id', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const pool = getPool();
@@ -3946,7 +3998,7 @@ app.delete('/api/daily-status/media/:id', async (req: Request, res: Response) =>
 // ============ SERVICE ALLOCATION ENDPOINTS ============
 
 // Get all service allocations
-app.get('/api/service-allocations', async (req: Request, res: Response) => {
+app.get('/api/service-allocations', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
   try {
     const pool = getPool();
     const result = await pool.request().query(`
@@ -3995,7 +4047,7 @@ app.get('/api/service-allocations', async (req: Request, res: Response) => {
 });
 
 // Get service allocation by ID
-app.get('/api/service-allocations/:id', async (req: Request, res: Response) => {
+app.get('/api/service-allocations/:id', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const pool = getPool();
@@ -4019,7 +4071,7 @@ app.get('/api/service-allocations/:id', async (req: Request, res: Response) => {
 });
 
 // Create service allocation
-app.post('/api/service-allocations', async (req: Request, res: Response) => {
+app.post('/api/service-allocations', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
   try {
     const { serviceId, roomId } = req.body;
     const pool = getPool();
@@ -4038,7 +4090,7 @@ app.post('/api/service-allocations', async (req: Request, res: Response) => {
 });
 
 // Update service allocation
-app.put('/api/service-allocations/:id', async (req: Request, res: Response) => {
+app.put('/api/service-allocations/:id', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { serviceId, roomId } = req.body;
@@ -4059,7 +4111,7 @@ app.put('/api/service-allocations/:id', async (req: Request, res: Response) => {
 });
 
 // Delete service allocation
-app.delete('/api/service-allocations/:id', async (req: Request, res: Response) => {
+app.delete('/api/service-allocations/:id', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const pool = getPool();
@@ -4073,7 +4125,7 @@ app.delete('/api/service-allocations/:id', async (req: Request, res: Response) =
 });
 
 // Get service allocations with last payment details
-app.get('/api/service-allocations-with-payments', async (req: Request, res: Response) => {
+app.get('/api/service-allocations-with-payments', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
   try {
     const pool = getPool();
     const result = await pool.request().query(`
@@ -4139,7 +4191,7 @@ app.get('/api/service-allocations-with-payments', async (req: Request, res: Resp
 });
 
 // Get service allocations for meter reading (searchable)
-app.get('/api/service-allocations-for-reading', async (req: Request, res: Response) => {
+app.get('/api/service-allocations-for-reading', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
   try {
     const { search } = req.query;
     const pool = getPool();

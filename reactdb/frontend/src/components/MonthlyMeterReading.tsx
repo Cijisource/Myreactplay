@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { apiService } from '../api';
 import './ManagementStyles.css';
 import './MonthlyMeterReading.css';
@@ -59,6 +59,10 @@ export default function MonthlyMeterReading(): JSX.Element {
   });
   const [collapsedCards, setCollapsedCards] = useState<Record<number, boolean>>({});
   const [calculatedCharges, setCalculatedCharges] = useState<{ consumption: number; charges: number } | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  // Ref for auto-focusing on ending meter reading input
+  const endingMeterReadingRef = useRef<HTMLInputElement>(null);
 
   // Calculate charges on the fly when readings or unit rate change
   useEffect(() => {
@@ -76,18 +80,31 @@ export default function MonthlyMeterReading(): JSX.Element {
         if (consumption >= 0) {
           const charges = Math.round(consumption * rate * 100) / 100;
           setCalculatedCharges({ consumption, charges });
+          setValidationError(null);
         } else {
           setCalculatedCharges(null);
+          setValidationError('⚠️ Ending meter reading cannot be less than starting meter reading');
         }
       }
     } else {
       setCalculatedCharges(null);
+      setValidationError(null);
     }
   }, [
     formData.startingMeterReading,
     formData.endingMeterReading,
     formData.unitRate,
   ]);
+
+  // Auto-focus on ending meter reading input when a room is selected
+  useEffect(() => {
+    if (selectedAllocationId && endingMeterReadingRef.current) {
+      // Use setTimeout to ensure the field is rendered before focusing
+      setTimeout(() => {
+        endingMeterReadingRef.current?.focus();
+      }, 100);
+    }
+  }, [selectedAllocationId]);
 
   useEffect(() => {
     const fetchAllocations = async () => {
@@ -198,6 +215,12 @@ export default function MonthlyMeterReading(): JSX.Element {
       return;
     }
 
+    // Check validation error
+    if (validationError) {
+      setError('Please correct the validation errors before submitting');
+      return;
+    }
+
     try {
       // Create service consumption
       const consumptionData = {
@@ -227,6 +250,7 @@ export default function MonthlyMeterReading(): JSX.Element {
       });
       setSelectedAllocationId(null);
       setShowForm(false);
+      setValidationError(null);
       
       setTimeout(() => setSuccessMessage(null), 5000);
     } catch (err) {
@@ -335,6 +359,7 @@ export default function MonthlyMeterReading(): JSX.Element {
                   <div className="form-group">
                     <label>Ending Meter Reading *</label>
                     <input
+                      ref={endingMeterReadingRef}
                       type="number"
                       name="endingMeterReading"
                       value={formData.endingMeterReading}
@@ -342,6 +367,20 @@ export default function MonthlyMeterReading(): JSX.Element {
                       placeholder="This month's reading"
                       required
                     />
+                    {validationError && (
+                      <p style={{
+                        fontSize: '11px',
+                        color: '#e74c3c',
+                        margin: '4px 0 0 0',
+                        fontWeight: '600',
+                        backgroundColor: '#fadbd8',
+                        padding: '6px 8px',
+                        borderRadius: '4px',
+                        borderLeft: '3px solid #e74c3c'
+                      }}>
+                        {validationError}
+                      </p>
+                    )}
                   </div>
 
                   <div className="form-group">
@@ -449,6 +488,7 @@ export default function MonthlyMeterReading(): JSX.Element {
                         endingMeterReading: '',
                         unitRate: chargePerUnit
                       });
+                      setValidationError(null);
                     }}
                     className="btn-cancel"
                   >

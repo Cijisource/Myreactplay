@@ -154,6 +154,7 @@ h2 {
   transition: transform 0.3s ease-out, box-shadow 0.3s ease-out;
   pointer-events: auto;
   overflow: visible;
+  clip-path: none;
 }
 
 .top-header-bar.hidden {
@@ -238,12 +239,14 @@ h2 {
   overflow: visible;
   position: relative;
   z-index: 999;
+  clip-path: none;
 }
 
 /* User Dropdown */
 .user-profile-dropdown {
   position: relative;
   overflow: visible;
+  clip-path: none;
 }
 
 .user-profile-btn {
@@ -304,8 +307,11 @@ h2 {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
   z-index: 99999;
   min-width: 220px;
-  overflow: hidden;
+  overflow: visible;
   animation: slideDown 0.2s ease-out;
+  clip-path: none;
+  display: block;
+  visibility: visible;
 }
 
 @keyframes slideDown {

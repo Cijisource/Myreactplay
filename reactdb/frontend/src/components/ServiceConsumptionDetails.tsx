@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../api';
-import SearchableDropdown from './SearchableDropdown';
 import '../components/ManagementStyles.css';
 
 interface ConsumptionDetail {
@@ -67,7 +66,6 @@ export default function ServiceConsumptionDetails() {
   const [consumptionDetails, setConsumptionDetails] = useState<ConsumptionDetail[]>([]);
   const [filteredDetails, setFilteredDetails] = useState<ConsumptionDetail[]>([]);
   const [rooms, setRooms] = useState<RoomOption[]>([]);
-  const [serviceAllocations, setServiceAllocations] = useState<ServiceAllocation[]>([]);
   const [filteredServiceAllocations, setFilteredServiceAllocations] = useState<ServiceAllocation[]>([]);
   const [paymentDataMap, setPaymentDataMap] = useState<Map<string, PaymentData>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -82,7 +80,7 @@ export default function ServiceConsumptionDetails() {
 
   // Form states
   const [formData, setFormData] = useState({
-    serviceAllocId: 0,
+    serviceAllocId: null as number | null,
     startingMeterReading: 0,
     endingMeterReading: 0,
   });
@@ -165,28 +163,46 @@ export default function ServiceConsumptionDetails() {
   async function fetchServiceAllocations() {
     try {
       const response = await apiService.getServiceAllocationsForReading();
-      // Transform and set the allocations
-      const allocations = response.data.map((item: any) => ({
-        id: item.id,
-        roomId: item.roomId,
-        roomNumber: item.roomNumber,
-        consumerNo: item.consumerNo,
-        consumerName: item.consumerName,
-        meterNo: item.meterNo,
-        serviceId: item.serviceId,
-        displayName: item.displayName || `Room ${item.roomNumber} - ${item.consumerName} (${item.consumerNo})`,
-      }));
-      setServiceAllocations(allocations);
+      
+      if (!response.data || response.data.length === 0) {
+        console.warn('No service allocations found in response');
+        setFilteredServiceAllocations([]);
+        setError('No rooms/services available for meter reading');
+        return;
+      }
+
+      // Transform and set the allocations - backend returns nested structure with service and room objects
+      const allocations = response.data.map((item: any) => {
+        const roomNumber = item.room?.number || 'N/A';
+        const consumerNo = item.service?.consumerNo || 'N/A';
+        const consumerName = item.service?.consumerName || 'N/A';
+        const meterNo = item.service?.meterNo || 'N/A';
+        
+        return {
+          id: item.id,
+          roomId: item.roomId,
+          roomNumber: roomNumber,
+          consumerNo: consumerNo,
+          consumerName: consumerName,
+          meterNo: meterNo,
+          serviceId: item.serviceId,
+          displayName: `Room ${roomNumber} - ${consumerName} (${consumerNo})`,
+        };
+      });
+      
+      console.log('Fetched service allocations:', allocations);
+      
       setFilteredServiceAllocations(allocations);
+      setError(null);
 
       // Build payment data map
       const paymentMap = new Map<string, PaymentData>();
       response.data.forEach((item: any) => {
-        const consumerNo = item.consumerNo;
+        const consumerNo = item.service?.consumerNo;
         if (consumerNo && !paymentMap.has(consumerNo)) {
           paymentMap.set(consumerNo, {
             consumerNo: consumerNo,
-            consumerName: item.consumerName || 'N/A',
+            consumerName: item.service?.consumerName || 'N/A',
             lastPaymentDate: null,
             billAmount: null,
           });
@@ -195,6 +211,8 @@ export default function ServiceConsumptionDetails() {
       setPaymentDataMap(paymentMap);
     } catch (err) {
       console.error('Error fetching service allocations:', err);
+      setError('Failed to load rooms/services. Please refresh the page.');
+      setFilteredServiceAllocations([]);
     }
   }
 
@@ -233,22 +251,6 @@ export default function ServiceConsumptionDetails() {
     }
   }
 
-  function handleSearchServiceAllocations(term: string) {
-    // setSearchTerm(term); // Not used
-    if (!term) {
-      setFilteredServiceAllocations(serviceAllocations);
-    } else {
-      const searchTerm = term.toLowerCase();
-      const filtered = serviceAllocations.filter(alloc =>
-        alloc.displayName.toLowerCase().includes(searchTerm) ||
-        alloc.roomNumber.toLowerCase().includes(searchTerm) ||
-        alloc.consumerName.toLowerCase().includes(searchTerm) ||
-        alloc.consumerNo.toLowerCase().includes(searchTerm)
-      );
-      setFilteredServiceAllocations(filtered);
-    }
-  }
-
   function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>, index: number) {
     const file = e.target.files?.[0];
     if (file) {
@@ -270,7 +272,7 @@ export default function ServiceConsumptionDetails() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!formData.serviceAllocId) {
+    if (!formData.serviceAllocId || formData.serviceAllocId === 0) {
       setError('Please select a service');
       return;
     }
@@ -301,7 +303,7 @@ export default function ServiceConsumptionDetails() {
       if (response.data) {
         setConsumptionDetails([...consumptionDetails, response.data]);
         setShowForm(false);
-        setFormData({ serviceAllocId: 0, startingMeterReading: 0, endingMeterReading: 0 });
+        setFormData({ serviceAllocId: null, startingMeterReading: 0, endingMeterReading: 0 });
         setPhotos([]);
         setPhotoPreview([]);
         // setPreviousMonthReading(null); // Not used
@@ -432,7 +434,17 @@ export default function ServiceConsumptionDetails() {
         </button>
 
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => {
+            setShowForm(!showForm);
+            // Clear form data when closing the form
+            if (showForm) {
+              setFormData({ serviceAllocId: null, startingMeterReading: 0, endingMeterReading: 0 });
+              setPhotos([]);
+              setPhotoPreview([]);
+              setIsAutoFilledStarting(false);
+              setError(null);
+            }
+          }}
           className="add-btn"
         >
           {showForm ? '✕ Cancel' : '+ Add Reading'}
@@ -464,94 +476,167 @@ export default function ServiceConsumptionDetails() {
         <form onSubmit={handleSubmit} className="consumption-form">
           <h3>📝 Add New Reading</h3>
 
-          <div className="form-row">
-            <div className="form-group" style={{ flex: 1 }}>
-              <SearchableDropdown
-                options={filteredServiceAllocations.map(alloc => ({
-                  label: alloc.displayName,
-                  value: alloc.id,
-                  ...alloc
-                }))}
-                value={formData.serviceAllocId}
-                onChange={(option: any) => {
-                  setFormData({ ...formData, serviceAllocId: option.id });
-                  fetchPreviousMonthReading(option.id);
-                }}
-                placeholder="Select a service/room"
-                searchPlaceholder="Search by room, consumer name, or consumer number..."
-                label="Service/Room:"
-                onSearch={handleSearchServiceAllocations}
-              />
+          {filteredServiceAllocations.length === 0 ? (
+            <div style={{
+              background: '#fef3c7',
+              border: '1px solid #fbbf24',
+              borderRadius: '8px',
+              padding: '12px 16px',
+              marginBottom: '16px',
+              color: '#92400e'
+            }}>
+              <strong>⚠️ No rooms/services available</strong>
+              <p style={{ marginTop: '8px', marginBottom: 0, fontSize: '0.9rem' }}>
+                Please ensure that rooms and services have been allocated before adding meter readings.
+              </p>
             </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label>Starting Meter Reading:</label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="number"
-                  value={formData.startingMeterReading}
-                  onChange={(e) => {
-                    setFormData({ ...formData, startingMeterReading: parseInt(e.target.value) || 0 });
-                    setIsAutoFilledStarting(false);
-                  }}
-                  className="form-input"
-                />
-                {isAutoFilledStarting && (
-                  <span style={{
-                    fontSize: '0.75rem',
-                    color: '#28a745',
-                    marginTop: '0.25rem',
-                    display: 'block'
-                  }}>
-                    ✓ Auto-filled from previous month
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label>Ending Meter Reading:</label>
-              <input
-                type="number"
-                value={formData.endingMeterReading}
-                onChange={(e) =>
-                  setFormData({ ...formData, endingMeterReading: parseInt(e.target.value) || 0 })
-                }
-                className="form-input"
-              />
-            </div>
-          </div>
-
-          {/* Photo Upload */}
-          <div className="photo-upload-section">
-            <h4>📸 Upload Meter Photos (Up to 3)</h4>
-            <div className="photo-grid">
-              {[0, 1, 2].map((index) => (
-                <div key={index} className="photo-upload-box">
-                  <label className="photo-label">Photo {index + 1}</label>
-                  {photoPreview[index] && (
-                    <img src={photoPreview[index]} alt={`Preview ${index + 1}`} className="photo-preview" />
-                  )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handlePhotoUpload(e, index)}
-                    className="photo-input"
-                    disabled={formSubmitting}
-                  />
-                  {photos[index] && (
-                    <span className="photo-filename">{photos[index].name}</span>
-                  )}
+          ) : (
+            <>
+              <div className="form-row">
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label>Service/Room:</label>
+                  <select
+                    value={formData.serviceAllocId || ''}
+                    onChange={(e) => {
+                      const allocId = parseInt(e.target.value) || null;
+                      if (allocId) {
+                        // Reset form when a new service is selected
+                        setFormData({
+                          serviceAllocId: allocId,
+                          startingMeterReading: 0,
+                          endingMeterReading: 0,
+                        });
+                        setPhotos([]);
+                        setPhotoPreview([]);
+                        setIsAutoFilledStarting(false);
+                        setError(null);
+                        // Fetch previous month reading for the selected service
+                        fetchPreviousMonthReading(allocId);
+                      }
+                    }}
+                    className="form-input"
+                  >
+                    <option value="">-- Select a Service/Room --</option>
+                    {filteredServiceAllocations.map((alloc) => (
+                      <option key={alloc.id} value={alloc.id}>
+                        Room {alloc.roomNumber} - {alloc.consumerName} ({alloc.consumerNo})
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              ))}
-            </div>
-          </div>
+              </div>
 
-          <button type="submit" className="submit-btn" disabled={formSubmitting}>
-            {formSubmitting ? '⟳ Saving...' : 'Save Reading & Photos'}
-          </button>
+              {/* Display selected room details */}
+              {formData.serviceAllocId && (
+                <div style={{
+                  background: '#f0f9ff',
+                  border: '1px solid #bfdbfe',
+                  borderRadius: '8px',
+                  padding: '12px 16px',
+                  marginBottom: '16px'
+                }}>
+                  {(() => {
+                    const selected = filteredServiceAllocations.find(a => a.id === formData.serviceAllocId);
+                    if (!selected) {
+                      return (
+                        <div style={{ color: '#64748b', fontSize: '0.9rem' }}>
+                          Loading room details...
+                        </div>
+                      );
+                    }
+                    return (
+                      <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+                        <div>
+                          <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>Room Number:</span>
+                          <div style={{ fontSize: '1rem', color: '#1e293b', fontWeight: '600' }}>Room {selected.roomNumber || 'N/A'}</div>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>Consumer:</span>
+                          <div style={{ fontSize: '1rem', color: '#1e293b', fontWeight: '600' }}>{selected.consumerName || 'N/A'}</div>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>Meter No:</span>
+                          <div style={{ fontSize: '1rem', color: '#1e293b', fontWeight: '600' }}>{selected.meterNo || 'N/A'}</div>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>Consumer No:</span>
+                          <div style={{ fontSize: '1rem', color: '#1e293b', fontWeight: '600' }}>{selected.consumerNo || 'N/A'}</div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Starting Meter Reading:</label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="number"
+                      value={formData.startingMeterReading}
+                      onChange={(e) => {
+                        setFormData({ ...formData, startingMeterReading: parseInt(e.target.value) || 0 });
+                        setIsAutoFilledStarting(false);
+                      }}
+                      className="form-input"
+                    />
+                    {isAutoFilledStarting && (
+                      <span style={{
+                        fontSize: '0.75rem',
+                        color: '#28a745',
+                        marginTop: '0.25rem',
+                        display: 'block'
+                      }}>
+                        ✓ Auto-filled from previous month
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Ending Meter Reading:</label>
+                  <input
+                    type="number"
+                    value={formData.endingMeterReading}
+                    onChange={(e) =>
+                      setFormData({ ...formData, endingMeterReading: parseInt(e.target.value) || 0 })
+                    }
+                    className="form-input"
+                  />
+                </div>
+              </div>
+
+              {/* Photo Upload */}
+              <div className="photo-upload-section">
+                <h4>📸 Upload Meter Photos (Up to 3)</h4>
+                <div className="photo-grid">
+                  {[0, 1, 2].map((index) => (
+                    <div key={index} className="photo-upload-box">
+                      <label className="photo-label">Photo {index + 1}</label>
+                      {photoPreview[index] && (
+                        <img src={photoPreview[index]} alt={`Preview ${index + 1}`} className="photo-preview" />
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handlePhotoUpload(e, index)}
+                        className="photo-input"
+                        disabled={formSubmitting}
+                      />
+                      {photos[index] && (
+                        <span className="photo-filename">{photos[index].name}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <button type="submit" className="submit-btn" disabled={formSubmitting}>
+                {formSubmitting ? '⟳ Saving...' : 'Save Reading & Photos'}
+              </button>
+            </>
+          )}
         </form>
       )}
 
