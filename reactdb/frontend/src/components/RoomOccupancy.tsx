@@ -402,7 +402,7 @@ export default function RoomOccupancy(): JSX.Element {
                   <div className="tenant-section">
                     <h4>Tenant Information</h4>
                     <p className="tenant-name">👤 {room.tenantName}</p>
-                    <p className="tenant-contact">📱 {room.tenantPhone}</p>
+                    <p className="tenant-contact">📱 <a href={`tel:${room.tenantPhone}`}>{room.tenantPhone}</a></p>
                     <p className="check-in">📅 Check-in: {formatDate(room.checkInDate)}</p>
                     <p className="aging-info">⏱️ Occupancy Aging: {calculateOccupancyAging(room.checkInDate)}</p>
                     {room.checkOutDate && (

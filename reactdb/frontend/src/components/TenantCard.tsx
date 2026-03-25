@@ -163,7 +163,9 @@ export default function TenantCard({
         )}
         <div className="tenant-detail">
           <span className="detail-label">Phone:</span>
-          <span className="detail-value">{tenant.phone}</span>
+          <span className="detail-value">
+            <a href={`tel:${tenant.phone}`}>{tenant.phone}</a>
+          </span>
         </div>
         <div className="tenant-detail">
           <span className="detail-label">City:</span>

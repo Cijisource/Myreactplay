@@ -222,24 +222,21 @@ export default function RoomManagement(): JSX.Element {
   };
 
   const renderHighlightedPhone = (phone: string, searchTerm: string): JSX.Element => {
-    if (!searchTerm.trim()) {
-      return <>{phone}</>;
-    }
-
-    const lowerPhone = phone.toLowerCase();
-    const lowerSearch = searchTerm.toLowerCase();
-    const index = lowerPhone.indexOf(lowerSearch);
-
-    if (index === -1) {
-      return <>{phone}</>;
-    }
-
-    return (
-      <>
+    if (!phone) return <></>;
+    const display = (() => {
+      if (!searchTerm.trim()) return phone;
+      const lowerPhone = phone.toLowerCase();
+      const lowerSearch = searchTerm.toLowerCase();
+      const index = lowerPhone.indexOf(lowerSearch);
+      if (index === -1) return phone;
+      return <>
         {phone.substring(0, index)}
         <span className="phone-highlight">{phone.substring(index, index + searchTerm.length)}</span>
         {phone.substring(index + searchTerm.length)}
-      </>
+      </>;
+    })();
+    return (
+      <a href={`tel:${phone}`}>{display}</a>
     );
   };
 

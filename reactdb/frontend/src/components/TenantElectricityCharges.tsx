@@ -310,7 +310,7 @@ export default function TenantElectricityCharges(): JSX.Element {
               <tr key={charge.id}>
                 <td style={{ fontWeight: '600' }}>Room {charge.roomNumber}</td>
                 <td>{charge.tenantName}</td>
-                <td>{charge.tenantPhone}</td>
+                <td><a href={`tel:${charge.tenantPhone}`}>{charge.tenantPhone}</a></td>
                 <td>{charge.serviceName}</td>
                 <td>{charge.occupancyDaysInMonth}/{charge.totalDaysInMonth} days</td>
                 <td style={{ textAlign: 'center' }}>
