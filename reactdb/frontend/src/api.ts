@@ -99,6 +99,7 @@ export const apiService = {
   // Tenant Management APIs
   getAllTenantsWithOccupancy: () => api.get('/tenants/with-occupancy'),
   getTenantById: (tenantId: number) => api.get(`/tenants/${tenantId}`),
+  getTenantOccupancyHistory: (tenantId: number) => api.get(`/tenants/${tenantId}/occupancy-history`),
   createTenant: (data: any) => api.post('/tenants', data),
   updateTenant: (tenantId: number, data: any) => api.put(`/tenants/${tenantId}`, data),
   deleteTenant: (tenantId: number) => api.delete(`/tenants/${tenantId}`),

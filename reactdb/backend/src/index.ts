@@ -1217,7 +1217,7 @@ app.get('/api/tenants/with-occupancy', async (req: Request, res: Response) => {
         o.CheckInDate as checkInDate,
         o.CheckOutDate as checkOutDate,
         ISNULL(o.RentFixed, rd.Rent) as rentFixed,
-        CASE WHEN o.CheckOutDate > CAST(GETDATE() AS DATE) THEN 1 ELSE 0 END as isCurrentlyOccupied,
+        CASE WHEN o.CheckOutDate >= CAST(GETDATE() AS DATE) THEN 1 ELSE 0 END as isCurrentlyOccupied,
         ISNULL(CAST(COALESCE(
           (SELECT TOP 1 CAST(RentBalance AS FLOAT) 
            FROM RentalCollection 
@@ -1242,7 +1242,7 @@ app.get('/api/tenants/with-occupancy', async (req: Request, res: Response) => {
            AND MONTH(RentReceivedOn) = MONTH(GETDATE())
            ORDER BY RentReceivedOn DESC), NULL) AS NVARCHAR(10)), NULL) as lastPaymentDate
       FROM Tenant t
-      LEFT JOIN Occupancy o ON t.Id = o.TenantId AND o.CheckOutDate > CAST(GETDATE() AS DATE)
+      LEFT JOIN Occupancy o ON t.Id = o.TenantId AND o.CheckOutDate >= CAST(GETDATE() AS DATE)
       LEFT JOIN RoomDetail rd ON o.RoomId = rd.Id
       ORDER BY t.Name ASC
     `);
@@ -1317,6 +1317,42 @@ app.get('/api/tenants/:id', async (req: Request, res: Response) => {
     const errorMessage = error instanceof Error ? error.message : String(error);
     res.status(500).json({ 
       error: 'Failed to retrieve tenant',
+      details: errorMessage
+    });
+  }
+});
+
+// Get occupancy history for a tenant
+app.get('/api/tenants/:id/occupancy-history', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    const result = await pool
+      .request()
+      .input('tenantId', sql.Int, parseInt(id))
+      .query(`
+        SELECT 
+          o.Id as occupancyId,
+          o.RoomId as roomId,
+          rd.Number as roomNumber,
+          o.CheckInDate as checkInDate,
+          o.CheckOutDate as checkOutDate,
+          o.RentFixed as rentFixed,
+          o.DepositReceived as depositReceived,
+          o.DepositRefunded as depositRefunded,
+          o.Charges as charges
+        FROM Occupancy o
+        LEFT JOIN RoomDetail rd ON o.RoomId = rd.Id
+        WHERE o.TenantId = @tenantId
+        ORDER BY 
+          CASE WHEN o.CheckOutDate IS NOT NULL AND LTRIM(RTRIM(o.CheckOutDate)) <> '' THEN o.CheckOutDate ELSE o.CheckInDate END DESC
+      `);
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Get tenant occupancy history error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({
+      error: 'Failed to retrieve tenant occupancy history',
       details: errorMessage
     });
   }

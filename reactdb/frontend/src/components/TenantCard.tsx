@@ -49,17 +49,13 @@ export default function TenantCard({
     return !tenant.currentRentReceived || tenant.currentRentReceived === 0;
   };
 
-  const hasAdditionalMedia = Boolean(
-    tenant.photo2Url ||
-      tenant.photo3Url ||
-      tenant.photo4Url ||
-      tenant.photo5Url ||
-      tenant.proof1Url
-  );
+
+  // Always enable view all photos/proofs, even if none are uploaded
+  const canViewAllMedia = true;
 
   const renderActionIcons = () => (
     <div className="tenant-action-icons">
-      {hasAdditionalMedia && (
+      {canViewAllMedia && (
         <button
           className="action-icon-btn action-view"
           onClick={handlePhotoClick}

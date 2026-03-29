@@ -1,6 +1,19 @@
 import { TenantWithOccupancy } from './TenantManagement';
-import { getFileUrl } from '../api';
-import { useState } from 'react';
+import { getFileUrl, apiService } from '../api';
+import { useState, useEffect } from 'react';
+import './TenantFullScreenView.css';
+
+interface OccupancyHistoryRecord {
+  occupancyId: number;
+  roomId: number;
+  roomNumber: string;
+  checkInDate: string;
+  checkOutDate: string | null;
+  rentFixed: number | null;
+  depositReceived: number | null;
+  depositRefunded: number | null;
+  charges: number | null;
+}
 
 interface TenantFullScreenViewProps {
   tenant: TenantWithOccupancy;
@@ -15,9 +28,27 @@ export default function TenantFullScreenView({
   onClose,
   onViewPhoto,
   onViewProof,
-  // useAzurePhotos is declared in props interface but always defaults to using Azure photo from tenant.azurePhotoUrl
 }: TenantFullScreenViewProps) {
+  const [occupancyHistory, setOccupancyHistory] = useState<OccupancyHistoryRecord[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [azurePhotoUrl, setAzurePhotoUrl] = useState<string | null>(tenant.azurePhotoUrl || null);
+
+  useEffect(() => {
+    const fetchOccupancyHistory = async () => {
+      setLoadingHistory(true);
+      setHistoryError(null);
+      try {
+        const response = await apiService.getTenantOccupancyHistory(tenant.id);
+        setOccupancyHistory(response.data);
+      } catch (err) {
+        setHistoryError('Failed to load occupancy history');
+      } finally {
+        setLoadingHistory(false);
+      }
+    };
+    fetchOccupancyHistory();
+  }, [tenant.id]);
 
   // Use pre-fetched Azure photo URL from tenant data
   const mainPhotoUrl = azurePhotoUrl || (tenant.photoUrl ? getFileUrl(tenant.photoUrl) : null);
@@ -86,6 +117,43 @@ export default function TenantFullScreenView({
         </div>
 
         <div className="fullscreen-body">
+          {/* Occupancy History Section */}
+          <div className="fullscreen-section">
+            <h3>Occupancy History</h3>
+            {loadingHistory && <p>Loading occupancy history...</p>}
+            {historyError && <p className="form-error">{historyError}</p>}
+            {!loadingHistory && !historyError && occupancyHistory.length === 0 && (
+              <p>No occupancy history found for this tenant.</p>
+            )}
+            {!loadingHistory && !historyError && occupancyHistory.length > 0 && (
+              <table className="occupancy-history-table">
+                <thead>
+                  <tr>
+                    <th>Room</th>
+                    <th>Check-in</th>
+                    <th>Check-out</th>
+                    <th>Rent</th>
+                    <th>Deposit Received</th>
+                    <th>Deposit Refunded</th>
+                    <th>Charges</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {occupancyHistory.map((record) => (
+                    <tr key={record.occupancyId}>
+                      <td>{record.roomNumber || 'N/A'}</td>
+                      <td>{record.checkInDate ? new Date(record.checkInDate).toLocaleDateString() : 'N/A'}</td>
+                      <td>{record.checkOutDate ? new Date(record.checkOutDate).toLocaleDateString() : '—'}</td>
+                      <td>{record.rentFixed != null ? `₹${record.rentFixed.toLocaleString()}` : 'N/A'}</td>
+                      <td>{record.depositReceived != null ? `₹${record.depositReceived.toLocaleString()}` : 'N/A'}</td>
+                      <td>{record.depositRefunded != null ? `₹${record.depositRefunded.toLocaleString()}` : 'N/A'}</td>
+                      <td>{record.charges != null ? `₹${record.charges.toLocaleString()}` : 'N/A'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
           {/* Occupancy Status Badge */}
           {tenant.isCurrentlyOccupied !== undefined && (
             <div className="fullscreen-status-section">
