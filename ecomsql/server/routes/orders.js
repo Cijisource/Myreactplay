@@ -1,6 +1,6 @@
 const express = require('express');
 const { getConnection, sql } = require('../config');
-const { verifyToken } = require('../middleware/auth');
+const { verifyToken, optionalAuth } = require('../middleware/auth');
 const router = express.Router();
 
 // Generate unique order number
@@ -179,7 +179,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create order from cart
-router.post('/', async (req, res) => {
+router.post('/', optionalAuth, async (req, res) => {
   try {
     const { sessionId, customerEmail, customerName, shippingAddress, items, subtotalAmount, gstAmount, shippingCharge, totalAmount, paymentScreenshot, orderDate, appliedDiscount, appliedRewards } = req.body;
     
@@ -221,6 +221,17 @@ router.post('/', async (req, res) => {
     
     // Normalize customer email by trimming whitespace and converting to lowercase
     const normalizedEmail = customerEmail.trim().toLowerCase();
+    const authenticatedEmail = (req.user?.userName || '').trim().toLowerCase();
+
+    if (appliedRewards?.points > 0) {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Login required to apply loyalty points' });
+      }
+
+      if (authenticatedEmail !== normalizedEmail) {
+        return res.status(403).json({ error: 'Loyalty points can only be applied to the logged-in customer account' });
+      }
+    }
     
     // Use provided orderDate or fall back to current server time
     const createdDate = orderDate ? new Date(orderDate) : new Date();

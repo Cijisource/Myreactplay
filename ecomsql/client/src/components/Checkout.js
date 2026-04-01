@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import QRCode from 'qrcode.react';
-import { createOrder, getAllCities, getShippingZones, getLocationFromIP, getShippingRateByCity } from '../api';
+import { createOrder, getAllCities, getShippingZones, getLocationFromIP, getShippingRateByCity, registerUser, loginUser } from '../api';
 import { getUser } from '../utils/authUtils';
 import './Checkout.css';
 
@@ -414,7 +414,7 @@ const Checkout = ({
     return true;
   };
 
-  const handleContinueToPayment = () => {
+  const handleContinueToPayment = async () => {
     setMessage('');
     
     // First validate basic details
@@ -444,6 +444,42 @@ const Checkout = ({
     if (shippingCharge < 0) {
       setMessage('Invalid shipping charge calculated. Please check your city selection and try again.');
       return;
+    }
+
+    // Auto-login or register guest user before proceeding to payment
+    if (!getUser()) {
+      setLoading(true);
+      try {
+        const email = formData.customerEmail.trim().toLowerCase();
+        const phone = formData.customerPhone.trim();
+        const address = `${formData.shippingAddress}, ${formData.city} - ${formData.zipCode}`;
+
+        try {
+          // Try to login with email + phone number as password
+          const loginResp = await loginUser(email, phone);
+          localStorage.setItem('authToken', loginResp.data.token);
+          localStorage.setItem('user', JSON.stringify(loginResp.data.user));
+        } catch (loginErr) {
+          if (loginErr.response?.status === 401 || loginErr.response?.status === 404) {
+            // Not found or wrong credentials — try to register as new customer
+            try {
+              await registerUser(email, phone, formData.customerName.trim(), phone, address);
+              // Registration succeeded — now login to get token
+              const loginResp = await loginUser(email, phone);
+              localStorage.setItem('authToken', loginResp.data.token);
+              localStorage.setItem('user', JSON.stringify(loginResp.data.user));
+            } catch (regErr) {
+              // 409: email exists but different phone/password — proceed as guest
+              // Any other error — proceed as guest silently
+              console.warn('[Checkout] Auto-register/login skipped:', regErr.response?.data?.error || regErr.message);
+            }
+          } else {
+            console.warn('[Checkout] Auto-login skipped:', loginErr.message);
+          }
+        }
+      } finally {
+        setLoading(false);
+      }
     }
 
     // All validations passed, proceed to payment

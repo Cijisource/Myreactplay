@@ -1,3 +1,51 @@
+.refund-policy-page {
+  min-height: 100vh;
+  background: #f5f5f5;
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+.refund-page-header {
+  background: #232f3e;
+  color: #ffffff;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.refund-header-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.refund-brand {
+  font-size: 22px;
+  font-weight: 700;
+  color: #FF9900;
+  text-decoration: none;
+  letter-spacing: -0.5px;
+}
+
+.refund-brand:hover {
+  color: #ffb84d;
+}
+
+.refund-back-link {
+  font-size: 14px;
+  color: #ccc;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.refund-back-link:hover {
+  color: #FF9900;
+}
+
 .refund-policy-container {
   max-width: 800px;
   margin: 40px auto;

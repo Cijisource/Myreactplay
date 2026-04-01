@@ -147,7 +147,7 @@ function MainApp() {
 
   const renderPage = () => {
     // Redirect to login if trying to access protected pages
-    const protectedPages = ['cart', 'orders', 'profile'];
+    const protectedPages = ['orders', 'profile'];
     if (protectedPages.includes(currentPage) && !isAuthenticated()) {
       return (
         <div style={{
@@ -276,7 +276,11 @@ function MainApp() {
         return (
           <ShoppingCart 
             onCartCountChange={setCartCount}
-            onOrderComplete={() => setCurrentPage('orders')}
+            onOrderComplete={() => {
+              if (isAuthenticated()) {
+                setCurrentPage('orders');
+              }
+            }}
           />
         );
       case 'orders':
@@ -326,6 +330,33 @@ function MainApp() {
                 onClick={() => setCurrentPage('products')}
               >
                 Browse
+              </button>
+              <button
+                className={`nav-link ${currentPage === 'cart' ? 'active' : ''}`}
+                onClick={() => setCurrentPage('cart')}
+                style={{ position: 'relative' }}
+              >
+                Shopping Cart
+                {cartCount > 0 && (
+                  <span style={{
+                    position: 'absolute',
+                    top: '-8px',
+                    right: '-8px',
+                    background: '#FF9900',
+                    color: 'white',
+                    borderRadius: '50%',
+                    width: '24px',
+                    height: '24px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    border: '2px solid white'
+                  }}>
+                    {cartCount}
+                  </span>
+                )}
               </button>
             </nav>
           )}
