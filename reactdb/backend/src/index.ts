@@ -405,18 +405,41 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
       ? updateResult.recordset[0].LastLogin 
       : user.lastLogin;
 
-    // Generate JWT token
+    // Generate JWT access and refresh tokens
     const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+    const refreshTokenSecret = process.env.REFRESH_TOKEN_SECRET || `${jwtSecret}-refresh`;
+
+    const tokenPayload = {
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      roles: roles
+    };
+
     const token = jwt.sign(
-      { 
-        id: user.id, 
-        username: user.username, 
-        name: user.name,
-        roles: roles
-      },
+      tokenPayload,
       jwtSecret,
       { expiresIn: '24h' }
     );
+
+    const refreshToken = jwt.sign(
+      tokenPayload,
+      refreshTokenSecret,
+      { expiresIn: '30d' }
+    );
+
+    res.json({
+      token,
+      refreshToken,
+      user: {
+        id: user.id,
+        username: user.username,
+        name: user.name,
+        roles: roles,
+        nextLoginDuration: user.nextLoginDuration || null,
+        lastLogin: updatedLastLogin || null
+      }
+    });
 
     console.log(`[Login] Successful login for user: ${username}`);
     console.log(`[Login] Response user object:`, {
@@ -427,24 +450,53 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
       nextLoginDuration: user.nextLoginDuration,
       lastLogin: updatedLastLogin
     });
-
-    // Return token and user info
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        username: user.username,
-        name: user.name,
-        roles: roles,
-        nextLoginDuration: user.nextLoginDuration || null,
-        lastLogin: updatedLastLogin || null
-      }
-    });
   } catch (error) {
     console.error('Login error:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     res.status(500).json({ 
       error: 'Login failed',
+      details: errorMessage
+    });
+  }
+});
+
+app.post('/api/auth/refresh', async (req: Request, res: Response) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return res.status(401).json({ error: 'Refresh token is required' });
+    }
+
+    const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+    const refreshTokenSecret = process.env.REFRESH_TOKEN_SECRET || `${jwtSecret}-refresh`;
+
+    let decoded: any;
+    try {
+      decoded = jwt.verify(refreshToken, refreshTokenSecret);
+    } catch (verifyError) {
+      return res.status(401).json({ error: 'Invalid or expired refresh token' });
+    }
+
+    const tokenPayload = {
+      id: decoded.id,
+      username: decoded.username,
+      name: decoded.name,
+      roles: decoded.roles || 'user'
+    };
+
+    const newToken = jwt.sign(tokenPayload, jwtSecret, { expiresIn: '24h' });
+    const newRefreshToken = jwt.sign(tokenPayload, refreshTokenSecret, { expiresIn: '30d' });
+
+    res.json({
+      token: newToken,
+      refreshToken: newRefreshToken
+    });
+  } catch (error) {
+    console.error('Token refresh error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({
+      error: 'Failed to refresh token',
       details: errorMessage
     });
   }

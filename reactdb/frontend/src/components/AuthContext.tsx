@@ -104,6 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Error restoring auth state:', err);
       localStorage.removeItem('user');
       localStorage.removeItem('authToken');
+      localStorage.removeItem('refreshToken');
     } finally {
       setLoading(false);
     }
@@ -142,6 +143,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Store token and user info
       localStorage.setItem('authToken', response.token);
+      if (response.refreshToken) {
+        localStorage.setItem('refreshToken', response.refreshToken);
+      }
       localStorage.setItem('user', JSON.stringify(response.user));
       
       console.log('[Auth] User data stored in localStorage:', {
@@ -172,11 +176,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    if (!user) {
-      console.warn('[Auth] logout() called but no user is currently logged in');
-      return;
-    }
-
     console.log('[Auth] logout() called', {
       hasTimer: !!logoutTimer,
       currentUser: user ? { id: user.id, username: user.username } : null,
@@ -191,10 +190,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     localStorage.removeItem('authToken');
+    localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
     setUser(null);
     setError(null);
   };
+
+  useEffect(() => {
+    const handleLogoutEvent = () => {
+      logout();
+    };
+
+    window.addEventListener('auth:logout', handleLogoutEvent);
+    return () => {
+      window.removeEventListener('auth:logout', handleLogoutEvent);
+    };
+  }, [logout]);
 
   const clearError = () => {
     setError(null);
