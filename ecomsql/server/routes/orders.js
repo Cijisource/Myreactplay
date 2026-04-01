@@ -153,9 +153,15 @@ router.get('/:id', async (req, res) => {
     const itemsResult = await pool.request()
       .input('orderId', sql.Int, req.params.id)
       .query(`
-        SELECT id, order_id, product_id, product_name, quantity, unit_price
-        FROM order_items
-        WHERE order_id = @orderId
+        SELECT oi.id, oi.order_id, oi.product_id, oi.product_name, oi.quantity, oi.unit_price,
+               (
+                 SELECT TOP 1 image_url
+                 FROM product_images
+                 WHERE product_id = oi.product_id
+                 ORDER BY ISNULL(is_primary, 0) DESC, display_order ASC, uploaded_at DESC
+               ) AS image_url
+        FROM order_items oi
+        WHERE oi.order_id = @orderId
       `);
     
     order.items = itemsResult.recordset;

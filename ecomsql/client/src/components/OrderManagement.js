@@ -320,6 +320,7 @@ const OrderManagement = () => {
               <table className="items-table">
                 <thead>
                   <tr>
+                    <th>Image</th>
                     <th>Product Name</th>
                     <th>Quantity</th>
                     <th>Unit Price</th>
@@ -329,6 +330,17 @@ const OrderManagement = () => {
                 <tbody>
                   {selectedOrder.items && selectedOrder.items.map(item => (
                     <tr key={item.id}>
+                      <td className="item-img-cell">
+                        {item.image_url ? (
+                          <img
+                            src={item.image_url}
+                            alt={item.product_name}
+                            className="order-item-img"
+                          />
+                        ) : (
+                          <div className="order-item-img-placeholder">📦</div>
+                        )}
+                      </td>
                       <td>{item.product_name}</td>
                       <td>{item.quantity}</td>
                       <td>₹{item.unit_price.toFixed(2)}</td>
