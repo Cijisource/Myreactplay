@@ -10,6 +10,7 @@ import './DiscountsAndRewards.css';
 const DiscountsAndRewards = ({ 
   orderAmount = 0, 
   customerEmail = '', 
+  isAuthenticated = false,
   onDiscountApplied = () => {},
   onRewardsApplied = () => {}
 }) => {
@@ -115,6 +116,11 @@ const DiscountsAndRewards = ({
 
   // Redeem loyalty points
   const handleRedeemPoints = async () => {
+    if (!isAuthenticated || !customerEmail) {
+      setCouponError('Please log in to apply loyalty points.');
+      return;
+    }
+
     if (!pointsToRedeem || pointsToRedeem <= 0) {
       setCouponError('Please enter a valid number of points');
       return;
@@ -255,8 +261,23 @@ const DiscountsAndRewards = ({
         )}
       </div>
 
+      {!isAuthenticated && (
+        <div className="dar-section dar-rewards">
+          <h3 className="dar-title">⭐ Loyalty Rewards</h3>
+          <p className="dar-info">Log in to view and apply your loyalty points during checkout.</p>
+          <button
+            className="dar-btn-apply"
+            onClick={() => {
+              window.location.href = '/login';
+            }}
+          >
+            Login to Use Rewards
+          </button>
+        </div>
+      )}
+
       {/* Loyalty Rewards Section */}
-      {customerEmail && !loyaltyLoading && loyaltyData && (
+      {isAuthenticated && customerEmail && !loyaltyLoading && loyaltyData && (
         <div className="dar-section dar-rewards">
           <h3 className="dar-title">⭐ Loyalty Rewards</h3>
           

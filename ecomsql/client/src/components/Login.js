@@ -68,6 +68,10 @@ function Login() {
     navigate('/register');
   };
 
+  const handleGuestClick = () => {
+    navigate('/');
+  };
+
   return (
     <div className="login-container">
       <div className="login-card">
@@ -111,6 +115,18 @@ function Login() {
             {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
+
+        <div className="guest-divider">
+          <span>or</span>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleGuestClick}
+          className="guest-button"
+        >
+          Continue as Guest
+        </button>
 
         <div className="login-footer">
           <p>Don't have an account? 

@@ -85,9 +85,8 @@ const ProductCard = React.memo(({ product, onAddToCart, onViewPhotos, isAuthenti
             className="add-to-cart-btn"
             onClick={() => onAddToCart(product)}
             disabled={product.stock === 0}
-            style={isAuthenticated ? {} : { background: '#ff9800', cursor: product.stock === 0 ? 'not-allowed' : 'pointer' }}
           >
-            {product.stock === 0 ? 'Out of Stock' : (isAuthenticated ? 'Add to Cart' : 'Login to Add')}
+            {product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
           </button>
           <button
             className="view-details-btn"
@@ -227,18 +226,6 @@ const ProductListing = ({ searchQuery: externalSearchQuery, setSearchQuery: exte
   }, [selectedCategory, searchQuery, loadProducts]);
 
   const handleAddToCart = useCallback(async (product) => {
-    // Check if user is authenticated
-    if (!isAuthenticated) {
-      // Show modal or notification prompting to login
-      const shouldLogin = window.confirm(
-        'You need to be logged in to add items to cart. Would you like to login?'
-      );
-      if (shouldLogin) {
-        window.location.href = '/login';
-      }
-      return;
-    }
-
     try {
       const sessionId = localStorage.getItem('sessionId') || 'session-' + Date.now();
       localStorage.setItem('sessionId', sessionId);
@@ -272,7 +259,7 @@ const ProductListing = ({ searchQuery: externalSearchQuery, setSearchQuery: exte
       setTimeout(() => setNotification(null), 3000);
       console.error(err);
     }
-  }, [onProductAdded, isAuthenticated]);
+  }, [onProductAdded]);
 
   const handleViewPhotos = useCallback((product) => {
     setSelectedProduct(product);

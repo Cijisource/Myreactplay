@@ -27,9 +27,9 @@
   width: 100%;
   display: flex;
   justify-content: flex-start;
-  align-items: center;
+  align-items: flex-start;
   gap: 16px;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
 }
 
 .header-content {
@@ -49,12 +49,13 @@
 }
 
 .header-search {
-  flex: 0 1 500px;
-  max-width: 500px;
+  flex: 1 1 100%;
+  max-width: none;
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 8px;
-  order: 2;
+  order: 3;
 }
 
 .header-search input {
@@ -183,35 +184,38 @@
 
 .main-nav {
   display: flex;
-  gap: 3px;
+  align-items: center;
+  gap: 4px 3px;
   flex-wrap: wrap;
   flex: 0 1 auto;
-  justify-content: flex-start;
-  order: 3;
+  width: auto;
+  max-width: 100%;
+  justify-content: flex-end;
+  order: 2;
   background: #37475A;
-  padding: 0 7px;
-  margin: 0 -20px;
-  padding-left: 7px;
-  max-height: 64px;
-  overflow-y: hidden;
-  overflow-x: auto;
+  padding: 4px 6px;
+  margin: 0;
+  margin-left: auto;
+  max-height: none;
+  overflow: visible;
 }
 
 .nav-link {
-  padding: 7px 10px;
+  padding: 6px 8px;
   background: transparent;
   border: none;
   color: #ffffff;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   transition: all 0.3s;
   white-space: nowrap;
-  border-bottom: 3px solid transparent;
-  min-height: 32px;
+  border-bottom: 2px solid transparent;
+  min-height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
+  line-height: 1.1;
 }
 
 .nav-link:hover {
@@ -246,10 +250,10 @@
   background: #FF9900;
   color: white;
   border-bottom: none;
-  padding: 7px 10px;
+  padding: 6px 8px;
   border-radius: 4px;
   font-weight: 600;
-  min-height: 32px;
+  min-height: 28px;
 }
 
 .nav-link.logout-nav:hover {
@@ -261,15 +265,16 @@
 .nav-user-section {
   display: flex;
   align-items: center;
-  gap: 3px;
+  flex-wrap: wrap;
+  gap: 4px 3px;
   margin-left: auto;
   flex-shrink: 0;
 }
 
 .nav-link.nav-name {
-  padding: 7px 10px;
-  font-size: 12px;
-  min-height: 32px;
+  padding: 6px 8px;
+  font-size: 11px;
+  min-height: 28px;
   white-space: nowrap;
 }
 
@@ -353,8 +358,9 @@
   }
 
   .header-search {
-    flex: 0 1 450px;
-    max-width: 450px;
+    flex: 1 1 100%;
+    max-width: none;
+    width: 100%;
     min-height: auto;
     gap: 8px;
   }
@@ -383,25 +389,26 @@
   }
 
   .main-nav {
-    gap: 3px;
+    gap: 3px 2px;
     flex-wrap: wrap;
-    padding: 0 7px;
-    overflow-x: auto;
-    max-height: 64px;
+    padding: 4px 6px;
+    justify-content: flex-end;
+    max-height: none;
+    overflow: visible;
   }
 
   .nav-link {
-    padding: 6px 9px;
+    padding: 5px 8px;
     font-size: 11px;
-    min-height: 31px;
+    min-height: 28px;
     display: flex;
     align-items: center;
   }
 
   .nav-link.logout-nav {
-    padding: 6px 9px;
+    padding: 5px 8px;
     font-size: 11px;
-    min-height: 31px;
+    min-height: 28px;
   }
 
   .nav-user-section {
@@ -409,9 +416,9 @@
   }
 
   .nav-link.nav-name {
-    padding: 6px 9px;
+    padding: 5px 8px;
     font-size: 11px;
-    min-height: 31px;
+    min-height: 28px;
   }
 
   .app-header h1 {
@@ -429,21 +436,23 @@
 
 @media (max-width: 768px) {
   .header-container {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
     gap: 10px;
     padding: 10px;
   }
 
   .header-content {
-    width: 100%;
+    width: auto;
     order: 1;
+    flex: 0 0 auto;
   }
 
   .header-search {
-    flex: 1;
+    flex: 1 1 100%;
     width: 100%;
-    order: 2;
+    order: 3;
     min-height: auto;
     flex-wrap: wrap;
     gap: 8px;
@@ -478,32 +487,34 @@
   }
 
   .main-nav {
-    width: 100%;
-    order: 3;
-    justify-content: flex-start;
+    width: auto;
+    max-width: calc(100% - 140px);
+    order: 2;
+    justify-content: flex-end;
     flex-wrap: wrap;
     background: #37475A;
-    padding: 4px 6px;
+    padding: 4px 5px;
     margin: 0;
-    gap: 3px;
-    overflow-x: auto;
-    max-height: 72px;
+    margin-left: auto;
+    gap: 3px 2px;
+    max-height: none;
+    overflow: visible;
   }
 
   .nav-link {
-    padding: 7px 9px;
+    padding: 6px 8px;
     font-size: 11px;
     flex-shrink: 0;
-    min-height: 30px;
+    min-height: 28px;
     display: flex;
     align-items: center;
   }
 
   .nav-link.logout-nav {
-    padding: 7px 9px;
+    padding: 6px 8px;
     font-size: 11px;
     border-radius: 3px;
-    min-height: 30px;
+    min-height: 28px;
   }
 
   .nav-user-section {
@@ -512,9 +523,9 @@
   }
 
   .nav-link.nav-name {
-    padding: 7px 9px;
+    padding: 6px 8px;
     font-size: 11px;
-    min-height: 30px;
+    min-height: 28px;
   }
 
   .app-header h1 {
@@ -525,7 +536,8 @@
     order: 4;
     gap: 12px;
     flex-wrap: wrap;
-    width: auto;
+    width: 100%;
+    justify-content: flex-end;
   }
 
   .header-icon {
@@ -572,8 +584,9 @@
   .header-container {
     padding: 8px;
     gap: 8px;
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
   }
 
   .app-header h1 {
@@ -582,8 +595,8 @@
 
   .header-search {
     width: 100%;
-    flex: 1;
-    order: 2;
+    flex: 1 1 100%;
+    order: 3;
     min-height: auto;
     flex-wrap: wrap;
     gap: 6px;
@@ -619,6 +632,7 @@
     width: 100%;
     gap: 8px;
     flex-wrap: wrap;
+    justify-content: flex-end;
   }
 
   .header-icon {
@@ -654,30 +668,33 @@
   }
 
   .main-nav {
-    gap: 3px;
-    width: 100%;
-    order: 3;
-    overflow-x: auto;
-    padding: 4px 5px;
+    gap: 2px;
+    width: auto;
+    max-width: calc(100% - 110px);
+    order: 2;
+    padding: 3px 4px;
     background: #37475A;
-    max-height: 68px;
     flex-wrap: wrap;
+    justify-content: flex-end;
+    margin-left: auto;
+    max-height: none;
+    overflow: visible;
   }
 
   .nav-link {
-    padding: 8px 9px;
-    font-size: 11px;
-    min-height: 30px;
+    padding: 5px 7px;
+    font-size: 10px;
+    min-height: 26px;
     display: flex;
     align-items: center;
     flex-shrink: 0;
   }
 
   .nav-link.logout-nav {
-    padding: 7px 9px;
-    font-size: 11px;
+    padding: 5px 7px;
+    font-size: 10px;
     border-radius: 3px;
-    min-height: 30px;
+    min-height: 26px;
   }
 
   .nav-user-section {
@@ -686,9 +703,9 @@
   }
 
   .nav-link.nav-name {
-    padding: 8px 9px;
-    font-size: 11px;
-    min-height: 30px;
+    padding: 5px 7px;
+    font-size: 10px;
+    min-height: 26px;
   }
 
   .nav-link.admin-link {
@@ -712,12 +729,13 @@
   .header-container {
     padding: 6px;
     gap: 6px;
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
   }
 
   .header-content {
-    width: 100%;
+    width: auto;
     order: 1;
   }
 
@@ -727,8 +745,8 @@
 
   .header-search {
     width: 100%;
-    flex: 1;
-    order: 2;
+    flex: 1 1 100%;
+    order: 3;
     min-height: auto;
     flex-wrap: wrap;
     gap: 6px;
@@ -761,30 +779,33 @@
   }
 
   .main-nav {
-    order: 3;
+    order: 2;
     gap: 2px;
-    padding: 3px 4px;
-    width: 100%;
-    overflow-x: auto;
+    padding: 3px;
+    width: auto;
+    max-width: calc(100% - 92px);
     background: #37475A;
-    max-height: 56px;
     flex-wrap: wrap;
+    justify-content: flex-end;
+    margin-left: auto;
+    max-height: none;
+    overflow: visible;
   }
 
   .nav-link {
-    padding: 7px 8px;
-    font-size: 10px;
-    min-height: 28px;
+    padding: 4px 6px;
+    font-size: 9px;
+    min-height: 24px;
     display: flex;
     align-items: center;
     flex-shrink: 0;
   }
 
   .nav-link.logout-nav {
-    padding: 6px 8px;
+    padding: 4px 6px;
     font-size: 9px;
     border-radius: 3px;
-    min-height: 28px;
+    min-height: 24px;
   }
 
   .nav-user-section {
@@ -793,9 +814,9 @@
   }
 
   .nav-link.nav-name {
-    padding: 7px 8px;
-    font-size: 10px;
-    min-height: 28px;
+    padding: 4px 6px;
+    font-size: 9px;
+    min-height: 24px;
   }
 
   .header-icons {
@@ -804,6 +825,7 @@
     gap: 6px;
     display: flex;
     flex-wrap: wrap;
+    justify-content: flex-end;
   }
 
   .header-icon {

@@ -253,6 +253,7 @@ const ShoppingCart = ({ onCartCountChange, onOrderComplete }) => {
             <DiscountsAndRewards
               orderAmount={subtotalAmount}
               customerEmail={customerEmail}
+              isAuthenticated={Boolean(user)}
               onDiscountApplied={(discount) => setAppliedDiscount(discount)}
               onRewardsApplied={(rewards) => setAppliedRewards(rewards)}
             />

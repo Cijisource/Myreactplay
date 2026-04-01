@@ -64,17 +64,7 @@ const ProductDetail = ({ productId, onBackClick, isAuthenticated: isAuthenticate
 
   const handleAddToCart = async () => {
     try {
-      if (!authenticated) {
-        const shouldLogin = window.confirm(
-          'You need to be logged in to add items to cart. Would you like to login?'
-        );
-        if (shouldLogin) {
-          window.location.href = '/login';
-        }
-        return;
-      }
-
-      const sessionId = localStorage.getItem('sessionId') || Date.now().toString();
+      const sessionId = localStorage.getItem('sessionId') || 'session-' + Date.now();
       localStorage.setItem('sessionId', sessionId);
 
       await addToCart({
@@ -329,9 +319,8 @@ const ProductDetail = ({ productId, onBackClick, isAuthenticated: isAuthenticate
               className={`add-to-cart-btn ${!inStock ? 'disabled' : ''}`}
               onClick={handleAddToCart}
               disabled={!inStock || quantity < 1}
-              style={!authenticated && inStock ? { background: '#ff9800' } : {}}
             >
-              {!inStock ? 'Out of Stock' : (authenticated ? '🛒 Add to Cart' : '🔓 Login to Add')}
+              {!inStock ? 'Out of Stock' : '🛒 Add to Cart'}
             </button>
 
             <button

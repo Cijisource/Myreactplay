@@ -79,6 +79,46 @@
   cursor: not-allowed;
 }
 
+.guest-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 20px 0 16px;
+  color: #aaa;
+  font-size: 13px;
+}
+
+.guest-divider::before,
+.guest-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.guest-divider span {
+  padding: 0 12px;
+}
+
+.guest-button {
+  width: 100%;
+  padding: 12px;
+  background: #ffffff;
+  color: #555;
+  border: 1.5px solid #ccc;
+  border-radius: 4px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, color 0.2s;
+  margin-bottom: 8px;
+}
+
+.guest-button:hover {
+  border-color: #667eea;
+  color: #667eea;
+  background: #f5f6ff;
+}
+
 .error-message {
   background-color: #fee;
   color: #c33;

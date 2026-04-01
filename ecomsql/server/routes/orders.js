@@ -1,6 +1,6 @@
 const express = require('express');
 const { getConnection, sql } = require('../config');
-const { verifyToken } = require('../middleware/auth');
+const { verifyToken, optionalAuth } = require('../middleware/auth');
 const router = express.Router();
 
 // Generate unique order number
@@ -153,9 +153,15 @@ router.get('/:id', async (req, res) => {
     const itemsResult = await pool.request()
       .input('orderId', sql.Int, req.params.id)
       .query(`
-        SELECT id, order_id, product_id, product_name, quantity, unit_price
-        FROM order_items
-        WHERE order_id = @orderId
+        SELECT oi.id, oi.order_id, oi.product_id, oi.product_name, oi.quantity, oi.unit_price,
+               (
+                 SELECT TOP 1 image_url
+                 FROM product_images
+                 WHERE product_id = oi.product_id
+                 ORDER BY ISNULL(is_primary, 0) DESC, display_order ASC, uploaded_at DESC
+               ) AS image_url
+        FROM order_items oi
+        WHERE oi.order_id = @orderId
       `);
     
     order.items = itemsResult.recordset;
@@ -179,7 +185,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create order from cart
-router.post('/', async (req, res) => {
+router.post('/', optionalAuth, async (req, res) => {
   try {
     const { sessionId, customerEmail, customerName, shippingAddress, items, subtotalAmount, gstAmount, shippingCharge, totalAmount, paymentScreenshot, orderDate, appliedDiscount, appliedRewards } = req.body;
     
@@ -221,6 +227,17 @@ router.post('/', async (req, res) => {
     
     // Normalize customer email by trimming whitespace and converting to lowercase
     const normalizedEmail = customerEmail.trim().toLowerCase();
+    const authenticatedEmail = (req.user?.userName || '').trim().toLowerCase();
+
+    if (appliedRewards?.points > 0) {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Login required to apply loyalty points' });
+      }
+
+      if (authenticatedEmail !== normalizedEmail) {
+        return res.status(403).json({ error: 'Loyalty points can only be applied to the logged-in customer account' });
+      }
+    }
     
     // Use provided orderDate or fall back to current server time
     const createdDate = orderDate ? new Date(orderDate) : new Date();
