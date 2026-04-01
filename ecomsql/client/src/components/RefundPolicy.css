@@ -1,0 +1,37 @@
+.refund-policy-container {
+  max-width: 800px;
+  margin: 40px auto;
+  background: #fff;
+  padding: 32px 28px;
+  border-radius: 12px;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+  font-family: 'Segoe UI', Arial, sans-serif;
+  color: #222;
+}
+.refund-policy-container h1 {
+  font-size: 2.2rem;
+  color: #1a73e8;
+  margin-bottom: 18px;
+}
+.refund-policy-container h2 {
+  font-size: 1.25rem;
+  color: #333;
+  margin-top: 28px;
+  margin-bottom: 10px;
+}
+.refund-policy-container ul, .refund-policy-container ol {
+  margin-left: 24px;
+  margin-bottom: 12px;
+}
+.refund-policy-container li {
+  margin-bottom: 6px;
+  line-height: 1.6;
+}
+.refund-policy-container .disclaimer {
+  margin-top: 32px;
+  font-size: 0.98rem;
+  color: #b71c1c;
+  background: #fff3f3;
+  padding: 10px 16px;
+  border-radius: 6px;
+}

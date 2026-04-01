@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { addToWishlist, getWishlist, removeFromWishlist } from '../api';
 import { getProductById, getProducts, addToCart, API_BASE_URL } from '../api';
 import { isAuthenticated } from '../utils/authUtils';
 import './ProductDetail.css';
@@ -278,7 +279,7 @@ const ProductDetail = ({ productId, onBackClick, isAuthenticated: isAuthenticate
             <ul>
               <li>High-quality product</li>
               <li>Fast shipping available</li>
-              <li>30-day return policy</li>
+              <li>2-day return policy</li>
               <li>Secure payment options</li>
             </ul>
           </div>
@@ -333,7 +334,26 @@ const ProductDetail = ({ productId, onBackClick, isAuthenticated: isAuthenticate
               {!inStock ? 'Out of Stock' : (authenticated ? '🛒 Add to Cart' : '🔓 Login to Add')}
             </button>
 
-            <button className="wishlist-btn">♡ Add to Wishlist</button>
+            <button
+              className="wishlist-btn"
+              onClick={async () => {
+                if (!authenticated) {
+                  const shouldLogin = window.confirm('You need to be logged in to add items to wishlist. Would you like to login?');
+                  if (shouldLogin) window.location.href = '/login';
+                  return;
+                }
+                try {
+                  await addToWishlist(product.id);
+                  setSuccess('Added to wishlist!');
+                  setTimeout(() => setSuccess(''), 2000);
+                } catch (err) {
+                  setError('Failed to add to wishlist');
+                  setTimeout(() => setError(''), 2000);
+                }
+              }}
+            >
+              ♡ Add to Wishlist
+            </button>
           </div>
 
           {/* Shipping Info */}
@@ -349,7 +369,7 @@ const ProductDetail = ({ productId, onBackClick, isAuthenticated: isAuthenticate
               <span className="icon">↩️</span>
               <div>
                 <strong>Easy Returns</strong>
-                <p>30-day return policy</p>
+                <p>2-day return policy</p>
               </div>
             </div>
             <div className="shipping-item">

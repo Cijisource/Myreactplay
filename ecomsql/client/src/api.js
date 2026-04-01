@@ -75,6 +75,11 @@ export const createCategory = (data) => apiClient.post('/categories', data);
 export const updateCategory = (id, data) => apiClient.put(`/categories/${id}`, data);
 export const deleteCategory = (id) => apiClient.delete(`/categories/${id}`);
 
+// Wishlist
+export const addToWishlist = (productId) => apiClient.post('/wishlist', { productId });
+export const getWishlist = () => apiClient.get('/wishlist');
+export const removeFromWishlist = (productId) => apiClient.delete(`/wishlist/${productId}`);
+
 // Authentication
 export const registerUser = (email, password, name, phoneNumber = null, shippingAddress = null) => 
   apiClient.post('/auth/register', { email, password, name, phoneNumber, shippingAddress });

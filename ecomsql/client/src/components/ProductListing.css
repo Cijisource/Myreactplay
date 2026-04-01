@@ -1,3 +1,28 @@
+.wishlist-message {
+  color: #FF9900;
+  font-size: 0.98rem;
+  font-weight: 600;
+  margin-top: 6px;
+  text-align: center;
+  letter-spacing: 0.2px;
+}
+/* Highlight wishlisted product card */
+.product-card.wishlisted {
+  border: 2.5px solid #FF9900;
+  box-shadow: 0 0 16px 0 rgba(255,153,0,0.10);
+  background: #fffbe6;
+}
+
+.wishlist-btn.wishlisted {
+  background: #FF9900;
+  color: #fff;
+  border: 2px solid #FF9900;
+}
+
+.wishlist-btn.wishlisted:hover {
+  background: #e68a00;
+  color: #fff;
+}
 /* Notification Styles */
 .notification {
   position: fixed;
