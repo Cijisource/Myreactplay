@@ -1,4 +1,4 @@
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosError, AxiosInstance } from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://mansion.gnanabi.info/api';
 
@@ -29,14 +29,174 @@ const api: AxiosInstance = axios.create({
   },
 });
 
+const ACCESS_TOKEN_KEY = 'authToken';
+const REFRESH_TOKEN_KEY = 'refreshToken';
+const USER_KEY = 'user';
+
+const triggerAutoLogout = (): void => {
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+  window.dispatchEvent(new Event('auth:logout'));
+};
+
+const storeTokens = (token: string, refreshToken?: string): void => {
+  localStorage.setItem(ACCESS_TOKEN_KEY, token);
+  if (refreshToken) {
+    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+  }
+};
+
+const refreshAccessToken = async (): Promise<string> => {
+  const storedRefreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+
+  if (!storedRefreshToken) {
+    throw new Error('No refresh token available');
+  }
+
+  const response = await axios.post(`${API_URL}/auth/refresh`, {
+    refreshToken: storedRefreshToken,
+  });
+
+  const { token, refreshToken } = response.data || {};
+
+  if (!token) {
+    throw new Error('Refresh response missing access token');
+  }
+
+  storeTokens(token, refreshToken);
+  return token;
+};
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error: AxiosError) => {
+    const status = error.response?.status;
+    const originalRequest = (error.config || {}) as any;
+    const requestUrl = originalRequest?.url || '';
+
+    if (status !== 401) {
+      return Promise.reject(error);
+    }
+
+    const isAuthEndpoint = requestUrl.includes('/auth/login') || requestUrl.includes('/auth/refresh');
+    if (isAuthEndpoint || originalRequest._retry) {
+      triggerAutoLogout();
+      return Promise.reject(error);
+    }
+
+    originalRequest._retry = true;
+
+    try {
+      const newToken = await refreshAccessToken();
+      originalRequest.headers = originalRequest.headers || {};
+      originalRequest.headers.Authorization = `Bearer ${newToken}`;
+      return api(originalRequest);
+    } catch (refreshError) {
+      triggerAutoLogout();
+      return Promise.reject(refreshError);
+    }
+  }
+);
+
 // Add token to requests if available
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('authToken');
+  const token = localStorage.getItem(ACCESS_TOKEN_KEY);
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
+
+const fetchWithAuthRetry = async (url: string, init: RequestInit, retryAttempted: boolean = false): Promise<Response> => {
+  const response = await fetch(url, init);
+
+  if (response.status !== 401) {
+    return response;
+  }
+
+  if (retryAttempted) {
+    triggerAutoLogout();
+    return response;
+  }
+
+  try {
+    const newToken = await refreshAccessToken();
+    const nextHeaders = new Headers(init.headers || {});
+    nextHeaders.set('Authorization', `Bearer ${newToken}`);
+    return fetchWithAuthRetry(url, { ...init, headers: nextHeaders }, true);
+  } catch (error) {
+    triggerAutoLogout();
+    return response;
+  }
+};
+
+const xhrRequestWithAuthRetry = (
+  method: string,
+  url: string,
+  body: Document | XMLHttpRequestBodyInit | null,
+  parseResponse: (responseText: string) => any,
+  onProgress?: (progress: number) => void,
+  retryAttempted: boolean = false
+): Promise<{ data: any }> => {
+  return new Promise((resolve, reject) => {
+    const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+    const xhr = new XMLHttpRequest();
+
+    if (onProgress) {
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const percentComplete = Math.round((e.loaded / e.total) * 100);
+          onProgress(percentComplete);
+        }
+      });
+    }
+
+    xhr.addEventListener('load', async () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve({ data: parseResponse(xhr.responseText) });
+        } catch (parseError) {
+          reject(new Error('Failed to parse upload response'));
+        }
+        return;
+      }
+
+      if (xhr.status === 401 && !retryAttempted) {
+        try {
+          await refreshAccessToken();
+          const retryResult = await xhrRequestWithAuthRetry(method, url, body, parseResponse, onProgress, true);
+          resolve(retryResult);
+          return;
+        } catch (refreshError) {
+          triggerAutoLogout();
+          reject(new Error('Session expired. Please log in again.'));
+          return;
+        }
+      }
+
+      if (xhr.status === 401) {
+        triggerAutoLogout();
+      }
+
+      reject(new Error(`Upload failed with status ${xhr.status}`));
+    });
+
+    xhr.addEventListener('error', () => {
+      reject(new Error('Network error during upload'));
+    });
+
+    xhr.addEventListener('abort', () => {
+      reject(new Error('Upload was aborted'));
+    });
+
+    xhr.open(method, url, true);
+    if (token) {
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    }
+    xhr.send(body);
+  });
+};
 
 // Get the base API URL for file serving
 const getApiBaseUrl = (): string => {
@@ -99,6 +259,7 @@ export const apiService = {
   // Tenant Management APIs
   getAllTenantsWithOccupancy: () => api.get('/tenants/with-occupancy'),
   getTenantById: (tenantId: number) => api.get(`/tenants/${tenantId}`),
+  getTenantOccupancyHistory: (tenantId: number) => api.get(`/tenants/${tenantId}/occupancy-history`),
   createTenant: (data: any) => api.post('/tenants', data),
   updateTenant: (tenantId: number, data: any) => api.put(`/tenants/${tenantId}`, data),
   deleteTenant: (tenantId: number) => api.delete(`/tenants/${tenantId}`),
@@ -114,54 +275,15 @@ export const apiService = {
   searchCities: (query: string) => 
     api.get(`/cities/search?query=${encodeURIComponent(query)}`),
   uploadTenantFiles: (formData: FormData, onProgress?: (progress: number) => void): Promise<ApiUploadResponse> => {
-    const token = localStorage.getItem('authToken');
-
     console.log('[Tenant Upload] Starting multi-file upload');
 
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-
-      // Track upload progress
-      if (onProgress) {
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable) {
-            const percentComplete = Math.round((e.loaded / e.total) * 100);
-            console.log('[Tenant Upload] Progress:', percentComplete + '%');
-            onProgress(percentComplete);
-          }
-        });
-      }
-
-      xhr.addEventListener('load', () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const data = JSON.parse(xhr.responseText);
-            console.log('[Tenant Upload] Response data:', data);
-            resolve({ data });
-          } catch (e) {
-            reject(new Error('Failed to parse upload response'));
-          }
-        } else {
-          reject(new Error(`Upload failed with status ${xhr.status}`));
-        }
-      });
-
-      xhr.addEventListener('error', () => {
-        reject(new Error('Upload failed - network error'));
-      });
-
-      xhr.addEventListener('abort', () => {
-        reject(new Error('Upload was cancelled'));
-      });
-
-      xhr.open('POST', `${API_URL}/tenants/upload`);
-      
-      if (token) {
-        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-      }
-
-      xhr.send(formData);
-    });
+    return xhrRequestWithAuthRetry(
+      'POST',
+      `${API_URL}/tenants/upload`,
+      formData,
+      (responseText) => JSON.parse(responseText),
+      onProgress
+    ) as Promise<ApiUploadResponse>;
   },
   
   // Rental Collection APIs
@@ -177,58 +299,14 @@ export const apiService = {
   updateRentalRecord: (recordId: number, data: any) => 
     api.put(`/rental/record/${recordId}`, data),
   uploadPaymentScreenshot: (formData: FormData, onProgress?: (progress: number) => void) => {
-    return new Promise((resolve, reject) => {
-      const token = localStorage.getItem('authToken');
-      const xhr = new XMLHttpRequest();
-
-      // Track upload progress
-      if (onProgress) {
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable) {
-            const percentComplete = Math.round((e.loaded / e.total) * 100);
-            console.log(`[Payment Upload] Progress: ${percentComplete}%`);
-            onProgress(percentComplete);
-          }
-        });
-      }
-
-      // Handle completion
-      xhr.addEventListener('load', () => {
-        console.log('[Payment Upload] Upload completed, status:', xhr.status);
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const response = JSON.parse(xhr.responseText);
-            console.log('[Payment Upload] Response data:', response);
-            resolve({ data: response });
-          } catch (error) {
-            console.error('[Payment Upload] Error parsing response:', error);
-            reject(new Error('Failed to parse upload response'));
-          }
-        } else {
-          reject(new Error(`Upload failed with status ${xhr.status}`));
-        }
-      });
-
-      // Handle errors
-      xhr.addEventListener('error', () => {
-        console.error('[Payment Upload] Network error during upload');
-        reject(new Error('Network error during upload'));
-      });
-
-      xhr.addEventListener('abort', () => {
-        console.log('[Payment Upload] Upload aborted');
-        reject(new Error('Upload was aborted'));
-      });
-
-      // Setup request
-      xhr.open('POST', `${API_URL}/rental/upload-payment`, true);
-      if (token) {
-        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-      }
-
-      console.log('[Payment Upload] Starting payment screenshot upload');
-      xhr.send(formData);
-    });
+    console.log('[Payment Upload] Starting payment screenshot upload');
+    return xhrRequestWithAuthRetry(
+      'POST',
+      `${API_URL}/rental/upload-payment`,
+      formData,
+      (responseText) => JSON.parse(responseText),
+      onProgress
+    );
   },
   
   // Room Occupancy APIs
@@ -259,7 +337,7 @@ export const apiService = {
     // Remove Content-Type header - browser will set it with boundary for FormData
     console.log('[Upload] Starting file upload with FormData');
     
-    return fetch(`${API_URL}/complaints/upload`, {
+    return fetchWithAuthRetry(`${API_URL}/complaints/upload`, {
       method: 'POST',
       headers: headers,
       body: formData
@@ -343,58 +421,14 @@ export const apiService = {
   getDailyStatusMedia: (statusId: number) => api.get(`/daily-status/${statusId}/media`),
   getDailyStatusAllMedia: () => api.get('/all-media/'), // New endpoint to fetch all media files
   uploadDailyStatusMedia: (formData: FormData, onProgress?: (progress: number) => void) => {
-    return new Promise((resolve, reject) => {
-      const token = localStorage.getItem('authToken');
-      const xhr = new XMLHttpRequest();
-
-      // Track upload progress
-      if (onProgress) {
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable) {
-            const percentComplete = Math.round((e.loaded / e.total) * 100);
-            console.log(`[Upload] Progress: ${percentComplete}%`);
-            onProgress(percentComplete);
-          }
-        });
-      }
-
-      // Handle completion
-      xhr.addEventListener('load', () => {
-        console.log('[Upload] Upload completed, status:', xhr.status);
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const response = JSON.parse(xhr.responseText);
-            console.log('[Upload] Response data:', response);
-            resolve({ data: response });
-          } catch (error) {
-            console.error('[Upload] Error parsing response:', error);
-            reject(new Error('Failed to parse upload response'));
-          }
-        } else {
-          reject(new Error(`Upload failed with status ${xhr.status}`));
-        }
-      });
-
-      // Handle errors
-      xhr.addEventListener('error', () => {
-        console.error('[Upload] Network error during upload');
-        reject(new Error('Network error during upload'));
-      });
-
-      xhr.addEventListener('abort', () => {
-        console.log('[Upload] Upload aborted');
-        reject(new Error('Upload was aborted'));
-      });
-
-      // Setup request
-      xhr.open('POST', `${API_URL}/daily-status/upload`, true);
-      if (token) {
-        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-      }
-
-      console.log('[Upload] Starting daily status media upload');
-      xhr.send(formData);
-    });
+    console.log('[Upload] Starting daily status media upload');
+    return xhrRequestWithAuthRetry(
+      'POST',
+      `${API_URL}/daily-status/upload`,
+      formData,
+      (responseText) => JSON.parse(responseText),
+      onProgress
+    );
   },
   deleteDailyStatusMedia: (mediaId: number) => api.delete(`/daily-status/media/${mediaId}`),
 

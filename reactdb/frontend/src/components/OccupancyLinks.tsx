@@ -536,7 +536,9 @@ export default function OccupancyLinks(): JSX.Element {
                     <strong>{occ.tenantName.trim()}</strong>
                     <small>{occ.tenantCity.trim()}</small>
                   </td>
-                  <td className="phone-cell">{occ.tenantPhone.trim()}</td>
+                  <td className="phone-cell">
+                    <a href={`tel:${occ.tenantPhone.trim()}`}>{occ.tenantPhone.trim()}</a>
+                  </td>
                   <td>{formatDate(occ.checkInDate)}</td>
                   <td>{occ.checkOutDate ? formatDate(occ.checkOutDate) : '-'}</td>
                   <td className="currency-cell">
