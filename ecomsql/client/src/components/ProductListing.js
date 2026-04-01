@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { getProducts, addToCart, API_BASE_URL } from '../api';
+import { getProducts, addToCart, API_BASE_URL, getWishlist } from '../api';
 import { SearchCache } from '../utils/useDebounce';
 import ViewPhotos from './ViewPhotos';
 import './ProductListing.css';
@@ -16,7 +16,7 @@ const RatingStars = ({ rating = 4.5, reviewCount = 0 }) => {
 };
 
 // Memoized product card component
-const ProductCard = React.memo(({ product, onAddToCart, onViewPhotos, isAuthenticated }) => {
+const ProductCard = React.memo(({ product, onAddToCart, onViewPhotos, isAuthenticated, isWishlisted, onWishlistAdd }) => {
   // Build image URL - works in both local dev and Docker
   const getImageUrl = () => {
     if (!product.image_url) {
@@ -43,7 +43,7 @@ const ProductCard = React.memo(({ product, onAddToCart, onViewPhotos, isAuthenti
   const discountPercent = Math.round(((originalPrice - product.price) / originalPrice) * 100);
   
   return (
-    <div className="product-card">
+    <div className={`product-card${isWishlisted ? ' wishlisted' : ''}`}>
       <div 
         className="product-image-wrapper"
         onClick={() => {
@@ -107,6 +107,26 @@ const ProductCard = React.memo(({ product, onAddToCart, onViewPhotos, isAuthenti
           >
             📸
           </button>
+          {isAuthenticated && (
+            <>
+              <button
+                className={`wishlist-btn${isWishlisted ? ' wishlisted' : ''}`}
+                onClick={async () => {
+                  try {
+                    await import('../api').then(({ addToWishlist }) => addToWishlist(product.id));
+                    if (onWishlistAdd) onWishlistAdd(product.id);
+                  } catch (err) {
+                    // Optionally show error in card
+                  }
+                }}
+                title={isWishlisted ? 'Wishlisted' : 'Add to Wishlist'}
+                disabled={isWishlisted}
+              >
+                {isWishlisted ? '♥' : '♡'}
+              </button>
+              {isWishlisted && <div className="wishlist-message">Added to wishlist!</div>}
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -117,6 +137,21 @@ ProductCard.displayName = 'ProductCard';
 
 const ProductListing = ({ searchQuery: externalSearchQuery, setSearchQuery: externalSetSearchQuery, selectedCategory: externalSelectedCategory, setSelectedCategory: externalSetSelectedCategory, onViewProductDetail, onProductAdded, isAuthenticated = false, user = null }) => {
   const [products, setProducts] = useState([]);
+  const [wishlistIds, setWishlistIds] = useState([]);
+  // Used to trigger re-render for wishlist message
+  const [wishlistAdded, setWishlistAdded] = useState([]);
+    // Load wishlist for highlighting
+    useEffect(() => {
+      if (!isAuthenticated) {
+        setWishlistIds([]);
+        return;
+      }
+      getWishlist().then(res => {
+        if (Array.isArray(res.data)) {
+          setWishlistIds(res.data.map(item => item.product_id));
+        }
+      }).catch(() => setWishlistIds([]));
+    }, [isAuthenticated]);
   const [searchQuery, setSearchQuery] = useState(externalSearchQuery || '');
   const [selectedCategory, setSelectedCategory] = useState(externalSelectedCategory || '');
   const [notification, setNotification] = useState(null);
@@ -251,10 +286,13 @@ const ProductListing = ({ searchQuery: externalSearchQuery, setSearchQuery: exte
         onAddToCart={handleAddToCart}
         onViewPhotos={handleViewPhotos}
         isAuthenticated={isAuthenticated}
+        isWishlisted={wishlistIds.includes(product.id) || wishlistAdded.includes(product.id)}
+        onWishlistAdd={id => setWishlistAdded(prev => [...prev, id])}
       />
     )), 
-    [products, handleAddToCart, handleViewPhotos, isAuthenticated]
+    [products, handleAddToCart, handleViewPhotos, isAuthenticated, wishlistIds, wishlistAdded]
   );
+// Add style for wishlist message
 
   return (
     <>

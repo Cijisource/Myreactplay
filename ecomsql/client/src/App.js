@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import ProductListing from './components/ProductListing';
+import Wishlist from './components/Wishlist';
+import RefundPolicy from './components/RefundPolicy';
 import ProductDetail from './components/ProductDetail';
 import ProductUpload from './components/ProductUpload';
 import ProductManagement from './components/ProductManagement';
@@ -61,7 +63,8 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          
+          <Route path="/refund-policy" element={<RefundPolicy />} />
+          <Route path="/wishlist" element={<Wishlist />} />
           <Route
             path="/*"
             element={<MainApp />}
@@ -535,7 +538,17 @@ function MainApp() {
       </main>
 
       <footer className="app-footer">
-        <p>&copy; 2026 VSS-Vault. Secure Vault For Digital Assets. | Fast & Reliable Service</p>
+        <p>
+          &copy; 2026 VSS-Vault. Secure Vault For Digital Assets. | Fast & Reliable Service
+          {' | '}
+          <Link to="/refund-policy" style={{ color: '#0066cc', textDecoration: 'underline', marginLeft: 8 }}>
+            Refunds & Return Policy
+          </Link>
+          {' | '}
+          <Link to="/wishlist" style={{ color: '#FF9900', textDecoration: 'underline', marginLeft: 8 }}>
+            My Wishlist
+          </Link>
+        </p>
       </footer>
     </div>
   );
