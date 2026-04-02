@@ -137,6 +137,7 @@ ProductCard.displayName = 'ProductCard';
 const ProductListing = ({ searchQuery: externalSearchQuery, setSearchQuery: externalSetSearchQuery, selectedCategory: externalSelectedCategory, setSelectedCategory: externalSetSelectedCategory, onViewProductDetail, onProductAdded, isAuthenticated = false, user = null }) => {
   const [products, setProducts] = useState([]);
   const [wishlistIds, setWishlistIds] = useState([]);
+  const [expandedCategories, setExpandedCategories] = useState({});
   // Used to trigger re-render for wishlist message
   const [wishlistAdded, setWishlistAdded] = useState([]);
     // Load wishlist for highlighting
@@ -157,9 +158,11 @@ const ProductListing = ({ searchQuery: externalSearchQuery, setSearchQuery: exte
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [rowScrollState, setRowScrollState] = useState({});
 
   // Create a cache instance that persists across renders
   const cacheRef = useRef(new SearchCache());
+  const scrollRowRefs = useRef({});
 
   // Store the callback for ProductCard to use
   ProductCard.onViewDetail = onViewProductDetail;
@@ -265,20 +268,116 @@ const ProductListing = ({ searchQuery: externalSearchQuery, setSearchQuery: exte
     setSelectedProduct(product);
   }, []);
 
-  const memoizedProducts = useMemo(() => 
-    products.map(product => (
-      <ProductCard 
-        key={product.id} 
-        product={product} 
-        onAddToCart={handleAddToCart}
-        onViewPhotos={handleViewPhotos}
-        isAuthenticated={isAuthenticated}
-        isWishlisted={wishlistIds.includes(product.id) || wishlistAdded.includes(product.id)}
-        onWishlistAdd={id => setWishlistAdded(prev => [...prev, id])}
-      />
-    )), 
-    [products, handleAddToCart, handleViewPhotos, isAuthenticated, wishlistIds, wishlistAdded]
-  );
+  const getProductSubcategory = useCallback((product) => {
+    return (
+      product.subcategory_name ||
+      product.sub_category_name ||
+      product.subcategory ||
+      product.sub_category ||
+      'General'
+    );
+  }, []);
+
+  const groupedProducts = useMemo(() => {
+    return products.reduce((acc, product) => {
+      const category = product.category_name || 'Uncategorized';
+      const subcategory = getProductSubcategory(product);
+
+      if (!acc[category]) {
+        acc[category] = {};
+      }
+
+      if (!acc[category][subcategory]) {
+        acc[category][subcategory] = [];
+      }
+
+      acc[category][subcategory].push(product);
+      return acc;
+    }, {});
+  }, [products, getProductSubcategory]);
+
+  useEffect(() => {
+    setExpandedCategories((prev) => {
+      const next = { ...prev };
+
+      Object.keys(groupedProducts).forEach((categoryName) => {
+        if (typeof next[categoryName] !== 'boolean') {
+          next[categoryName] = true;
+        }
+      });
+
+      Object.keys(next).forEach((categoryName) => {
+        if (!groupedProducts[categoryName]) {
+          delete next[categoryName];
+        }
+      });
+
+      return next;
+    });
+  }, [groupedProducts]);
+
+  const toggleCategory = useCallback((categoryName) => {
+    setExpandedCategories((prev) => ({
+      ...prev,
+      [categoryName]: !prev[categoryName]
+    }));
+  }, []);
+
+  const scrollCategoryRow = useCallback((rowKey, direction) => {
+    const row = scrollRowRefs.current[rowKey];
+    if (!row) return;
+
+    const scrollAmount = 320;
+    row.scrollBy({
+      left: direction === 'left' ? -scrollAmount : scrollAmount,
+      behavior: 'smooth'
+    });
+  }, []);
+
+  const updateRowScrollState = useCallback((rowKey) => {
+    const row = scrollRowRefs.current[rowKey];
+    if (!row) return;
+
+    const maxScrollLeft = row.scrollWidth - row.clientWidth;
+    const canScrollLeft = row.scrollLeft > 0;
+    const canScrollRight = row.scrollLeft < maxScrollLeft - 1;
+
+    setRowScrollState((prev) => {
+      const existing = prev[rowKey];
+      if (
+        existing &&
+        existing.canScrollLeft === canScrollLeft &&
+        existing.canScrollRight === canScrollRight
+      ) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [rowKey]: {
+          canScrollLeft,
+          canScrollRight
+        }
+      };
+    });
+  }, []);
+
+  useEffect(() => {
+    Object.keys(scrollRowRefs.current).forEach((rowKey) => {
+      updateRowScrollState(rowKey);
+    });
+  }, [groupedProducts, updateRowScrollState]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      Object.keys(scrollRowRefs.current).forEach((rowKey) => {
+        updateRowScrollState(rowKey);
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [updateRowScrollState]);
 // Add style for wishlist message
 
   return (
@@ -301,16 +400,103 @@ const ProductListing = ({ searchQuery: externalSearchQuery, setSearchQuery: exte
         ) : (
           <>
             {products.length > 0 && <h2 className="section-title">Featured Products</h2>}
-            <div className="products-grid">
-              {products.length === 0 ? (
+            {products.length === 0 ? (
+              <div className="products-grid">
                 <div className="no-products">
                   <h2>No Products Found</h2>
                   <p>Try adjusting your search or filter criteria</p>
                 </div>
-              ) : (
-                memoizedProducts
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="category-sections">
+                {Object.entries(groupedProducts).map(([categoryName, subcategoryGroups]) => {
+                  const categoryProductCount = Object.values(subcategoryGroups).reduce(
+                    (sum, items) => sum + items.length,
+                    0
+                  );
+                  const isExpanded = expandedCategories[categoryName] !== false;
+
+                  return (
+                    <section className="category-section" key={categoryName}>
+                      <button
+                        type="button"
+                        className="category-toggle"
+                        onClick={() => toggleCategory(categoryName)}
+                        aria-expanded={isExpanded}
+                      >
+                        <span className="category-heading-text">{categoryName}</span>
+                        <span className="category-meta">{categoryProductCount} products</span>
+                        <span className="category-toggle-icon">{isExpanded ? '−' : '+'}</span>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="subcategory-sections">
+                          {Object.entries(subcategoryGroups).map(([subcategoryName, items]) => {
+                            const rowKey = `${categoryName}-${subcategoryName}`;
+                            const scrollState = rowScrollState[rowKey] || {
+                              canScrollLeft: false,
+                              canScrollRight: true
+                            };
+                            return (
+                              <div className="subcategory-section" key={rowKey}>
+                              <div className="subcategory-heading-row">
+                                <h3 className="subcategory-heading">{subcategoryName}</h3>
+                                <div className="subcategory-meta-actions">
+                                  <span className="subcategory-count">{items.length}</span>
+                                  <button
+                                    type="button"
+                                    className="scroll-arrow-btn"
+                                    onClick={() => scrollCategoryRow(rowKey, 'left')}
+                                    aria-label={`Scroll ${subcategoryName} left`}
+                                    disabled={!scrollState.canScrollLeft}
+                                  >
+                                    ‹
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="scroll-arrow-btn"
+                                    onClick={() => scrollCategoryRow(rowKey, 'right')}
+                                    aria-label={`Scroll ${subcategoryName} right`}
+                                    disabled={!scrollState.canScrollRight}
+                                  >
+                                    ›
+                                  </button>
+                                </div>
+                              </div>
+                              <div
+                                className="category-products-scroll"
+                                ref={(node) => {
+                                  if (node) {
+                                    scrollRowRefs.current[rowKey] = node;
+                                    updateRowScrollState(rowKey);
+                                  }
+                                }}
+                                onScroll={() => updateRowScrollState(rowKey)}
+                              >
+                                <div className="products-row">
+                                  {items.map((product) => (
+                                    <ProductCard
+                                      key={product.id}
+                                      product={product}
+                                      onAddToCart={handleAddToCart}
+                                      onViewPhotos={handleViewPhotos}
+                                      isAuthenticated={isAuthenticated}
+                                      isWishlisted={wishlistIds.includes(product.id) || wishlistAdded.includes(product.id)}
+                                      onWishlistAdd={(id) => setWishlistAdded((prev) => [...prev, id])}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </section>
+                  );
+                })}
+              </div>
+            )}
           </>
         )}
       </div>
