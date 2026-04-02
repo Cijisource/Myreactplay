@@ -102,7 +102,7 @@ export default function Diagnostic() {
 
   return (
     <div style={{ padding: 'clamp(12px, 3vw, 20px)', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
-      <h1>System Diagnostic</h1>
+      <h2 className="section-heading">Diagnostic</h2>
 
       {error && (
         <div style={{ 

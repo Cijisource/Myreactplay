@@ -380,7 +380,7 @@ export default function ServiceConsumptionDetails() {
 
   return (
     <div className="management-section">
-      <h2>📊 Service Consumption Details</h2>
+      <h2 className="section-heading">Service Consumption</h2>
 
       {error && <div className="error-message">{error}</div>}
 

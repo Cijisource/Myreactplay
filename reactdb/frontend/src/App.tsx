@@ -107,12 +107,12 @@ function AppContent() {
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const userMenuEl = document.querySelector('.user-profile-dropdown');
-      const navSidebarEl = document.querySelector('.nav-sidebar');
+      const navEl = document.querySelector('.header-nav');
       
       if (userMenuEl && !userMenuEl.contains(e.target as Node)) {
         setUserMenuOpen(false);
       }
-      if (navSidebarEl && !navSidebarEl.contains(e.target as Node) && 
+      if (navEl && !navEl.contains(e.target as Node) && 
           !(e.target as Element).classList?.contains('hamburger-btn')) {
         setMobileMenuOpen(false);
       }
@@ -386,6 +386,12 @@ function AppContent() {
           </h2>
         </div>
 
+        {mobileMenuOpen && (
+          <div
+            className="mobile-nav-backdrop"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+        )}
         <div className={`header-nav ${mobileMenuOpen ? 'open' : ''}`}>
           <div className={`nav-items-container`}>
             {NAV_ITEMS.map(item => {

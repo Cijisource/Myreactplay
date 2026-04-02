@@ -128,7 +128,8 @@ export default function StockManagement() {
   });
 
   return (
-    <div className="management-container">
+    <div className="management-container stock-container">
+      <h2 className="section-heading">Stock</h2>
       {error && <div className="error-message">{error}</div>}
       {successMessage && <div className="success-message">{successMessage}</div>}
 

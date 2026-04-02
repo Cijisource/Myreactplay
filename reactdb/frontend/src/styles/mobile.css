@@ -9,6 +9,17 @@
  * - max-width: 480px - Mobile phones
  */
 
+/* Backdrop to dismiss mobile nav when tapping outside */
+.mobile-nav-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 998;
+  background: transparent;
+}
+
 /* ===========================
    Mobile-Friendly Viewport Settings
    =========================== */

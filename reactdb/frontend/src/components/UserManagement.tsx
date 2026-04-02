@@ -218,7 +218,8 @@ export default function UserManagement() {
   );
 
   return (
-    <div className="user-management-container">
+    <div className="user-management-container users-container">
+      <h2 className="section-heading">Users</h2>
       {error && <div className="error-message">{error}</div>}
       {successMessage && <div className="success-message">{successMessage}</div>}
 

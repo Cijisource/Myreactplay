@@ -969,7 +969,8 @@ export default function DailyStatusManagement() {
   }, []);
 
   return (
-    <div className="management-container">
+    <div className="management-container daily-status-container">
+      <h2 className="section-heading">Daily Status</h2>
       <div className="toolbar">
         <input
           type="text"

@@ -229,6 +229,7 @@ export default function EBServicePaymentsManagement(): JSX.Element {
 
   return (
     <div className="eb-container">
+      <h2 className="section-heading">EB Payments</h2>
       {/* Header */}
       <div className="eb-header">
         <button 

@@ -262,6 +262,7 @@ export default function MonthlyMeterReading(): JSX.Element {
 
   return (
     <div className="meter-reading-container">
+      <h2 className="section-heading">EB Meter Reading</h2>
       {error && <div className="message error">{error}</div>}
       {successMessage && <div className="message success">{successMessage}</div>}
 

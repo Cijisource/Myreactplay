@@ -225,6 +225,7 @@ export default function RoomOccupancy(): JSX.Element {
 
   return (
     <div className="occupancy-container">
+      <h2 className="section-heading">Room Occupancy</h2>
       {/* Error Message */}
       {error && (
         <div className="error-card">

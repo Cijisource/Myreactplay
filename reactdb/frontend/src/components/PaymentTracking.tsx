@@ -221,6 +221,7 @@ export default function PaymentTracking() {
 
   return (
     <div className="payment-tracking-container">
+      <h2 className="section-heading">Payment Tracking</h2>
       {/* Month/Year Selection and Room Filter */}
       <div className="month-selector-wrapper">
         <div className="month-selector">

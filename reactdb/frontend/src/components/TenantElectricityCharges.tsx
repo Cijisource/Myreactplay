@@ -360,6 +360,7 @@ export default function TenantElectricityCharges(): JSX.Element {
 
   return (
     <div className="electricity-charges-container">
+      <h2 className="section-heading">Electricity Charges</h2>
       {error && <div className="message error">{error}</div>}
 
       <div className="charges-filters">

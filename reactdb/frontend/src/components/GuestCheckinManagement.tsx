@@ -390,7 +390,8 @@ export default function GuestCheckinManagement() {
   };
 
   return (
-    <div className="management-container">
+    <div className="management-container guest-checkin-container">
+      <h2 className="section-heading">Guest Check-In Management</h2>
       <div className="toolbar">
         <select
           className="sort-select"
