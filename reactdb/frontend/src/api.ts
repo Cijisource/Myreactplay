@@ -1,6 +1,6 @@
 import axios, { AxiosError, AxiosInstance } from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://mansion.gnanabi.info/api';
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5002/api' : 'https://mansion.gnanabi.info/api');
 
 // Interface for upload response
 interface UploadResponse {
@@ -418,6 +418,32 @@ export const apiService = {
   createDailyStatus: (data: any) => api.post('/daily-status', data),
   updateDailyStatus: (statusId: number, data: any) => api.put(`/daily-status/${statusId}`, data),
   deleteDailyStatus: (statusId: number) => api.delete(`/daily-status/${statusId}`),
+  getDailyGuestCheckins: (statusId: number) => api.get(`/daily-status/${statusId}/guest-checkins`),
+  createDailyGuestCheckin: (statusId: number, data: {
+    guestName: string;
+    phoneNumber: string;
+    purpose: string;
+    visitingRoomNo?: string;
+    rentAmount: number;
+    depositAmount: number;
+    checkInTime?: string;
+  }) => api.post(`/daily-status/${statusId}/guest-checkins`, data),
+  updateDailyGuestCheckin: (
+    statusId: number,
+    guestCheckinId: number,
+    data: {
+      guestName?: string;
+      phoneNumber?: string;
+      purpose?: string;
+      visitingRoomNo?: string;
+      rentAmount?: number;
+      depositAmount?: number;
+      checkInTime?: string;
+      checkOutTime?: string;
+    }
+  ) => api.put(`/daily-status/${statusId}/guest-checkins/${guestCheckinId}`, data),
+  deleteDailyGuestCheckin: (statusId: number, guestCheckinId: number) =>
+    api.delete(`/daily-status/${statusId}/guest-checkins/${guestCheckinId}`),
   getDailyStatusMedia: (statusId: number) => api.get(`/daily-status/${statusId}/media`),
   getDailyStatusAllMedia: () => api.get('/all-media/'), // New endpoint to fetch all media files
   uploadDailyStatusMedia: (formData: FormData, onProgress?: (progress: number) => void) => {

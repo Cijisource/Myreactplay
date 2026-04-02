@@ -389,6 +389,7 @@ export const ComplaintsManagement: React.FC = () => {
 
   return (
     <div className="complaints-container">
+      <h2 className="section-heading">Complaints</h2>
       {successMessage && (
         <div className="success-message">
           {successMessage}

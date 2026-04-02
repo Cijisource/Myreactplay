@@ -11,6 +11,30 @@
   text-align: center;
 }
 
+.section-heading {
+  font-size: 1.1em;
+  font-weight: 600;
+  color: #1e40af;
+  margin: 0 0 16px 0;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.guest-checkin-container .section-heading {
+  color: #ffffff;
+}
+
+.daily-status-container .section-heading {
+  color: #ffffff;
+}
+
+.stock-container .section-heading,
+.transactions-container .section-heading,
+.users-container .section-heading,
+.roles-container .section-heading {
+  color: #ffffff;
+}
+
 /* Toolbar */
 .toolbar {
   display: flex;

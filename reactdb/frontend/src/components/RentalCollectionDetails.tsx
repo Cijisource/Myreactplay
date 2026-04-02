@@ -358,6 +358,7 @@ export default function RentalCollectionDetails() {
 
   return (
     <div className="rental-collection-details">
+      <h2 className="section-heading">Rental Collection</h2>
       {error && (
         <div className="error-alert">
           <span>{error}</span>

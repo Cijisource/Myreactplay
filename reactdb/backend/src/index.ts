@@ -3914,6 +3914,330 @@ app.delete('/api/daily-status/:id', async (req: Request, res: Response) => {
   }
 });
 
+// Get guest check-ins for a daily status
+app.get('/api/daily-status/:id/guest-checkins', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+
+    const result = await pool.request()
+      .input('dailyStatusId', sql.Int, parseInt(id))
+      .query(`
+        SELECT
+          g.Id as id,
+          g.DailyStatusId as dailyStatusId,
+          g.GuestName as guestName,
+          g.PhoneNumber as phoneNumber,
+          g.Purpose as purpose,
+          g.VisitingRoomNo as visitingRoomNo,
+          ISNULL(CAST(g.RentAmount AS FLOAT), 0) as rentAmount,
+          ISNULL(CAST(g.DepositAmount AS FLOAT), 0) as depositAmount,
+          g.CheckInTime as checkInTime,
+          g.CheckOutTime as checkOutTime,
+          g.CreatedDate as createdDate,
+          g.UpdatedDate as updatedDate
+        FROM DailyGuestCheckIn g
+        WHERE g.DailyStatusId = @dailyStatusId
+        ORDER BY g.CheckInTime DESC, g.Id DESC
+      `);
+
+    res.json(result.recordset);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve guest check-ins', details: error });
+  }
+});
+
+const normalizeGuestPhoneNumber = (value: string): string => {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 11 && digits.startsWith('0')) {
+    return digits.slice(1);
+  }
+  if (digits.length === 12 && digits.startsWith('91')) {
+    return digits.slice(2);
+  }
+  if (digits.length > 10) {
+    return digits.slice(-10);
+  }
+  return digits;
+};
+
+// Create guest check-in for a daily status
+app.post('/api/daily-status/:id/guest-checkins', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { guestName, phoneNumber, purpose, visitingRoomNo, checkInTime, rentAmount, depositAmount } = req.body;
+
+    if (!guestName || typeof guestName !== 'string' || !guestName.trim()) {
+      return res.status(400).json({ error: 'Guest name is required' });
+    }
+
+    if (!phoneNumber || typeof phoneNumber !== 'string' || !phoneNumber.trim()) {
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
+
+    const normalizedPhone = normalizeGuestPhoneNumber(phoneNumber.trim());
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(normalizedPhone)) {
+      return res.status(400).json({ error: 'Phone number must be exactly 10 digits' });
+    }
+
+    if (!purpose || typeof purpose !== 'string' || !purpose.trim()) {
+      return res.status(400).json({ error: 'Purpose is required' });
+    }
+
+    if (rentAmount === undefined || rentAmount === null || rentAmount === '') {
+      return res.status(400).json({ error: 'Rent amount is required' });
+    }
+
+    if (depositAmount === undefined || depositAmount === null || depositAmount === '') {
+      return res.status(400).json({ error: 'Deposit amount is required' });
+    }
+
+    const parsedCheckInTime = checkInTime ? new Date(checkInTime) : new Date();
+    if (isNaN(parsedCheckInTime.getTime())) {
+      return res.status(400).json({ error: 'Invalid check-in time' });
+    }
+
+    const parsedRentAmount = rentAmount === undefined || rentAmount === null || rentAmount === ''
+      ? 0
+      : parseFloat(rentAmount);
+    if (isNaN(parsedRentAmount) || parsedRentAmount < 0) {
+      return res.status(400).json({ error: 'Rent amount must be a valid non-negative number' });
+    }
+
+    const parsedDepositAmount = depositAmount === undefined || depositAmount === null || depositAmount === ''
+      ? 0
+      : parseFloat(depositAmount);
+    if (isNaN(parsedDepositAmount) || parsedDepositAmount < 0) {
+      return res.status(400).json({ error: 'Deposit amount must be a valid non-negative number' });
+    }
+
+    const pool = getPool();
+
+    const statusResult = await pool.request()
+      .input('dailyStatusId', sql.Int, parseInt(id))
+      .query('SELECT Id FROM DailyRoomStatus WHERE Id = @dailyStatusId');
+
+    if (!statusResult.recordset.length) {
+      return res.status(404).json({ error: 'Daily status not found' });
+    }
+
+    const insertResult = await pool.request()
+      .input('dailyStatusId', sql.Int, parseInt(id))
+      .input('guestName', sql.VarChar(150), guestName.trim())
+      .input('phoneNumber', sql.VarChar(25), normalizedPhone)
+      .input('purpose', sql.VarChar(500), purpose.trim())
+      .input('visitingRoomNo', sql.VarChar(20), visitingRoomNo?.trim() || null)
+      .input('rentAmount', sql.Decimal(10, 2), parsedRentAmount)
+      .input('depositAmount', sql.Decimal(10, 2), parsedDepositAmount)
+      .input('checkInTime', sql.DateTime, parsedCheckInTime)
+      .query(`
+        INSERT INTO DailyGuestCheckIn (
+          DailyStatusId,
+          GuestName,
+          PhoneNumber,
+          Purpose,
+          VisitingRoomNo,
+          RentAmount,
+          DepositAmount,
+          CheckInTime,
+          CreatedDate
+        )
+        VALUES (
+          @dailyStatusId,
+          @guestName,
+          @phoneNumber,
+          @purpose,
+          @visitingRoomNo,
+          @rentAmount,
+          @depositAmount,
+          @checkInTime,
+          GETDATE()
+        );
+
+        SELECT
+          Id as id,
+          DailyStatusId as dailyStatusId,
+          GuestName as guestName,
+          PhoneNumber as phoneNumber,
+          Purpose as purpose,
+          VisitingRoomNo as visitingRoomNo,
+          ISNULL(CAST(RentAmount AS FLOAT), 0) as rentAmount,
+          ISNULL(CAST(DepositAmount AS FLOAT), 0) as depositAmount,
+          CheckInTime as checkInTime,
+          CheckOutTime as checkOutTime,
+          CreatedDate as createdDate,
+          UpdatedDate as updatedDate
+        FROM DailyGuestCheckIn
+        WHERE Id = SCOPE_IDENTITY();
+      `);
+
+    res.status(201).json(insertResult.recordset[0]);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create guest check-in', details: error });
+  }
+});
+
+// Update guest check-in (including check-out time)
+app.put('/api/daily-status/:dailyStatusId/guest-checkins/:guestCheckinId', async (req: Request, res: Response) => {
+  try {
+    const { dailyStatusId, guestCheckinId } = req.params;
+    const { guestName, phoneNumber, purpose, visitingRoomNo, checkInTime, checkOutTime, rentAmount, depositAmount } = req.body;
+
+    const pool = getPool();
+
+    const existingResult = await pool.request()
+      .input('dailyStatusId', sql.Int, parseInt(dailyStatusId))
+      .input('guestCheckinId', sql.Int, parseInt(guestCheckinId))
+      .query(`
+        SELECT *
+        FROM DailyGuestCheckIn
+        WHERE Id = @guestCheckinId AND DailyStatusId = @dailyStatusId
+      `);
+
+    if (!existingResult.recordset.length) {
+      return res.status(404).json({ error: 'Guest check-in not found' });
+    }
+
+    const existing = existingResult.recordset[0];
+    const nextGuestName = guestName !== undefined ? String(guestName).trim() : existing.GuestName;
+    const nextPhoneNumber = phoneNumber !== undefined
+      ? normalizeGuestPhoneNumber(String(phoneNumber).trim())
+      : normalizeGuestPhoneNumber(String(existing.PhoneNumber || ''));
+    const nextPurpose = purpose !== undefined ? String(purpose).trim() : existing.Purpose;
+    const nextVisitingRoomNo = visitingRoomNo !== undefined ? String(visitingRoomNo).trim() : existing.VisitingRoomNo;
+
+    if (!nextGuestName) {
+      return res.status(400).json({ error: 'Guest name is required' });
+    }
+
+    if (!nextPhoneNumber) {
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
+
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(nextPhoneNumber)) {
+      return res.status(400).json({ error: 'Phone number must be exactly 10 digits' });
+    }
+
+    if (!nextPurpose) {
+      return res.status(400).json({ error: 'Purpose is required' });
+    }
+
+    const nextCheckInTime = checkInTime !== undefined ? new Date(checkInTime) : new Date(existing.CheckInTime);
+    if (isNaN(nextCheckInTime.getTime())) {
+      return res.status(400).json({ error: 'Invalid check-in time' });
+    }
+
+    const nextCheckOutTime = checkOutTime === undefined
+      ? existing.CheckOutTime
+      : (checkOutTime ? new Date(checkOutTime) : null);
+
+    const nextRentAmount = rentAmount !== undefined
+      ? parseFloat(rentAmount)
+      : parseFloat(existing.RentAmount ?? 0);
+    if (isNaN(nextRentAmount) || nextRentAmount < 0) {
+      return res.status(400).json({ error: 'Rent amount must be a valid non-negative number' });
+    }
+
+    if (rentAmount !== undefined && (rentAmount === null || rentAmount === '')) {
+      return res.status(400).json({ error: 'Rent amount is required' });
+    }
+
+    const nextDepositAmount = depositAmount !== undefined
+      ? parseFloat(depositAmount)
+      : parseFloat(existing.DepositAmount ?? 0);
+    if (isNaN(nextDepositAmount) || nextDepositAmount < 0) {
+      return res.status(400).json({ error: 'Deposit amount must be a valid non-negative number' });
+    }
+
+    if (depositAmount !== undefined && (depositAmount === null || depositAmount === '')) {
+      return res.status(400).json({ error: 'Deposit amount is required' });
+    }
+
+    if (nextCheckOutTime && isNaN(new Date(nextCheckOutTime).getTime())) {
+      return res.status(400).json({ error: 'Invalid check-out time' });
+    }
+
+    if (nextCheckOutTime && new Date(nextCheckOutTime) < nextCheckInTime) {
+      return res.status(400).json({ error: 'Check-out time cannot be earlier than check-in time' });
+    }
+
+    await pool.request()
+      .input('guestCheckinId', sql.Int, parseInt(guestCheckinId))
+      .input('guestName', sql.VarChar(150), nextGuestName)
+      .input('phoneNumber', sql.VarChar(25), nextPhoneNumber || null)
+      .input('purpose', sql.VarChar(500), nextPurpose || null)
+      .input('visitingRoomNo', sql.VarChar(20), nextVisitingRoomNo || null)
+      .input('rentAmount', sql.Decimal(10, 2), nextRentAmount)
+      .input('depositAmount', sql.Decimal(10, 2), nextDepositAmount)
+      .input('checkInTime', sql.DateTime, nextCheckInTime)
+      .input('checkOutTime', sql.DateTime, nextCheckOutTime ? new Date(nextCheckOutTime) : null)
+      .query(`
+        UPDATE DailyGuestCheckIn
+        SET
+          GuestName = @guestName,
+          PhoneNumber = @phoneNumber,
+          Purpose = @purpose,
+          VisitingRoomNo = @visitingRoomNo,
+          RentAmount = @rentAmount,
+          DepositAmount = @depositAmount,
+          CheckInTime = @checkInTime,
+          CheckOutTime = @checkOutTime,
+          UpdatedDate = GETDATE()
+        WHERE Id = @guestCheckinId
+      `);
+
+    const updatedResult = await pool.request()
+      .input('guestCheckinId', sql.Int, parseInt(guestCheckinId))
+      .query(`
+        SELECT
+          Id as id,
+          DailyStatusId as dailyStatusId,
+          GuestName as guestName,
+          PhoneNumber as phoneNumber,
+          Purpose as purpose,
+          VisitingRoomNo as visitingRoomNo,
+          ISNULL(CAST(RentAmount AS FLOAT), 0) as rentAmount,
+          ISNULL(CAST(DepositAmount AS FLOAT), 0) as depositAmount,
+          CheckInTime as checkInTime,
+          CheckOutTime as checkOutTime,
+          CreatedDate as createdDate,
+          UpdatedDate as updatedDate
+        FROM DailyGuestCheckIn
+        WHERE Id = @guestCheckinId
+      `);
+
+    res.json(updatedResult.recordset[0]);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update guest check-in', details: error });
+  }
+});
+
+// Delete guest check-in
+app.delete('/api/daily-status/:dailyStatusId/guest-checkins/:guestCheckinId', async (req: Request, res: Response) => {
+  try {
+    const { dailyStatusId, guestCheckinId } = req.params;
+    const pool = getPool();
+
+    const deleteResult = await pool.request()
+      .input('dailyStatusId', sql.Int, parseInt(dailyStatusId))
+      .input('guestCheckinId', sql.Int, parseInt(guestCheckinId))
+      .query(`
+        DELETE FROM DailyGuestCheckIn
+        WHERE Id = @guestCheckinId AND DailyStatusId = @dailyStatusId
+      `);
+
+    if (deleteResult.rowsAffected[0] === 0) {
+      return res.status(404).json({ error: 'Guest check-in not found' });
+    }
+
+    res.json({ message: 'Guest check-in deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete guest check-in', details: error });
+  }
+});
+
 // ============ DAILY STATUS MEDIA ENDPOINTS ============
 
 // Get media for a daily status

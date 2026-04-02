@@ -187,7 +187,8 @@ export default function TransactionManagement() {
   });
 
   return (
-    <div className="management-container">
+    <div className="management-container transactions-container">
+      <h2 className="section-heading">Transactions</h2>
       {error && <div className="error-message">{error}</div>}
       {successMessage && <div className="success-message">{successMessage}</div>}
 

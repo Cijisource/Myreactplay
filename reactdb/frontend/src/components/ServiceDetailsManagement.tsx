@@ -177,6 +177,7 @@ export default function ServiceDetailsManagement(): JSX.Element {
 
   return (
     <div className="service-container">
+      <h2 className="section-heading">Service Details</h2>
       {/* Header */}
       <div className="service-header">
         <button 

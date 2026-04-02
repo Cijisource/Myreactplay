@@ -264,6 +264,7 @@ export default function OccupancyLinks(): JSX.Element {
 
   return (
     <div className="occupancy-links-container">
+      <h2 className="section-heading">Occupancy History</h2>
       {/* Error Message */}
       {error && (
         <div className="error-card">

@@ -352,6 +352,7 @@ export default function RoomManagement(): JSX.Element {
 
   return (
     <div className="room-management-container">
+      <h2 className="section-heading">Room Management</h2>
       {/* Error Message */}
       {error && (
         <div className="error-card">

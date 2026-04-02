@@ -462,6 +462,7 @@ export default function TenantManagement() {
 
   return (
     <div className="tenant-management-container">
+      <h2 className="section-heading">Tenant Management</h2>
       {/* Header with Stats and Create Button */}
       <TenantHeader
         totalTenants={stats.totalTenants}

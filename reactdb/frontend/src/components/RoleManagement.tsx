@@ -186,7 +186,8 @@ export default function RoleManagement() {
   });
 
   return (
-    <div className="management-container">
+    <div className="management-container roles-container">
+      <h2 className="section-heading">Roles & Access</h2>
       {error && <div className="error-message">{error}</div>}
       {successMessage && <div className="success-message">{successMessage}</div>}
 

@@ -213,6 +213,7 @@ export default function ServiceAllocationManagement() {
 
   return (
     <div className="management-container">
+      <h2 className="section-heading">Service Allocation</h2>
       {error && <div className="error-message">{error}</div>}
       {successMessage && <div className="success-message">{successMessage}</div>}
 
