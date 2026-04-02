@@ -18,6 +18,7 @@ import RoleManagement from './components/RoleManagement';
 import TransactionManagement from './components/TransactionManagement';
 import StockManagement from './components/StockManagement';
 import DailyStatusManagement from './components/DailyStatusManagement';
+import GuestCheckinManagement from './components/GuestCheckinManagement';
 import ServiceAllocationManagement from './components/ServiceAllocationManagement';
 import RollingBanner from './components/RollingBanner';
 import ServiceConsumptionDetails from './components/ServiceConsumptionDetails';
@@ -26,7 +27,7 @@ import TenantElectricityCharges from './components/TenantElectricityCharges';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
-type Page = 'home' | 'diagnostic' | 'payment' | 'rental-collection' | 'tenants' | 'occupancy' | 'room-management' | 'occupancy-links' | 'complaints' | 'services' | 'eb-payments' | 'users' | 'roles' | 'transactions' | 'stock' | 'daily-status' | 'service-allocation' | 'consumption' | 'meter-reading' | 'electricity-charges';
+type Page = 'home' | 'diagnostic' | 'payment' | 'rental-collection' | 'tenants' | 'occupancy' | 'room-management' | 'occupancy-links' | 'complaints' | 'services' | 'eb-payments' | 'users' | 'roles' | 'transactions' | 'stock' | 'daily-status' | 'guest-checkin' | 'service-allocation' | 'consumption' | 'meter-reading' | 'electricity-charges';
 
 // Role requirements for each screen
 const SCREEN_ROLES: Record<Page, string[]> = {
@@ -45,7 +46,8 @@ const SCREEN_ROLES: Record<Page, string[]> = {
   roles: ['admin'],
   transactions: ['admin', 'manager', 'accountant'],
   stock: ['admin', 'manager', 'inventory_manager'],
-  'daily-status': ['admin', 'manager', 'maintenance'],
+  'daily-status': ['admin', 'manager', 'maintenance', 'property_manager'],
+  'guest-checkin': ['admin', 'manager', 'maintenance', 'property_manager'],
   'service-allocation': ['admin'],
   consumption: ['admin', 'manager', 'utilities_manager'],
   'meter-reading': ['admin', 'manager', 'utilities_manager'],
@@ -72,6 +74,7 @@ const NAV_ITEMS: Array<{ page: Page; label: string; roles: string[] }> = [
   { page: 'transactions', label: 'Transactions', roles: SCREEN_ROLES.transactions },
   { page: 'stock', label: 'Stock', roles: SCREEN_ROLES.stock },
   { page: 'daily-status', label: 'Daily Status', roles: SCREEN_ROLES['daily-status'] },
+  { page: 'guest-checkin', label: 'Guest Check-In', roles: SCREEN_ROLES['guest-checkin'] },
   { page: 'service-allocation', label: 'Service Allocation', roles: SCREEN_ROLES['service-allocation'] },
   { page: 'diagnostic', label: 'Diagnostic', roles: SCREEN_ROLES.diagnostic }
 ];
@@ -306,6 +309,14 @@ function AppContent() {
       return (
         <ProtectedRoute requiredRoles={SCREEN_ROLES['daily-status']}>
           <DailyStatusManagement />
+        </ProtectedRoute>
+      );
+    }
+
+    if (currentPage === 'guest-checkin') {
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES['guest-checkin']}>
+          <GuestCheckinManagement />
         </ProtectedRoute>
       );
     }
