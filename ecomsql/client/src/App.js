@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import ProductListing from './components/ProductListing';
 import Wishlist from './components/Wishlist';
@@ -86,6 +86,8 @@ function MainApp() {
   const [managingImagesProduct, setManagingImagesProduct] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [categories, setCategories] = useState([]);
+  const [isGuestAuthPanelOpen, setIsGuestAuthPanelOpen] = useState(false);
+  const guestAuthPanelRef = useRef(null);
 
   const loadCategories = useCallback(async () => {
     try {
@@ -122,6 +124,24 @@ function MainApp() {
     loadCategories();
   }, [updateCartCount, loadCategories]);
 
+  useEffect(() => {
+    if (!isGuestAuthPanelOpen) {
+      return undefined;
+    }
+
+    const handleOutsideClick = (event) => {
+      if (guestAuthPanelRef.current && !guestAuthPanelRef.current.contains(event.target)) {
+        setIsGuestAuthPanelOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [isGuestAuthPanelOpen]);
+
   const handleLogout = () => {
     localStorage.removeItem('authToken');
     localStorage.removeItem('user');
@@ -143,6 +163,16 @@ function MainApp() {
     console.log('[App] Clearing search');
     setSearchQuery('');
     setCurrentPage('products');
+  };
+
+  const handleLoginNavigation = () => {
+    setIsGuestAuthPanelOpen(false);
+    window.location.href = '/login';
+  };
+
+  const handleRegisterNavigation = () => {
+    setIsGuestAuthPanelOpen(false);
+    window.location.href = '/register';
   };
 
   const renderPage = () => {
@@ -324,7 +354,7 @@ function MainApp() {
             <h1>� VSS-Vault</h1>
           </div>
           {!isAuthenticated() && (
-            <nav className="main-nav">
+            <nav className="main-nav guest-nav">
               <button
                 className={`nav-link ${currentPage === 'products' ? 'active' : ''}`}
                 onClick={() => setCurrentPage('products')}
@@ -359,6 +389,38 @@ function MainApp() {
                 )}
               </button>
             </nav>
+          )}
+          {!isAuthenticated() && (
+            <div className="guest-auth-menu" ref={guestAuthPanelRef}>
+              <button
+                type="button"
+                className={`guest-auth-toggle ${isGuestAuthPanelOpen ? 'open' : ''}`}
+                onClick={() => setIsGuestAuthPanelOpen((previousState) => !previousState)}
+                aria-expanded={isGuestAuthPanelOpen}
+                aria-controls="guest-auth-panel"
+              >
+                Account
+                <span className="guest-auth-caret">{isGuestAuthPanelOpen ? '▴' : '▾'}</span>
+              </button>
+              {isGuestAuthPanelOpen && (
+                <div id="guest-auth-panel" className="guest-auth-panel">
+                  <button
+                    type="button"
+                    className="auth-action-button login-action"
+                    onClick={handleLoginNavigation}
+                  >
+                    Login
+                  </button>
+                  <button
+                    type="button"
+                    className="auth-action-button register-action"
+                    onClick={handleRegisterNavigation}
+                  >
+                    Register
+                  </button>
+                </div>
+              )}
+            </div>
           )}
           {isAuthenticated() && (
             <nav className="main-nav">
@@ -523,44 +585,6 @@ function MainApp() {
               </button>
             )}
           </div>
-
-          {!isAuthenticated() && (
-            <div className="header-icons">
-              <div className="header-icon">
-                <button 
-                  onClick={() => window.location.href = '/login'}
-                  style={{
-                    padding: '10px 16px',
-                    background: '#0066cc',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    marginRight: '8px'
-                  }}
-                >
-                  Login
-                </button>
-                <button 
-                  onClick={() => window.location.href = '/register'}
-                  style={{
-                    padding: '10px 16px',
-                    background: '#28a745',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: '600'
-                  }}
-                >
-                  Register
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       </header>
 
