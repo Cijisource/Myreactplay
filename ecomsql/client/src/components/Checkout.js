@@ -112,7 +112,7 @@ const Checkout = ({
   useEffect(() => {
     if (step === 'payment' && selectedPayment === 'gpay') {
       const calculatedTotal = subtotalAmount + gstAmount + calculatedShippingCharge;
-      const upiString = `upi://pay?pa=cijai4u@okicici&pn=VSS-Vault&am=${calculatedTotal}&tn=VSS-VAULT shop - ${formData.customerName}`;
+      const upiString = `upi://pay?pa=cijai4u@okicici&pn=VSM-SparkleNest&am=${calculatedTotal}&tn=SparkleNest-shop - ${formData.customerName}`;
       setQrValue(upiString);
     }
   }, [step, selectedPayment, subtotalAmount, gstAmount, calculatedShippingCharge, formData.customerName]);

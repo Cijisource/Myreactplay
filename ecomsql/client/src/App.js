@@ -87,7 +87,9 @@ function MainApp() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [categories, setCategories] = useState([]);
   const [isGuestAuthPanelOpen, setIsGuestAuthPanelOpen] = useState(false);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const guestAuthPanelRef = useRef(null);
+  const mobileNavRef = useRef(null);
 
   const loadCategories = useCallback(async () => {
     try {
@@ -173,6 +175,11 @@ function MainApp() {
   const handleRegisterNavigation = () => {
     setIsGuestAuthPanelOpen(false);
     window.location.href = '/register';
+  };
+
+  const navigateTo = (page) => {
+    setCurrentPage(page);
+    setIsMobileNavOpen(false);
   };
 
   const renderPage = () => {
@@ -349,243 +356,153 @@ function MainApp() {
   return (
     <div className="App">
       <header className="app-header">
-        <div className="header-container">
+        <div className="header-top-row">
           <div className="header-content">
-            <h1>� VSS-Vault</h1>
+            <h1>✨ VSM - Sparkle Nest</h1>
           </div>
+
+          {/* Desktop nav */}
           {!isAuthenticated() && (
-            <nav className="main-nav guest-nav">
-              <button
-                className={`nav-link ${currentPage === 'products' ? 'active' : ''}`}
-                onClick={() => setCurrentPage('products')}
-              >
-                Browse
-              </button>
-              <button
-                className={`nav-link ${currentPage === 'cart' ? 'active' : ''}`}
-                onClick={() => setCurrentPage('cart')}
-                style={{ position: 'relative' }}
-              >
-                Shopping Cart
-                {cartCount > 0 && (
-                  <span style={{
-                    position: 'absolute',
-                    top: '-8px',
-                    right: '-8px',
-                    background: '#FF9900',
-                    color: 'white',
-                    borderRadius: '50%',
-                    width: '24px',
-                    height: '24px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    border: '2px solid white'
-                  }}>
-                    {cartCount}
-                  </span>
-                )}
+            <nav className="main-nav guest-nav desktop-nav">
+              <button className={`nav-link ${currentPage === 'products' ? 'active' : ''}`} onClick={() => navigateTo('products')}>Browse</button>
+              <button className={`nav-link ${currentPage === 'cart' ? 'active' : ''}`} onClick={() => navigateTo('cart')} style={{ position: 'relative' }}>
+                🛒 Cart
+                {cartCount > 0 && <span className="cart-badge-pill">{cartCount}</span>}
               </button>
             </nav>
           )}
+          {isAuthenticated() && (
+            <nav className="main-nav desktop-nav">
+              <button className={`nav-link ${currentPage === 'products' ? 'active' : ''}`} onClick={() => navigateTo('products')}>Browse</button>
+              <button className={`nav-link ${currentPage === 'orders' ? 'active' : ''}`} onClick={() => navigateTo('orders')}>My Orders</button>
+              <button className={`nav-link ${currentPage === 'cart' ? 'active' : ''}`} onClick={() => navigateTo('cart')} style={{ position: 'relative' }}>
+                🛒 Cart
+                {cartCount > 0 && <span className="cart-badge-pill">{cartCount}</span>}
+              </button>
+              {user && (hasRole('Seller') || hasRole('Administrator')) && (
+                <>
+                  <button className={`nav-link ${currentPage === 'upload' ? 'active' : ''}`} onClick={() => navigateTo('upload')}>New Product</button>
+                  <button className={`nav-link ${currentPage === 'manage' ? 'active' : ''}`} onClick={() => navigateTo('manage')}>My Products</button>
+                  <button className={`nav-link ${currentPage === 'categories' ? 'active' : ''}`} onClick={() => navigateTo('categories')}>Categories</button>
+                  <button className={`nav-link ${currentPage === 'rewards' ? 'active' : ''}`} onClick={() => navigateTo('rewards')}>Rewards</button>
+                </>
+              )}
+              {user && hasAnyRole(['Administrator', 'Seller']) && (
+                <button className={`nav-link admin-link ${currentPage === 'admin' ? 'active' : ''}`} onClick={() => navigateTo('admin')}>Admin</button>
+              )}
+              {user && (
+                <div className="nav-user-section">
+                  <button onClick={() => navigateTo('profile')} className={`nav-link nav-name ${currentPage === 'profile' ? 'active' : ''}`}>
+                    👤 {user.name}
+                  </button>
+                  <button onClick={handleLogout} className="nav-link logout-nav">Logout</button>
+                </div>
+              )}
+            </nav>
+          )}
+
+          {/* Guest account dropdown */}
           {!isAuthenticated() && (
             <div className="guest-auth-menu" ref={guestAuthPanelRef}>
               <button
                 type="button"
                 className={`guest-auth-toggle ${isGuestAuthPanelOpen ? 'open' : ''}`}
-                onClick={() => setIsGuestAuthPanelOpen((previousState) => !previousState)}
+                onClick={() => setIsGuestAuthPanelOpen((prev) => !prev)}
                 aria-expanded={isGuestAuthPanelOpen}
                 aria-controls="guest-auth-panel"
               >
-                Account
-                <span className="guest-auth-caret">{isGuestAuthPanelOpen ? '▴' : '▾'}</span>
+                Account <span className="guest-auth-caret">{isGuestAuthPanelOpen ? '▴' : '▾'}</span>
               </button>
               {isGuestAuthPanelOpen && (
                 <div id="guest-auth-panel" className="guest-auth-panel">
-                  <button
-                    type="button"
-                    className="auth-action-button login-action"
-                    onClick={handleLoginNavigation}
-                  >
-                    Login
-                  </button>
-                  <button
-                    type="button"
-                    className="auth-action-button register-action"
-                    onClick={handleRegisterNavigation}
-                  >
-                    Register
-                  </button>
+                  <button type="button" className="auth-action-button login-action" onClick={handleLoginNavigation}>Login</button>
+                  <button type="button" className="auth-action-button register-action" onClick={handleRegisterNavigation}>Register</button>
                 </div>
               )}
             </div>
           )}
-          {isAuthenticated() && (
-            <nav className="main-nav">
-              <button
-                className={`nav-link ${currentPage === 'products' ? 'active' : ''}`}
-                onClick={() => setCurrentPage('products')}
-              >
-                Browse
-              </button>
-              <button
-                className={`nav-link ${currentPage === 'orders' ? 'active' : ''}`}
-                onClick={() => setCurrentPage('orders')}
-              >
-                My Orders
-              </button>
-              <button
-                className={`nav-link ${currentPage === 'cart' ? 'active' : ''}`}
-                onClick={() => setCurrentPage('cart')}
-                style={{ position: 'relative' }}
-              >
-                Shopping Cart
-                {cartCount > 0 && (
-                  <span style={{
-                    position: 'absolute',
-                    top: '-8px',
-                    right: '-8px',
-                    background: '#FF9900',
-                    color: 'white',
-                    borderRadius: '50%',
-                    width: '24px',
-                    height: '24px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    border: '2px solid white'
-                  }}>
-                    {cartCount}
-                  </span>
-                )}
-              </button>
-              {user && (hasRole('Seller') || hasRole('Administrator')) && (
-                <>
-                  <button
-                    className={`nav-link ${currentPage === 'upload' ? 'active' : ''}`}
-                    onClick={() => setCurrentPage('upload')}
-                  >
-                    📝 New Product
-                  </button>
-                  <button
-                    className={`nav-link ${currentPage === 'manage' ? 'active' : ''}`}
-                    onClick={() => setCurrentPage('manage')}
-                  >
-                    📦 My Products
-                  </button>
-                  <button
-                    className={`nav-link ${currentPage === 'categories' ? 'active' : ''}`}
-                    onClick={() => setCurrentPage('categories')}
-                  >
-                    📋 Categories
-                  </button>
-                  <button
-                    className={`nav-link ${currentPage === 'rewards' ? 'active' : ''}`}
-                    onClick={() => setCurrentPage('rewards')}
-                  >
-                    🎁 Rewards
-                  </button>
-                </>
-              )}
-              {user && hasAnyRole(['Administrator', 'Seller']) && (
-                <button
-                  className={`nav-link admin-link ${currentPage === 'admin' ? 'active' : ''}`}
-                  onClick={() => setCurrentPage('admin')}
-                >
-                  🔐 Admin
-                </button>
-              )}
-              {user && (
-                <div className="nav-user-section">
-                  <button 
-                    onClick={() => setCurrentPage('profile')} 
-                    className={`nav-link nav-name ${currentPage === 'profile' ? 'active' : ''}`}
-                  >
-                    👤 {user.name}
-                  </button>
-                  <button 
-                    onClick={handleLogout} 
-                    className="nav-link logout-nav"
-                  >
-                    🚪 Logout
-                  </button>
-                </div>
-              )}
-            </nav>
-          )}
-          
-          {/* Search box visible to all users (authenticated and unauthenticated) */}
+
+          {/* Mobile hamburger */}
+          <button
+            className={`hamburger-btn ${isMobileNavOpen ? 'open' : ''}`}
+            onClick={() => setIsMobileNavOpen((prev) => !prev)}
+            aria-label="Toggle navigation menu"
+            aria-expanded={isMobileNavOpen}
+          >
+            <span className="hamburger-bar" />
+            <span className="hamburger-bar" />
+            <span className="hamburger-bar" />
+          </button>
+        </div>
+
+        {/* Search bar row */}
+        <div className="header-search-row">
           <div className="header-search">
             <input
               type="text"
               placeholder="Search for products..."
               value={searchQuery}
-              onChange={(e) => {
-                console.log('[App] Search input changed:', e.target.value);
-                setSearchQuery(e.target.value);
-              }}
+              onChange={(e) => setSearchQuery(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-              title="Type to search products (searches automatically after 500ms of inactivity)"
             />
-            <SearchableCategoryDropdown 
+            <SearchableCategoryDropdown
               categories={categories}
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
               placeholder="All Categories"
             />
-            <button 
+            <button
               onClick={handleSearch}
-              style={{
-                position: 'relative',
-                opacity: searchQuery !== debouncedSearchQuery ? 0.7 : 1,
-                transition: 'opacity 0.2s'
-              }}
+              className="search-submit-btn"
               title={searchQuery !== debouncedSearchQuery ? 'Searching...' : 'Search'}
             >
-              {searchQuery !== debouncedSearchQuery ? '⏳' : '🔍'}
+              {searchQuery !== debouncedSearchQuery ? '⏳' : '🔍'} Search
             </button>
             {searchQuery && (
-              <button 
-                onClick={handleClearSearch}
-                style={{
-                  background: 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
-                  color: 'white',
-                  border: 'none',
-                  padding: '8px 14px',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontWeight: '600',
-                  marginLeft: '8px',
-                  transition: 'all 0.3s ease',
-                  fontSize: '14px',
-                  minHeight: '36px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 2px 6px rgba(220, 53, 69, 0.25)',
-                  whiteSpace: 'nowrap'
-                }}
-                onMouseEnter={(e) => {
-                  e.target.style.background = 'linear-gradient(135deg, #c82333 0%, #a91e2c 100%)';
-                  e.target.style.boxShadow = '0 4px 12px rgba(220, 53, 69, 0.35)';
-                  e.target.style.transform = 'translateY(-1px)';
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.background = 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)';
-                  e.target.style.boxShadow = '0 2px 6px rgba(220, 53, 69, 0.25)';
-                  e.target.style.transform = 'translateY(0)';
-                }}
-                title="Clear search"
-              >
+              <button onClick={handleClearSearch} className="search-clear-btn" title="Clear search">
                 ✕ Clear
               </button>
             )}
           </div>
         </div>
+
+        {/* Mobile nav drawer */}
+        {isMobileNavOpen && (
+          <nav className="mobile-nav" ref={mobileNavRef}>
+            <button className={`mobile-nav-link ${currentPage === 'products' ? 'active' : ''}`} onClick={() => navigateTo('products')}>🏠 Browse</button>
+            <button className={`mobile-nav-link ${currentPage === 'cart' ? 'active' : ''}`} onClick={() => navigateTo('cart')}>
+              🛒 Cart {cartCount > 0 && <span className="mobile-cart-count">{cartCount}</span>}
+            </button>
+            {isAuthenticated() && (
+              <>
+                <button className={`mobile-nav-link ${currentPage === 'orders' ? 'active' : ''}`} onClick={() => navigateTo('orders')}>📦 My Orders</button>
+                {user && (hasRole('Seller') || hasRole('Administrator')) && (
+                  <>
+                    <button className={`mobile-nav-link ${currentPage === 'upload' ? 'active' : ''}`} onClick={() => navigateTo('upload')}>📝 New Product</button>
+                    <button className={`mobile-nav-link ${currentPage === 'manage' ? 'active' : ''}`} onClick={() => navigateTo('manage')}>🗂️ My Products</button>
+                    <button className={`mobile-nav-link ${currentPage === 'categories' ? 'active' : ''}`} onClick={() => navigateTo('categories')}>📋 Categories</button>
+                    <button className={`mobile-nav-link ${currentPage === 'rewards' ? 'active' : ''}`} onClick={() => navigateTo('rewards')}>🎁 Rewards</button>
+                  </>
+                )}
+                {user && hasAnyRole(['Administrator', 'Seller']) && (
+                  <button className={`mobile-nav-link ${currentPage === 'admin' ? 'active' : ''}`} onClick={() => navigateTo('admin')}>🔐 Admin</button>
+                )}
+                {user && (
+                  <>
+                    <button className={`mobile-nav-link ${currentPage === 'profile' ? 'active' : ''}`} onClick={() => navigateTo('profile')}>👤 {user.name}</button>
+                    <button className="mobile-nav-link mobile-logout" onClick={handleLogout}>🚪 Logout</button>
+                  </>
+                )}
+              </>
+            )}
+            {!isAuthenticated() && (
+              <>
+                <button className="mobile-nav-link mobile-login" onClick={handleLoginNavigation}>Login</button>
+                <button className="mobile-nav-link mobile-register" onClick={handleRegisterNavigation}>Create Account</button>
+              </>
+            )}
+          </nav>
+        )}
       </header>
 
       <main className="app-main">
@@ -593,17 +510,19 @@ function MainApp() {
       </main>
 
       <footer className="app-footer">
-        <p>
-          &copy; 2026 VSS-Vault. Secure Vault For Digital Assets. | Fast & Reliable Service
-          {' | '}
-          <Link to="/refund-policy" style={{ color: '#0066cc', textDecoration: 'underline', marginLeft: 8 }}>
-            Refunds & Return Policy
-          </Link>
-          {' | '}
-          <Link to="/wishlist" style={{ color: '#FF9900', textDecoration: 'underline', marginLeft: 8 }}>
-            My Wishlist
-          </Link>
-        </p>
+        <div className="footer-inner">
+          <div className="footer-brand">
+            <span className="footer-logo">✨ VSM - Sparkle Nest</span>
+            <p className="footer-tagline">Where Every Purchase Sparkles</p>
+          </div>
+          <div className="footer-links">
+            <Link to="/refund-policy" className="footer-link">Refunds &amp; Returns</Link>
+            <Link to="/wishlist" className="footer-link">My Wishlist</Link>
+          </div>
+          <div className="footer-copy">
+            <p>&copy; 2026 VSM - Sparkle Nest. Fast &amp; Reliable Service.</p>
+          </div>
+        </div>
       </footer>
     </div>
   );
