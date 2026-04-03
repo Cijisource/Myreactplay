@@ -6,7 +6,7 @@ import jwt from 'jsonwebtoken';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { initializeAzureClient, isAzureConfigured, downloadAzureBlob, getAzureBlobSasUrl, uploadAzureBlob, deleteAzureBlob, deleteAzureBlobFromContainer } from './azureService';
+import { initializeAzureClient, isAzureConfigured, downloadAzureBlob, downloadAzureBlobFromContainer, downloadFromAzureBlobUrl, getAzureBlobSasUrl, uploadAzureBlob, uploadAzureBlobToContainer, deleteAzureBlob, deleteAzureBlobFromContainer } from './azureService';
 import { calculateProRataCharges, getTenantChargesForMonth, getRoomBillingsSummary, getMonthlyBillingReport, getTenantMonthlyBill, recalculateMonthlyCharges } from './services/proRataService';
 import { calculateCheckInProRataRent, calculateCheckOutProRataRent, recordProRataRentCalculation, calculateProRataRentForMonth, calculateOccupancyDaysForMonth } from './services/proRataRentService';
 
@@ -35,6 +35,16 @@ const paymentsDir = process.env.PAYMENTS_DIR ||
 // Determine banner directory
 const bannerDir = process.env.BANNER_DIR || 
   (isDocker ? '/app/banner' : path.resolve(process.cwd(), 'banner'));
+
+// Determine guest checkin files directory
+const guestCheckinDir = process.env.GUEST_CHECKIN_DIR ||
+  (isDocker ? '/app/guest-checkin' : path.resolve(process.cwd(), 'guest-checkin'));
+
+// Azure container name for guest checkin files
+const AZURE_GUEST_CHECKIN_CONTAINER = process.env.AZURE_GUEST_CHECKIN_CONTAINER || 'guest-checkins';
+const AZURE_STORAGE_BASE = process.env.AZURE_STORAGE_BASE_URL ||
+  process.env.AZURE_BLOB_URL?.replace(/\/[^/]+$/, '') ||
+  'https://complexstore.blob.core.windows.net';
 
 console.log('Environment:', { NODE_ENV: process.env.NODE_ENV, isDocker });
 console.log('Complains directory:', complainsDir);
@@ -112,6 +122,20 @@ try {
   console.log('Banner directory is readable');
 } catch (err) {
   console.error('ERROR: Banner directory is not accessible:', err);
+}
+
+if (!fs.existsSync(guestCheckinDir)) {
+  fs.mkdirSync(guestCheckinDir, { recursive: true });
+  console.log('Created guest checkin directory:', guestCheckinDir);
+} else {
+  console.log('Guest checkin directory already exists');
+}
+
+try {
+  fs.accessSync(guestCheckinDir, fs.constants.R_OK | fs.constants.W_OK);
+  console.log('Guest checkin directory is readable and writable');
+} catch (err) {
+  console.error('ERROR: Guest checkin directory is not accessible:', err);
 }
 
 // Configure multer for file uploads
@@ -212,6 +236,48 @@ app.use('/api/tenantphotos', express.static(tenantPhotosDir));
 app.use('/tenantphotos', express.static(tenantPhotosDir));
 console.log('Static file serving enabled at /api/tenantphotos and /tenantphotos from:', tenantPhotosDir);
 
+// Serve static files from guest checkin folder
+app.use('/api/guest-checkin', express.static(guestCheckinDir));
+app.get('/api/guest-checkin/:fileName', async (req: Request, res: Response) => {
+  const fileName = path.basename(req.params.fileName || '');
+
+  if (!fileName) {
+    return res.status(400).json({ error: 'File name is required' });
+  }
+
+  const localFilePath = path.join(guestCheckinDir, fileName);
+  if (fs.existsSync(localFilePath)) {
+    return res.sendFile(localFilePath);
+  }
+
+  try {
+    if (isAzureConfigured()) {
+      const { buffer, contentType } = await downloadAzureBlobFromContainer(AZURE_GUEST_CHECKIN_CONTAINER, fileName);
+      if (contentType) {
+        res.type(contentType);
+      } else {
+        res.type(fileName);
+      }
+      return res.send(buffer);
+    }
+
+    const blobUrl = `${AZURE_STORAGE_BASE}/${AZURE_GUEST_CHECKIN_CONTAINER}/${fileName}`;
+    const buffer = await downloadFromAzureBlobUrl(blobUrl);
+    res.type(fileName);
+    return res.send(buffer);
+  } catch (error: any) {
+    const message = String(error?.message || '');
+    if (message.includes('BlobNotFound') || message.includes('Blob not found') || message.includes('404')) {
+      return res.status(404).json({ error: 'Guest check-in file not found' });
+    }
+
+    console.error('[Guest Checkin File] Failed to load from Azure:', error);
+    return res.status(500).json({ error: 'Failed to retrieve guest check-in file' });
+  }
+});
+app.use('/guest-checkin', express.static(guestCheckinDir));
+console.log('Static file serving enabled at /api/guest-checkin and /guest-checkin from:', guestCheckinDir);
+
 // Serve static files from payments folder
 app.use('/api/payments', express.static(paymentsDir));
 app.use('/payments', express.static(paymentsDir));
@@ -262,6 +328,32 @@ const transformPhotoUrlsForResponse = (data: any): any => {
 // Helper to transform array of records
 const transformPhotoUrlsInArray = (records: any[]): any[] => {
   return records.map(record => transformPhotoUrlsForResponse({ ...record }));
+};
+
+const normalizeStoredFileName = (value: unknown): string | null => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmedValue = value.trim();
+  if (!trimmedValue) {
+    return null;
+  }
+
+  const valueWithoutQuery = trimmedValue.split('?')[0].split('#')[0];
+  return path.basename(valueWithoutQuery);
+};
+
+const normalizeGuestCheckinFilesForResponse = <T extends Record<string, any>>(record: T): T => {
+  if (!record || typeof record !== 'object') {
+    return record;
+  }
+
+  return {
+    ...record,
+    proofUrl: normalizeStoredFileName(record.proofUrl ?? record.ProofUrl),
+    photoUrl: normalizeStoredFileName(record.photoUrl ?? record.PhotoUrl)
+  };
 };
 
 // Routes
@@ -1617,6 +1709,28 @@ app.post('/api/tenants', async (req: Request, res: Response) => {
       error: 'Failed to create tenant',
       details: errorMessage
     });
+  }
+});
+
+// Configure multer for guest checkin file uploads (proof and photo)
+const uploadGuestCheckin = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, guestCheckinDir);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    }
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only images are allowed.'));
+    }
   }
 });
 
@@ -3934,6 +4048,8 @@ app.get('/api/daily-status/:id/guest-checkins', async (req: Request, res: Respon
           ISNULL(CAST(g.DepositAmount AS FLOAT), 0) as depositAmount,
           g.CheckInTime as checkInTime,
           g.CheckOutTime as checkOutTime,
+          g.ProofUrl as proofUrl,
+          g.PhotoUrl as photoUrl,
           g.CreatedDate as createdDate,
           g.UpdatedDate as updatedDate
         FROM DailyGuestCheckIn g
@@ -3941,7 +4057,7 @@ app.get('/api/daily-status/:id/guest-checkins', async (req: Request, res: Respon
         ORDER BY g.CheckInTime DESC, g.Id DESC
       `);
 
-    res.json(result.recordset);
+    res.json(result.recordset.map(normalizeGuestCheckinFilesForResponse));
   } catch (error) {
     res.status(500).json({ error: 'Failed to retrieve guest check-ins', details: error });
   }
@@ -3965,7 +4081,9 @@ const normalizeGuestPhoneNumber = (value: string): string => {
 app.post('/api/daily-status/:id/guest-checkins', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { guestName, phoneNumber, purpose, visitingRoomNo, checkInTime, rentAmount, depositAmount } = req.body;
+    const { guestName, phoneNumber, purpose, visitingRoomNo, checkInTime, rentAmount, depositAmount, proofUrl, photoUrl } = req.body;
+    const normalizedProofUrl = normalizeStoredFileName(proofUrl);
+    const normalizedPhotoUrl = normalizeStoredFileName(photoUrl);
 
     if (!guestName || typeof guestName !== 'string' || !guestName.trim()) {
       return res.status(400).json({ error: 'Guest name is required' });
@@ -4031,6 +4149,8 @@ app.post('/api/daily-status/:id/guest-checkins', async (req: Request, res: Respo
       .input('rentAmount', sql.Decimal(10, 2), parsedRentAmount)
       .input('depositAmount', sql.Decimal(10, 2), parsedDepositAmount)
       .input('checkInTime', sql.DateTime, parsedCheckInTime)
+      .input('proofUrl', sql.VarChar(1000), normalizedProofUrl)
+      .input('photoUrl', sql.VarChar(1000), normalizedPhotoUrl)
       .query(`
         INSERT INTO DailyGuestCheckIn (
           DailyStatusId,
@@ -4041,6 +4161,8 @@ app.post('/api/daily-status/:id/guest-checkins', async (req: Request, res: Respo
           RentAmount,
           DepositAmount,
           CheckInTime,
+          ProofUrl,
+          PhotoUrl,
           CreatedDate
         )
         VALUES (
@@ -4052,6 +4174,8 @@ app.post('/api/daily-status/:id/guest-checkins', async (req: Request, res: Respo
           @rentAmount,
           @depositAmount,
           @checkInTime,
+          @proofUrl,
+          @photoUrl,
           GETDATE()
         );
 
@@ -4066,13 +4190,15 @@ app.post('/api/daily-status/:id/guest-checkins', async (req: Request, res: Respo
           ISNULL(CAST(DepositAmount AS FLOAT), 0) as depositAmount,
           CheckInTime as checkInTime,
           CheckOutTime as checkOutTime,
+          ProofUrl as proofUrl,
+          PhotoUrl as photoUrl,
           CreatedDate as createdDate,
           UpdatedDate as updatedDate
         FROM DailyGuestCheckIn
         WHERE Id = SCOPE_IDENTITY();
       `);
 
-    res.status(201).json(insertResult.recordset[0]);
+    res.status(201).json(normalizeGuestCheckinFilesForResponse(insertResult.recordset[0]));
   } catch (error) {
     res.status(500).json({ error: 'Failed to create guest check-in', details: error });
   }
@@ -4082,7 +4208,7 @@ app.post('/api/daily-status/:id/guest-checkins', async (req: Request, res: Respo
 app.put('/api/daily-status/:dailyStatusId/guest-checkins/:guestCheckinId', async (req: Request, res: Response) => {
   try {
     const { dailyStatusId, guestCheckinId } = req.params;
-    const { guestName, phoneNumber, purpose, visitingRoomNo, checkInTime, checkOutTime, rentAmount, depositAmount } = req.body;
+    const { guestName, phoneNumber, purpose, visitingRoomNo, checkInTime, checkOutTime, rentAmount, depositAmount, proofUrl, photoUrl } = req.body;
 
     const pool = getPool();
 
@@ -4106,6 +4232,8 @@ app.put('/api/daily-status/:dailyStatusId/guest-checkins/:guestCheckinId', async
       : normalizeGuestPhoneNumber(String(existing.PhoneNumber || ''));
     const nextPurpose = purpose !== undefined ? String(purpose).trim() : existing.Purpose;
     const nextVisitingRoomNo = visitingRoomNo !== undefined ? String(visitingRoomNo).trim() : existing.VisitingRoomNo;
+    const nextProofUrl = proofUrl !== undefined ? normalizeStoredFileName(proofUrl) : existing.ProofUrl;
+    const nextPhotoUrl = photoUrl !== undefined ? normalizeStoredFileName(photoUrl) : existing.PhotoUrl;
 
     if (!nextGuestName) {
       return res.status(400).json({ error: 'Guest name is required' });
@@ -4173,6 +4301,8 @@ app.put('/api/daily-status/:dailyStatusId/guest-checkins/:guestCheckinId', async
       .input('depositAmount', sql.Decimal(10, 2), nextDepositAmount)
       .input('checkInTime', sql.DateTime, nextCheckInTime)
       .input('checkOutTime', sql.DateTime, nextCheckOutTime ? new Date(nextCheckOutTime) : null)
+      .input('proofUrl', sql.VarChar(1000), nextProofUrl)
+      .input('photoUrl', sql.VarChar(1000), nextPhotoUrl)
       .query(`
         UPDATE DailyGuestCheckIn
         SET
@@ -4184,6 +4314,8 @@ app.put('/api/daily-status/:dailyStatusId/guest-checkins/:guestCheckinId', async
           DepositAmount = @depositAmount,
           CheckInTime = @checkInTime,
           CheckOutTime = @checkOutTime,
+          ProofUrl = @proofUrl,
+          PhotoUrl = @photoUrl,
           UpdatedDate = GETDATE()
         WHERE Id = @guestCheckinId
       `);
@@ -4202,17 +4334,113 @@ app.put('/api/daily-status/:dailyStatusId/guest-checkins/:guestCheckinId', async
           ISNULL(CAST(DepositAmount AS FLOAT), 0) as depositAmount,
           CheckInTime as checkInTime,
           CheckOutTime as checkOutTime,
+          ProofUrl as proofUrl,
+          PhotoUrl as photoUrl,
           CreatedDate as createdDate,
           UpdatedDate as updatedDate
         FROM DailyGuestCheckIn
         WHERE Id = @guestCheckinId
       `);
 
-    res.json(updatedResult.recordset[0]);
+    res.json(normalizeGuestCheckinFilesForResponse(updatedResult.recordset[0]));
   } catch (error) {
     res.status(500).json({ error: 'Failed to update guest check-in', details: error });
   }
 });
+
+// Upload proof/photo for a guest check-in
+app.post('/api/daily-status/:dailyStatusId/guest-checkins/:guestCheckinId/upload',
+  uploadGuestCheckin.fields([
+    { name: 'proof', maxCount: 1 },
+    { name: 'photo', maxCount: 1 }
+  ]),
+  async (req: Request, res: Response) => {
+    try {
+      const { dailyStatusId, guestCheckinId } = req.params;
+
+      if (!req.files || Object.keys(req.files).length === 0) {
+        return res.status(400).json({ error: 'No files uploaded' });
+      }
+
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+      const azureConfigured = isAzureConfigured();
+
+      let proofUrl: string | null = null;
+      let photoUrl: string | null = null;
+
+      if (files.proof && files.proof[0]) {
+        const file = files.proof[0];
+        const fileName = path.basename(file.path);
+        if (azureConfigured) {
+          try {
+            const fileBuffer = fs.readFileSync(file.path);
+            await uploadAzureBlobToContainer(AZURE_GUEST_CHECKIN_CONTAINER, fileName, fileBuffer, file.mimetype);
+            proofUrl = fileName;
+            fs.unlinkSync(file.path);
+          } catch (azureError) {
+            console.warn('[Guest Checkin Upload] Azure upload failed for proof, using fallback:', azureError);
+            proofUrl = fileName;
+          }
+        } else {
+          proofUrl = fileName;
+        }
+      }
+
+      if (files.photo && files.photo[0]) {
+        const file = files.photo[0];
+        const fileName = path.basename(file.path);
+        if (azureConfigured) {
+          try {
+            const fileBuffer = fs.readFileSync(file.path);
+            await uploadAzureBlobToContainer(AZURE_GUEST_CHECKIN_CONTAINER, fileName, fileBuffer, file.mimetype);
+            photoUrl = fileName;
+            fs.unlinkSync(file.path);
+          } catch (azureError) {
+            console.warn('[Guest Checkin Upload] Azure upload failed for photo, using fallback:', azureError);
+            photoUrl = fileName;
+          }
+        } else {
+          photoUrl = fileName;
+        }
+      }
+
+      // Update the record with the new URLs
+      const pool = getPool();
+      const existingResult = await pool.request()
+        .input('dailyStatusId', sql.Int, parseInt(dailyStatusId))
+        .input('guestCheckinId', sql.Int, parseInt(guestCheckinId))
+        .query('SELECT ProofUrl, PhotoUrl FROM DailyGuestCheckIn WHERE Id = @guestCheckinId AND DailyStatusId = @dailyStatusId');
+
+      if (!existingResult.recordset.length) {
+        return res.status(404).json({ error: 'Guest check-in not found' });
+      }
+
+      const existing = existingResult.recordset[0];
+      const finalProofUrl = proofUrl !== null ? proofUrl : existing.ProofUrl;
+      const finalPhotoUrl = photoUrl !== null ? photoUrl : existing.PhotoUrl;
+
+      await pool.request()
+        .input('guestCheckinId', sql.Int, parseInt(guestCheckinId))
+        .input('proofUrl', sql.VarChar(1000), finalProofUrl)
+        .input('photoUrl', sql.VarChar(1000), finalPhotoUrl)
+        .query(`
+          UPDATE DailyGuestCheckIn
+          SET ProofUrl = @proofUrl, PhotoUrl = @photoUrl, UpdatedDate = GETDATE()
+          WHERE Id = @guestCheckinId
+        `);
+
+      res.json({
+        message: 'Files uploaded successfully',
+        proofUrl: finalProofUrl,
+        photoUrl: finalPhotoUrl,
+        uploadedToAzure: azureConfigured
+      });
+    } catch (error) {
+      console.error('[Guest Checkin Upload] Error:', error);
+      res.status(500).json({ error: 'Failed to upload files', details: error });
+    }
+  }
+);
 
 // Delete guest check-in
 app.delete('/api/daily-status/:dailyStatusId/guest-checkins/:guestCheckinId', async (req: Request, res: Response) => {

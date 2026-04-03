@@ -247,6 +247,40 @@ export const getFileUrl = (filePath: string): string => {
   return fullUrl;
 };
 
+export const getGuestCheckinFileUrl = (filePath: string): string => {
+  if (!filePath) return '';
+  const baseUrl = getApiBaseUrl();
+  console.log('[Guest Check-in File URL] Generating URL for:', { filePath, baseUrl });
+  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+    try {
+      const parsedUrl = new URL(filePath);
+      const fileName = parsedUrl.pathname.split('/').filter(Boolean).pop();
+      const isAzureBlobUrl = parsedUrl.hostname.includes('.blob.core.windows.net');
+      const isGuestCheckinPath = /(^|\/)(guest-checkin|guest-checkins)(\/|$)/i.test(parsedUrl.pathname);
+
+      if (fileName && (isAzureBlobUrl || isGuestCheckinPath)) {
+        return `${baseUrl}/api/guest-checkin/${encodeURIComponent(fileName)}`;
+      }
+    } catch {
+      return filePath;
+    }
+
+    return filePath;
+  }
+
+  const normalizedPath = filePath.replace(/^\/+/, '');
+
+  if (normalizedPath.startsWith('api/guest-checkin/')) {
+    return `${baseUrl}/${normalizedPath}`;
+  }
+
+  if (normalizedPath.startsWith('guest-checkin/')) {
+    return `${baseUrl}/${normalizedPath}`;
+  }
+
+  return `${baseUrl}/api/guest-checkin/${normalizedPath}`;
+};
+
 export const apiService = {
   getHealth: () => api.get('/health'),
   getDatabaseStatus: () => api.get('/database/status'),
@@ -427,6 +461,8 @@ export const apiService = {
     rentAmount: number;
     depositAmount: number;
     checkInTime?: string;
+    proofUrl?: string;
+    photoUrl?: string;
   }) => api.post(`/daily-status/${statusId}/guest-checkins`, data),
   updateDailyGuestCheckin: (
     statusId: number,
@@ -440,10 +476,29 @@ export const apiService = {
       depositAmount?: number;
       checkInTime?: string;
       checkOutTime?: string;
+      proofUrl?: string;
+      photoUrl?: string;
     }
   ) => api.put(`/daily-status/${statusId}/guest-checkins/${guestCheckinId}`, data),
   deleteDailyGuestCheckin: (statusId: number, guestCheckinId: number) =>
     api.delete(`/daily-status/${statusId}/guest-checkins/${guestCheckinId}`),
+  uploadGuestCheckinFiles: (statusId: number, guestCheckinId: number, formData: FormData) => {
+    const token = localStorage.getItem('token');
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    return fetchWithAuthRetry(`${API_URL}/daily-status/${statusId}/guest-checkins/${guestCheckinId}/upload`, {
+      method: 'POST',
+      headers,
+      body: formData
+    }).then(response => {
+      if (!response.ok) {
+        throw new Error(`Upload failed with status ${response.status}`);
+      }
+      return response.json();
+    }).then(data => ({ data }));
+  },
   getDailyStatusMedia: (statusId: number) => api.get(`/daily-status/${statusId}/media`),
   getDailyStatusAllMedia: () => api.get('/all-media/'), // New endpoint to fetch all media files
   uploadDailyStatusMedia: (formData: FormData, onProgress?: (progress: number) => void) => {
