@@ -1,16 +1,16 @@
 .shopping-cart {
-  padding: 12px 8px;
+  padding: 24px 20px;
   max-width: 1200px;
   margin: 0 auto;
 }
 
 .shopping-cart h2 {
-  font-size: 22px;
-  margin-bottom: 10px;
-  color: #222;
+  font-size: 24px;
+  margin-bottom: 16px;
+  color: #1e1040;
   font-weight: 700;
-  border-left: 2px solid #FF9900;
-  padding-left: 8px;
+  border-left: 3px solid #7c3aed;
+  padding-left: 12px;
 }
 
 .empty-cart {
@@ -115,20 +115,20 @@
 
 .remove-btn {
   padding: 8px 14px;
-  background: #FF9900;
+  background: linear-gradient(135deg, #7c3aed, #db2777);
   color: white;
   border: none;
   border-radius: 6px;
   cursor: pointer;
   font-size: 12px;
   font-weight: 600;
-  transition: all 0.3s;
+  transition: opacity 0.2s, transform 0.15s;
 }
 
 .remove-btn:hover {
-  background: #E68A00;
+  opacity: 0.88;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(255, 153, 0, 0.3);
+  box-shadow: 0 4px 12px rgba(124,58,237,0.3);
 }
 
 .cart-summary {

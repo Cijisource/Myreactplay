@@ -2,9 +2,9 @@
 .product-detail-container {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 30px 20px;
+  padding: 32px 24px;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: #f8f9fa;
+  background: #faf8ff;
   min-height: 100vh;
 }
 
@@ -23,9 +23,9 @@
 }
 
 .back-link:hover {
-  background: #FF9900;
+  background: linear-gradient(135deg, #7c3aed, #db2777);
   color: white;
-  border-color: #FF9900;
+  border-color: transparent;
 }
 
 /* Breadcrumb */

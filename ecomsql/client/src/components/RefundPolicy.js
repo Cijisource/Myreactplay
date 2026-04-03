@@ -6,7 +6,7 @@ const RefundPolicy = () => (
   <div className="refund-policy-page">
     <header className="refund-page-header">
       <div className="refund-header-inner">
-        <Link to="/" className="refund-brand">🛒 VSS-Vault</Link>
+        <Link to="/" className="refund-brand">✨ VSM - Sparkle Nest</Link>
         <Link to="/" className="refund-back-link">← Back to Shop</Link>
       </div>
     </header>
