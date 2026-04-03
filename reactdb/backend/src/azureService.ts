@@ -119,6 +119,46 @@ export const downloadAzureBlob = async (blobName: string): Promise<Buffer> => {
   }
 };
 
+export const downloadAzureBlobFromContainer = async (
+  containerName: string,
+  blobName: string
+): Promise<{ buffer: Buffer; contentType?: string }> => {
+  if (!blobServiceClient) {
+    throw new Error('Azure Blob Storage client is not initialized');
+  }
+
+  try {
+    const specificContainerClient = blobServiceClient.getContainerClient(containerName);
+    const blobClient = specificContainerClient.getBlobClient(blobName);
+    const downloadResponse = await blobClient.download(0);
+    const readable = downloadResponse.readableStreamBody;
+
+    if (!readable) {
+      throw new Error('Failed to get readable stream from Azure Blob');
+    }
+
+    const chunks: Buffer[] = [];
+
+    const buffer = await new Promise<Buffer>((resolve, reject) => {
+      readable.on('data', (chunk: Buffer) => {
+        chunks.push(chunk);
+      });
+      readable.on('end', () => {
+        resolve(Buffer.concat(chunks));
+      });
+      readable.on('error', reject);
+    });
+
+    return {
+      buffer,
+      contentType: downloadResponse.contentType,
+    };
+  } catch (error) {
+    console.error(`Failed to download Azure Blob '${blobName}' from container '${containerName}':`, error);
+    throw error;
+  }
+};
+
 // Upload file to Azure Blob Storage
 export const uploadAzureBlob = async (blobName: string, fileBuffer: Buffer, contentType?: string): Promise<string> => {
   if (!containerClient) {
@@ -186,6 +226,34 @@ export const deleteAzureBlobFromContainer = async (blobName: string, containerNa
   }
 };
 
+// Upload file to a specific Azure Blob Storage container (creates container if not exists)
+export const uploadAzureBlobToContainer = async (
+  containerName: string,
+  blobName: string,
+  fileBuffer: Buffer,
+  contentType?: string
+): Promise<string> => {
+  if (!blobServiceClient) {
+    throw new Error('Azure Blob Storage client is not initialized');
+  }
+
+  try {
+    const targetContainer = blobServiceClient.getContainerClient(containerName);
+    await targetContainer.createIfNotExists({ access: 'blob' });
+    const blobClient = targetContainer.getBlockBlobClient(blobName);
+    await blobClient.upload(fileBuffer, fileBuffer.length, {
+      blobHTTPHeaders: {
+        blobContentType: contentType || 'application/octet-stream',
+      },
+    });
+    console.log(`✓ Uploaded blob to Azure container '${containerName}': ${blobName}`);
+    return blobClient.url;
+  } catch (error) {
+    console.error(`Failed to upload blob to Azure container '${containerName}' - '${blobName}':`, error);
+    throw error;
+  }
+};
+
 // Get blob properties (metadata)
 export const getAzureBlobProperties = async (blobName: string): Promise<any> => {
   if (!containerClient) {
@@ -209,7 +277,10 @@ export default {
   downloadFromAzureBlobUrl,
   getAzureBlobSasUrl,
   downloadAzureBlob,
+  downloadAzureBlobFromContainer,
   uploadAzureBlob,
+  uploadAzureBlobToContainer,
   deleteAzureBlob,
+  deleteAzureBlobFromContainer,
   getAzureBlobProperties,
 };

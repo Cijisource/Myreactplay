@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { apiService } from '../api';
+import { apiService, getGuestCheckinFileUrl } from '../api';
 import { useAuth } from './AuthContext';
 import './ManagementStyles.css';
 
@@ -20,6 +20,8 @@ interface GuestCheckIn {
   depositAmount?: number;
   checkInTime: string;
   checkOutTime?: string;
+  proofUrl?: string;
+  photoUrl?: string;
 }
 
 interface Room {
@@ -29,9 +31,87 @@ interface Room {
   beds: number;
 }
 
+interface GuestFileUploadSectionProps {
+  guest: GuestCheckIn;
+  uploading: boolean;
+  onUpload: (guest: GuestCheckIn, proof: File | null, photo: File | null) => void;
+}
+
+function GuestFileUploadSection({ guest, uploading, onUpload }: GuestFileUploadSectionProps) {
+  const [proof, setProof] = useState<File | null>(null);
+  const [photo, setPhoto] = useState<File | null>(null);
+
+  const hasFiles = proof || photo;
+
+  return (
+    <div style={{ marginTop: '0.75rem', borderTop: '1px solid #e0e0e0', paddingTop: '0.75rem' }}>
+      <strong>Documents</strong>
+      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.4rem' }}>
+        {guest.proofUrl && (
+          <a href={getGuestCheckinFileUrl(guest.proofUrl)} target="_blank" rel="noopener noreferrer">
+            <img
+              src={getGuestCheckinFileUrl(guest.proofUrl)}
+              alt="Proof"
+              style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 4, border: '1px solid #ccc' }}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
+            <div style={{ fontSize: '0.75rem', textAlign: 'center' }}>Proof</div>
+          </a>
+        )}
+        {guest.photoUrl && (
+          <a href={getGuestCheckinFileUrl(guest.photoUrl)} target="_blank" rel="noopener noreferrer">
+            <img
+              src={getGuestCheckinFileUrl(guest.photoUrl)}
+              alt="Photo"
+              style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 4, border: '1px solid #ccc' }}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
+            <div style={{ fontSize: '0.75rem', textAlign: 'center' }}>Photo</div>
+          </a>
+        )}
+      </div>
+      <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+        <label style={{ fontSize: '0.85rem' }}>
+          {guest.proofUrl ? 'Replace Proof:' : 'Upload Proof:'}
+          <input
+            type="file"
+            accept="image/*"
+            style={{ marginLeft: '0.5rem' }}
+            onChange={(e) => setProof(e.target.files?.[0] ?? null)}
+          />
+        </label>
+        <label style={{ fontSize: '0.85rem' }}>
+          {guest.photoUrl ? 'Replace Photo:' : 'Upload Photo:'}
+          <input
+            type="file"
+            accept="image/*"
+            style={{ marginLeft: '0.5rem' }}
+            onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
+          />
+        </label>
+        {hasFiles && (
+          <button
+            className="btn btn-sm btn-primary"
+            style={{ marginTop: '0.25rem', alignSelf: 'flex-start' }}
+            disabled={uploading}
+            onClick={() => {
+              onUpload(guest, proof, photo);
+              setProof(null);
+              setPhoto(null);
+            }}
+          >
+            {uploading ? 'Uploading...' : 'Upload Files'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function GuestCheckinManagement() {
   const { hasRole } = useAuth();
   const isAdmin = hasRole('admin');
+  const guestPhoneFilterListId = 'guest-checkin-phone-filter-options';
 
   const [statuses, setStatuses] = useState<DailyStatus[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -43,6 +123,8 @@ export default function GuestCheckinManagement() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [checkoutDates, setCheckoutDates] = useState<Record<number, string>>({});
+  const [phoneFilter, setPhoneFilter] = useState('');
+  const [collapsedGuestIds, setCollapsedGuestIds] = useState<Record<number, boolean>>({});
 
   const [formData, setFormData] = useState({
     guestName: '',
@@ -52,6 +134,12 @@ export default function GuestCheckinManagement() {
     rentAmount: '',
     depositAmount: ''
   });
+
+  const [formFiles, setFormFiles] = useState<{ proof: File | null; photo: File | null }>({
+    proof: null,
+    photo: null
+  });
+  const [uploadingFiles, setUploadingFiles] = useState<Record<number, boolean>>({});
 
   const phoneRegex = /^\d{10}$/;
 
@@ -149,6 +237,31 @@ export default function GuestCheckinManagement() {
     const totalDeposit = guestCheckins.reduce((sum, g) => sum + (g.depositAmount || 0), 0);
     return { totalGuests, checkedOutGuests, activeGuests, totalRent, totalDeposit };
   }, [guestCheckins]);
+
+  const guestPhoneOptions = useMemo(() => {
+    const phoneMap = new Map<string, string>();
+
+    guestCheckins.forEach((guest) => {
+      const normalizedPhone = normalizePhoneDigits(guest.phoneNumber || '');
+      if (!normalizedPhone) return;
+      if (!phoneMap.has(normalizedPhone)) {
+        phoneMap.set(normalizedPhone, guest.guestName);
+      }
+    });
+
+    return Array.from(phoneMap.entries())
+      .map(([phoneNumber, guestName]) => ({ phoneNumber, guestName }))
+      .sort((left, right) => left.phoneNumber.localeCompare(right.phoneNumber));
+  }, [guestCheckins]);
+
+  const filteredGuestCheckins = useMemo(() => {
+    const normalizedFilter = normalizePhoneDigits(phoneFilter);
+    if (!normalizedFilter) {
+      return guestCheckins;
+    }
+
+    return guestCheckins.filter((guest) => normalizePhoneDigits(guest.phoneNumber || '').includes(normalizedFilter));
+  }, [guestCheckins, phoneFilter]);
 
   const fetchStatuses = async () => {
     try {
@@ -257,6 +370,16 @@ export default function GuestCheckinManagement() {
     fetchConsolidatedGuestCheckins(viewMode);
   }, [selectedDate, viewMode, statuses, selectedStatus]);
 
+  useEffect(() => {
+    setCollapsedGuestIds((prev) => {
+      const next: Record<number, boolean> = {};
+      guestCheckins.forEach((guest) => {
+        next[guest.id] = prev[guest.id] ?? true;
+      });
+      return next;
+    });
+  }, [guestCheckins]);
+
   const handleCreateCheckin = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -305,7 +428,7 @@ export default function GuestCheckinManagement() {
       setError(null);
       setSuccess(null);
 
-      await apiService.createDailyGuestCheckin(selectedStatus.id, {
+      const created = await apiService.createDailyGuestCheckin(selectedStatus.id, {
         guestName: formData.guestName.trim(),
         phoneNumber: formData.phoneNumber.trim(),
         purpose: formData.purpose.trim(),
@@ -313,6 +436,18 @@ export default function GuestCheckinManagement() {
         rentAmount: parseFloat(formData.rentAmount),
         depositAmount: parseFloat(formData.depositAmount)
       });
+
+      // Upload proof/photo files if provided
+      if ((formFiles.proof || formFiles.photo) && created.data?.id) {
+        const fd = new FormData();
+        if (formFiles.proof) fd.append('proof', formFiles.proof);
+        if (formFiles.photo) fd.append('photo', formFiles.photo);
+        try {
+          await apiService.uploadGuestCheckinFiles(selectedStatus.id, created.data.id, fd);
+        } catch (uploadErr) {
+          console.warn('File upload failed after check-in creation:', uploadErr);
+        }
+      }
 
       setFormData({
         guestName: '',
@@ -322,6 +457,7 @@ export default function GuestCheckinManagement() {
         rentAmount: '',
         depositAmount: ''
       });
+      setFormFiles({ proof: null, photo: null });
       setSuccess('Guest check-in recorded successfully');
       await fetchGuestCheckins(selectedStatus.id);
     } catch (err) {
@@ -487,6 +623,34 @@ export default function GuestCheckinManagement() {
     setFormData(prev => ({ ...prev, phoneNumber: digitsOnly }));
   };
 
+  const handleUploadFiles = async (guest: GuestCheckIn, proof: File | null, photo: File | null) => {
+    if (!proof && !photo) return;
+
+    const fd = new FormData();
+    if (proof) fd.append('proof', proof);
+    if (photo) fd.append('photo', photo);
+
+    setUploadingFiles(prev => ({ ...prev, [guest.id]: true }));
+    setError(null);
+    setSuccess(null);
+    try {
+      await apiService.uploadGuestCheckinFiles(guest.dailyStatusId, guest.id, fd);
+      setSuccess('Files uploaded successfully');
+      await refreshCurrentView(guest.dailyStatusId);
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to upload files'));
+    } finally {
+      setUploadingFiles(prev => ({ ...prev, [guest.id]: false }));
+    }
+  };
+
+  const toggleGuestCard = (guestId: number) => {
+    setCollapsedGuestIds(prev => ({
+      ...prev,
+      [guestId]: !prev[guestId]
+    }));
+  };
+
   return (
     <div className="management-container guest-checkin-container">
       <h2 className="section-heading">Guest Check-In Management</h2>
@@ -507,6 +671,36 @@ export default function GuestCheckinManagement() {
           value={selectedDate}
           onChange={(e) => setSelectedDate(e.target.value)}
         />
+
+        <div className="guest-phone-filter-group">
+          <input
+            type="text"
+            className="search-input guest-phone-filter-input"
+            placeholder="Search guests by phone number"
+            value={phoneFilter}
+            onChange={(e) => setPhoneFilter(normalizePhoneDigits(e.target.value))}
+            inputMode="numeric"
+            list={guestPhoneFilterListId}
+          />
+          <datalist id={guestPhoneFilterListId}>
+            {guestPhoneOptions.map((option) => (
+              <option
+                key={option.phoneNumber}
+                value={option.phoneNumber}
+                label={`${option.phoneNumber} - ${option.guestName}`}
+              />
+            ))}
+          </datalist>
+          {phoneFilter && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => setPhoneFilter('')}
+            >
+              Clear Phone Filter
+            </button>
+          )}
+        </div>
 
         <button
           className="btn btn-secondary"
@@ -529,6 +723,10 @@ export default function GuestCheckinManagement() {
             {viewMode === 'daily' && `Managing guest entries for ${new Date(selectedStatus.date).toLocaleDateString()}`}
             {viewMode === 'weekly' && `Weekly consolidated view around ${new Date(selectedStatus.date).toLocaleDateString()}`}
             {viewMode === 'monthly' && `Monthly consolidated view for ${new Date(selectedStatus.date).toLocaleDateString()}`}
+          </p>
+          <p>
+            Showing {filteredGuestCheckins.length} of {guestCheckins.length} guest check-in{guestCheckins.length === 1 ? '' : 's'}
+            {phoneFilter ? ` for phone match ${phoneFilter}` : ''}
           </p>
         </div>
       )}
@@ -631,6 +829,28 @@ export default function GuestCheckinManagement() {
               {purposeValidationMessage}
             </div>
           )}
+          <div style={{ marginBottom: '0.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
+              Proof (ID/document photo)
+            </label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setFormFiles(prev => ({ ...prev, proof: e.target.files?.[0] ?? null }))}
+            />
+            {formFiles.proof && <span style={{ marginLeft: '0.5rem', fontSize: '0.85rem' }}>{formFiles.proof.name}</span>}
+          </div>
+          <div style={{ marginBottom: '0.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
+              Guest Photo
+            </label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setFormFiles(prev => ({ ...prev, photo: e.target.files?.[0] ?? null }))}
+            />
+            {formFiles.photo && <span style={{ marginLeft: '0.5rem', fontSize: '0.85rem' }}>{formFiles.photo.name}</span>}
+          </div>
           <div className="form-buttons">
             <button type="submit" className="btn btn-success" disabled={saving || !selectedStatus || !isFormValid}>
               {saving ? 'Saving...' : 'Check In Guest'}
@@ -642,18 +862,30 @@ export default function GuestCheckinManagement() {
 
       {loading ? (
         <div className="loading-spinner"></div>
-      ) : guestCheckins.length === 0 ? (
+      ) : filteredGuestCheckins.length === 0 ? (
         <div className="no-results-message">
-          <p>No guest check-ins found for the selected date.</p>
+          <p>
+            {phoneFilter
+              ? 'No guest check-ins match the selected phone number.'
+              : 'No guest check-ins found for the selected date.'}
+          </p>
         </div>
       ) : (
         <div className="items-grid">
-          {guestCheckins.map((guest) => {
+          {filteredGuestCheckins.map((guest) => {
             const isCheckedOut = Boolean(guest.checkOutTime);
+            const isCollapsed = collapsedGuestIds[guest.id] ?? true;
             return (
-              <div key={guest.id} className="item-card">
+              <div key={guest.id} className={`item-card guest-checkin-card${isCollapsed ? ' is-collapsed' : ''}`}>
                 <div className="item-header">
-                  <h4>{guest.guestName}</h4>
+                  <div className="guest-card-title-block">
+                    <h4>{guest.guestName}</h4>
+                    <div className="guest-card-summary">
+                      <span>{guest.phoneNumber || 'No phone number'}</span>
+                      <span>{guest.visitingRoomNo ? `Room ${guest.visitingRoomNo}` : 'No room assigned'}</span>
+                      <span>{isCheckedOut ? 'Checked out' : 'Active'}</span>
+                    </div>
+                  </div>
                   <div className="item-actions">
                     {!isCheckedOut && (
                       <input
@@ -686,29 +918,47 @@ export default function GuestCheckinManagement() {
                         Delete
                       </button>
                     )}
+                    <button
+                      type="button"
+                      className="btn-collapse-icon"
+                      onClick={() => toggleGuestCard(guest.id)}
+                      aria-expanded={!isCollapsed}
+                      title={isCollapsed ? 'Expand' : 'Collapse'}
+                    >
+                      {isCollapsed ? '▶' : '▼'}
+                    </button>
                   </div>
                 </div>
 
-                <p><strong>Phone:</strong> {guest.phoneNumber || 'N/A'}</p>
-                <p><strong>Status Date:</strong> {guest.statusDate ? new Date(guest.statusDate).toLocaleDateString() : 'N/A'}</p>
-                <p><strong>Visiting Room:</strong> {guest.visitingRoomNo || 'N/A'}</p>
-                <p><strong>Rent:</strong> ₹{(guest.rentAmount || 0).toFixed(2)}</p>
-                <p><strong>Deposit:</strong> ₹{(guest.depositAmount || 0).toFixed(2)}</p>
-                <p><strong>Purpose:</strong> {guest.purpose || 'N/A'}</p>
-                <p><strong>Check-In:</strong> {new Date(guest.checkInTime).toLocaleString()}</p>
-                <p><strong>Check-Out:</strong> {guest.checkOutTime ? new Date(guest.checkOutTime).toLocaleString() : 'Still inside'}</p>
-                {!isCheckedOut && (
-                  <p>
-                    <strong>Auto Rent on Checkout:</strong> ₹
-                    {calculateRentForStay(
-                      guest.checkInTime,
-                      getSelectedCheckoutDate(guest),
-                      guest.rentAmount || 0
-                    ).toFixed(2)}
-                    {' '}for{' '}
-                    {calculateStayDays(guest.checkInTime, getSelectedCheckoutDate(guest))}
-                    {' '}day(s)
-                  </p>
+                {!isCollapsed && (
+                  <div className="guest-card-content">
+                    <p><strong>Phone:</strong> {guest.phoneNumber || 'N/A'}</p>
+                    <p><strong>Status Date:</strong> {guest.statusDate ? new Date(guest.statusDate).toLocaleDateString() : 'N/A'}</p>
+                    <p><strong>Visiting Room:</strong> {guest.visitingRoomNo || 'N/A'}</p>
+                    <p><strong>Rent:</strong> ₹{(guest.rentAmount || 0).toFixed(2)}</p>
+                    <p><strong>Deposit:</strong> ₹{(guest.depositAmount || 0).toFixed(2)}</p>
+                    <p><strong>Purpose:</strong> {guest.purpose || 'N/A'}</p>
+                    <p><strong>Check-In:</strong> {new Date(guest.checkInTime).toLocaleString()}</p>
+                    <p><strong>Check-Out:</strong> {guest.checkOutTime ? new Date(guest.checkOutTime).toLocaleString() : 'Still inside'}</p>
+                    {!isCheckedOut && (
+                      <p>
+                        <strong>Auto Rent on Checkout:</strong> ₹
+                        {calculateRentForStay(
+                          guest.checkInTime,
+                          getSelectedCheckoutDate(guest),
+                          guest.rentAmount || 0
+                        ).toFixed(2)}
+                        {' '}for{' '}
+                        {calculateStayDays(guest.checkInTime, getSelectedCheckoutDate(guest))}
+                        {' '}day(s)
+                      </p>
+                    )}
+                    <GuestFileUploadSection
+                      guest={guest}
+                      uploading={!!uploadingFiles[guest.id]}
+                      onUpload={handleUploadFiles}
+                    />
+                  </div>
                 )}
               </div>
             );
