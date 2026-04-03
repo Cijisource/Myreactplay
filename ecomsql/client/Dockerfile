@@ -21,14 +21,16 @@ COPY package.json package-lock.json .npmrc* ./
 # Using npm install for better compatibility
 # --prefer-offline helps with network issues
 # --no-audit speeds up installation
-RUN npm install --prefer-offline --no-audit --legacy-peer-deps 2>&1
+RUN npm install --prefer-offline --no-audit --legacy-peer-deps 2>&1 && \
+    npm cache clean --force
 
 # Copy source code
 COPY public public/
 COPY src src/
 
 # Build the application
-RUN npm run build
+RUN npm run build && \
+    rm -rf node_modules
 
 # Production stage
 FROM node:18-slim
@@ -36,7 +38,7 @@ FROM node:18-slim
 WORKDIR /app
 
 # Install serve to run the production build
-RUN npm install -g serve
+RUN npm install -g serve && npm cache clean --force
 
 # Copy built application from builder stage
 COPY --from=builder /app/build build/
