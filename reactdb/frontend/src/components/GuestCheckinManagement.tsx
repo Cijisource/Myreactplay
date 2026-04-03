@@ -413,7 +413,7 @@ export default function GuestCheckinManagement() {
       setError(null);
       setSuccess(null);
 
-      await apiService.updateDailyGuestCheckin(selectedStatus.id, guest.id, {
+      await apiService.updateDailyGuestCheckin(guest.dailyStatusId, guest.id, {
         checkOutTime: buildCheckoutDateTimeIso(selectedCheckoutDate),
         rentAmount: calculatedRent
       });
@@ -424,7 +424,7 @@ export default function GuestCheckinManagement() {
         delete next[guest.id];
         return next;
       });
-      await fetchGuestCheckins(selectedStatus.id);
+      await fetchGuestCheckins(selectedStatus?.id ?? guest.dailyStatusId);
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to check out guest'));
     } finally {
@@ -432,23 +432,21 @@ export default function GuestCheckinManagement() {
     }
   };
 
-  const handleDelete = async (guestCheckinId: number) => {
+  const handleDelete = async (guest: GuestCheckIn) => {
     if (!isAdmin) {
       setError('Only admin can delete guest check-ins');
       return;
     }
-
-    if (!selectedStatus) return;
 
     try {
       setSaving(true);
       setError(null);
       setSuccess(null);
 
-      await apiService.deleteDailyGuestCheckin(selectedStatus.id, guestCheckinId);
+      await apiService.deleteDailyGuestCheckin(guest.dailyStatusId, guest.id);
 
       setSuccess('Guest check-in deleted successfully');
-      await fetchGuestCheckins(selectedStatus.id);
+      await fetchGuestCheckins(selectedStatus?.id ?? guest.dailyStatusId);
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to delete guest check-in'));
     } finally {
@@ -663,7 +661,7 @@ export default function GuestCheckinManagement() {
                     {isAdmin && (
                       <button
                         className="btn btn-sm btn-danger"
-                        onClick={() => handleDelete(guest.id)}
+                        onClick={() => handleDelete(guest)}
                         disabled={saving}
                       >
                         Delete
