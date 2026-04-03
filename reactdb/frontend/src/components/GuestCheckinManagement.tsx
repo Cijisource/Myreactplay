@@ -386,8 +386,22 @@ export default function GuestCheckinManagement() {
     return date.toISOString();
   };
 
+  const refreshCurrentView = async (fallbackStatusId?: number) => {
+    if (viewMode === 'daily') {
+      await fetchGuestCheckins(selectedStatus?.id ?? fallbackStatusId ?? null);
+      return;
+    }
+
+    await fetchConsolidatedGuestCheckins(viewMode);
+  };
+
   const handleCheckout = async (guest: GuestCheckIn) => {
     if (!selectedStatus) return;
+
+    if (!guest.dailyStatusId) {
+      setError('Missing daily status for this guest check-in');
+      return;
+    }
 
     const selectedCheckoutDate = getSelectedCheckoutDate(guest);
     const stayDays = calculateStayDays(guest.checkInTime, selectedCheckoutDate);
@@ -424,7 +438,7 @@ export default function GuestCheckinManagement() {
         delete next[guest.id];
         return next;
       });
-      await fetchGuestCheckins(selectedStatus?.id ?? guest.dailyStatusId);
+      await refreshCurrentView(guest.dailyStatusId);
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to check out guest'));
     } finally {
@@ -438,6 +452,11 @@ export default function GuestCheckinManagement() {
       return;
     }
 
+    if (!guest.dailyStatusId) {
+      setError('Missing daily status for this guest check-in');
+      return;
+    }
+
     try {
       setSaving(true);
       setError(null);
@@ -446,7 +465,7 @@ export default function GuestCheckinManagement() {
       await apiService.deleteDailyGuestCheckin(guest.dailyStatusId, guest.id);
 
       setSuccess('Guest check-in deleted successfully');
-      await fetchGuestCheckins(selectedStatus?.id ?? guest.dailyStatusId);
+      await refreshCurrentView(guest.dailyStatusId);
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to delete guest check-in'));
     } finally {
