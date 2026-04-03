@@ -15,7 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY package.json package-lock.json .npmrc* ./
 
 # Install production dependencies only
-RUN npm install --production --prefer-offline --no-audit --legacy-peer-deps 2>&1
+RUN npm install --production --prefer-offline --no-audit --legacy-peer-deps 2>&1 && \
+    npm cache clean --force
 
 # Final stage - Minimal production image
 FROM node:18.19.0-slim

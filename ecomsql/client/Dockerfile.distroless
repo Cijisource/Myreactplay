@@ -1,14 +1,9 @@
-# Dockerfile.alpine
-# Alternative Dockerfile using Alpine Linux with build tools
-# Use this if node:18-slim has issues: docker build -f Dockerfile.alpine -t ecommerce-client .
-
 # Build stage
 FROM node:18-alpine as builder
 
 WORKDIR /app
 
-# Install build essentials for Alpine (needed for native module compilation)
-# apk is Alpine's package manager, it's faster but minimal
+# Install build essentials
 RUN apk add --no-cache --virtual .build-deps \
     python3 \
     make \
@@ -20,7 +15,6 @@ RUN apk add --no-cache --virtual .build-deps \
 COPY package.json package-lock.json .npmrc* ./
 
 # Install dependencies
-# Using npm install with optimization flags
 RUN npm install --prefer-offline --no-audit --legacy-peer-deps 2>&1 && \
     npm cache clean --force
 
@@ -29,19 +23,18 @@ COPY public public/
 COPY src src/
 
 # Build the application
-RUN npm run build && \
-    rm -rf node_modules
+RUN npm run build
 
-# Production stage
-FROM node:18-alpine
+# Production stage using distroless Node
+FROM gcr.io/distroless/nodejs18-debian11
 
 WORKDIR /app
 
-# Install serve and clean npm cache to reduce image size
-RUN npm install -g serve && npm cache clean --force
-
 # Copy built application from builder stage
 COPY --from=builder /app/build build/
+
+# Copy package.json for reference
+COPY --from=builder /app/package.json package.json
 
 # Expose port 3002
 EXPOSE 3002
@@ -49,5 +42,10 @@ EXPOSE 3002
 # Set environment to production
 ENV NODE_ENV=production
 
-# Start the application
-CMD ["serve", "-s", "build", "-l", "3002"]
+# Use npx serve alternative: simple HTTP server
+# For distroless, we'll use node's built-in http server with a wrapper script
+COPY --from=builder /app/node_modules node_modules
+
+# Start the application with serve (must be in node_modules)
+ENTRYPOINT ["/nodejs/bin/node", "/app/node_modules/.bin/serve"]
+CMD ["-s", "build", "-l", "3002"]
