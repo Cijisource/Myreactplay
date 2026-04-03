@@ -1,7 +1,83 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiService, getGuestCheckinFileUrl } from '../api';
 import { useAuth } from './AuthContext';
 import './ManagementStyles.css';
+
+interface CameraCaptureProps {
+  label?: string;
+  onCapture: (file: File) => void;
+  onCancel: () => void;
+}
+
+function CameraCapture({ label = 'photo', onCapture, onCancel }: CameraCaptureProps) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [camError, setCamError] = useState<string | null>(null);
+
+  useEffect(() => {
+    navigator.mediaDevices
+      .getUserMedia({ video: true })
+      .then((s) => {
+        setStream(s);
+        if (videoRef.current) {
+          videoRef.current.srcObject = s;
+        }
+      })
+      .catch(() => setCamError('Camera access denied or unavailable'));
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      stream?.getTracks().forEach((t) => t.stop());
+    };
+  }, [stream]);
+
+  const handleCapture = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d')?.drawImage(video, 0, 0);
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          const file = new File([blob], `${label}-${Date.now()}.jpg`, { type: 'image/jpeg' });
+          stream?.getTracks().forEach((t) => t.stop());
+          onCapture(file);
+        }
+      },
+      'image/jpeg',
+      0.9
+    );
+  };
+
+  const handleCancel = () => {
+    stream?.getTracks().forEach((t) => t.stop());
+    onCancel();
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ background: '#fff', borderRadius: 8, padding: '1rem', maxWidth: '90vw', width: 520 }}>
+        <h4 style={{ marginTop: 0, textTransform: 'capitalize' }}>Capture {label}</h4>
+        {camError ? (
+          <p style={{ color: 'red' }}>{camError}</p>
+        ) : (
+          <video ref={videoRef} autoPlay playsInline style={{ width: '100%', borderRadius: 4, background: '#000' }} />
+        )}
+        <canvas ref={canvasRef} style={{ display: 'none' }} />
+        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', justifyContent: 'flex-end' }}>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={handleCancel}>Cancel</button>
+          {!camError && (
+            <button type="button" className="btn btn-primary btn-sm" onClick={handleCapture}>Capture</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface DailyStatus {
   id: number;
@@ -40,11 +116,23 @@ interface GuestFileUploadSectionProps {
 function GuestFileUploadSection({ guest, uploading, onUpload }: GuestFileUploadSectionProps) {
   const [proof, setProof] = useState<File | null>(null);
   const [photo, setPhoto] = useState<File | null>(null);
+  const [camera, setCamera] = useState<'proof' | 'photo' | null>(null);
 
   const hasFiles = proof || photo;
 
   return (
     <div style={{ marginTop: '0.75rem', borderTop: '1px solid #e0e0e0', paddingTop: '0.75rem' }}>
+      {camera && (
+        <CameraCapture
+          label={camera}
+          onCapture={(file) => {
+            if (camera === 'proof') setProof(file);
+            else setPhoto(file);
+            setCamera(null);
+          }}
+          onCancel={() => setCamera(null)}
+        />
+      )}
       <strong>Documents</strong>
       <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.4rem' }}>
         {guest.proofUrl && (
@@ -70,25 +158,39 @@ function GuestFileUploadSection({ guest, uploading, onUpload }: GuestFileUploadS
           </a>
         )}
       </div>
-      <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-        <label style={{ fontSize: '0.85rem' }}>
-          {guest.proofUrl ? 'Replace Proof:' : 'Upload Proof:'}
-          <input
-            type="file"
-            accept="image/*"
-            style={{ marginLeft: '0.5rem' }}
-            onChange={(e) => setProof(e.target.files?.[0] ?? null)}
-          />
-        </label>
-        <label style={{ fontSize: '0.85rem' }}>
-          {guest.photoUrl ? 'Replace Photo:' : 'Upload Photo:'}
-          <input
-            type="file"
-            accept="image/*"
-            style={{ marginLeft: '0.5rem' }}
-            onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
-          />
-        </label>
+      <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+        <div>
+          <label style={{ fontSize: '0.85rem' }}>
+            {guest.proofUrl ? 'Replace Proof:' : 'Upload Proof:'}
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              style={{ marginLeft: '0.5rem' }}
+              onChange={(e) => setProof(e.target.files?.[0] ?? null)}
+            />
+          </label>
+          <button type="button" className="btn btn-sm btn-secondary" style={{ marginLeft: '0.5rem' }} onClick={() => setCamera('proof')}>
+            Use Camera
+          </button>
+          {proof && <span style={{ marginLeft: '0.5rem', fontSize: '0.8rem', color: '#555' }}>{proof.name}</span>}
+        </div>
+        <div>
+          <label style={{ fontSize: '0.85rem' }}>
+            {guest.photoUrl ? 'Replace Photo:' : 'Upload Photo:'}
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              style={{ marginLeft: '0.5rem' }}
+              onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
+            />
+          </label>
+          <button type="button" className="btn btn-sm btn-secondary" style={{ marginLeft: '0.5rem' }} onClick={() => setCamera('photo')}>
+            Use Camera
+          </button>
+          {photo && <span style={{ marginLeft: '0.5rem', fontSize: '0.8rem', color: '#555' }}>{photo.name}</span>}
+        </div>
         {hasFiles && (
           <button
             className="btn btn-sm btn-primary"
@@ -139,6 +241,7 @@ export default function GuestCheckinManagement() {
     proof: null,
     photo: null
   });
+  const [formCamera, setFormCamera] = useState<'proof' | 'photo' | null>(null);
   const [uploadingFiles, setUploadingFiles] = useState<Record<number, boolean>>({});
 
   const phoneRegex = /^\d{10}$/;
@@ -745,6 +848,16 @@ export default function GuestCheckinManagement() {
       {viewMode === 'daily' && (
       <div className="form-container" style={{ marginBottom: '1rem' }}>
         <h3>Add Guest Check-In</h3>
+        {formCamera && (
+          <CameraCapture
+            label={formCamera}
+            onCapture={(file) => {
+              setFormFiles(prev => ({ ...prev, [formCamera]: file }));
+              setFormCamera(null);
+            }}
+            onCancel={() => setFormCamera(null)}
+          />
+        )}
         <form onSubmit={handleCreateCheckin}>
           <input
             type="text"
@@ -833,23 +946,35 @@ export default function GuestCheckinManagement() {
             <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
               Proof (ID/document photo)
             </label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => setFormFiles(prev => ({ ...prev, proof: e.target.files?.[0] ?? null }))}
-            />
-            {formFiles.proof && <span style={{ marginLeft: '0.5rem', fontSize: '0.85rem' }}>{formFiles.proof.name}</span>}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={(e) => setFormFiles(prev => ({ ...prev, proof: e.target.files?.[0] ?? null }))}
+              />
+              <button type="button" className="btn btn-sm btn-secondary" onClick={() => setFormCamera('proof')}>
+                Use Camera
+              </button>
+              {formFiles.proof && <span style={{ fontSize: '0.85rem', color: '#555' }}>{formFiles.proof.name}</span>}
+            </div>
           </div>
           <div style={{ marginBottom: '0.5rem' }}>
             <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
               Guest Photo
             </label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => setFormFiles(prev => ({ ...prev, photo: e.target.files?.[0] ?? null }))}
-            />
-            {formFiles.photo && <span style={{ marginLeft: '0.5rem', fontSize: '0.85rem' }}>{formFiles.photo.name}</span>}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={(e) => setFormFiles(prev => ({ ...prev, photo: e.target.files?.[0] ?? null }))}
+              />
+              <button type="button" className="btn btn-sm btn-secondary" onClick={() => setFormCamera('photo')}>
+                Use Camera
+              </button>
+              {formFiles.photo && <span style={{ fontSize: '0.85rem', color: '#555' }}>{formFiles.photo.name}</span>}
+            </div>
           </div>
           <div className="form-buttons">
             <button type="submit" className="btn btn-success" disabled={saving || !selectedStatus || !isFormValid}>
