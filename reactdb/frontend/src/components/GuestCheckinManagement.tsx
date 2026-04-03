@@ -42,6 +42,7 @@ export default function GuestCheckinManagement() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [checkoutDates, setCheckoutDates] = useState<Record<number, string>>({});
 
   const [formData, setFormData] = useState({
     guestName: '',
@@ -330,20 +331,114 @@ export default function GuestCheckinManagement() {
     }
   };
 
-  const handleCheckout = async (guestCheckinId: number) => {
+  const formatDateForInput = (value: string | Date): string => {
+    const date = value instanceof Date ? value : new Date(value);
+    if (isNaN(date.getTime())) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const toDateOnly = (value: string | Date): Date => {
+    const date = value instanceof Date ? value : new Date(value);
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  };
+
+  const getSelectedCheckoutDate = (guest: GuestCheckIn): string => {
+    return checkoutDates[guest.id] || formatDateForInput(new Date());
+  };
+
+  const calculateStayDays = (checkInTime: string, checkoutDate: string): number => {
+    const checkIn = new Date(checkInTime);
+    const checkout = new Date(checkoutDate);
+    if (isNaN(checkIn.getTime()) || isNaN(checkout.getTime())) {
+      return 0;
+    }
+
+    const checkInDate = toDateOnly(checkIn);
+    const checkoutDateOnly = toDateOnly(checkout);
+    const diffMs = checkoutDateOnly.getTime() - checkInDate.getTime();
+    if (diffMs < 0) {
+      return 0;
+    }
+
+    return Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
+  };
+
+  const calculateRentForStay = (checkInTime: string, checkoutDate: string, baseDailyRent: number): number => {
+    if (!baseDailyRent || baseDailyRent < 0) {
+      return 0;
+    }
+
+    const stayDays = calculateStayDays(checkInTime, checkoutDate);
+    if (stayDays <= 0) {
+      return 0;
+    }
+
+    const totalRent = baseDailyRent * stayDays;
+    return Math.round(totalRent * 100) / 100;
+  };
+
+  const buildCheckoutDateTimeIso = (checkoutDate: string): string => {
+    const date = new Date(checkoutDate);
+    date.setHours(23, 59, 59, 999);
+    return date.toISOString();
+  };
+
+  const refreshCurrentView = async (fallbackStatusId?: number) => {
+    if (viewMode === 'daily') {
+      await fetchGuestCheckins(selectedStatus?.id ?? fallbackStatusId ?? null);
+      return;
+    }
+
+    await fetchConsolidatedGuestCheckins(viewMode);
+  };
+
+  const handleCheckout = async (guest: GuestCheckIn) => {
     if (!selectedStatus) return;
+
+    if (!guest.dailyStatusId) {
+      setError('Missing daily status for this guest check-in');
+      return;
+    }
+
+    const selectedCheckoutDate = getSelectedCheckoutDate(guest);
+    const stayDays = calculateStayDays(guest.checkInTime, selectedCheckoutDate);
+
+    if (!selectedCheckoutDate) {
+      setError('Please select a checkout date');
+      return;
+    }
+
+    if (stayDays <= 0) {
+      setError('Checkout date cannot be earlier than check-in date');
+      return;
+    }
+
+    const calculatedRent = calculateRentForStay(
+      guest.checkInTime,
+      selectedCheckoutDate,
+      guest.rentAmount || 0
+    );
 
     try {
       setSaving(true);
       setError(null);
       setSuccess(null);
 
-      await apiService.updateDailyGuestCheckin(selectedStatus.id, guestCheckinId, {
-        checkOutTime: new Date().toISOString()
+      await apiService.updateDailyGuestCheckin(guest.dailyStatusId, guest.id, {
+        checkOutTime: buildCheckoutDateTimeIso(selectedCheckoutDate),
+        rentAmount: calculatedRent
       });
 
       setSuccess('Guest checked out successfully');
-      await fetchGuestCheckins(selectedStatus.id);
+      setCheckoutDates(prev => {
+        const next = { ...prev };
+        delete next[guest.id];
+        return next;
+      });
+      await refreshCurrentView(guest.dailyStatusId);
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to check out guest'));
     } finally {
@@ -351,23 +446,26 @@ export default function GuestCheckinManagement() {
     }
   };
 
-  const handleDelete = async (guestCheckinId: number) => {
+  const handleDelete = async (guest: GuestCheckIn) => {
     if (!isAdmin) {
       setError('Only admin can delete guest check-ins');
       return;
     }
 
-    if (!selectedStatus) return;
+    if (!guest.dailyStatusId) {
+      setError('Missing daily status for this guest check-in');
+      return;
+    }
 
     try {
       setSaving(true);
       setError(null);
       setSuccess(null);
 
-      await apiService.deleteDailyGuestCheckin(selectedStatus.id, guestCheckinId);
+      await apiService.deleteDailyGuestCheckin(guest.dailyStatusId, guest.id);
 
       setSuccess('Guest check-in deleted successfully');
-      await fetchGuestCheckins(selectedStatus.id);
+      await refreshCurrentView(guest.dailyStatusId);
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to delete guest check-in'));
     } finally {
@@ -557,9 +655,24 @@ export default function GuestCheckinManagement() {
                 <div className="item-header">
                   <h4>{guest.guestName}</h4>
                   <div className="item-actions">
+                    {!isCheckedOut && (
+                      <input
+                        type="date"
+                        className="sort-select"
+                        value={getSelectedCheckoutDate(guest)}
+                        min={formatDateForInput(guest.checkInTime)}
+                        max={formatDateForInput(new Date())}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setCheckoutDates(prev => ({ ...prev, [guest.id]: value }));
+                        }}
+                        disabled={saving}
+                        style={{ minWidth: '150px' }}
+                      />
+                    )}
                     <button
                       className="btn btn-sm btn-info"
-                      onClick={() => handleCheckout(guest.id)}
+                      onClick={() => handleCheckout(guest)}
                       disabled={isCheckedOut || saving}
                     >
                       {isCheckedOut ? 'Checked Out' : 'Check Out'}
@@ -567,7 +680,7 @@ export default function GuestCheckinManagement() {
                     {isAdmin && (
                       <button
                         className="btn btn-sm btn-danger"
-                        onClick={() => handleDelete(guest.id)}
+                        onClick={() => handleDelete(guest)}
                         disabled={saving}
                       >
                         Delete
@@ -584,6 +697,19 @@ export default function GuestCheckinManagement() {
                 <p><strong>Purpose:</strong> {guest.purpose || 'N/A'}</p>
                 <p><strong>Check-In:</strong> {new Date(guest.checkInTime).toLocaleString()}</p>
                 <p><strong>Check-Out:</strong> {guest.checkOutTime ? new Date(guest.checkOutTime).toLocaleString() : 'Still inside'}</p>
+                {!isCheckedOut && (
+                  <p>
+                    <strong>Auto Rent on Checkout:</strong> ₹
+                    {calculateRentForStay(
+                      guest.checkInTime,
+                      getSelectedCheckoutDate(guest),
+                      guest.rentAmount || 0
+                    ).toFixed(2)}
+                    {' '}for{' '}
+                    {calculateStayDays(guest.checkInTime, getSelectedCheckoutDate(guest))}
+                    {' '}day(s)
+                  </p>
+                )}
               </div>
             );
           })}
