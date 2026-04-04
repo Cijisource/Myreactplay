@@ -775,7 +775,7 @@
 
 @media (max-width: 768px) {
   .occupancy-links-container {
-    padding: clamp(1rem, 3vw, 2rem);
+    padding: 0;
   }
 
   .links-header {
@@ -925,7 +925,7 @@
 
 @media (max-width: 480px) {
   .occupancy-links-container {
-    padding: clamp(0.75rem, 2vw, 1rem);
+    padding: 0;
   }
 
   .links-header {

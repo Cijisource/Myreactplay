@@ -928,3 +928,66 @@ h2 {
     margin-top: clamp(32px, 3.5vw, 38px);
   }
 }
+
+/* Desktop hamburger dropdown behavior */
+@media (min-width: 1025px) {
+  .top-header-bar {
+    overflow: visible;
+  }
+
+  .header-center {
+    display: flex !important;
+    position: relative;
+    justify-content: center;
+    align-items: center;
+    flex: 1 1 auto;
+  }
+
+  .header-center .page-title {
+    display: none !important;
+  }
+
+  .header-nav {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    transform: none;
+    width: min(540px, 92vw);
+    max-height: 0;
+    opacity: 0;
+    pointer-events: none;
+    overflow: hidden;
+    background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    transition: max-height 0.25s ease, opacity 0.2s ease;
+    z-index: 1002;
+  }
+
+  .header-nav.open {
+    max-height: 72vh;
+    opacity: 1;
+    pointer-events: auto;
+    overflow-y: auto;
+  }
+
+  .header-nav .nav-items-container {
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px;
+  }
+
+  .header-nav:not(.open) .nav-items-container {
+    padding-top: 0;
+    padding-bottom: 0;
+    gap: 0;
+  }
+
+  .header-nav .nav-item {
+    width: 100%;
+    text-align: left;
+    justify-content: flex-start;
+    border-left: 3px solid transparent;
+  }
+}

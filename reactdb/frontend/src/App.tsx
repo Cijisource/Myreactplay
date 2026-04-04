@@ -106,14 +106,16 @@ function AppContent() {
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Element | null;
       const userMenuEl = document.querySelector('.user-profile-dropdown');
       const navEl = document.querySelector('.header-nav');
+      const clickedHamburger = Boolean(target?.closest('.hamburger-btn'));
       
-      if (userMenuEl && !userMenuEl.contains(e.target as Node)) {
+      if (userMenuEl && !userMenuEl.contains(target as Node)) {
         setUserMenuOpen(false);
       }
-      if (navEl && !navEl.contains(e.target as Node) && 
-          !(e.target as Element).classList?.contains('hamburger-btn')) {
+
+      if (navEl && !navEl.contains(target as Node) && !clickedHamburger) {
         setMobileMenuOpen(false);
       }
     };
@@ -386,22 +388,16 @@ function AppContent() {
           </h2>
         </div>
 
-        {mobileMenuOpen && (
-          <div
-            className="mobile-nav-backdrop"
-            onClick={() => setMobileMenuOpen(false)}
-          />
-        )}
         <div className={`header-nav ${mobileMenuOpen ? 'open' : ''}`}>
           <div className={`nav-items-container`}>
             {NAV_ITEMS.map(item => {
               const userRoles = user?.roles?.split(',').map(r => r.trim()).filter(r => r) || [];
               const hasAccess = item.roles.length === 0 || userRoles.some(r => item.roles.includes(r));
-              
+
               if (!hasAccess) return null;
-              
+
               return (
-                <button 
+                <button
                   key={item.page}
                   className={`nav-item ${currentPage === item.page ? 'active' : ''}`}
                   onClick={() => {
@@ -415,7 +411,13 @@ function AppContent() {
             })}
           </div>
         </div>
-        
+
+        {mobileMenuOpen && (
+          <div
+            className="mobile-nav-backdrop"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+        )}
         <div className="header-right">
           <div className="user-profile-dropdown">
             <button 
