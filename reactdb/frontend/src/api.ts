@@ -499,6 +499,24 @@ export const apiService = {
       return response.json();
     }).then(data => ({ data }));
   },
+  uploadGuestCheckinFile: (
+    statusId: number,
+    guestCheckinId: number,
+    fieldName: 'proof' | 'photo',
+    file: File,
+    onProgress?: (progress: number) => void
+  ) => {
+    const formData = new FormData();
+    formData.append(fieldName, file);
+
+    return xhrRequestWithAuthRetry(
+      'POST',
+      `${API_URL}/daily-status/${statusId}/guest-checkins/${guestCheckinId}/upload`,
+      formData,
+      (responseText) => JSON.parse(responseText),
+      onProgress
+    );
+  },
   getDailyStatusMedia: (statusId: number) => api.get(`/daily-status/${statusId}/media`),
   getDailyStatusAllMedia: () => api.get('/all-media/'), // New endpoint to fetch all media files
   uploadDailyStatusMedia: (formData: FormData, onProgress?: (progress: number) => void) => {

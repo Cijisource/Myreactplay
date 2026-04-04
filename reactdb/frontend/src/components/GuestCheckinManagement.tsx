@@ -139,10 +139,11 @@ interface Room {
 interface GuestFileUploadSectionProps {
   guest: GuestCheckIn;
   uploading: boolean;
+  uploadProgress: number;
   onUpload: (guest: GuestCheckIn, proof: File | null, photo: File | null) => void;
 }
 
-function GuestFileUploadSection({ guest, uploading, onUpload }: GuestFileUploadSectionProps) {
+function GuestFileUploadSection({ guest, uploading, uploadProgress, onUpload }: GuestFileUploadSectionProps) {
   const [proof, setProof] = useState<File | null>(null);
   const [photo, setPhoto] = useState<File | null>(null);
   const [camera, setCamera] = useState<'proof' | 'photo' | null>(null);
@@ -219,18 +220,37 @@ function GuestFileUploadSection({ guest, uploading, onUpload }: GuestFileUploadS
           {photo && <span style={{ marginLeft: '0.5rem', fontSize: '0.8rem', color: '#555' }}>{photo.name}</span>}
         </div>
         {hasFiles && (
-          <button
-            className="btn btn-sm btn-primary"
-            style={{ marginTop: '0.25rem', alignSelf: 'flex-start' }}
-            disabled={uploading}
-            onClick={() => {
-              onUpload(guest, proof, photo);
-              setProof(null);
-              setPhoto(null);
-            }}
-          >
-            {uploading ? 'Uploading...' : 'Upload Files'}
-          </button>
+          <>
+            <button
+              className="btn btn-sm btn-primary"
+              style={{ marginTop: '0.25rem', alignSelf: 'flex-start' }}
+              disabled={uploading}
+              onClick={() => {
+                onUpload(guest, proof, photo);
+                setProof(null);
+                setPhoto(null);
+              }}
+            >
+              {uploading ? 'Uploading...' : 'Upload Files'}
+            </button>
+            {uploading && (
+              <div style={{ marginTop: '0.5rem', width: '100%', maxWidth: 280 }}>
+                <div style={{ height: 8, background: '#e5e7eb', borderRadius: 999, overflow: 'hidden' }}>
+                  <div
+                    style={{
+                      width: `${Math.max(0, Math.min(100, uploadProgress))}%`,
+                      height: '100%',
+                      background: '#0ea5e9',
+                      transition: 'width 0.2s ease'
+                    }}
+                  />
+                </div>
+                <div style={{ marginTop: 4, fontSize: '0.8rem', color: '#334155' }}>
+                  Uploading {Math.max(0, Math.min(100, uploadProgress))}%
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -270,6 +290,8 @@ export default function GuestCheckinManagement() {
   });
   const [formCamera, setFormCamera] = useState<'proof' | 'photo' | null>(null);
   const [uploadingFiles, setUploadingFiles] = useState<Record<number, boolean>>({});
+  const [uploadProgressByGuest, setUploadProgressByGuest] = useState<Record<number, number>>({});
+  const [createUploadProgress, setCreateUploadProgress] = useState(0);
 
   const phoneRegex = /^\d{10}$/;
 
@@ -569,11 +591,15 @@ export default function GuestCheckinManagement() {
 
       // Upload proof/photo files if provided
       if ((formFiles.proof || formFiles.photo) && created.data?.id) {
-        const fd = new FormData();
-        if (formFiles.proof) fd.append('proof', formFiles.proof);
-        if (formFiles.photo) fd.append('photo', formFiles.photo);
+        setCreateUploadProgress(0);
         try {
-          await apiService.uploadGuestCheckinFiles(selectedStatus.id, created.data.id, fd);
+          await uploadGuestFilesInParallel(
+            selectedStatus.id,
+            created.data.id,
+            formFiles.proof,
+            formFiles.photo,
+            setCreateUploadProgress
+          );
         } catch (uploadErr) {
           console.warn('File upload failed after check-in creation:', uploadErr);
         }
@@ -588,6 +614,7 @@ export default function GuestCheckinManagement() {
         depositAmount: ''
       });
       setFormFiles({ proof: null, photo: null });
+      setCreateUploadProgress(0);
       setSuccess('Guest check-in recorded successfully');
       await fetchGuestCheckins(selectedStatus.id);
     } catch (err) {
@@ -753,24 +780,70 @@ export default function GuestCheckinManagement() {
     setFormData(prev => ({ ...prev, phoneNumber: digitsOnly }));
   };
 
+  const uploadGuestFilesInParallel = async (
+    statusId: number,
+    guestId: number,
+    proof: File | null,
+    photo: File | null,
+    onProgress: (progress: number) => void
+  ) => {
+    const files: Array<{ field: 'proof' | 'photo'; file: File }> = [];
+    if (proof) files.push({ field: 'proof', file: proof });
+    if (photo) files.push({ field: 'photo', file: photo });
+
+    if (files.length === 0) {
+      onProgress(0);
+      return;
+    }
+
+    const totalBytes = files.reduce((sum, item) => sum + (item.file.size || 0), 0) || files.length;
+    const progressByField: Record<'proof' | 'photo', number> = { proof: 0, photo: 0 };
+
+    const updateAggregateProgress = () => {
+      const uploadedBytes = files.reduce((sum, item) => {
+        const fieldProgress = Math.max(0, Math.min(100, progressByField[item.field] || 0));
+        return sum + (fieldProgress / 100) * (item.file.size || 1);
+      }, 0);
+      const progress = Math.round((uploadedBytes / totalBytes) * 100);
+      onProgress(Math.max(0, Math.min(100, progress)));
+    };
+
+    onProgress(0);
+    await Promise.all(
+      files.map(({ field, file }) =>
+        apiService.uploadGuestCheckinFile(statusId, guestId, field, file, (progress) => {
+          progressByField[field] = progress;
+          updateAggregateProgress();
+        })
+      )
+    );
+    onProgress(100);
+  };
+
   const handleUploadFiles = async (guest: GuestCheckIn, proof: File | null, photo: File | null) => {
     if (!proof && !photo) return;
 
-    const fd = new FormData();
-    if (proof) fd.append('proof', proof);
-    if (photo) fd.append('photo', photo);
-
     setUploadingFiles(prev => ({ ...prev, [guest.id]: true }));
+    setUploadProgressByGuest(prev => ({ ...prev, [guest.id]: 0 }));
     setError(null);
     setSuccess(null);
     try {
-      await apiService.uploadGuestCheckinFiles(guest.dailyStatusId, guest.id, fd);
+      await uploadGuestFilesInParallel(
+        guest.dailyStatusId,
+        guest.id,
+        proof,
+        photo,
+        (progress) => {
+          setUploadProgressByGuest(prev => ({ ...prev, [guest.id]: progress }));
+        }
+      );
       setSuccess('Files uploaded successfully');
       await refreshCurrentView(guest.dailyStatusId);
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to upload files'));
     } finally {
       setUploadingFiles(prev => ({ ...prev, [guest.id]: false }));
+      setUploadProgressByGuest(prev => ({ ...prev, [guest.id]: 0 }));
     }
   };
 
@@ -1006,6 +1079,23 @@ export default function GuestCheckinManagement() {
               {saving ? 'Saving...' : 'Check In Guest'}
             </button>
           </div>
+          {saving && createUploadProgress > 0 && (
+            <div style={{ marginTop: '0.75rem', width: '100%', maxWidth: 340 }}>
+              <div style={{ height: 10, background: '#e5e7eb', borderRadius: 999, overflow: 'hidden' }}>
+                <div
+                  style={{
+                    width: `${Math.max(0, Math.min(100, createUploadProgress))}%`,
+                    height: '100%',
+                    background: '#16a34a',
+                    transition: 'width 0.2s ease'
+                  }}
+                />
+              </div>
+              <div style={{ marginTop: 4, fontSize: '0.8rem', color: '#14532d' }}>
+                Uploading documents {Math.max(0, Math.min(100, createUploadProgress))}%
+              </div>
+            </div>
+          )}
         </form>
       </div>
       )}
@@ -1106,6 +1196,7 @@ export default function GuestCheckinManagement() {
                     <GuestFileUploadSection
                       guest={guest}
                       uploading={!!uploadingFiles[guest.id]}
+                      uploadProgress={uploadProgressByGuest[guest.id] || 0}
                       onUpload={handleUploadFiles}
                     />
                   </div>

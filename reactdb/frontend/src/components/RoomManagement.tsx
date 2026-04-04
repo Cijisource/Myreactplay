@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, MouseEvent } from 'react';
 import { useAuth } from './AuthContext';
-import { apiService } from '../api';
+import { apiService, getFileUrl } from '../api';
 import { getOccupancyLinks } from '../api';
 import './RoomManagement.css';
 
@@ -20,9 +20,22 @@ interface TenantHistory {
   checkInDate: string;
   checkOutDate: string | null;
   rentFixed: number;
+  advanceCollected: number;
   isActive: boolean;
   currentRentReceived: number;
   currentPendingPayment: number;
+}
+
+interface TenantDetails {
+  id: number;
+  name: string;
+  phone: string;
+  address: string;
+  city: string;
+  photoUrl?: string;
+  roomNumber?: string;
+  checkInDate?: string;
+  checkOutDate?: string;
 }
 
 interface RoomWithHistory extends Room {
@@ -45,6 +58,9 @@ export default function RoomManagement(): JSX.Element {
   const [editingRentRoomId, setEditingRentRoomId] = useState<number | null>(null);
   const [editingRentValue, setEditingRentValue] = useState<string>('');
   const [showStatsGrid, setShowStatsGrid] = useState(true);
+  const [selectedTenant, setSelectedTenant] = useState<TenantDetails | null>(null);
+  const [tenantModalLoading, setTenantModalLoading] = useState(false);
+  const [tenantModalError, setTenantModalError] = useState<string | null>(null);
 
   // Fetch rooms and occupancy data
   useEffect(() => {
@@ -221,6 +237,12 @@ export default function RoomManagement(): JSX.Element {
     return `${beds} bed${beds > 1 ? 's' : ''}`;
   };
 
+  const getRoomAdvanceTotal = (tenantHistory: TenantHistory[]): number => {
+    return tenantHistory
+      .filter((tenant) => tenant.isActive)
+      .reduce((sum, tenant) => sum + (tenant.advanceCollected || 0), 0);
+  };
+
   const renderHighlightedPhone = (phone: string, searchTerm: string): JSX.Element => {
     if (!phone) return <></>;
     const display = (() => {
@@ -337,6 +359,43 @@ export default function RoomManagement(): JSX.Element {
       }
       return newSet;
     });
+  };
+
+  const handleRoomCardClick = (roomId: number, event: MouseEvent<HTMLDivElement>) => {
+    const target = event.target as Element | null;
+
+    if (!target) {
+      toggleRoomExpanded(roomId);
+      return;
+    }
+
+    const isInteractiveElement = target.closest('button, a, input, select, textarea, label');
+    const isInsideTenantHistory = target.closest('.tenant-history');
+
+    if (isInteractiveElement || isInsideTenantHistory) {
+      return;
+    }
+
+    toggleRoomExpanded(roomId);
+  };
+
+  const handleViewTenant = async (tenantId: number) => {
+    try {
+      setTenantModalLoading(true);
+      setTenantModalError(null);
+      const response = await apiService.getTenantById(tenantId);
+      setSelectedTenant(response.data || null);
+    } catch (err) {
+      setTenantModalError(err instanceof Error ? err.message : 'Failed to load tenant details');
+      setSelectedTenant(null);
+    } finally {
+      setTenantModalLoading(false);
+    }
+  };
+
+  const closeTenantModal = () => {
+    setSelectedTenant(null);
+    setTenantModalError(null);
   };
 
   if (loading) {
@@ -475,6 +534,51 @@ export default function RoomManagement(): JSX.Element {
         </div>
       </div>
 
+      {(tenantModalLoading || tenantModalError || selectedTenant) && (
+        <div className="tenant-view-modal-overlay" onClick={closeTenantModal}>
+          <div className="tenant-view-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="tenant-view-modal-header">
+              <h3>Tenant Details</h3>
+              <button className="tenant-view-close" onClick={closeTenantModal} aria-label="Close tenant details">✕</button>
+            </div>
+
+            {tenantModalLoading && <p className="tenant-view-loading">Loading tenant details...</p>}
+
+            {!tenantModalLoading && tenantModalError && (
+              <p className="tenant-view-error">{tenantModalError}</p>
+            )}
+
+            {!tenantModalLoading && !tenantModalError && selectedTenant && (
+              <div className="tenant-view-content">
+                <div className="tenant-view-photo-wrap">
+                  {selectedTenant.photoUrl ? (
+                    <img
+                      src={getFileUrl(selectedTenant.photoUrl)}
+                      alt={selectedTenant.name || 'Tenant'}
+                      className="tenant-view-photo"
+                    />
+                  ) : (
+                    <div className="tenant-view-photo-placeholder">
+                      {(selectedTenant.name || '?').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+
+                <div className="tenant-view-fields">
+                  <p><strong>Name:</strong> {selectedTenant.name || '-'}</p>
+                  <p><strong>Phone:</strong> {selectedTenant.phone || '-'}</p>
+                  <p><strong>City:</strong> {selectedTenant.city || '-'}</p>
+                  <p><strong>Address:</strong> {selectedTenant.address || '-'}</p>
+                  <p><strong>Current Room:</strong> {selectedTenant.roomNumber || '-'}</p>
+                  <p><strong>Check-In:</strong> {selectedTenant.checkInDate ? formatDate(selectedTenant.checkInDate) : '-'}</p>
+                  <p><strong>Check-Out:</strong> {selectedTenant.checkOutDate ? formatDate(selectedTenant.checkOutDate) : '-'}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Rooms List */}
       <div className="rooms-list">
         {groupedRooms.shops.length > 0 || groupedRooms.residential.length > 0 ? (
@@ -498,13 +602,14 @@ export default function RoomManagement(): JSX.Element {
                 {expandedCategories.has('shops') && (
                   <>
                     {groupedRooms.shops.map(room => (
-                  <div key={room.id} className="room-card">
+                  <div key={room.id} className="room-card" onClick={(event) => handleRoomCardClick(room.id, event)}>
                     <div className="room-header">
                       <div className="room-info">
                         <h3 className="room-number">Shop #{room.roomNumber}</h3>
                         <div className="room-badges">
                           <span className="room-beds">{getRoomCategory(room.beds || 0)}</span>
                           <span className="tenants-count">Tenants: {room.tenantHistory.length}</span>
+                          <span className="advance-total-badge">Advance: {formatCurrency(getRoomAdvanceTotal(room.tenantHistory))}</span>
                           {(() => {
                             const vacancy = getVacancyStatus(room.tenantHistory);
                             return vacancy.isVacant ? (
@@ -565,7 +670,10 @@ export default function RoomManagement(): JSX.Element {
                       </div>
 
                       <button
-                        onClick={() => toggleRoomExpanded(room.id)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleRoomExpanded(room.id);
+                        }}
                         className={`expand-btn ${expandedRooms.has(room.id) ? 'expanded' : ''}`}
                       >
                         {expandedRooms.has(room.id) ? '▼' : '▶'}
@@ -581,12 +689,14 @@ export default function RoomManagement(): JSX.Element {
                             <thead>
                               <tr>
                                 <th>Status</th>
+                                <th>View</th>
                                 <th>Tenant Name</th>
                                 <th>Phone</th>
                                 <th>City</th>
                                 <th>Check-In</th>
                                 <th>Check-Out</th>
                                 <th>Rent</th>
+                                <th>Advance</th>
                                 <th>Collected</th>
                                 <th>Pending</th>
                               </tr>
@@ -601,12 +711,24 @@ export default function RoomManagement(): JSX.Element {
                                         {tenant.isActive ? '🟢 Active' : '🔴 Ended'}
                                       </span>
                                     </td>
+                                    <td>
+                                      <button
+                                        type="button"
+                                        className="tenant-view-btn"
+                                        title="View tenant"
+                                        aria-label={`View ${tenant.tenantName || 'tenant'}`}
+                                        onClick={() => handleViewTenant(tenant.tenantId)}
+                                      >
+                                        👁
+                                      </button>
+                                    </td>
                                     <td className="tenant-name">{(tenant.tenantName || '').trim()}</td>
                                     <td className="phone">{renderHighlightedPhone((tenant.tenantPhone || '').trim(), phoneSearchTerm)}</td>
                                     <td className="city">{(tenant.tenantCity || '').trim()}</td>
                                     <td className="date">{formatDate(tenant.checkInDate)}</td>
                                     <td className="date">{tenant.checkOutDate ? formatDate(tenant.checkOutDate) : '-'}</td>
                                     <td className="currency">{formatCurrency(tenant.rentFixed)}</td>
+                                    <td className="currency collected">{formatCurrency(tenant.advanceCollected)}</td>
                                     <td className="currency collected">{formatCurrency(tenant.currentRentReceived)}</td>
                                     <td className="currency pending">{formatCurrency(tenant.currentPendingPayment)}</td>
                                   </tr>
@@ -644,13 +766,14 @@ export default function RoomManagement(): JSX.Element {
                 {expandedCategories.has('residential') && (
                   <>
                     {groupedRooms.residential.map(room => (
-                  <div key={room.id} className="room-card">
+                  <div key={room.id} className="room-card" onClick={(event) => handleRoomCardClick(room.id, event)}>
                     <div className="room-header">
                       <div className="room-info">
                         <h3 className="room-number">Room #{room.roomNumber}</h3>
                         <div className="room-badges">
                           <span className="room-beds">{getRoomCategory(room.beds || 0)}</span>
                           <span className="tenants-count">Tenants: {room.tenantHistory.length}</span>
+                          <span className="advance-total-badge">Advance: {formatCurrency(getRoomAdvanceTotal(room.tenantHistory))}</span>
                           {(() => {
                             const vacancy = getVacancyStatus(room.tenantHistory);
                             return vacancy.isVacant ? (
@@ -711,7 +834,10 @@ export default function RoomManagement(): JSX.Element {
                       </div>
 
                       <button
-                        onClick={() => toggleRoomExpanded(room.id)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleRoomExpanded(room.id);
+                        }}
                         className={`expand-btn ${expandedRooms.has(room.id) ? 'expanded' : ''}`}
                       >
                         {expandedRooms.has(room.id) ? '▼' : '▶'}
@@ -727,12 +853,14 @@ export default function RoomManagement(): JSX.Element {
                             <thead>
                               <tr>
                                 <th>Status</th>
+                                <th>View</th>
                                 <th>Tenant Name</th>
                                 <th>Phone</th>
                                 <th>City</th>
                                 <th>Check-In</th>
                                 <th>Check-Out</th>
                                 <th>Rent</th>
+                                <th>Advance</th>
                                 <th>Collected</th>
                                 <th>Pending</th>
                               </tr>
@@ -747,12 +875,24 @@ export default function RoomManagement(): JSX.Element {
                                         {tenant.isActive ? '🟢 Active' : '🔴 Ended'}
                                       </span>
                                     </td>
+                                    <td>
+                                      <button
+                                        type="button"
+                                        className="tenant-view-btn"
+                                        title="View tenant"
+                                        aria-label={`View ${tenant.tenantName || 'tenant'}`}
+                                        onClick={() => handleViewTenant(tenant.tenantId)}
+                                      >
+                                        👁
+                                      </button>
+                                    </td>
                                     <td className="tenant-name">{(tenant.tenantName || '').trim()}</td>
                                     <td className="phone">{renderHighlightedPhone((tenant.tenantPhone || '').trim(), phoneSearchTerm)}</td>
                                     <td className="city">{(tenant.tenantCity || '').trim()}</td>
                                     <td className="date">{formatDate(tenant.checkInDate)}</td>
                                     <td className="date">{tenant.checkOutDate ? formatDate(tenant.checkOutDate) : '-'}</td>
                                     <td className="currency">{formatCurrency(tenant.rentFixed)}</td>
+                                    <td className="currency collected">{formatCurrency(tenant.advanceCollected)}</td>
                                     <td className="currency collected">{formatCurrency(tenant.currentRentReceived)}</td>
                                     <td className="currency pending">{formatCurrency(tenant.currentPendingPayment)}</td>
                                   </tr>
