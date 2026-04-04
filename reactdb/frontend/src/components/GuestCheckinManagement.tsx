@@ -16,15 +16,44 @@ function CameraCapture({ label = 'photo', onCapture, onCancel }: CameraCapturePr
   const [camError, setCamError] = useState<string | null>(null);
 
   useEffect(() => {
-    navigator.mediaDevices
-      .getUserMedia({ video: true })
-      .then((s) => {
-        setStream(s);
-        if (videoRef.current) {
-          videoRef.current.srcObject = s;
+    let cancelled = false;
+
+    const startCamera = async () => {
+      try {
+        const preferredConstraints: MediaStreamConstraints = {
+          video: { facingMode: { ideal: 'environment' } }
+        };
+        const mediaStream = await navigator.mediaDevices.getUserMedia(preferredConstraints);
+        if (cancelled) {
+          mediaStream.getTracks().forEach((t) => t.stop());
+          return;
         }
-      })
-      .catch(() => setCamError('Camera access denied or unavailable'));
+        setStream(mediaStream);
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
+        }
+      } catch {
+        try {
+          const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true });
+          if (cancelled) {
+            fallbackStream.getTracks().forEach((t) => t.stop());
+            return;
+          }
+          setStream(fallbackStream);
+          if (videoRef.current) {
+            videoRef.current.srcObject = fallbackStream;
+          }
+        } catch {
+          setCamError('Camera access denied or unavailable');
+        }
+      }
+    };
+
+    startCamera();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -165,7 +194,6 @@ function GuestFileUploadSection({ guest, uploading, onUpload }: GuestFileUploadS
             <input
               type="file"
               accept="image/*"
-              capture="environment"
               style={{ marginLeft: '0.5rem' }}
               onChange={(e) => setProof(e.target.files?.[0] ?? null)}
             />
@@ -181,7 +209,6 @@ function GuestFileUploadSection({ guest, uploading, onUpload }: GuestFileUploadS
             <input
               type="file"
               accept="image/*"
-              capture="environment"
               style={{ marginLeft: '0.5rem' }}
               onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
             />
@@ -755,9 +782,9 @@ export default function GuestCheckinManagement() {
   };
 
   return (
-    <div className="management-container guest-checkin-container">
+    <div className="management-container guest-checkin-container guest-checkin-mobile-layout">
       <h2 className="section-heading">Guest Check-In Management</h2>
-      <div className="toolbar">
+      <div className="toolbar guest-checkin-toolbar">
         <select
           className="sort-select"
           value={viewMode}
@@ -821,7 +848,7 @@ export default function GuestCheckinManagement() {
       </div>
 
       {selectedStatus && (
-        <div className="filter-info">
+        <div className="filter-info guest-checkin-filter-info">
           <p>
             {viewMode === 'daily' && `Managing guest entries for ${new Date(selectedStatus.date).toLocaleDateString()}`}
             {viewMode === 'weekly' && `Weekly consolidated view around ${new Date(selectedStatus.date).toLocaleDateString()}`}
@@ -834,7 +861,7 @@ export default function GuestCheckinManagement() {
         </div>
       )}
 
-      <div className="items-grid" style={{ marginBottom: '1rem' }}>
+      <div className="items-grid guest-checkin-stats-grid" style={{ marginBottom: '1rem' }}>
         <div className="item-card"><p><strong>Total Guests:</strong> {consolidatedStats.totalGuests}</p></div>
         <div className="item-card"><p><strong>Active:</strong> {consolidatedStats.activeGuests}</p></div>
         <div className="item-card"><p><strong>Checked Out:</strong> {consolidatedStats.checkedOutGuests}</p></div>
@@ -846,7 +873,7 @@ export default function GuestCheckinManagement() {
       {success && <div className="success-message">{success}</div>}
 
       {viewMode === 'daily' && (
-      <div className="form-container" style={{ marginBottom: '1rem' }}>
+      <div className="form-container guest-checkin-add-section" style={{ marginBottom: '1rem' }}>
         <h3>Add Guest Check-In</h3>
         {formCamera && (
           <CameraCapture
@@ -950,7 +977,6 @@ export default function GuestCheckinManagement() {
               <input
                 type="file"
                 accept="image/*"
-                capture="environment"
                 onChange={(e) => setFormFiles(prev => ({ ...prev, proof: e.target.files?.[0] ?? null }))}
               />
               <button type="button" className="btn btn-sm btn-secondary" onClick={() => setFormCamera('proof')}>
@@ -967,7 +993,6 @@ export default function GuestCheckinManagement() {
               <input
                 type="file"
                 accept="image/*"
-                capture="environment"
                 onChange={(e) => setFormFiles(prev => ({ ...prev, photo: e.target.files?.[0] ?? null }))}
               />
               <button type="button" className="btn btn-sm btn-secondary" onClick={() => setFormCamera('photo')}>

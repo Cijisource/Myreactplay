@@ -52,65 +52,7 @@
   font-size: 0.95em;
   transition: all 0.2s;
   background: white;
-  font-family: inherit;
-}
 
-.search-input {
-  flex: 1;
-  min-width: 200px;
-}
-
-.sort-select {
-  min-width: 150px;
-}
-
-.search-input:focus,
-.sort-select:focus {
-  outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-}
-
-/* Filter Info */
-.filter-info {
-  margin-bottom: 15px;
-  padding: 0.75rem 1rem;
-  background: white;
-  border-left: 3px solid #2563eb;
-  border-radius: 6px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-}
-
-.filter-info p {
-  margin: 0;
-  color: #1e40af;
-  font-weight: 600;
-  font-size: 0.95em;
-}
-
-.filter-info p + p {
-  margin-top: 0.4rem;
-}
-
-.guest-phone-filter-group {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  flex: 1 1 320px;
-  flex-wrap: wrap;
-}
-
-.guest-phone-filter-input {
-  min-width: min(280px, 100%);
-}
-
-/* Consumer Section */
-.consumer-section {
-  margin-bottom: 2rem;
-  padding: 1.5rem;
-  background: white;
-  border-radius: 8px;
-  border-left: 4px solid #2563eb;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
@@ -3185,6 +3127,7 @@
     font-size: 20px;
   }
 
+
   .modal-buttons {
     flex-direction: column;
     gap: 8px;
@@ -3277,5 +3220,62 @@
   .net-balance-value {
     font-size: 1.3rem;
     padding: 0.5rem 0.75rem;
+  }
+}
+
+/* Guest Check-In Mobile Prioritization */
+@media (max-width: 768px) {
+  .guest-checkin-mobile-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .guest-checkin-add-section {
+    order: -4;
+    margin-top: 0.25rem;
+  }
+
+  .guest-checkin-toolbar {
+    order: -3;
+  }
+
+  .guest-checkin-filter-info {
+    order: -2;
+  }
+
+  .guest-checkin-stats-grid {
+    order: -1;
+  }
+
+  .guest-checkin-container .guest-phone-filter-group {
+    width: 100%;
+  }
+
+  .guest-checkin-container .guest-phone-filter-input {
+    min-width: 100%;
+  }
+
+  .guest-checkin-container .item-actions {
+    align-items: stretch;
+  }
+
+  .guest-checkin-container .item-actions .sort-select {
+    min-width: 0 !important;
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .guest-checkin-add-section {
+    padding: 12px;
+  }
+
+  .guest-checkin-container .guest-card-summary {
+    gap: 6px;
+  }
+
+  .guest-checkin-container .guest-card-summary span {
+    font-size: 0.75rem;
   }
 }
