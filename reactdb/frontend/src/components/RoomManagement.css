@@ -515,6 +515,16 @@
   color: #721c24;
 }
 
+.advance-total-badge {
+  background: #fff4e5;
+  color: #9a3412;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid #fed7aa;
+}
+
 /* Expand Button */
 .expand-btn {
   background: none;
@@ -637,6 +647,109 @@
   color: #dc3545;
 }
 
+.tenant-view-btn {
+  border: 1px solid #d0d7de;
+  background: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 6px 8px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tenant-view-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.tenant-view-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+  padding: 16px;
+}
+
+.tenant-view-modal {
+  width: 100%;
+  max-width: 560px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+
+.tenant-view-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid #eee;
+}
+
+.tenant-view-modal-header h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.tenant-view-close {
+  border: none;
+  background: transparent;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.tenant-view-content {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 16px;
+  padding: 16px;
+}
+
+.tenant-view-photo-wrap {
+  display: flex;
+  justify-content: center;
+}
+
+.tenant-view-photo,
+.tenant-view-photo-placeholder {
+  width: 110px;
+  height: 110px;
+  border-radius: 10px;
+  object-fit: cover;
+}
+
+.tenant-view-photo-placeholder {
+  background: #e8edf3;
+  color: #274c77;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 42px;
+  font-weight: 700;
+}
+
+.tenant-view-fields p {
+  margin: 0 0 8px;
+  color: #2f3640;
+  font-size: 14px;
+}
+
+.tenant-view-loading,
+.tenant-view-error {
+  margin: 0;
+  padding: 18px 16px;
+  font-size: 14px;
+}
+
+.tenant-view-error {
+  color: #b42318;
+}
+
 /* No Results */
 .no-results {
   grid-column: 1 / -1;
@@ -756,6 +869,14 @@
   .expand-collapse-buttons {
     width: 100%;
     flex-direction: column;
+  }
+
+  .tenant-view-content {
+    grid-template-columns: 1fr;
+  }
+
+  .tenant-view-photo-wrap {
+    justify-content: flex-start;
   }
 
   .btn-expand-all,

@@ -1156,7 +1156,8 @@ app.get('/api/occupancy/links', verifyToken, requireRole(['admin']), async (req:
         o.CheckInDate as checkInDate,
         o.CheckOutDate as checkOutDate,
         ISNULL(CAST(o.RentFixed AS FLOAT), 0) as rentFixed,
-        CASE WHEN o.CheckOutDate > CAST(GETDATE() AS DATE) THEN 1 ELSE 0 END as isActive,
+        ISNULL(CAST(o.DepositReceived AS FLOAT), 0) as advanceCollected,
+        CASE WHEN o.CheckOutDate IS NULL OR o.CheckOutDate > CAST(GETDATE() AS DATE) THEN 1 ELSE 0 END as isActive,
         ISNULL(CAST(COALESCE(
           (SELECT TOP 1 CAST(RentReceived AS FLOAT) 
            FROM RentalCollection 
@@ -2321,7 +2322,7 @@ app.post('/api/occupancy/checkin', async (req: Request, res: Response) => {
           rd.Rent as roomRent,
           ISNULL(CAST(o.RentFixed AS FLOAT), 0) as rentFixed,
           ISNULL(CAST(o.DepositReceived AS FLOAT), 0) as depositReceived,
-          CASE WHEN o.CheckOutDate > CAST(GETDATE() AS DATE) THEN 1 ELSE 0 END as isActive
+          CASE WHEN o.CheckOutDate IS NULL OR o.CheckOutDate > CAST(GETDATE() AS DATE) THEN 1 ELSE 0 END as isActive
         FROM Occupancy o
         JOIN Tenant t ON o.TenantId = t.Id
         JOIN RoomDetail rd ON o.RoomId = rd.Id
@@ -2474,7 +2475,7 @@ app.post('/api/occupancy/:occupancyId/checkout', async (req: Request, res: Respo
           o.CheckOutDate as checkOutDate,
           ISNULL(CAST(o.DepositRefunded AS FLOAT), 0) as depositRefunded,
           ISNULL(CAST(o.Charges AS FLOAT), 0) as charges,
-          CASE WHEN o.CheckOutDate > CAST(GETDATE() AS DATE) THEN 1 ELSE 0 END as isActive
+          CASE WHEN o.CheckOutDate IS NULL OR o.CheckOutDate > CAST(GETDATE() AS DATE) THEN 1 ELSE 0 END as isActive
         FROM Occupancy o
         JOIN Tenant t ON o.TenantId = t.Id
         JOIN RoomDetail rd ON o.RoomId = rd.Id
@@ -4404,30 +4405,41 @@ app.post('/api/daily-status/:dailyStatusId/guest-checkins/:guestCheckinId/upload
         }
       }
 
-      // Update the record with the new URLs
       const pool = getPool();
-      const existingResult = await pool.request()
-        .input('dailyStatusId', sql.Int, parseInt(dailyStatusId))
-        .input('guestCheckinId', sql.Int, parseInt(guestCheckinId))
-        .query('SELECT ProofUrl, PhotoUrl FROM DailyGuestCheckIn WHERE Id = @guestCheckinId AND DailyStatusId = @dailyStatusId');
+      const guestCheckinIdInt = parseInt(guestCheckinId);
+      const dailyStatusIdInt = parseInt(dailyStatusId);
 
-      if (!existingResult.recordset.length) {
+      const existsResult = await pool.request()
+        .input('dailyStatusId', sql.Int, dailyStatusIdInt)
+        .input('guestCheckinId', sql.Int, guestCheckinIdInt)
+        .query('SELECT Id FROM DailyGuestCheckIn WHERE Id = @guestCheckinId AND DailyStatusId = @dailyStatusId');
+
+      if (!existsResult.recordset.length) {
         return res.status(404).json({ error: 'Guest check-in not found' });
       }
 
-      const existing = existingResult.recordset[0];
-      const finalProofUrl = proofUrl !== null ? proofUrl : existing.ProofUrl;
-      const finalPhotoUrl = photoUrl !== null ? photoUrl : existing.PhotoUrl;
-
+      // Atomic partial update to avoid race conditions when proof/photo upload in parallel.
       await pool.request()
-        .input('guestCheckinId', sql.Int, parseInt(guestCheckinId))
-        .input('proofUrl', sql.VarChar(1000), finalProofUrl)
-        .input('photoUrl', sql.VarChar(1000), finalPhotoUrl)
+        .input('dailyStatusId', sql.Int, dailyStatusIdInt)
+        .input('guestCheckinId', sql.Int, guestCheckinIdInt)
+        .input('proofUrl', sql.VarChar(1000), proofUrl)
+        .input('photoUrl', sql.VarChar(1000), photoUrl)
         .query(`
           UPDATE DailyGuestCheckIn
-          SET ProofUrl = @proofUrl, PhotoUrl = @photoUrl, UpdatedDate = GETDATE()
-          WHERE Id = @guestCheckinId
+          SET
+            ProofUrl = COALESCE(@proofUrl, ProofUrl),
+            PhotoUrl = COALESCE(@photoUrl, PhotoUrl),
+            UpdatedDate = GETDATE()
+          WHERE Id = @guestCheckinId AND DailyStatusId = @dailyStatusId
         `);
+
+      const updatedResult = await pool.request()
+        .input('dailyStatusId', sql.Int, dailyStatusIdInt)
+        .input('guestCheckinId', sql.Int, guestCheckinIdInt)
+        .query('SELECT ProofUrl, PhotoUrl FROM DailyGuestCheckIn WHERE Id = @guestCheckinId AND DailyStatusId = @dailyStatusId');
+
+      const finalProofUrl = updatedResult.recordset[0]?.ProofUrl || null;
+      const finalPhotoUrl = updatedResult.recordset[0]?.PhotoUrl || null;
 
       res.json({
         message: 'Files uploaded successfully',
