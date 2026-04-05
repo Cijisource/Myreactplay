@@ -1659,6 +1659,87 @@
   margin-top: 12px;
 }
 
+.camera-toggle-row {
+  margin-top: 10px;
+}
+
+.camera-capture-panel {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.camera-capture-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.camera-preview-wrap {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0f172a;
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.camera-preview-live,
+.camera-preview-captured {
+  width: 100%;
+  max-height: 260px;
+  object-fit: cover;
+  display: block;
+}
+
+.camera-preview-live.hidden {
+  display: none;
+}
+
+.camera-error {
+  margin: 0 0 10px 0;
+  color: #b91c1c;
+  font-size: 0.85em;
+  font-weight: 600;
+}
+
+.selected-files-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.selected-file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 6px;
+}
+
+.selected-file-name {
+  color: #1e293b;
+  font-size: 0.85em;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selected-file-remove {
+  margin-top: 0 !important;
+  flex-shrink: 0;
+}
+
 .progress-container {
   margin: 12px 0;
   display: flex;
@@ -1728,6 +1809,24 @@
     min-height: 44px;
   }
 
+  .camera-capture-panel {
+    padding: 10px;
+  }
+
+  .camera-capture-actions .btn {
+    flex: 1;
+    min-width: 130px;
+  }
+
+  .selected-file-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .selected-file-remove {
+    width: 100%;
+  }
+
   .progress-bar {
     height: 28px;
   }
@@ -1764,6 +1863,15 @@
     font-size: 0.9em;
     min-height: 44px;
     margin-top: 10px;
+  }
+
+  .camera-preview-wrap {
+    min-height: 150px;
+  }
+
+  .camera-preview-live,
+  .camera-preview-captured {
+    max-height: 220px;
   }
 
   .progress-bar {

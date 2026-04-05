@@ -220,6 +220,290 @@ const FormMediaSection = React.memo(({
   );
 });
 
+const getSupportedRecordingMimeType = (): string => {
+  const candidateTypes = [
+    'video/webm;codecs=vp9',
+    'video/webm;codecs=vp8',
+    'video/webm',
+    'video/mp4'
+  ];
+
+  for (const mimeType of candidateTypes) {
+    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(mimeType)) {
+      return mimeType;
+    }
+  }
+
+  return 'video/webm';
+};
+
+const LiveCameraCapture = React.memo(({
+  mediaType,
+  disabled,
+  onCaptureReady
+}: {
+  mediaType: 'photo' | 'video';
+  disabled: boolean;
+  onCaptureReady: (file: File, mediaType: 'photo' | 'video') => Promise<void>;
+}) => {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [capturedFile, setCapturedFile] = useState<File | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+
+  const stopCamera = useCallback(() => {
+    if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+      recorderRef.current.stop();
+    }
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+
+    setRecording(false);
+    setCameraActive(false);
+  }, []);
+
+  const startCamera = useCallback(async () => {
+    try {
+      setCameraError(null);
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setCameraError('Camera access is not supported on this browser/device.');
+        return;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' },
+        audio: mediaType === 'video'
+      });
+
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
+      setCameraActive(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unable to start camera.';
+      setCameraError(message);
+    }
+  }, [mediaType]);
+
+  const resetCapture = useCallback(() => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setPreviewUrl(null);
+    setCapturedFile(null);
+  }, [previewUrl]);
+
+  const capturePhoto = useCallback(async () => {
+    if (!videoRef.current) {
+      return;
+    }
+
+    const videoElement = videoRef.current;
+    const canvas = document.createElement('canvas');
+    canvas.width = videoElement.videoWidth || 1280;
+    canvas.height = videoElement.videoHeight || 720;
+
+    const context = canvas.getContext('2d');
+    if (!context) {
+      setCameraError('Unable to capture photo on this device.');
+      return;
+    }
+
+    context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, 'image/jpeg', 0.92);
+    });
+
+    if (!blob) {
+      setCameraError('Photo capture failed. Please try again.');
+      return;
+    }
+
+    resetCapture();
+    const fileName = `daily-status-photo-${Date.now()}.jpg`;
+    const photoFile = new File([blob], fileName, { type: 'image/jpeg' });
+    const nextPreviewUrl = URL.createObjectURL(photoFile);
+    setCapturedFile(photoFile);
+    setPreviewUrl(nextPreviewUrl);
+  }, [resetCapture]);
+
+  const startRecording = useCallback(() => {
+    if (!streamRef.current) {
+      return;
+    }
+
+    try {
+      resetCapture();
+      chunksRef.current = [];
+      const mimeType = getSupportedRecordingMimeType();
+      const mediaRecorder = new MediaRecorder(streamRef.current, { mimeType });
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          chunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: mimeType });
+        const extension = mimeType.includes('mp4') ? 'mp4' : 'webm';
+        const videoFile = new File([blob], `daily-status-video-${Date.now()}.${extension}`, { type: mimeType });
+        const nextPreviewUrl = URL.createObjectURL(videoFile);
+        setCapturedFile(videoFile);
+        setPreviewUrl(nextPreviewUrl);
+        setRecording(false);
+      };
+
+      recorderRef.current = mediaRecorder;
+      mediaRecorder.start();
+      setRecording(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unable to record video.';
+      setCameraError(message);
+    }
+  }, [resetCapture]);
+
+  const stopRecording = useCallback(() => {
+    if (recorderRef.current && recorderRef.current.state === 'recording') {
+      recorderRef.current.stop();
+    }
+  }, []);
+
+  const uploadCaptured = useCallback(async () => {
+    if (!capturedFile) {
+      return;
+    }
+
+    await onCaptureReady(capturedFile, mediaType);
+    resetCapture();
+  }, [capturedFile, mediaType, onCaptureReady, resetCapture]);
+
+  useEffect(() => {
+    setCameraError(null);
+    resetCapture();
+  }, [mediaType, resetCapture]);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+      stopCamera();
+    };
+  }, [previewUrl, stopCamera]);
+
+  return (
+    <div className="camera-capture-panel">
+      <div className="camera-capture-actions">
+        {!cameraActive ? (
+          <button
+            type="button"
+            className="btn btn-sm btn-info"
+            onClick={startCamera}
+            disabled={disabled}
+          >
+            Start Camera
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="btn btn-sm btn-secondary"
+            onClick={stopCamera}
+            disabled={disabled || recording}
+          >
+            Stop Camera
+          </button>
+        )}
+
+        {cameraActive && mediaType === 'photo' && (
+          <button
+            type="button"
+            className="btn btn-sm btn-primary"
+            onClick={capturePhoto}
+            disabled={disabled}
+          >
+            Capture Photo
+          </button>
+        )}
+
+        {cameraActive && mediaType === 'video' && !recording && (
+          <button
+            type="button"
+            className="btn btn-sm btn-primary"
+            onClick={startRecording}
+            disabled={disabled}
+          >
+            Start Recording
+          </button>
+        )}
+
+        {cameraActive && mediaType === 'video' && recording && (
+          <button
+            type="button"
+            className="btn btn-sm btn-danger"
+            onClick={stopRecording}
+          >
+            Stop Recording
+          </button>
+        )}
+      </div>
+
+      {cameraError && <p className="camera-error">{cameraError}</p>}
+
+      <div className="camera-preview-wrap">
+        <video
+          ref={videoRef}
+          className={`camera-preview-live ${cameraActive ? '' : 'hidden'}`}
+          autoPlay
+          muted
+          playsInline
+        />
+
+        {previewUrl && (
+          mediaType === 'photo' ? (
+            <img src={previewUrl} alt="Captured preview" className="camera-preview-captured" />
+          ) : (
+            <video src={previewUrl} className="camera-preview-captured" controls />
+          )
+        )}
+      </div>
+
+      {capturedFile && (
+        <div className="camera-capture-actions">
+          <button
+            type="button"
+            className="btn btn-sm btn-success"
+            onClick={uploadCaptured}
+            disabled={disabled}
+          >
+            Upload Captured {mediaType === 'photo' ? 'Photo' : 'Video'}
+          </button>
+          <button
+            type="button"
+            className="btn btn-sm btn-secondary"
+            onClick={resetCapture}
+            disabled={disabled}
+          >
+            Discard
+          </button>
+        </div>
+      )}
+    </div>
+  );
+});
+
 // Memoized component for media display in list view
 const ListMediaSection = React.memo(({ 
   status, 
@@ -229,8 +513,11 @@ const ListMediaSection = React.memo(({
   uploadProgress,
   selectedMediaType,
   showMediaUpload,
+  cameraOpenForStatus,
   onMediaTypeChange,
   onMediaUpload,
+  onCapturedMediaUpload,
+  onToggleCamera,
   onShowMediaUpload,
   onDeleteMedia,
   onOpenFullscreen,
@@ -339,6 +626,26 @@ const ListMediaSection = React.memo(({
               <p className="progress-text">{uploadProgress[status.id] || 0}% Uploaded</p>
             </div>
           )}
+
+          <div className="camera-toggle-row">
+            <button
+              type="button"
+              className="btn btn-sm btn-info"
+              onClick={() => onToggleCamera(cameraOpenForStatus === status.id ? null : status.id)}
+              disabled={uploadingMedia[status.id]}
+            >
+              {cameraOpenForStatus === status.id ? 'Hide Live Camera' : 'Use Live Camera'}
+            </button>
+          </div>
+
+          {cameraOpenForStatus === status.id && (
+            <LiveCameraCapture
+              mediaType={selectedMediaType}
+              disabled={uploadingMedia[status.id]}
+              onCaptureReady={(file, mediaType) => onCapturedMediaUpload(status.id, file, mediaType)}
+            />
+          )}
+
           <button
             className="btn btn-sm btn-secondary"
             onClick={() => onShowMediaUpload(null)}
@@ -366,7 +673,8 @@ const ListMediaSection = React.memo(({
     prevProps.uploadingMedia === nextProps.uploadingMedia &&
     prevProps.uploadProgress === nextProps.uploadProgress &&
     prevProps.selectedMediaType === nextProps.selectedMediaType &&
-    prevProps.showMediaUpload === nextProps.showMediaUpload
+    prevProps.showMediaUpload === nextProps.showMediaUpload &&
+    prevProps.cameraOpenForStatus === nextProps.cameraOpenForStatus
   );
 });
 
@@ -384,9 +692,12 @@ const StatusList = React.memo(({
   uploadProgress,
   selectedMediaType,
   showMediaUpload,
+  cameraOpenForStatus,
   isAdmin,
   onMediaTypeChange,
   onMediaUpload,
+  onCapturedMediaUpload,
+  onToggleCamera,
   onShowMediaUpload,
   onDeleteMedia,
   onEdit,
@@ -442,7 +753,6 @@ const StatusList = React.memo(({
           {status.createdDate && (
             <p>
             {new Intl.DateTimeFormat("en-US", {
-              timeZone: "UTC",
               year: "numeric",
               month: "2-digit",
               day: "2-digit",
@@ -463,8 +773,11 @@ const StatusList = React.memo(({
             uploadProgress={uploadProgress}
             selectedMediaType={selectedMediaType}
             showMediaUpload={showMediaUpload}
+            cameraOpenForStatus={cameraOpenForStatus}
             onMediaTypeChange={onMediaTypeChange}
             onMediaUpload={onMediaUpload}
+            onCapturedMediaUpload={onCapturedMediaUpload}
+            onToggleCamera={onToggleCamera}
             onShowMediaUpload={onShowMediaUpload}
             onDeleteMedia={onDeleteMedia}
             onOpenFullscreen={onOpenFullscreen}
@@ -487,6 +800,7 @@ const StatusList = React.memo(({
     prevProps.errorStatusId === nextProps.errorStatusId &&
     prevProps.selectedMediaType === nextProps.selectedMediaType &&
     prevProps.showMediaUpload === nextProps.showMediaUpload &&
+    prevProps.cameraOpenForStatus === nextProps.cameraOpenForStatus &&
     prevProps.deletingMedia === nextProps.deletingMedia &&
     prevProps.uploadingMedia === nextProps.uploadingMedia &&
     prevProps.uploadProgress === nextProps.uploadProgress
@@ -500,6 +814,25 @@ interface DailyStatus {
   waterLevelStatus?: string;
   createdDate?: string;
 }
+
+const getLocalDateInputValue = (value: Date = new Date()): string => {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getDateOnlyValue = (value: string): string => {
+  if (!value) {
+    return '';
+  }
+
+  if (value.includes('T')) {
+    return value.split('T')[0];
+  }
+
+  return value;
+};
 
 export default function DailyStatusManagement() {
   const { hasRole } = useAuth();
@@ -515,7 +848,7 @@ export default function DailyStatusManagement() {
   const [editingStatus, setEditingStatus] = useState<DailyStatus | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'date-desc' | 'date-asc'>('date-desc');
+  const [sortBy, setSortBy] = useState<'id-desc' | 'id-asc'>('id-desc');
   const [filterFromDate, setFilterFromDate] = useState<string>('');
   const [filterToDate, setFilterToDate] = useState<string>('');
   
@@ -526,6 +859,10 @@ export default function DailyStatusManagement() {
   const [uploadingMedia, setUploadingMedia] = useState<Record<number, boolean>>({});
   const [uploadProgress, setUploadProgress] = useState<Record<number, number>>({});
   const [deletingMedia, setDeletingMedia] = useState<Record<number, boolean>>({});
+  const [cameraOpenForStatus, setCameraOpenForStatus] = useState<number | null>(null);
+  const [createMediaType, setCreateMediaType] = useState<'photo' | 'video'>('photo');
+  const [createMediaFiles, setCreateMediaFiles] = useState<File[]>([]);
+  const [createCameraOpen, setCreateCameraOpen] = useState(false);
   
   // Fullscreen view states
   const [fullscreenMedia, setFullscreenMedia] = useState<MediaFile | null>(null);
@@ -551,7 +888,7 @@ export default function DailyStatusManagement() {
   }, [visibleCount]);
 
   const [formData, setFormData] = useState({
-    date: new Date().toISOString().split('T')[0],
+    date: getLocalDateInputValue(),
     roomStatus: '',
     waterLevelStatus: ''
   });
@@ -649,8 +986,21 @@ export default function DailyStatusManagement() {
         const createResponse = await apiService.createDailyStatus(formData);
         // Fetch media for the newly created status
         if (createResponse.data.id) {
-          await fetchMediaForStatus(createResponse.data.id);
-          setSuccessStatusId(createResponse.data.id);
+          const createdStatusId = createResponse.data.id;
+
+          if (createMediaFiles.length > 0) {
+            await performMediaUpload(
+              createdStatusId,
+              createMediaFiles,
+              createMediaType,
+              setUploadingMedia,
+              setUploadProgress
+            );
+          } else {
+            await fetchMediaForStatus(createdStatusId);
+          }
+
+          setSuccessStatusId(createdStatusId);
         }
         setSuccessMessage('Daily status created successfully!');
       }
@@ -658,10 +1008,13 @@ export default function DailyStatusManagement() {
       setShowForm(false);
       setEditingStatus(null);
       setFormData({
-        date: new Date().toISOString().split('T')[0],
+        date: getLocalDateInputValue(),
         roomStatus: '',
         waterLevelStatus: ''
       });
+      setCreateMediaType('photo');
+      setCreateMediaFiles([]);
+      setCreateCameraOpen(false);
       fetchStatuses();
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to save daily status';
@@ -696,6 +1049,53 @@ export default function DailyStatusManagement() {
 
   const handleShowMediaUpload = useCallback((statusId: number | null) => {
     setShowMediaUpload(statusId);
+    if (statusId === null) {
+      setCameraOpenForStatus(null);
+    }
+  }, []);
+
+  const handleCreateMediaFilesChange = useCallback((files: FileList | null) => {
+    if (!files || files.length === 0) {
+      setCreateMediaFiles([]);
+      return;
+    }
+
+    const selectedFiles = Array.from(files);
+    if (selectedFiles.length > 2) {
+      setError('You can upload up to 2 files while adding a status.');
+      setCreateMediaFiles([]);
+      return;
+    }
+
+    setError(null);
+    setErrorStatusId(null);
+    setCreateMediaFiles(selectedFiles);
+  }, []);
+
+  const handleCreateCapturedMedia = useCallback(async (file: File, mediaType: 'photo' | 'video') => {
+    if (mediaType !== createMediaType) {
+      setError(`Capture type mismatch. Switch media type to ${mediaType} and try again.`);
+      return;
+    }
+
+    setCreateMediaFiles((prev) => {
+      if (prev.length >= 2) {
+        setError('You can upload up to 2 files while adding a status.');
+        return prev;
+      }
+
+      setError(null);
+      setErrorStatusId(null);
+      return [...prev, file];
+    });
+  }, [createMediaType]);
+
+  const handleRemoveCreateMediaFile = useCallback((indexToRemove: number) => {
+    setCreateMediaFiles((prev) => prev.filter((_, index) => index !== indexToRemove));
+  }, []);
+
+  const handleToggleCamera = useCallback((statusId: number | null) => {
+    setCameraOpenForStatus(statusId);
   }, []);
 
   // Handle media file upload (list view)
@@ -712,6 +1112,20 @@ export default function DailyStatusManagement() {
     }
 
     await performMediaUpload(statusId, files, selectedMediaType, setUploadingMedia, setUploadProgress);
+  };
+
+  const handleCapturedMediaUpload = async (statusId: number, file: File, mediaType: 'photo' | 'video') => {
+    const existingMedia = mediaFiles[statusId] || [];
+    const existingCount = existingMedia.filter(m => m.mediaType === mediaType).length;
+
+    if (existingCount + 1 > 2) {
+      setError(`Cannot upload more than 2 ${mediaType}s per status. Current: ${existingCount}`);
+      setErrorStatusId(statusId);
+      return;
+    }
+
+    await performMediaUpload(statusId, [file], mediaType, setUploadingMedia, setUploadProgress);
+    setCameraOpenForStatus(null);
   };
 
   // Handle media file upload (edit mode)
@@ -755,7 +1169,7 @@ export default function DailyStatusManagement() {
   // Perform actual media upload
   const performMediaUpload = async (
     statusId: number,
-    files: FileList,
+    files: FileList | File[],
     mediaType: 'photo' | 'video',
     setUploading: React.Dispatch<React.SetStateAction<Record<number, boolean>>>,
     setProgress: React.Dispatch<React.SetStateAction<Record<number, number>>>
@@ -771,8 +1185,9 @@ export default function DailyStatusManagement() {
       formData.append('dailyStatusId', statusId.toString());
       formData.append('mediaType', mediaType);
 
-      for (let i = 0; i < files.length; i++) {
-        formData.append('files', files[i]);
+      const filesToUpload = Array.isArray(files) ? files : Array.from(files);
+      for (let i = 0; i < filesToUpload.length; i++) {
+        formData.append('files', filesToUpload[i]);
       }
 
       // Pass progress callback
@@ -786,6 +1201,7 @@ export default function DailyStatusManagement() {
       // Refresh media for this status
       await fetchMediaForStatus(statusId);
       setShowMediaUpload(null);
+      setCameraOpenForStatus(null);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to upload media';
       setError(errorMsg);
@@ -919,15 +1335,13 @@ export default function DailyStatusManagement() {
         new Date(s.date).toLocaleDateString().includes(searchQuery);
       
       // Date range filter
-      const statusDate = new Date(s.date).toISOString().split('T')[0];
+      const statusDate = getDateOnlyValue(String(s.date));
       const dateMatch = (!filterFromDate || statusDate >= filterFromDate) &&
                         (!filterToDate || statusDate <= filterToDate);
       
       return searchMatch && dateMatch;
     }).sort((a, b) => {
-      const dateA = new Date(a.date).getTime();
-      const dateB = new Date(b.date).getTime();
-      return sortBy === 'date-desc' ? dateB - dateA : dateA - dateB;
+      return sortBy === 'id-desc' ? b.id - a.id : a.id - b.id;
     });
   }, [statuses, searchQuery, filterFromDate, filterToDate, sortBy]);
 
@@ -1013,18 +1427,21 @@ export default function DailyStatusManagement() {
           onChange={(e) => setSortBy(e.target.value as any)}
           className="sort-select"
         >
-          <option value="date-desc">Newest First</option>
-          <option value="date-asc">Oldest First</option>
+          <option value="id-desc">ID Descending</option>
+          <option value="id-asc">ID Ascending</option>
         </select>
         <button
           className="btn btn-primary"
           onClick={() => {
             setEditingStatus(null);
             setFormData({
-              date: new Date().toISOString().split('T')[0],
+              date: getLocalDateInputValue(),
               roomStatus: '',
               waterLevelStatus: ''
             });
+            setCreateMediaType('photo');
+            setCreateMediaFiles([]);
+            setCreateCameraOpen(false);
             setShowForm(true);
           }}
         >
@@ -1055,6 +1472,76 @@ export default function DailyStatusManagement() {
               rows={3}
             />
 
+            {!editingStatus && (
+              <div className="media-upload-form">
+                <div className="form-group">
+                  <label>Media Type:</label>
+                  <select
+                    value={createMediaType}
+                    onChange={(e) => {
+                      setCreateMediaType(e.target.value as 'photo' | 'video');
+                      setCreateMediaFiles([]);
+                      setCreateCameraOpen(false);
+                    }}
+                  >
+                    <option value="photo">Photo</option>
+                    <option value="video">Video</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="create-status-media-input" className="btn btn-sm btn-primary">
+                    Upload Media
+                  </label>
+                  <input
+                    id="create-status-media-input"
+                    type="file"
+                    multiple
+                    accept={createMediaType === 'photo' ? 'image/*' : 'video/*'}
+                    onChange={(e) => handleCreateMediaFilesChange(e.target.files)}
+                    style={{ display: 'none' }}
+                  />
+                  {createMediaFiles.length > 0 && (
+                    <>
+                      <p className="progress-text">{createMediaFiles.length} file(s) selected</p>
+                      <div className="selected-files-list">
+                        {createMediaFiles.map((file, index) => (
+                          <div key={`${file.name}-${index}`} className="selected-file-item">
+                            <span className="selected-file-name" title={file.name}>{file.name}</span>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-danger selected-file-remove"
+                              onClick={() => handleRemoveCreateMediaFile(index)}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <div className="camera-toggle-row">
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-info"
+                    onClick={() => setCreateCameraOpen((prev) => !prev)}
+                    disabled={loading}
+                  >
+                    {createCameraOpen ? 'Hide Live Camera' : 'Use Live Camera'}
+                  </button>
+                </div>
+
+                {createCameraOpen && (
+                  <LiveCameraCapture
+                    mediaType={createMediaType}
+                    disabled={loading}
+                    onCaptureReady={handleCreateCapturedMedia}
+                  />
+                )}
+              </div>
+            )}
+
             {/* Media Management Section in Edit Form */}
             <FormMediaSection
               editingStatus={editingStatus}
@@ -1073,7 +1560,16 @@ export default function DailyStatusManagement() {
               <button type="submit" className="btn btn-success" disabled={loading}>
                 {loading ? 'Saving...' : 'Save Status'}
               </button>
-              <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  setShowForm(false);
+                  setCreateMediaType('photo');
+                  setCreateMediaFiles([]);
+                  setCreateCameraOpen(false);
+                }}
+              >
                 Cancel
               </button>
             </div>
@@ -1102,9 +1598,12 @@ export default function DailyStatusManagement() {
             uploadProgress={uploadProgress}
             selectedMediaType={selectedMediaType}
             showMediaUpload={showMediaUpload}
+            cameraOpenForStatus={cameraOpenForStatus}
             isAdmin={isAdmin}
             onMediaTypeChange={handleMediaTypeChange}
             onMediaUpload={handleMediaUpload}
+            onCapturedMediaUpload={handleCapturedMediaUpload}
+            onToggleCamera={handleToggleCamera}
             onShowMediaUpload={handleShowMediaUpload}
             onDeleteMedia={handleDeleteMedia}
             onEdit={handleEdit}

@@ -3939,7 +3939,7 @@ app.get('/api/daily-status', async (req: Request, res: Response) => {
         WaterLevelStatus as waterLevelStatus,
         CreatedDate as createdDate
       FROM DailyRoomStatus
-      ORDER BY [Date] DESC
+      ORDER BY Id DESC
     `);
     res.json(result.recordset);
   } catch (error) {
@@ -4460,6 +4460,22 @@ app.delete('/api/daily-status/:dailyStatusId/guest-checkins/:guestCheckinId', as
     const { dailyStatusId, guestCheckinId } = req.params;
     const pool = getPool();
 
+    const existingResult = await pool.request()
+      .input('dailyStatusId', sql.Int, parseInt(dailyStatusId))
+      .input('guestCheckinId', sql.Int, parseInt(guestCheckinId))
+      .query(`
+        SELECT ProofUrl, PhotoUrl
+        FROM DailyGuestCheckIn
+        WHERE Id = @guestCheckinId AND DailyStatusId = @dailyStatusId
+      `);
+
+    if (!existingResult.recordset.length) {
+      return res.status(404).json({ error: 'Guest check-in not found' });
+    }
+
+    const proofFileName = normalizeStoredFileName(existingResult.recordset[0].ProofUrl);
+    const photoFileName = normalizeStoredFileName(existingResult.recordset[0].PhotoUrl);
+
     const deleteResult = await pool.request()
       .input('dailyStatusId', sql.Int, parseInt(dailyStatusId))
       .input('guestCheckinId', sql.Int, parseInt(guestCheckinId))
@@ -4470,6 +4486,27 @@ app.delete('/api/daily-status/:dailyStatusId/guest-checkins/:guestCheckinId', as
 
     if (deleteResult.rowsAffected[0] === 0) {
       return res.status(404).json({ error: 'Guest check-in not found' });
+    }
+
+    const filesToDelete = [proofFileName, photoFileName].filter((value): value is string => Boolean(value));
+
+    for (const fileName of filesToDelete) {
+      if (isAzureConfigured()) {
+        try {
+          await deleteAzureBlobFromContainer(fileName, AZURE_GUEST_CHECKIN_CONTAINER);
+        } catch (deleteError) {
+          console.error(`[Guest Checkin Delete] Failed to delete Azure blob: ${fileName}`, deleteError);
+        }
+      }
+
+      const localFilePath = path.join(guestCheckinDir, path.basename(fileName));
+      if (fs.existsSync(localFilePath)) {
+        try {
+          fs.unlinkSync(localFilePath);
+        } catch (deleteError) {
+          console.error(`[Guest Checkin Delete] Failed to delete local file: ${localFilePath}`, deleteError);
+        }
+      }
     }
 
     res.json({ message: 'Guest check-in deleted successfully' });
