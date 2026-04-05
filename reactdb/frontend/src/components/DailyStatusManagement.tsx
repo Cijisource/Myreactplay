@@ -863,6 +863,7 @@ export default function DailyStatusManagement() {
   const [createMediaType, setCreateMediaType] = useState<'photo' | 'video'>('photo');
   const [createMediaFiles, setCreateMediaFiles] = useState<File[]>([]);
   const [createCameraOpen, setCreateCameraOpen] = useState(false);
+  const [creatingStatusId, setCreatingStatusId] = useState<number | null>(null);
   
   // Fullscreen view states
   const [fullscreenMedia, setFullscreenMedia] = useState<MediaFile | null>(null);
@@ -880,6 +881,7 @@ export default function DailyStatusManagement() {
   const [visibleCount, setVisibleCount] = useState(10);
   const [itemsPerPage] = useState(10);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const listTopRef = useRef<HTMLDivElement>(null);
   const visibleCountRef = useRef(10);
   
   // Keep ref in sync with state
@@ -989,6 +991,7 @@ export default function DailyStatusManagement() {
           const createdStatusId = createResponse.data.id;
 
           if (createMediaFiles.length > 0) {
+            setCreatingStatusId(createdStatusId);
             await performMediaUpload(
               createdStatusId,
               createMediaFiles,
@@ -1015,13 +1018,15 @@ export default function DailyStatusManagement() {
       setCreateMediaType('photo');
       setCreateMediaFiles([]);
       setCreateCameraOpen(false);
-      fetchStatuses();
+      await fetchStatuses();
+      listTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to save daily status';
       setError(errorMsg);
       setErrorStatusId(editingStatus?.id || null);
     } finally {
       setLoading(false);
+      setCreatingStatusId(null);
     }
   };
 
@@ -1542,6 +1547,19 @@ export default function DailyStatusManagement() {
               </div>
             )}
 
+            {/* Upload progress for create form */}
+            {!editingStatus && creatingStatusId !== null && (
+              <div className="progress-container">
+                <div className="progress-bar">
+                  <div
+                    className="progress-fill"
+                    style={{ width: `${uploadProgress[creatingStatusId] || 0}%` }}
+                  />
+                </div>
+                <p className="progress-text">{uploadProgress[creatingStatusId] || 0}% Uploaded</p>
+              </div>
+            )}
+
             {/* Media Management Section in Edit Form */}
             <FormMediaSection
               editingStatus={editingStatus}
@@ -1585,6 +1603,7 @@ export default function DailyStatusManagement() {
         </div>
       ) : (
         <>
+          <div ref={listTopRef} />
           <StatusList
             filteredStatuses={paginatedStatuses}
             loading={loading}
