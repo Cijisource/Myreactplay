@@ -499,3 +499,119 @@ export async function recalculateMonthlyCharges(
     throw new Error(`Failed to recalculate monthly charges: ${errorMessage}`);
   }
 }
+
+/**
+ * Get detailed EB report for a month with room-level readings and tenant-wise split
+ */
+export async function getRoomMonthlyEbReport(
+  billingYear: number,
+  billingMonth: number,
+  roomId?: number
+) {
+  const pool = getPool();
+
+  try {
+    let query = `
+      SELECT
+        scd.[Id] as ServiceConsumptionId,
+        scd.[ServiceAllocId],
+        sra.[RoomId],
+        LTRIM(RTRIM(rd.[Number])) as RoomNumber,
+        sra.[ServiceId],
+        sd.[ConsumerName] as ServiceName,
+        sd.[MeterNo],
+        scd.[ReadingTakenDate],
+        scd.[StartingMeterReading],
+        scd.[EndingMeterReading],
+        scd.[UnitsConsumed],
+        scd.[UnitRate],
+        scd.[AmountToBeCollected],
+        tsc.[Id] as TenantChargeId,
+        tsc.[TenantId],
+        LTRIM(RTRIM(t.[Name])) as TenantName,
+        LTRIM(RTRIM(t.[Phone])) as TenantPhone,
+        tsc.[ProRataUnits],
+        tsc.[ProRataPercentage],
+        tsc.[TotalCharge],
+           CONVERT(DATE, tsc.[CheckInDate]) as CheckInDate,
+           CASE WHEN tsc.[CheckOutDate] IS NULL
+             THEN NULL
+             ELSE CONVERT(DATE, tsc.[CheckOutDate])
+           END as CheckOutDate,
+        tsc.[OccupancyDaysInMonth],
+        tsc.[TotalDaysInMonth],
+        tsc.[Status]
+      FROM [dbo].[ServiceConsumptionDetails] scd
+      INNER JOIN [dbo].[ServiceRoomAllocation] sra ON scd.[ServiceAllocId] = sra.[Id]
+      INNER JOIN [dbo].[RoomDetail] rd ON sra.[RoomId] = rd.[Id]
+      INNER JOIN [dbo].[ServiceDetails] sd ON sra.[ServiceId] = sd.[Id]
+      LEFT JOIN [dbo].[TenantServiceCharges] tsc ON tsc.[ServiceConsumptionId] = scd.[Id]
+      LEFT JOIN [dbo].[Tenant] t ON tsc.[TenantId] = t.[Id]
+      WHERE YEAR(scd.[ReadingTakenDate]) = @billingYear
+        AND MONTH(scd.[ReadingTakenDate]) = @billingMonth
+    `;
+
+    const request = pool
+      .request()
+      .input('billingYear', sql.Int, billingYear)
+      .input('billingMonth', sql.Int, billingMonth);
+
+    if (roomId) {
+      query += ` AND sra.[RoomId] = @roomId`;
+      request.input('roomId', sql.Int, roomId);
+    }
+
+    query += `
+      ORDER BY rd.[Number] ASC, scd.[ReadingTakenDate] DESC, t.[Name] ASC
+    `;
+
+    const result = await request.query(query);
+
+    const reportMap = new Map<number, any>();
+
+    for (const row of result.recordset) {
+      const key = row.ServiceConsumptionId;
+
+      if (!reportMap.has(key)) {
+        reportMap.set(key, {
+          serviceConsumptionId: row.ServiceConsumptionId,
+          serviceAllocId: row.ServiceAllocId,
+          roomId: row.RoomId,
+          roomNumber: row.RoomNumber,
+          serviceId: row.ServiceId,
+          serviceName: row.ServiceName,
+          meterNo: row.MeterNo,
+          readingTakenDate: row.ReadingTakenDate,
+          startingReading: row.StartingMeterReading,
+          endingReading: row.EndingMeterReading,
+          unitsConsumed: row.UnitsConsumed,
+          unitRate: row.UnitRate,
+          totalAmount: row.AmountToBeCollected,
+          tenants: [] as any[]
+        });
+      }
+
+      if (row.TenantId) {
+        reportMap.get(key).tenants.push({
+          tenantChargeId: row.TenantChargeId,
+          tenantId: row.TenantId,
+          tenantName: row.TenantName,
+          tenantPhone: row.TenantPhone,
+          splitUnits: row.ProRataUnits,
+          splitPercentage: row.ProRataPercentage,
+          splitCharge: row.TotalCharge,
+          checkInDate: row.CheckInDate,
+          checkOutDate: row.CheckOutDate,
+          occupancyDaysInMonth: row.OccupancyDaysInMonth,
+          totalDaysInMonth: row.TotalDaysInMonth,
+          status: row.Status
+        });
+      }
+    }
+
+    return Array.from(reportMap.values());
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to retrieve room monthly EB report: ${errorMessage}`);
+  }
+}

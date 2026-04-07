@@ -7,7 +7,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { initializeAzureClient, isAzureConfigured, downloadAzureBlob, downloadAzureBlobFromContainer, downloadFromAzureBlobUrl, getAzureBlobSasUrl, uploadAzureBlob, uploadAzureBlobToContainer, deleteAzureBlob, deleteAzureBlobFromContainer } from './azureService';
-import { calculateProRataCharges, getTenantChargesForMonth, getRoomBillingsSummary, getMonthlyBillingReport, getTenantMonthlyBill, recalculateMonthlyCharges } from './services/proRataService';
+import { calculateProRataCharges, getTenantChargesForMonth, getRoomBillingsSummary, getMonthlyBillingReport, getTenantMonthlyBill, recalculateMonthlyCharges, getRoomMonthlyEbReport } from './services/proRataService';
 import { calculateCheckInProRataRent, calculateCheckOutProRataRent, recordProRataRentCalculation, calculateProRataRentForMonth, calculateOccupancyDaysForMonth } from './services/proRataRentService';
 
 const app: Express = express();
@@ -5265,6 +5265,7 @@ app.post('/api/service-consumption', async (req: Request, res: Response) => {
   try {
     const { 
       serviceAllocId, 
+      roomId,
       readingTakenDate, 
       startingMeterReading, 
       endingMeterReading, 
@@ -5273,17 +5274,87 @@ app.post('/api/service-consumption', async (req: Request, res: Response) => {
     } = req.body;
     
     // Validation
-    if (!serviceAllocId || !readingTakenDate || startingMeterReading === undefined || endingMeterReading === undefined) {
+    if ((!serviceAllocId && !roomId) || !readingTakenDate || startingMeterReading === undefined || endingMeterReading === undefined) {
       return res.status(400).json({ 
-        error: 'Missing required fields' 
+        error: 'Missing required fields. Provide serviceAllocId or roomId, along with readingTakenDate, startingMeterReading and endingMeterReading.' 
       });
     }
     
     const pool = getPool();
+
+    const parsedStartReading = Number(startingMeterReading);
+    const parsedEndReading = Number(endingMeterReading);
+
+    if (!Number.isFinite(parsedStartReading) || !Number.isFinite(parsedEndReading)) {
+      return res.status(400).json({ error: 'Meter readings must be numeric values' });
+    }
+
+    if (parsedEndReading < parsedStartReading) {
+      return res.status(400).json({ error: 'Ending meter reading cannot be less than starting meter reading' });
+    }
+
+    const readingDate = new Date(readingTakenDate);
+    if (isNaN(readingDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid readingTakenDate' });
+    }
+
+    let resolvedServiceAllocId = serviceAllocId ? parseInt(serviceAllocId) : null;
+
+    if (!resolvedServiceAllocId && roomId) {
+      const roomAllocations = await pool
+        .request()
+        .input('roomId', sql.Int, parseInt(roomId))
+        .query(`
+          SELECT sra.Id as id
+          FROM ServiceRoomAllocation sra
+          WHERE sra.RoomId = @roomId
+          ORDER BY sra.Id ASC
+        `);
+
+      if (roomAllocations.recordset.length === 0) {
+        return res.status(400).json({ error: 'No service allocation found for this room' });
+      }
+
+      if (roomAllocations.recordset.length > 1) {
+        return res.status(400).json({
+          error: 'Multiple service allocations found for this room. Please provide serviceAllocId explicitly.'
+        });
+      }
+
+      resolvedServiceAllocId = roomAllocations.recordset[0].id;
+    }
+
+    if (!resolvedServiceAllocId || Number.isNaN(resolvedServiceAllocId)) {
+      return res.status(400).json({ error: 'Invalid service allocation' });
+    }
+
+    // Ensure only one meter reading is recorded per room/service allocation per month
+    const existingMonthlyRecord = await pool
+      .request()
+      .input('serviceAllocId', sql.Int, resolvedServiceAllocId)
+      .input('readingYear', sql.Int, readingDate.getFullYear())
+      .input('readingMonth', sql.Int, readingDate.getMonth() + 1)
+      .query(`
+        SELECT TOP 1 Id as id, ReadingTakenDate as readingTakenDate
+        FROM ServiceConsumptionDetails
+        WHERE ServiceAllocId = @serviceAllocId
+          AND YEAR(ReadingTakenDate) = @readingYear
+          AND MONTH(ReadingTakenDate) = @readingMonth
+        ORDER BY ReadingTakenDate DESC
+      `);
+
+    if (existingMonthlyRecord.recordset.length > 0) {
+      return res.status(409).json({
+        error: 'Monthly EB meter reading already exists for this room/service allocation',
+        existingRecordId: existingMonthlyRecord.recordset[0].id,
+        existingReadingTakenDate: existingMonthlyRecord.recordset[0].readingTakenDate
+      });
+    }
     
     // Calculate units consumed
-    const unitsConsumed = parseInt(endingMeterReading) - parseInt(startingMeterReading);
-    const amountToBeCollected = unitsConsumed * (unitRate || 10);
+    const unitsConsumed = parsedEndReading - parsedStartReading;
+    const resolvedUnitRate = Number(unitRate) > 0 ? Number(unitRate) : 15;
+    const amountToBeCollected = unitsConsumed * resolvedUnitRate;
     
     // Handle photo uploads - store photo URLs from request body
     const photoUrls: (string | null)[] = [null, null, null];
@@ -5292,13 +5363,13 @@ app.post('/api/service-consumption', async (req: Request, res: Response) => {
     if (req.body.meterPhoto3) photoUrls[2] = req.body.meterPhoto3;
     
     const request = pool.request()
-      .input('serviceAllocId', sql.Int, parseInt(serviceAllocId))
-      .input('readingTakenDate', sql.DateTime, new Date(readingTakenDate))
-      .input('startingMeterReading', sql.Int, parseInt(startingMeterReading))
-      .input('endingMeterReading', sql.NVarChar(10), String(endingMeterReading))
-      .input('unitsConsumed', sql.Int, unitsConsumed)
+      .input('serviceAllocId', sql.Int, resolvedServiceAllocId)
+      .input('readingTakenDate', sql.DateTime, readingDate)
+      .input('startingMeterReading', sql.Int, parsedStartReading)
+      .input('endingMeterReading', sql.NVarChar(10), String(parsedEndReading))
+      .input('unitsConsumed', sql.Int, Math.round(unitsConsumed))
       .input('amountToBeCollected', sql.Money, amountToBeCollected)
-      .input('unitRate', sql.Money, unitRate || 10)
+      .input('unitRate', sql.Money, resolvedUnitRate)
       .input('createdDate', sql.DateTime, new Date())
       .input('meterPhoto1Url', sql.NVarChar(sql.MAX), photoUrls[0] || null)
       .input('meterPhoto2Url', sql.NVarChar(sql.MAX), photoUrls[1] || null)
@@ -5338,6 +5409,9 @@ app.post('/api/service-consumption', async (req: Request, res: Response) => {
     `);
     
     const consumptionId = result.recordset[0].id;
+
+    // Auto-generate tenant split charges for this monthly room reading.
+    const chargeResult = await calculateProRataCharges(consumptionId, resolvedUnitRate);
     
     // Fetch the created record with all details
     const fetchResult = await pool
@@ -5373,7 +5447,14 @@ app.post('/api/service-consumption', async (req: Request, res: Response) => {
       `);
     
     if (!res.headersSent) {
-      res.status(201).json(fetchResult.recordset[0]);
+      res.status(201).json({
+        ...fetchResult.recordset[0],
+        tenantChargeDistribution: {
+          success: chargeResult.success,
+          message: chargeResult.message,
+          chargesCreated: chargeResult.chargesCreated || 0
+        }
+      });
     }
   } catch (error) {
     console.error('Create service consumption error:', error);
@@ -5952,6 +6033,34 @@ app.get('/api/monthly-billing-report/:billingYear/:billingMonth', async (req: Re
     const errorMessage = error instanceof Error ? error.message : String(error);
     res.status(500).json({ 
       error: 'Failed to retrieve monthly billing report',
+      details: errorMessage
+    });
+  }
+});
+
+// Get detailed room-wise EB monthly report with meter readings and tenant splits
+app.get('/api/eb-room-monthly-report/:billingYear/:billingMonth', async (req: Request, res: Response) => {
+  try {
+    const { billingYear, billingMonth } = req.params;
+    const { roomId } = req.query;
+
+    const report = await getRoomMonthlyEbReport(
+      parseInt(billingYear),
+      parseInt(billingMonth),
+      roomId ? parseInt(roomId as string) : undefined
+    );
+
+    res.json({
+      billingYear: parseInt(billingYear),
+      billingMonth: parseInt(billingMonth),
+      roomId: roomId ? parseInt(roomId as string) : null,
+      data: report
+    });
+  } catch (error) {
+    console.error('Get room monthly EB report error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({
+      error: 'Failed to retrieve room monthly EB report',
       details: errorMessage
     });
   }

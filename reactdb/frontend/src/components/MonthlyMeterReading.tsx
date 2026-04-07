@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { apiService } from '../api';
 import './ManagementStyles.css';
 import './MonthlyMeterReading.css';
+import RoomMonthlyEbReportTable from './RoomMonthlyEbReportTable';
 
 interface ServiceAllocation {
   id: number;
@@ -60,6 +61,7 @@ export default function MonthlyMeterReading(): JSX.Element {
   const [collapsedCards, setCollapsedCards] = useState<Record<number, boolean>>({});
   const [calculatedCharges, setCalculatedCharges] = useState<{ consumption: number; charges: number } | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [reportRefreshKey, setReportRefreshKey] = useState(0);
 
   // Ref for auto-focusing on ending meter reading input
   const endingMeterReadingRef = useRef<HTMLInputElement>(null);
@@ -234,11 +236,7 @@ export default function MonthlyMeterReading(): JSX.Element {
         meterPhoto3: formData.meterPhoto3
       };
 
-      const consumptionRes = await apiService.createServiceConsumption(consumptionData);
-      const serviceConsumptionId = consumptionRes.data.id;
-
-      // Calculate pro-rata charges
-      await apiService.calculateProRataCharges(serviceConsumptionId, formData.unitRate || chargePerUnit);
+      await apiService.createServiceConsumption(consumptionData);
 
       setSuccessMessage(`✓ Meter reading recorded and charges calculated successfully!`);
       setFormData({
@@ -251,6 +249,7 @@ export default function MonthlyMeterReading(): JSX.Element {
       setSelectedAllocationId(null);
       setShowForm(false);
       setValidationError(null);
+      setReportRefreshKey((prev) => prev + 1);
       
       setTimeout(() => setSuccessMessage(null), 5000);
     } catch (err) {
@@ -305,6 +304,14 @@ export default function MonthlyMeterReading(): JSX.Element {
           </button>
         </div>
       </div>
+
+      <RoomMonthlyEbReportTable
+        selectedMonth={selectedMonth}
+        roomOptions={Array.from(
+          new Map(allocations.map((a) => [a.room.id, { id: a.room.id, number: a.room.number }])).values()
+        ).sort((a, b) => a.number.localeCompare(b.number))}
+        refreshKey={reportRefreshKey}
+      />
 
       {showForm && (
         <div className="meter-reading-form">

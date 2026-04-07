@@ -593,6 +593,11 @@ export const apiService = {
   },
   getMonthlyBillingReport: (billingYear: number, billingMonth: number) =>
     api.get(`/monthly-billing-report/${billingYear}/${billingMonth}`),
+  getRoomMonthlyEbReport: (billingYear: number, billingMonth: number, roomId?: number) => {
+    const params = new URLSearchParams();
+    if (roomId) params.append('roomId', roomId.toString());
+    return api.get(`/eb-room-monthly-report/${billingYear}/${billingMonth}${params.toString() ? '?' + params.toString() : ''}`);
+  },
   getTenantMonthlyBill: (tenantId: number) =>
     api.get(`/tenant-monthly-bill/${tenantId}`),
   recalculateMonthlyCharges: (billingYear: number, billingMonth: number, chargePerUnit: number = 15) =>
