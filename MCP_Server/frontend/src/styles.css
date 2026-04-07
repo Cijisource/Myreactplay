@@ -1,0 +1,173 @@
+:root {
+  --bg-1: #f6f2e9;
+  --bg-2: #e8efe1;
+  --ink: #182019;
+  --muted: #4d5a4f;
+  --panel: rgba(255, 255, 255, 0.78);
+  --line: rgba(24, 32, 25, 0.15);
+  --accent: #ff6a3d;
+  --accent-ink: #ffffff;
+  --ok: #2e7d32;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Space Grotesk", sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 8% 8%, #f9dbaa 0%, transparent 40%),
+    radial-gradient(circle at 88% 22%, #c3e3bf 0%, transparent 35%),
+    linear-gradient(160deg, var(--bg-1), var(--bg-2));
+}
+
+.shell {
+  width: min(1040px, 92vw);
+  margin: 2rem auto;
+  display: grid;
+  gap: 1rem;
+  animation: enter 450ms ease-out;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 3.4rem);
+  letter-spacing: -0.03em;
+}
+
+.eyebrow {
+  margin: 0;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+  letter-spacing: 0.17em;
+  color: var(--muted);
+}
+
+.subcopy {
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+  max-width: 62ch;
+}
+
+.panel,
+.card {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  backdrop-filter: blur(8px);
+  border-radius: 16px;
+  padding: 1rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+h2 {
+  margin: 0 0 0.75rem;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.65rem;
+}
+
+input,
+button {
+  font: inherit;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  padding: 0.62rem 0.78rem;
+}
+
+input {
+  background: #fffdf9;
+}
+
+button {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+  border-color: transparent;
+  cursor: pointer;
+}
+
+button:hover {
+  filter: brightness(0.94);
+}
+
+.status {
+  margin: 0.6rem 0 0;
+  color: var(--ok);
+  font-size: 0.95rem;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.toolList,
+.entryList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.toolList li,
+.entryList li {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.type {
+  font-family: "IBM Plex Mono", monospace;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+}
+
+.output {
+  margin: 0.8rem 0 0;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #121612;
+  color: #c8ffd4;
+  min-height: 220px;
+  max-height: 380px;
+  overflow: auto;
+  padding: 0.9rem;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.88rem;
+}
+
+@keyframes enter {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 860px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .row {
+    grid-template-columns: 1fr;
+  }
+}
