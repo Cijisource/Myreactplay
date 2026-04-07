@@ -281,6 +281,28 @@ export const getGuestCheckinFileUrl = (filePath: string): string => {
   return `${baseUrl}/api/guest-checkin/${normalizedPath}`;
 };
 
+export const getComplaintFileUrl = (filePath: string): string => {
+  if (!filePath) return '';
+
+  const baseUrl = getApiBaseUrl();
+  console.log('[Complaint File URL] Generating URL for:', { filePath, baseUrl });
+  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+    return filePath;
+  }
+
+  const normalizedPath = filePath.replace(/^\/+/, '');
+
+  if (normalizedPath.startsWith('api/complains/')) {
+    return `${baseUrl}/${normalizedPath}`;
+  }
+
+  if (normalizedPath.startsWith('complains/')) {
+    return `${baseUrl}/${normalizedPath}`;
+  }
+
+  return `${baseUrl}/api/complains/${normalizedPath}`;
+};
+
 export const apiService = {
   getHealth: () => api.get('/health'),
   getDatabaseStatus: () => api.get('/database/status'),

@@ -41,6 +41,7 @@ const guestCheckinDir = process.env.GUEST_CHECKIN_DIR ||
   (isDocker ? '/app/guest-checkin' : path.resolve(process.cwd(), 'guest-checkin'));
 
 // Azure container name for guest checkin files
+const AZURE_COMPLAINS_CONTAINER = process.env.AZURE_COMPLAINS_CONTAINER || 'complains';
 const AZURE_GUEST_CHECKIN_CONTAINER = process.env.AZURE_GUEST_CHECKIN_CONTAINER || 'guest-checkins';
 const AZURE_STORAGE_BASE = process.env.AZURE_STORAGE_BASE_URL ||
   process.env.AZURE_BLOB_URL?.replace(/\/[^/]+$/, '') ||
@@ -223,6 +224,43 @@ app.use(cors({
 app.use(express.json());
 // Serve static files from complains folder via API path and direct path
 app.use('/api/complains', express.static(complainsDir));
+app.get('/api/complains/:fileName', async (req: Request, res: Response) => {
+  const fileName = path.basename(req.params.fileName || '');
+
+  if (!fileName) {
+    return res.status(400).json({ error: 'File name is required' });
+  }
+
+  const localFilePath = path.join(complainsDir, fileName);
+  if (fs.existsSync(localFilePath)) {
+    return res.sendFile(localFilePath);
+  }
+
+  try {
+    if (isAzureConfigured()) {
+      const { buffer, contentType } = await downloadAzureBlobFromContainer(AZURE_COMPLAINS_CONTAINER, fileName);
+      if (contentType) {
+        res.type(contentType);
+      } else {
+        res.type(fileName);
+      }
+      return res.send(buffer);
+    }
+
+    const blobUrl = `${AZURE_STORAGE_BASE}/${AZURE_COMPLAINS_CONTAINER}/${fileName}`;
+    const buffer = await downloadFromAzureBlobUrl(blobUrl);
+    res.type(fileName);
+    return res.send(buffer);
+  } catch (error: any) {
+    const message = String(error?.message || '');
+    if (message.includes('BlobNotFound') || message.includes('Blob not found') || message.includes('404')) {
+      return res.status(404).json({ error: 'Complaint file not found' });
+    }
+
+    console.error('[Complaint File] Failed to load from Azure:', error);
+    return res.status(500).json({ error: 'Failed to retrieve complaint file' });
+  }
+});
 app.use('/complains', express.static(complainsDir));
 console.log('Static file serving enabled at /api/complains and /complains from:', complainsDir);
 
@@ -353,6 +391,45 @@ const normalizeGuestCheckinFilesForResponse = <T extends Record<string, any>>(re
     ...record,
     proofUrl: normalizeStoredFileName(record.proofUrl ?? record.ProofUrl),
     photoUrl: normalizeStoredFileName(record.photoUrl ?? record.PhotoUrl)
+  };
+};
+
+const resolveComplaintFileUrlForResponse = (value: unknown): string | null => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+
+  const fileName = normalizeStoredFileName(trimmed);
+  if (!fileName) {
+    return null;
+  }
+
+  if (isAzureConfigured()) {
+    return `${AZURE_STORAGE_BASE}/${AZURE_COMPLAINS_CONTAINER}/${fileName}`;
+  }
+
+  return `/api/complains/${encodeURIComponent(fileName)}`;
+};
+
+const normalizeComplaintFilesForResponse = <T extends Record<string, any>>(record: T): T => {
+  if (!record || typeof record !== 'object') {
+    return record;
+  }
+
+  return {
+    ...record,
+    proof1Url: resolveComplaintFileUrlForResponse(record.proof1Url),
+    proof2Url: resolveComplaintFileUrlForResponse(record.proof2Url),
+    videoUrl: resolveComplaintFileUrlForResponse(record.videoUrl)
   };
 };
 
@@ -605,7 +682,8 @@ app.get('/api/tables', async (req: Request, res: Response) => {
         FROM INFORMATION_SCHEMA.TABLES 
         WHERE TABLE_TYPE = 'BASE TABLE'
       `);
-    res.json(result.recordset);
+    const normalizedComplaints = result.recordset.map((record: any) => normalizeComplaintFilesForResponse(record));
+    res.json(normalizedComplaints);
   } catch (error) {
     console.error('Get tables error:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -2900,7 +2978,7 @@ app.post('/api/complaints/upload', upload.fields([
   { name: 'proof1', maxCount: 1 },
   { name: 'proof2', maxCount: 1 },
   { name: 'video', maxCount: 1 }
-]), (req: Request, res: Response) => {
+]), async (req: Request, res: Response) => {
   try {
     console.log('\n========== FILE UPLOAD REQUEST ==========');
     console.log('Complains directory:', complainsDir);
@@ -2916,37 +2994,73 @@ app.post('/api/complaints/upload', upload.fields([
       const files = req.files as { [fieldname: string]: Express.Multer.File[] };
       
       if (files.proof1 && files.proof1[0]) {
-        const filename = files.proof1[0].filename;
+        const proof1File = files.proof1[0];
+        const filename = proof1File.filename;
         uploadedFiles.proof1Url = filename;
         const proof1Path = path.join(complainsDir, filename);
         console.log('Proof1 file saved at:', proof1Path);
         console.log('Proof1 file exists:', fs.existsSync(proof1Path));
-        fs.chmod(proof1Path, 0o644, (err) => {
-          if (err) console.error('Failed to chmod proof1:', err);
-          else console.log('Proof1 permissions set to 644');
-        });
+        if (isAzureConfigured()) {
+          try {
+            const fileBuffer = fs.readFileSync(proof1Path);
+            await uploadAzureBlobToContainer(AZURE_COMPLAINS_CONTAINER, filename, fileBuffer, proof1File.mimetype);
+            fs.unlinkSync(proof1Path);
+          } catch (azureError) {
+            console.warn('[Complaint Upload] Azure upload failed for proof1, using local fallback:', azureError);
+          }
+        }
+        if (fs.existsSync(proof1Path)) {
+          fs.chmod(proof1Path, 0o644, (err) => {
+            if (err) console.error('Failed to chmod proof1:', err);
+            else console.log('Proof1 permissions set to 644');
+          });
+        }
       }
       if (files.proof2 && files.proof2[0]) {
-        const filename = files.proof2[0].filename;
+        const proof2File = files.proof2[0];
+        const filename = proof2File.filename;
         uploadedFiles.proof2Url = filename;
         const proof2Path = path.join(complainsDir, filename);
         console.log('Proof2 file saved at:', proof2Path);
         console.log('Proof2 file exists:', fs.existsSync(proof2Path));
-        fs.chmod(proof2Path, 0o644, (err) => {
-          if (err) console.error('Failed to chmod proof2:', err);
-          else console.log('Proof2 permissions set to 644');
-        });
+        if (isAzureConfigured()) {
+          try {
+            const fileBuffer = fs.readFileSync(proof2Path);
+            await uploadAzureBlobToContainer(AZURE_COMPLAINS_CONTAINER, filename, fileBuffer, proof2File.mimetype);
+            fs.unlinkSync(proof2Path);
+          } catch (azureError) {
+            console.warn('[Complaint Upload] Azure upload failed for proof2, using local fallback:', azureError);
+          }
+        }
+        if (fs.existsSync(proof2Path)) {
+          fs.chmod(proof2Path, 0o644, (err) => {
+            if (err) console.error('Failed to chmod proof2:', err);
+            else console.log('Proof2 permissions set to 644');
+          });
+        }
       }
       if (files.video && files.video[0]) {
-        const filename = files.video[0].filename;
+        const videoFile = files.video[0];
+        const filename = videoFile.filename;
         uploadedFiles.videoUrl = filename;
         const videoPath = path.join(complainsDir, filename);
         console.log('Video file saved at:', videoPath);
         console.log('Video file exists:', fs.existsSync(videoPath));
-        fs.chmod(videoPath, 0o644, (err) => {
-          if (err) console.error('Failed to chmod video:', err);
-          else console.log('Video permissions set to 644');
-        });
+        if (isAzureConfigured()) {
+          try {
+            const fileBuffer = fs.readFileSync(videoPath);
+            await uploadAzureBlobToContainer(AZURE_COMPLAINS_CONTAINER, filename, fileBuffer, videoFile.mimetype);
+            fs.unlinkSync(videoPath);
+          } catch (azureError) {
+            console.warn('[Complaint Upload] Azure upload failed for video, using local fallback:', azureError);
+          }
+        }
+        if (fs.existsSync(videoPath)) {
+          fs.chmod(videoPath, 0o644, (err) => {
+            if (err) console.error('Failed to chmod video:', err);
+            else console.log('Video permissions set to 644');
+          });
+        }
       }
     }
 
@@ -3939,7 +4053,7 @@ app.get('/api/daily-status', async (req: Request, res: Response) => {
         WaterLevelStatus as waterLevelStatus,
         CreatedDate as createdDate
       FROM DailyRoomStatus
-      ORDER BY [Date] DESC
+      ORDER BY Id DESC
     `);
     res.json(result.recordset);
   } catch (error) {
@@ -4460,6 +4574,22 @@ app.delete('/api/daily-status/:dailyStatusId/guest-checkins/:guestCheckinId', as
     const { dailyStatusId, guestCheckinId } = req.params;
     const pool = getPool();
 
+    const existingResult = await pool.request()
+      .input('dailyStatusId', sql.Int, parseInt(dailyStatusId))
+      .input('guestCheckinId', sql.Int, parseInt(guestCheckinId))
+      .query(`
+        SELECT ProofUrl, PhotoUrl
+        FROM DailyGuestCheckIn
+        WHERE Id = @guestCheckinId AND DailyStatusId = @dailyStatusId
+      `);
+
+    if (!existingResult.recordset.length) {
+      return res.status(404).json({ error: 'Guest check-in not found' });
+    }
+
+    const proofFileName = normalizeStoredFileName(existingResult.recordset[0].ProofUrl);
+    const photoFileName = normalizeStoredFileName(existingResult.recordset[0].PhotoUrl);
+
     const deleteResult = await pool.request()
       .input('dailyStatusId', sql.Int, parseInt(dailyStatusId))
       .input('guestCheckinId', sql.Int, parseInt(guestCheckinId))
@@ -4470,6 +4600,27 @@ app.delete('/api/daily-status/:dailyStatusId/guest-checkins/:guestCheckinId', as
 
     if (deleteResult.rowsAffected[0] === 0) {
       return res.status(404).json({ error: 'Guest check-in not found' });
+    }
+
+    const filesToDelete = [proofFileName, photoFileName].filter((value): value is string => Boolean(value));
+
+    for (const fileName of filesToDelete) {
+      if (isAzureConfigured()) {
+        try {
+          await deleteAzureBlobFromContainer(fileName, AZURE_GUEST_CHECKIN_CONTAINER);
+        } catch (deleteError) {
+          console.error(`[Guest Checkin Delete] Failed to delete Azure blob: ${fileName}`, deleteError);
+        }
+      }
+
+      const localFilePath = path.join(guestCheckinDir, path.basename(fileName));
+      if (fs.existsSync(localFilePath)) {
+        try {
+          fs.unlinkSync(localFilePath);
+        } catch (deleteError) {
+          console.error(`[Guest Checkin Delete] Failed to delete local file: ${localFilePath}`, deleteError);
+        }
+      }
     }
 
     res.json({ message: 'Guest check-in deleted successfully' });

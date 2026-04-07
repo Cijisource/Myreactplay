@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { apiService, getFileUrl } from '../api';
+import { apiService, getComplaintFileUrl } from '../api';
 import SearchableDropdown from './SearchableDropdown';
 import './ComplaintsManagement.css';
 
@@ -727,7 +727,7 @@ export const ComplaintsManagement: React.FC = () => {
                   )}
                   {formData.proof1Url && !filePreview.proof1 && (
                     <div className="file-preview" style={{ border: '2px solid blue' }}>
-                      <img src={getFileUrl(formData.proof1Url)} alt="Proof 1" style={{ maxWidth: '100px', maxHeight: '100px' }} />
+                      <img src={getComplaintFileUrl(formData.proof1Url)} alt="Proof 1" style={{ maxWidth: '100px', maxHeight: '100px' }} />
                       <p style={{ fontSize: '11px', color: 'blue' }}>Existing file: {formData.proof1Url}</p>
                     </div>
                   )}
@@ -758,7 +758,7 @@ export const ComplaintsManagement: React.FC = () => {
                   )}
                   {formData.proof2Url && !filePreview.proof2 && (
                     <div className="file-preview" style={{ border: '2px solid blue' }}>
-                      <img src={getFileUrl(formData.proof2Url)} alt="Proof 2" style={{ maxWidth: '100px', maxHeight: '100px' }} />
+                      <img src={getComplaintFileUrl(formData.proof2Url)} alt="Proof 2" style={{ maxWidth: '100px', maxHeight: '100px' }} />
                       <p style={{ fontSize: '11px', color: 'blue' }}>Existing file: {formData.proof2Url}</p>
                     </div>
                   )}
@@ -792,7 +792,7 @@ export const ComplaintsManagement: React.FC = () => {
                   {formData.videoUrl && !filePreview.video && (
                     <div className="file-preview" style={{ border: '2px solid blue' }}>
                       <video style={{ maxWidth: '100px', maxHeight: '100px' }} controls>
-                        <source src={getFileUrl(formData.videoUrl)} />
+                        <source src={getComplaintFileUrl(formData.videoUrl)} />
                       </video>
                       <p style={{ fontSize: '11px', color: 'blue' }}>Existing file: {formData.videoUrl}</p>
                     </div>
@@ -826,15 +826,15 @@ export const ComplaintsManagement: React.FC = () => {
             </div>
             <div className="preview-container">
               {previewModal.type === 'image' ? (
-                <img src={getFileUrl(previewModal.url)} alt="Preview" style={{ maxWidth: '100%', maxHeight: '70vh' }} />
+                <img src={getComplaintFileUrl(previewModal.url)} alt="Preview" style={{ maxWidth: '100%', maxHeight: '70vh' }} />
               ) : (
                 <video style={{ maxWidth: '100%', maxHeight: '70vh' }} controls>
-                  <source src={getFileUrl(previewModal.url)} />
+                  <source src={getComplaintFileUrl(previewModal.url)} />
                 </video>
               )}
             </div>
             <div style={{ marginTop: '16px', textAlign: 'center' }}>
-              <a href={getFileUrl(previewModal.url)} download target="_blank" rel="noopener noreferrer" className="btn-primary">
+              <a href={getComplaintFileUrl(previewModal.url)} download target="_blank" rel="noopener noreferrer" className="btn-primary">
                 Download
               </a>
             </div>
