@@ -533,6 +533,11 @@ export async function getRoomMonthlyEbReport(
         tsc.[ProRataUnits],
         tsc.[ProRataPercentage],
         tsc.[TotalCharge],
+           CONVERT(DATE, tsc.[CheckInDate]) as CheckInDate,
+           CASE WHEN tsc.[CheckOutDate] IS NULL
+             THEN NULL
+             ELSE CONVERT(DATE, tsc.[CheckOutDate])
+           END as CheckOutDate,
         tsc.[OccupancyDaysInMonth],
         tsc.[TotalDaysInMonth],
         tsc.[Status]
@@ -595,6 +600,8 @@ export async function getRoomMonthlyEbReport(
           splitUnits: row.ProRataUnits,
           splitPercentage: row.ProRataPercentage,
           splitCharge: row.TotalCharge,
+          checkInDate: row.CheckInDate,
+          checkOutDate: row.CheckOutDate,
           occupancyDaysInMonth: row.OccupancyDaysInMonth,
           totalDaysInMonth: row.TotalDaysInMonth,
           status: row.Status

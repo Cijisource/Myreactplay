@@ -15,6 +15,8 @@ interface TenantSplit {
   splitUnits: number;
   splitPercentage: number;
   splitCharge: number;
+  checkInDate: string | null;
+  checkOutDate: string | null;
   occupancyDaysInMonth: number;
   totalDaysInMonth: number;
   status: string;
@@ -83,6 +85,39 @@ export default function RoomMonthlyEbReportTable({ selectedMonth, roomOptions, r
     fetchReport();
   }, [parsedMonth.year, parsedMonth.month, selectedRoomId, refreshKey]);
 
+  const formatDate = (value: string | null): string => {
+    if (!value) {
+      return '-';
+    }
+
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString();
+  };
+
+  const getActiveTenants = (tenants: TenantSplit[]): string => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const activeNames = tenants
+      .filter((tenant) => {
+        if (!tenant.checkOutDate) {
+          return true;
+        }
+
+        const checkOut = new Date(tenant.checkOutDate);
+        if (Number.isNaN(checkOut.getTime())) {
+          return false;
+        }
+
+        checkOut.setHours(0, 0, 0, 0);
+        return checkOut >= today;
+      })
+      .map((tenant) => tenant.tenantName)
+      .filter(Boolean);
+
+    return activeNames.join(', ');
+  };
+
   return (
     <div className="eb-report-section">
       <div className="eb-report-header">
@@ -115,13 +150,30 @@ export default function RoomMonthlyEbReportTable({ selectedMonth, roomOptions, r
       ) : (
         <div className="eb-report-list">
           {records.map((record) => (
-            <div key={record.serviceConsumptionId} className="eb-report-card">
+            <div
+              key={record.serviceConsumptionId}
+              className={`eb-report-card ${record.tenants.length === 0 ? 'eb-report-card-vacant' : ''}`}
+            >
+              {(() => {
+                const activeTenants = getActiveTenants(record.tenants);
+                const activeTenantLabel = activeTenants || 'Vacant';
+                const isVacant = activeTenantLabel === 'Vacant';
+
+                return (
               <div className="eb-report-card-head">
                 <div>
                   <strong>Room {record.roomNumber}</strong> - {record.serviceName}
+                  <div className={`eb-report-active-tenant ${isVacant ? 'eb-report-active-tenant-vacant' : ''}`}>
+                    Active Tenant: {activeTenantLabel}
+                  </div>
+                  {record.tenants.length === 0 && (
+                    <span className="eb-report-vacant-badge">Vacant</span>
+                  )}
                 </div>
                 <div>Meter: {record.meterNo}</div>
               </div>
+                );
+              })()}
 
               <div className="eb-report-metrics">
                 <span>Reading Date: {new Date(record.readingTakenDate).toLocaleDateString()}</span>
@@ -138,6 +190,8 @@ export default function RoomMonthlyEbReportTable({ selectedMonth, roomOptions, r
                   <thead>
                     <tr>
                       <th>Tenant</th>
+                      <th>Check-In</th>
+                      <th>Check-Out</th>
                       <th>Units</th>
                       <th>Share %</th>
                       <th>Charge</th>
@@ -148,12 +202,14 @@ export default function RoomMonthlyEbReportTable({ selectedMonth, roomOptions, r
                   <tbody>
                     {record.tenants.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="no-tenant-row">No tenant split available.</td>
+                        <td colSpan={8} className="no-tenant-row">Vacant room - no tenant split available.</td>
                       </tr>
                     ) : (
                       record.tenants.map((tenant) => (
                         <tr key={tenant.tenantChargeId}>
                           <td>{tenant.tenantName}</td>
+                          <td>{formatDate(tenant.checkInDate)}</td>
+                          <td>{formatDate(tenant.checkOutDate)}</td>
                           <td>{Number(tenant.splitUnits || 0).toFixed(2)}</td>
                           <td>{Number(tenant.splitPercentage || 0).toFixed(2)}%</td>
                           <td>₹{Number(tenant.splitCharge || 0).toFixed(2)}</td>

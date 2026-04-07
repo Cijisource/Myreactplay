@@ -60,6 +60,11 @@
   background: #f8fafc;
 }
 
+.eb-report-card-vacant {
+  border-color: #fca5a5;
+  background: #fff1f2;
+}
+
 .eb-report-card-head {
   display: flex;
   justify-content: space-between;
@@ -67,6 +72,37 @@
   flex-wrap: wrap;
   margin-bottom: 8px;
   color: #0f172a;
+}
+
+.eb-report-vacant-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #9f1239;
+  background: #ffe4e6;
+  border: 1px solid #fecdd3;
+}
+
+.eb-report-active-tenant {
+  margin-top: 4px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #0369a1;
+}
+
+.eb-report-active-tenant-vacant {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: #9f1239;
+  background: #ffe4e6;
+  border: 1px solid #fecdd3;
 }
 
 .eb-report-metrics {
@@ -111,6 +147,8 @@
 .no-tenant-row {
   text-align: center;
   color: #64748b;
+  background: #fff7ed;
+  font-weight: 600;
 }
 
 @media (max-width: 768px) {
