@@ -291,7 +291,7 @@ export default function ServiceConsumptionDetails() {
         startingMeterReading: formData.startingMeterReading,
         endingMeterReading: formData.endingMeterReading,
         readingTakenDate: new Date().toISOString(),
-        unitRate: 10,
+        unitRate: 15,
         isAutoFilledStartingReading: isAutoFilledStarting,
         meterPhoto1: photoPreview[0] || null,
         meterPhoto2: photoPreview[1] || null,
