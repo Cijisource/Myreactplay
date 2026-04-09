@@ -14,7 +14,11 @@ const EditProduct = ({ product, onClose, onSaved }) => {
     category_id: product.category_id || '',
     price: product.price || '',
     stock: product.stock || '',
-    sku: product.sku || ''
+    sku: product.sku || '',
+    is_preorder: product.is_preorder || false,
+    preorder_release_date: product.preorder_release_date
+      ? new Date(product.preorder_release_date).toISOString().split('T')[0]
+      : ''
   });
 
   const loadCategoriesMemo = useCallback(() => {
@@ -36,10 +40,10 @@ const EditProduct = ({ product, onClose, onSaved }) => {
   };
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: type === 'checkbox' ? checked : value
     }));
   };
 
@@ -77,7 +81,9 @@ const EditProduct = ({ product, onClose, onSaved }) => {
         category_id: parseInt(formData.category_id),
         price: parseFloat(formData.price),
         stock: parseInt(formData.stock),
-        sku: formData.sku
+        sku: formData.sku,
+        is_preorder: formData.is_preorder,
+        preorder_release_date: formData.is_preorder ? formData.preorder_release_date || null : null
       });
 
       setMessage('Product updated successfully!');
@@ -182,6 +188,32 @@ const EditProduct = ({ product, onClose, onSaved }) => {
               />
             </div>
           </div>
+
+          {/* Pre-Order */}
+          <div className="form-group">
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                name="is_preorder"
+                checked={formData.is_preorder}
+                onChange={handleChange}
+              />
+              <span>Pre-Order Product</span>
+            </label>
+          </div>
+
+          {formData.is_preorder && (
+            <div className="form-group">
+              <label>Expected Release Date</label>
+              <input
+                type="date"
+                name="preorder_release_date"
+                value={formData.preorder_release_date}
+                onChange={handleChange}
+                min={new Date().toISOString().split('T')[0]}
+              />
+            </div>
+          )}
 
           <div className="form-actions">
             <button
