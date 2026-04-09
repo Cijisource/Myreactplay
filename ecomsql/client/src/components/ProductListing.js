@@ -53,8 +53,9 @@ const ProductCard = React.memo(({ product, onAddToCart, onViewPhotos, isAuthenti
         }}
         style={{ cursor: 'pointer' }}
       >
-        {product.stock === 0 && <div className="out-of-stock-badge">Sold Out</div>}
-        {product.stock > 0 && discountPercent > 0 && (
+        {product.stock === 0 && !product.is_preorder && <div className="out-of-stock-badge">Sold Out</div>}
+        {product.is_preorder && <div className="preorder-badge">Pre-Order</div>}
+        {product.stock > 0 && !product.is_preorder && discountPercent > 0 && (
           <span className="sale-badge">{discountPercent}% Off</span>
         )}
         <div className="product-image">
@@ -82,11 +83,11 @@ const ProductCard = React.memo(({ product, onAddToCart, onViewPhotos, isAuthenti
         
         <div className="product-actions">
           <button
-            className="add-to-cart-btn"
+            className={product.is_preorder ? 'preorder-btn' : 'add-to-cart-btn'}
             onClick={() => onAddToCart(product)}
-            disabled={product.stock === 0}
+            disabled={!product.is_preorder && product.stock === 0}
           >
-            {product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
+            {product.is_preorder ? 'Pre-Order' : product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
           </button>
           <button
             className="view-details-btn"

@@ -130,6 +130,7 @@ const ProductDetail = ({ productId, onBackClick, isAuthenticated: isAuthenticate
     : null;
 
   const inStock = product.stock > 0;
+  const isPreorder = !!product.is_preorder;
   const discountPercent = 15; // Example discount
   const hasImages = product.images && product.images.length > 0;
 
@@ -176,8 +177,9 @@ const ProductDetail = ({ productId, onBackClick, isAuthenticated: isAuthenticate
                 <p style={{ color: '#999', margin: 0 }}>No image available</p>
               </div>
             )}
-            {!inStock && <div className="out-of-stock-overlay">Out of Stock</div>}
-            {discountPercent > 0 && (
+            {!inStock && !isPreorder && <div className="out-of-stock-overlay">Out of Stock</div>}
+            {isPreorder && <div className="preorder-overlay">Pre-Order</div>}
+            {discountPercent > 0 && !isPreorder && (
               <div className="discount-badge">{discountPercent}% OFF</div>
             )}
             
@@ -259,9 +261,21 @@ const ProductDetail = ({ productId, onBackClick, isAuthenticated: isAuthenticate
             <div className="meta-item">
               <span className="label">In Stock:</span>
               <span className={`value ${inStock ? 'in-stock' : 'out-of-stock'}`}>
-                {inStock ? `${product.stock} available` : 'Out of Stock'}
+                {isPreorder
+                  ? 'Pre-Order'
+                  : inStock
+                    ? `${product.stock} available`
+                    : 'Out of Stock'}
               </span>
             </div>
+            {isPreorder && product.preorder_release_date && (
+              <div className="meta-item">
+                <span className="label">Release Date:</span>
+                <span className="value preorder-release-date">
+                  {new Date(product.preorder_release_date).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="product-features">
@@ -289,7 +303,7 @@ const ProductDetail = ({ productId, onBackClick, isAuthenticated: isAuthenticate
                 <button 
                   className="qty-btn"
                   onClick={() => handleQuantityChange(quantity - 1)}
-                  disabled={quantity <= 1 || !inStock}
+                  disabled={quantity <= 1 || (!isPreorder && !inStock)}
                 >
                   −
                 </button>
@@ -300,12 +314,12 @@ const ProductDetail = ({ productId, onBackClick, isAuthenticated: isAuthenticate
                   max={product.stock || 1}
                   value={quantity}
                   onChange={(e) => handleQuantityChange(parseInt(e.target.value) || 1)}
-                  disabled={!inStock}
+                  disabled={!isPreorder && !inStock}
                 />
                 <button 
                   className="qty-btn"
                   onClick={() => handleQuantityChange(quantity + 1)}
-                  disabled={quantity >= (product.stock || 1) || !inStock}
+                  disabled={quantity >= (product.stock || 1) || (!isPreorder && !inStock)}
                 >
                   +
                 </button>
@@ -316,11 +330,11 @@ const ProductDetail = ({ productId, onBackClick, isAuthenticated: isAuthenticate
             {error && <div className="error-message">{error}</div>}
 
             <button 
-              className={`add-to-cart-btn ${!inStock ? 'disabled' : ''}`}
+              className={`add-to-cart-btn ${isPreorder ? 'preorder-action-btn' : ''} ${(!isPreorder && !inStock) ? 'disabled' : ''}`}
               onClick={handleAddToCart}
-              disabled={!inStock || quantity < 1}
+              disabled={!isPreorder && (!inStock || quantity < 1)}
             >
-              {!inStock ? 'Out of Stock' : '🛒 Add to Cart'}
+              {isPreorder ? '⏳ Pre-Order Now' : !inStock ? 'Out of Stock' : '🛒 Add to Cart'}
             </button>
 
             <button

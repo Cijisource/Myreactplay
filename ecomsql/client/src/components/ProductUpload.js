@@ -16,7 +16,9 @@ const ProductUpload = () => {
     category_id: '',
     price: '',
     stock: '',
-    sku: ''
+    sku: '',
+    is_preorder: false,
+    preorder_release_date: ''
   });
 
   const [selectedFiles, setSelectedFiles] = useState([]);
@@ -45,10 +47,10 @@ const ProductUpload = () => {
   };
 
   const handleProductChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setProductForm(prev => ({
       ...prev,
-      [name]: value
+      [name]: type === 'checkbox' ? checked : value
     }));
   };
 
@@ -107,7 +109,9 @@ const ProductUpload = () => {
         category_id: parseInt(productForm.category_id),
         price: parseFloat(productForm.price),
         stock: parseInt(productForm.stock) || 0,
-        sku: productForm.sku
+        sku: productForm.sku,
+        is_preorder: productForm.is_preorder,
+        preorder_release_date: productForm.is_preorder ? productForm.preorder_release_date || null : null
       });
 
       const productId = productResponse.data.id;
@@ -129,7 +133,9 @@ const ProductUpload = () => {
         category_id: '',
         price: '',
         stock: '',
-        sku: ''
+        sku: '',
+        is_preorder: false,
+        preorder_release_date: ''
       });
       setSelectedFiles([]);
       setUploadProgress(0);
@@ -279,6 +285,33 @@ const ProductUpload = () => {
                 required
               />
             </div>
+
+            {/* Pre-Order Section */}
+            <div className="form-group">
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  name="is_preorder"
+                  checked={productForm.is_preorder}
+                  onChange={handleProductChange}
+                />
+                <span>Pre-Order Product</span>
+              </label>
+              <p className="field-hint">Customers can place pre-orders before the product is available.</p>
+            </div>
+
+            {productForm.is_preorder && (
+              <div className="form-group">
+                <label>Expected Release Date</label>
+                <input
+                  type="date"
+                  name="preorder_release_date"
+                  value={productForm.preorder_release_date}
+                  onChange={handleProductChange}
+                  min={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+            )}
 
             {/* Image Upload Section */}
             <div className="form-group">
