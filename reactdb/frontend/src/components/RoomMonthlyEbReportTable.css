@@ -53,11 +53,57 @@
   gap: 12px;
 }
 
+.eb-report-category-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.eb-report-category-header {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.eb-report-category-header-shop {
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+}
+
+.eb-report-category-header-residential {
+  color: #1d4ed8;
+  background: #dbeafe;
+  border: 1px solid #93c5fd;
+}
+
+.eb-report-category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .eb-report-card {
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   padding: 12px;
   background: #f8fafc;
+}
+
+.eb-report-card-shop {
+  border-left: 4px solid #f59e0b;
+  background: linear-gradient(135deg, #fffaf0 0%, #fffdf7 100%);
+}
+
+.eb-report-card-residential {
+  border-left: 4px solid #2563eb;
+  background: linear-gradient(135deg, #f3f8ff 0%, #f8fbff 100%);
 }
 
 .eb-report-card-vacant {
@@ -103,6 +149,29 @@
   color: #9f1239;
   background: #ffe4e6;
   border: 1px solid #fecdd3;
+}
+
+.eb-report-category-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.eb-report-category-shop {
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+}
+
+.eb-report-category-residential {
+  color: #1d4ed8;
+  background: #dbeafe;
+  border: 1px solid #93c5fd;
 }
 
 .eb-report-metrics {
