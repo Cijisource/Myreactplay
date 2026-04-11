@@ -1096,6 +1096,7 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
           ISNULL(o.RentFixed, rd.Rent) as rentFixed,
           ISNULL(CAST(rc.RentReceivedOn AS NVARCHAR), NULL) as rentReceivedOn,
           ISNULL(CAST(rc.RentReceived AS FLOAT), 0) as rentReceived,
+          ISNULL(CAST(rc.Charges AS FLOAT), 0) as charges,
           @month as [month],
           @year as [year],
           CAST(o.CheckInDate AS NVARCHAR) as checkInDate,
@@ -1123,6 +1124,7 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
     const paymentRecords = result.recordset.map((record: any) => {
       const rentFixed = record.rentFixed || 0;
       const rentReceived = record.rentReceived || 0;
+      const charges = record.charges || 0;
       
       // Calculate pro-rata rent for this specific month based on check-in/check-out dates
       const proRataRent = calculateProRataRentForMonth(
@@ -1141,12 +1143,25 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
         month
       );
       
-      // Calculate rent balance as: proRataRent - rentReceived
-      const rentBalance = Math.max(0, proRataRent - rentReceived);
+      // Calculate rent balance as: proRataRent - (rentReceived + charges)
+      const totalReceived = rentReceived + charges;
+      const rentBalance = Math.max(0, proRataRent - totalReceived);
+
+      // Recalculate payment status based on updated balance
+      let paymentStatus: string;
+      if (totalReceived === 0) {
+        paymentStatus = 'pending';
+      } else if (rentBalance === 0) {
+        paymentStatus = 'paid';
+      } else {
+        paymentStatus = 'partial';
+      }
       
       return {
         ...record,
+        proRataRent,
         rentBalance,
+        paymentStatus,
         occupancyDays
       };
     });
