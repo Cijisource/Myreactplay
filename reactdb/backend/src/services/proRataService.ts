@@ -269,34 +269,34 @@ export async function getTenantChargesForMonth(
   try {
     let query = `
       SELECT 
-        tsc.[Id],
-        tsc.[ServiceConsumptionId],
-        tsc.[TenantId],
-        LTRIM(RTRIM(t.[Name])) as TenantName,
-        LTRIM(RTRIM(t.[Phone])) as TenantPhone,
-        tsc.[RoomId],
-        LTRIM(RTRIM(rd.[Number])) as RoomNumber,
-        tsc.[ServiceId],
-        sd.[ConsumerName] as ServiceName,
-        sd.[MeterNo],
-        tsc.[BillingMonth],
-        tsc.[BillingYear],
-        CONCAT(tsc.[BillingMonth], '/', tsc.[BillingYear]) as BillingPeriod,
-        tsc.[TotalUnitsForRoom],
-        tsc.[ProRataUnits],
-        tsc.[ProRataPercentage],
-        tsc.[ChargePerUnit],
-        tsc.[TotalCharge],
-        CONVERT(DATE, tsc.[CheckInDate]) as CheckInDate,
-        CASE WHEN tsc.[CheckOutDate] IS NULL 
+           tsc.[Id] as id,
+           tsc.[ServiceConsumptionId] as serviceConsumptionId,
+           tsc.[TenantId] as tenantId,
+           LTRIM(RTRIM(t.[Name])) as tenantName,
+           LTRIM(RTRIM(t.[Phone])) as tenantPhone,
+           tsc.[RoomId] as roomId,
+           LTRIM(RTRIM(rd.[Number])) as roomNumber,
+           tsc.[ServiceId] as serviceId,
+           sd.[ConsumerName] as serviceName,
+           sd.[MeterNo] as meterNo,
+           tsc.[BillingMonth] as billingMonth,
+           tsc.[BillingYear] as billingYear,
+           CONCAT(tsc.[BillingMonth], '/', tsc.[BillingYear]) as billingPeriod,
+           tsc.[TotalUnitsForRoom] as totalUnitsForRoom,
+           tsc.[ProRataUnits] as proRataUnits,
+           tsc.[ProRataPercentage] as proRataPercentage,
+           tsc.[ChargePerUnit] as chargePerUnit,
+           tsc.[TotalCharge] as totalCharge,
+           CONVERT(DATE, tsc.[CheckInDate]) as checkInDate,
+           CASE WHEN tsc.[CheckOutDate] IS NULL 
              THEN NULL 
              ELSE CONVERT(DATE, tsc.[CheckOutDate]) 
-        END as CheckOutDate,
-        tsc.[OccupancyDaysInMonth],
-        tsc.[TotalDaysInMonth],
-        tsc.[Status],
-        tsc.[CreatedDate],
-        tsc.[UpdatedDate]
+           END as checkOutDate,
+           tsc.[OccupancyDaysInMonth] as occupancyDaysInMonth,
+           tsc.[TotalDaysInMonth] as totalDaysInMonth,
+           tsc.[Status] as status,
+           tsc.[CreatedDate] as createdDate,
+           tsc.[UpdatedDate] as updatedDate
       FROM [dbo].[TenantServiceCharges] tsc
       INNER JOIN [dbo].[Tenant] t ON tsc.[TenantId] = t.[Id]
       INNER JOIN [dbo].[RoomDetail] rd ON tsc.[RoomId] = rd.[Id]
@@ -339,16 +339,16 @@ export async function getRoomBillingsSummary(billingYear: number, billingMonth: 
   try {
     let query = `
       SELECT 
-        rd.[Id],
-        LTRIM(RTRIM(rd.[Number])) as RoomNumber,
-        sd.[Id] as ServiceId,
-        sd.[ConsumerName] as ServiceName,
-        sd.[MeterNo],
-        MAX(tsc.[TotalUnitsForRoom]) as TotalUnitsConsumed,
-        COUNT(DISTINCT tsc.[TenantId]) as NumberOfTenants,
-        SUM(tsc.[TotalCharge]) as TotalChargeForRoom,
-        tsc.[BillingMonth],
-        tsc.[BillingYear]
+        rd.[Id] as id,
+        LTRIM(RTRIM(rd.[Number])) as roomNumber,
+        sd.[Id] as serviceId,
+        sd.[ConsumerName] as serviceName,
+        sd.[MeterNo] as meterNo,
+        MAX(tsc.[TotalUnitsForRoom]) as totalUnitsConsumed,
+        COUNT(DISTINCT tsc.[TenantId]) as numberOfTenants,
+        SUM(tsc.[TotalCharge]) as totalChargeForRoom,
+        tsc.[BillingMonth] as billingMonth,
+        tsc.[BillingYear] as billingYear
       FROM [dbo].[TenantServiceCharges] tsc
       INNER JOIN [dbo].[RoomDetail] rd ON tsc.[RoomId] = rd.[Id]
       INNER JOIN [dbo].[ServiceDetails] sd ON tsc.[ServiceId] = sd.[Id]
@@ -392,15 +392,15 @@ export async function getMonthlyBillingReport(billingYear: number, billingMonth:
       .input('billingMonth', sql.Int, billingMonth)
       .query(`
         SELECT 
-          @billingMonth as BillingMonth,
-          @billingYear as BillingYear,
-          CONCAT(@billingMonth, '/', @billingYear) as BillingPeriod,
-          COUNT(DISTINCT tsc.[RoomId]) as RoomsWithCharges,
-          COUNT(DISTINCT tsc.[ServiceId]) as ServicesInvoiced,
-          COUNT(DISTINCT tsc.[TenantId]) as TenantsCharged,
-          SUM(tsc.[TotalUnitsForRoom]) as TotalUnitsConsumed,
-          CAST(AVG(tsc.[ProRataPercentage]) AS DECIMAL(5, 2)) as AvgOccupancyPercentage,
-          SUM(tsc.[TotalCharge]) as TotalChargeAmount
+          @billingMonth as billingMonth,
+          @billingYear as billingYear,
+          CONCAT(@billingMonth, '/', @billingYear) as billingPeriod,
+          COUNT(DISTINCT tsc.[RoomId]) as roomsWithCharges,
+          COUNT(DISTINCT tsc.[ServiceId]) as servicesInvoiced,
+          COUNT(DISTINCT tsc.[TenantId]) as tenantsCharged,
+          SUM(tsc.[TotalUnitsForRoom]) as totalUnitsConsumed,
+          CAST(AVG(tsc.[ProRataPercentage]) AS DECIMAL(5, 2)) as avgOccupancyPercentage,
+          SUM(tsc.[TotalCharge]) as totalChargeAmount
         FROM [dbo].[TenantServiceCharges] tsc
         WHERE tsc.[BillingYear] = @billingYear
           AND tsc.[BillingMonth] = @billingMonth

@@ -11,6 +11,8 @@ interface PaymentRecord {
   rentFixed: number;
   rentReceivedOn: string | null;
   rentReceived: number;
+  charges: number;
+  proRataRent: number;
   rentBalance: number;
   occupancyDays: number;
   month: number;
@@ -142,7 +144,7 @@ export default function PaymentTracking() {
     return {
       totalTenants: activePayments.length,
       totalRent: activePayments.reduce((sum, p) => sum + p.rentFixed, 0),
-      totalReceived: activePayments.reduce((sum, p) => sum + p.rentReceived, 0),
+      totalReceived: activePayments.reduce((sum, p) => sum + p.rentReceived + p.charges, 0),
       totalPending: activePayments.reduce((sum, p) => sum + Math.max(0, p.rentBalance), 0),
       paidCount: activePayments.filter((p) => p.paymentStatus === 'paid').length,
       partialCount: activePayments.filter((p) => p.paymentStatus === 'partial').length,
@@ -341,7 +343,9 @@ export default function PaymentTracking() {
                 <th>Tenant Name</th>
                 <th>Room Number</th>
                 <th>Rent Fixed</th>
+                <th>Charges</th>
                 <th>Rent Received</th>
+                <th>Total Receivable</th>
                 <th>Balance</th>
                 <th>Payment Date</th>
                 <th>Status</th>
@@ -366,8 +370,14 @@ export default function PaymentTracking() {
                   <td className="amount" data-label="Rent Fixed">
                     ₹{payment.rentFixed.toLocaleString()}
                   </td>
+                  <td className="amount" data-label="Charges">
+                    {payment.charges > 0 ? `₹${payment.charges.toLocaleString()}` : '-'}
+                  </td>
                   <td className="amount success" data-label="Rent Received">
                     ₹{payment.rentReceived.toLocaleString()}
+                  </td>
+                  <td className="amount maroon" data-label="Total Receivable">
+                    ₹{(payment.proRataRent + payment.charges).toLocaleString()}
                   </td>
                   <td
                     className={`amount ${
