@@ -127,6 +127,21 @@ function MainApp() {
   }, [updateCartCount, loadCategories]);
 
   useEffect(() => {
+    const syncUserFromStorage = () => {
+      const storedUser = getUser();
+      setUser(storedUser || null);
+    };
+
+    window.addEventListener('auth-changed', syncUserFromStorage);
+    window.addEventListener('storage', syncUserFromStorage);
+
+    return () => {
+      window.removeEventListener('auth-changed', syncUserFromStorage);
+      window.removeEventListener('storage', syncUserFromStorage);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!isGuestAuthPanelOpen) {
       return undefined;
     }

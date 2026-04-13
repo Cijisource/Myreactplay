@@ -244,6 +244,107 @@ async function loginUser(email, password) {
   }
 }
 
+// Auto register/login during checkout using email + phone number
+async function checkoutAutoRegisterOrLogin(email, name, phoneNumber, shippingAddress = null) {
+  try {
+    const normalizedEmail = (email || '').trim().toLowerCase();
+    const normalizedPhone = (phoneNumber || '').trim();
+
+    if (!normalizedEmail || !normalizedPhone) {
+      throw new Error('Email and phone number are required for checkout auto authentication');
+    }
+
+    const pool = await getConnection();
+
+    const existingUserResult = await pool.request()
+      .input('email', sql.NVarChar, normalizedEmail)
+      .query(`
+        SELECT 
+          u.Id,
+          u.UserName,
+          u.Password,
+          u.Name,
+          u.PhoneNumber,
+          u.ShippingAddress,
+          u.CreatedDate,
+          u.LastLogin,
+          rd.Id as RoleId,
+          rd.RoleName,
+          rd.RoleType
+        FROM [User] u
+        LEFT JOIN UserRole ur ON u.Id = ur.UserId
+        LEFT JOIN RoleDetail rd ON ur.RoleId = rd.Id
+        WHERE LOWER(u.UserName) = LOWER(@email)
+      `);
+
+    if (existingUserResult.recordset.length === 0) {
+      const fallbackName = (name || '').trim() || normalizedEmail.split('@')[0] || 'Customer';
+
+      await registerUser(normalizedEmail, normalizedPhone, fallbackName, 'Customer', normalizedPhone, shippingAddress || null);
+      const registeredLogin = await loginUser(normalizedEmail, normalizedPhone);
+
+      return {
+        ...registeredLogin,
+        authMode: 'registered'
+      };
+    }
+
+    const existingUser = existingUserResult.recordset[0];
+    const existingPhone = (existingUser.PhoneNumber || '').trim();
+
+    if (existingPhone && existingPhone !== normalizedPhone) {
+      throw new Error('Phone number does not match the existing account for this email');
+    }
+
+    // Keep checkout details in sync for future logins/profile usage.
+    const updateRequest = pool.request()
+      .input('userId', sql.Int, existingUser.Id)
+      .input('phoneNumber', sql.NVarChar, normalizedPhone)
+      .input('lastLogin', sql.DateTime2, new Date())
+      .input('shippingAddress', sql.NVarChar, shippingAddress || existingUser.ShippingAddress || null);
+
+    if (!existingPhone) {
+      const hashedPhonePassword = await hashPassword(normalizedPhone);
+      updateRequest.input('password', sql.NVarChar, hashedPhonePassword);
+      await updateRequest.query(`
+        UPDATE [User]
+        SET PhoneNumber = @phoneNumber,
+            Password = @password,
+            ShippingAddress = @shippingAddress,
+            LastLogin = @lastLogin
+        WHERE Id = @userId
+      `);
+    } else {
+      await updateRequest.query(`
+        UPDATE [User]
+        SET PhoneNumber = @phoneNumber,
+            ShippingAddress = @shippingAddress,
+            LastLogin = @lastLogin
+        WHERE Id = @userId
+      `);
+    }
+
+    const token = generateToken(existingUser);
+
+    return {
+      token,
+      user: {
+        id: existingUser.Id,
+        userName: existingUser.UserName,
+        email: existingUser.UserName,
+        name: existingUser.Name,
+        role: existingUser.RoleName,
+        roleType: existingUser.RoleType,
+        roleId: existingUser.RoleId
+      },
+      authMode: 'logged_in'
+    };
+  } catch (error) {
+    console.error('[CHECKOUT_AUTO_AUTH] Error:', error.message);
+    throw error;
+  }
+}
+
 // Get user by ID
 async function getUserById(userId) {
   try {
@@ -558,6 +659,7 @@ async function resetUserPassword(userId, newPassword) {
 module.exports = {
   registerUser,
   loginUser,
+  checkoutAutoRegisterOrLogin,
   getUserById,
   updateUserRole,
   updateUserProfile,

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { getProductImages, deleteProductImage, API_BASE_URL } from '../api';
+import { hasAnyRole } from '../utils/authUtils';
 import './ViewPhotos.css';
 
 const ViewPhotos = ({ productId, productName, onClose }) => {
@@ -8,6 +9,7 @@ const ViewPhotos = ({ productId, productName, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deleteInProgress, setDeleteInProgress] = useState(false);
+  const canDeleteImages = hasAnyRole(['Seller', 'Administrator']);
 
   const loadImages = useCallback(async () => {
     try {
@@ -40,6 +42,10 @@ const ViewPhotos = ({ productId, productName, onClose }) => {
 
   const handleDeleteImage = async (imageId, event) => {
     event.stopPropagation();
+
+    if (!canDeleteImages) {
+      return;
+    }
     
     if (!window.confirm('Are you sure you want to delete this image?')) {
       return;
@@ -162,14 +168,16 @@ const ViewPhotos = ({ productId, productName, onClose }) => {
                       {image.is_primary && (
                         <span className="primary-indicator">★</span>
                       )}
-                      <button
-                        className="delete-thumbnail-btn"
-                        onClick={(e) => handleDeleteImage(image.id, e)}
-                        disabled={deleteInProgress}
-                        title="Delete this image"
-                      >
-                        🗑
-                      </button>
+                      {canDeleteImages && (
+                        <button
+                          className="delete-thumbnail-btn"
+                          onClick={(e) => handleDeleteImage(image.id, e)}
+                          disabled={deleteInProgress}
+                          title="Delete this image"
+                        >
+                          🗑
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -177,7 +185,7 @@ const ViewPhotos = ({ productId, productName, onClose }) => {
             )}
 
             {/* Single Image Delete for 1 image */}
-            {images.length === 1 && (
+            {images.length === 1 && canDeleteImages && (
               <div className="single-image-controls">
                 <button
                   className="delete-btn"

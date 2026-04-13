@@ -10,6 +10,7 @@ const OrderManagement = () => {
   const [error, setError] = useState('');
   const [statusLoading, setStatusLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const isSellerOrAdmin = hasRole('Seller') || hasRole('Administrator');
 
   const loadOrdersMemo = useCallback(() => {
     loadOrders();
@@ -108,6 +109,218 @@ const OrderManagement = () => {
     }
   };
 
+  const handlePrintFullOrderLabel = () => {
+    if (!selectedOrder || !isSellerOrAdmin) {
+      return;
+    }
+
+    const safeOrderNumber = selectedOrder.order_number || `ORDER-${selectedOrder.id}`;
+    const safeCustomerName = selectedOrder.customer_name || 'N/A';
+    const safeCustomerEmail = selectedOrder.customer_email || 'N/A';
+    const safeShippingAddress = selectedOrder.shipping_address || 'N/A';
+    const safeStatus = selectedOrder.status || 'pending';
+    const safeCreatedAt = selectedOrder.created_at
+      ? new Date(selectedOrder.created_at).toLocaleString('en-IN', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+      : 'N/A';
+
+    const items = Array.isArray(selectedOrder.items) ? selectedOrder.items : [];
+    const totalQty = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+
+    const itemRows = items.map((item, index) => `
+      <tr>
+        <td>${index + 1}</td>
+        <td>${item.product_name || 'N/A'}</td>
+        <td>${item.quantity || 0}</td>
+        <td>Rs. ${Number(item.unit_price || 0).toFixed(2)}</td>
+        <td>Rs. ${(Number(item.quantity || 0) * Number(item.unit_price || 0)).toFixed(2)}</td>
+      </tr>
+    `).join('');
+
+    const labelWindow = window.open('', '_blank', 'width=980,height=900');
+    if (!labelWindow) {
+      setError('Unable to open print window. Please allow popups and try again.');
+      return;
+    }
+
+    const html = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Order Label - ${safeOrderNumber}</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 24px; color: #111827; }
+            .label-wrap { border: 2px solid #111827; border-radius: 10px; padding: 16px; }
+            .top { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid #d1d5db; padding-bottom: 10px; margin-bottom: 12px; }
+            .title { font-size: 22px; font-weight: 800; margin: 0; }
+            .meta { font-size: 13px; line-height: 1.6; }
+            .chip { display: inline-block; padding: 4px 8px; border-radius: 999px; background: #e5e7eb; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+            .section { margin-top: 12px; }
+            .section h3 { margin: 0 0 6px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; }
+            .address { border: 1px dashed #9ca3af; border-radius: 8px; padding: 10px; font-size: 14px; white-space: pre-wrap; }
+            table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+            th, td { border: 1px solid #d1d5db; padding: 7px 8px; text-align: left; }
+            th { background: #f3f4f6; }
+            .totals { margin-top: 10px; display: flex; justify-content: space-between; font-weight: 700; }
+            .barcode { margin-top: 14px; font-family: monospace; font-size: 18px; letter-spacing: 2px; text-align: center; }
+            @media print {
+              body { margin: 8mm; }
+              .label-wrap { page-break-inside: avoid; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="label-wrap">
+            <div class="top">
+              <div>
+                <p class="title">Full Order Label</p>
+                <div class="meta">
+                  <div><strong>Order:</strong> ${safeOrderNumber}</div>
+                  <div><strong>Date:</strong> ${safeCreatedAt}</div>
+                </div>
+              </div>
+              <div class="meta" style="text-align:right;">
+                <div class="chip">${safeStatus}</div>
+                <div style="margin-top:8px;"><strong>Total:</strong> Rs. ${Number(selectedOrder.total_amount || 0).toFixed(2)}</div>
+                <div><strong>Items:</strong> ${totalQty}</div>
+              </div>
+            </div>
+
+            <div class="section">
+              <h3>Ship To</h3>
+              <div class="address">
+                <strong>${safeCustomerName}</strong>\n
+                ${safeShippingAddress}\n
+                Email: ${safeCustomerEmail}
+              </div>
+            </div>
+
+            <div class="section">
+              <h3>Order Items</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Product</th>
+                    <th>Qty</th>
+                    <th>Unit Price</th>
+                    <th>Line Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${itemRows || '<tr><td colspan="5">No items</td></tr>'}
+                </tbody>
+              </table>
+            </div>
+
+            <div class="totals">
+              <span>Shipping: Rs. ${Number(selectedOrder.shipping_charge || 0).toFixed(2)}</span>
+              <span>Payable: Rs. ${Number(selectedOrder.total_amount || 0).toFixed(2)}</span>
+            </div>
+
+            <div class="barcode">*${safeOrderNumber}*</div>
+          </div>
+
+          <script>
+            window.onload = function() {
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    labelWindow.document.open();
+    labelWindow.document.write(html);
+    labelWindow.document.close();
+  };
+
+  const handlePrintShippingLabel4x6 = () => {
+    if (!selectedOrder || !isSellerOrAdmin) {
+      return;
+    }
+
+    const safeOrderNumber = selectedOrder.order_number || `ORDER-${selectedOrder.id}`;
+    const safeCustomerName = selectedOrder.customer_name || 'N/A';
+    const safeCustomerEmail = selectedOrder.customer_email || 'N/A';
+    const safeShippingAddress = selectedOrder.shipping_address || 'N/A';
+    const safeStatus = selectedOrder.status || 'pending';
+    const safeTotal = Number(selectedOrder.total_amount || 0).toFixed(2);
+
+    const labelWindow = window.open('', '_blank', 'width=520,height=760');
+    if (!labelWindow) {
+      setError('Unable to open print window. Please allow popups and try again.');
+      return;
+    }
+
+    const html = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>4x6 Shipping Label - ${safeOrderNumber}</title>
+          <style>
+            @page { size: 4in 6in; margin: 0.12in; }
+            body { margin: 0; font-family: Arial, sans-serif; color: #111827; }
+            .label { width: 100%; height: 100%; border: 1px solid #111827; border-radius: 8px; padding: 10px; box-sizing: border-box; }
+            .row { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+            .title { font-size: 14px; font-weight: 800; margin: 0 0 4px 0; }
+            .order { font-size: 12px; font-weight: 700; margin: 0; }
+            .chip { border: 1px solid #9ca3af; border-radius: 999px; padding: 3px 8px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+            .block { margin-top: 8px; border: 1px dashed #9ca3af; border-radius: 6px; padding: 8px; }
+            .block h4 { margin: 0 0 5px 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+            .name { font-size: 14px; font-weight: 800; margin-bottom: 4px; }
+            .addr { font-size: 12px; line-height: 1.35; white-space: pre-wrap; }
+            .meta { margin-top: 8px; font-size: 11px; line-height: 1.5; }
+            .barcode { margin-top: 10px; text-align: center; font-family: monospace; font-size: 18px; letter-spacing: 1.8px; }
+            .footer { margin-top: 6px; text-align: center; font-size: 10px; color: #4b5563; }
+          </style>
+        </head>
+        <body>
+          <div class="label">
+            <div class="row">
+              <div>
+                <p class="title">Shipping Label (4x6)</p>
+                <p class="order">${safeOrderNumber}</p>
+              </div>
+              <div class="chip">${safeStatus}</div>
+            </div>
+
+            <div class="block">
+              <h4>Ship To</h4>
+              <div class="name">${safeCustomerName}</div>
+              <div class="addr">${safeShippingAddress}\nEmail: ${safeCustomerEmail}</div>
+            </div>
+
+            <div class="meta">
+              <div><strong>Amount:</strong> Rs. ${safeTotal}</div>
+              <div><strong>Order Date:</strong> ${selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString('en-IN') : 'N/A'}</div>
+            </div>
+
+            <div class="barcode">*${safeOrderNumber}*</div>
+            <div class="footer">Handle with care | Seller dispatch copy</div>
+          </div>
+
+          <script>
+            window.onload = function() {
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    labelWindow.document.open();
+    labelWindow.document.write(html);
+    labelWindow.document.close();
+  };
+
   if (loading) {
     return <div className="order-management"><div className="loading">Loading orders...</div></div>;
   }
@@ -138,7 +351,7 @@ const OrderManagement = () => {
               </div>
             </div>
 
-            {hasRole('Seller') && (
+            {isSellerOrAdmin && (
               <div className="status-update-section">
                 <h4>Update Status</h4>
                 <div className="status-buttons">
@@ -157,6 +370,17 @@ const OrderManagement = () => {
                     Shipped
                   </button>
                 </div>
+              </div>
+            )}
+
+            {isSellerOrAdmin && (
+              <div className="order-label-actions">
+                <button className="print-label-btn" onClick={handlePrintFullOrderLabel}>
+                  🖨 Print Full Order Label
+                </button>
+                <button className="print-compact-btn" onClick={handlePrintShippingLabel4x6}>
+                  🧾 Print 4x6 Shipping Label
+                </button>
               </div>
             )}
 
