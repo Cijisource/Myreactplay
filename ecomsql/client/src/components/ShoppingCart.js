@@ -101,7 +101,7 @@ const ShoppingCart = ({ onCartCountChange, onOrderComplete }) => {
   // Calculate charges
   const MINIMUM_ORDER_VALUE = 200;
   const subtotalAmount = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const GST_RATE = 0.18; // 18% GST
+  const GST_RATE = 0; // 0% GST
   
   // Discounts are applied ONLY to product value (subtotal), NOT to GST or shipping
   const discountAmount = (appliedDiscount?.amount || 0) + (appliedRewards?.discountAmount || 0);
@@ -207,7 +207,7 @@ const ShoppingCart = ({ onCartCountChange, onOrderComplete }) => {
               </div>
               
               <div className="summary-row">
-                <span>GST (18%):</span>
+                <span>GST (0%):</span>
                 <span className="amount">₹{gstAmount.toFixed(2)}</span>
               </div>
               <div className="summary-row">

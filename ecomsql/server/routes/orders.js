@@ -1,7 +1,45 @@
 const express = require('express');
 const { getConnection, sql } = require('../config');
 const { verifyToken, optionalAuth } = require('../middleware/auth');
+const userService = require('../services/userService');
 const router = express.Router();
+
+function normalizeOrdersWithDiscounts(rows) {
+  const orderMap = new Map();
+
+  for (const row of rows) {
+    let order = orderMap.get(row.id);
+
+    if (!order) {
+      order = {
+        id: row.id,
+        order_number: row.order_number,
+        total_amount: row.total_amount,
+        status: row.status,
+        customer_email: row.customer_email,
+        customer_name: row.customer_name,
+        shipping_address: row.shipping_address,
+        payment_screenshot: row.payment_screenshot,
+        discount_amount: row.discount_amount,
+        applied_discount_code: row.applied_discount_code,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        discounts: []
+      };
+      orderMap.set(row.id, order);
+    }
+
+    if (row.od_discount_code) {
+      order.discounts.push({
+        discount_code: row.od_discount_code,
+        discount_type: row.od_discount_type,
+        discount_amount: row.od_discount_amount
+      });
+    }
+  }
+
+  return Array.from(orderMap.values());
+}
 
 // Generate unique order number
 function generateOrderNumber() {
@@ -13,41 +51,38 @@ router.get('/seller/orders', verifyToken, async (req, res) => {
   try {
     const sellerId = req.user.userId;
     const pool = await getConnection();
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), 500);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
     
-    console.log('[DEBUG] Fetching all orders for seller:', sellerId);
+    console.log('[ORDERS Seller] Fetching orders for seller:', sellerId, 'limit:', limit, 'offset:', offset);
     
-    // Get all orders from all customers with discount information
+    // Single query to avoid N+1 discount lookups.
     const result = await pool.request()
+      .input('limit', sql.Int, limit)
+      .input('offset', sql.Int, offset)
       .query(`
-        SELECT o.id, o.order_number, o.total_amount, o.status, 
-               o.customer_email, o.customer_name, o.shipping_address, 
-               o.payment_screenshot, o.discount_amount, o.applied_discount_code, 
-               o.created_at, o.updated_at
-        FROM orders o
-        ORDER BY o.created_at DESC
+       WITH paged_orders AS (
+         SELECT o.id, o.order_number, o.total_amount, o.status,
+           o.customer_email, o.customer_name, o.shipping_address,
+           o.payment_screenshot, o.discount_amount, o.applied_discount_code,
+           o.created_at, o.updated_at
+         FROM orders o
+         ORDER BY o.created_at DESC
+         OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+       )
+       SELECT p.id, p.order_number, p.total_amount, p.status,
+         p.customer_email, p.customer_name, p.shipping_address,
+         p.payment_screenshot, p.discount_amount, p.applied_discount_code,
+         p.created_at, p.updated_at,
+               od.discount_code AS od_discount_code,
+               od.discount_type AS od_discount_type,
+               od.discount_amount AS od_discount_amount
+       FROM paged_orders p
+       LEFT JOIN order_discounts od ON od.order_id = p.id
+       ORDER BY p.created_at DESC
       `);
     
-    console.log('[DEBUG] Seller orders query returned:', result.recordset.length, 'records');
-    
-    // Fetch discounts for each order
-    const ordersWithDiscounts = await Promise.all(
-      result.recordset.map(async (order) => {
-        try {
-          const discountsResult = await pool.request()
-            .input('orderId', sql.Int, order.id)
-            .query(`
-              SELECT discount_code, discount_type, discount_amount
-              FROM order_discounts
-              WHERE order_id = @orderId
-            `);
-          order.discounts = discountsResult.recordset || [];
-        } catch (err) {
-          console.error(`[DEBUG] Error fetching discounts for order ${order.id}:`, err);
-          order.discounts = [];
-        }
-        return order;
-      })
-    );
+    const ordersWithDiscounts = normalizeOrdersWithDiscounts(result.recordset || []);
     
     res.json(ordersWithDiscounts);
   } catch (error) {
@@ -62,55 +97,26 @@ router.get('/seller/orders', verifyToken, async (req, res) => {
 // Get all orders for current logged-in user
 router.get('/', verifyToken, async (req, res) => {
   try {
-    console.log('[ORDERS Get] User from token:', {
-      userId: req.user?.userId,
-      userName: req.user?.userName,
-      roleType: req.user?.roleType
-    });
-    
     const pool = await getConnection();
-    // Normalize userName to match order storage: trim and lowercase
+    // Normalize userName to match order storage: trim and lowercase.
     const userEmail = (req.user?.userName || '').trim().toLowerCase();
-    
-    console.log('[ORDERS Get] Normalized email to search:', userEmail);
-    
+
     const result = await pool.request()
       .input('customerEmail', sql.NVarChar, userEmail)
       .query(`
-        SELECT id, order_number, total_amount, status, customer_email, customer_name, 
-               shipping_address, payment_screenshot, discount_amount, applied_discount_code, 
-               created_at, updated_at
-        FROM orders
-        WHERE LOWER(RTRIM(LTRIM(customer_email))) = @customerEmail
-        ORDER BY created_at DESC
+         SELECT o.id, o.order_number, o.total_amount, o.status, o.customer_email, o.customer_name,
+           o.shipping_address, o.payment_screenshot, o.discount_amount, o.applied_discount_code,
+           o.created_at, o.updated_at,
+               od.discount_code AS od_discount_code,
+               od.discount_type AS od_discount_type,
+               od.discount_amount AS od_discount_amount
+        FROM orders o
+        LEFT JOIN order_discounts od ON od.order_id = o.id
+        WHERE o.customer_email = @customerEmail
+         ORDER BY o.created_at DESC
       `);
-    
-    console.log('[ORDERS Get] Query returned:', result.recordset.length, 'orders');
-    if (result.recordset.length === 0) {
-      console.log('[ORDERS Get] No orders found for email:', userEmail);
-    } else {
-      console.log('[ORDERS Get] Orders found:', result.recordset.map(o => ({ id: o.id, email: o.customer_email, order_number: o.order_number })));
-    }
-    
-    // Fetch discounts for each order
-    const ordersWithDiscounts = await Promise.all(
-      result.recordset.map(async (order) => {
-        try {
-          const discountsResult = await pool.request()
-            .input('orderId', sql.Int, order.id)
-            .query(`
-              SELECT discount_code, discount_type, discount_amount
-              FROM order_discounts
-              WHERE order_id = @orderId
-            `);
-          order.discounts = discountsResult.recordset || [];
-        } catch (err) {
-          console.error(`[ORDERS Get] Error fetching discounts for order ${order.id}:`, err);
-          order.discounts = [];
-        }
-        return order;
-      })
-    );
+
+    const ordersWithDiscounts = normalizeOrdersWithDiscounts(result.recordset || []);
     
     res.json(ordersWithDiscounts);
   } catch (error) {
@@ -187,7 +193,8 @@ router.get('/:id', async (req, res) => {
 // Create order from cart
 router.post('/', optionalAuth, async (req, res) => {
   try {
-    const { sessionId, customerEmail, customerName, shippingAddress, items, subtotalAmount, gstAmount, shippingCharge, totalAmount, paymentScreenshot, orderDate, appliedDiscount, appliedRewards } = req.body;
+    const { sessionId, customerEmail, customerName, customerPhone, shippingAddress, items, subtotalAmount, gstAmount, shippingCharge, totalAmount, paymentScreenshot, orderDate, appliedDiscount, appliedRewards } = req.body;
+    const effectiveGstAmount = 0;
     
     // Extract discount and reward values from objects
     const discountAmount = appliedDiscount?.amount || 0;
@@ -204,7 +211,7 @@ router.post('/', optionalAuth, async (req, res) => {
       discountCode: discountCode,
       rewardAmount: rewardAmount,
       rewardCode: rewardCode,
-      gstAmount: gstAmount,
+      gstAmount: effectiveGstAmount,
       shippingCharge: shippingCharge,
       totalAmount: totalAmount,
       rewardPoints: appliedRewards?.points || 0
@@ -254,7 +261,7 @@ router.post('/', optionalAuth, async (req, res) => {
       const orderResult = await orderRequest
         .input('orderNumber', sql.NVarChar, orderNumber)
         .input('subtotalAmount', sql.Decimal(10, 2), subtotalAmount || 0)
-        .input('gstAmount', sql.Decimal(10, 2), gstAmount || 0)
+        .input('gstAmount', sql.Decimal(10, 2), effectiveGstAmount)
         .input('shippingCharge', sql.Decimal(10, 2), shippingCharge || 0)
         .input('discountAmount', sql.Decimal(10, 2), discountAmount || 0)
         .input('discountCode', sql.NVarChar, discountCode || null)
@@ -290,19 +297,47 @@ router.post('/', optionalAuth, async (req, res) => {
             VALUES (@orderId, @productId, @productName, @quantity, @unitPrice)
           `);
 
-        // Reduce stock for this product
+        // Reduce stock only for non-preorder products.
+        // Preorder items are allowed even when current stock is insufficient.
         const stockRequest = new sql.Request(transaction);
         const stockResult = await stockRequest
           .input('productId', sql.Int, item.productId)
           .input('quantity', sql.Int, item.quantity)
           .query(`
             UPDATE products 
-            SET stock = stock - @quantity
-            WHERE id = @productId AND stock >= @quantity
+            SET stock = CASE
+              WHEN ISNULL(is_preorder, 0) = 1 THEN stock
+              ELSE stock - @quantity
+            END
+            WHERE id = @productId
+              AND (
+                ISNULL(is_preorder, 0) = 1
+                OR stock >= @quantity
+              )
           `);
 
         if (stockResult.rowsAffected[0] === 0) {
-          throw new Error(`Insufficient stock for product ID: ${item.productId}`);
+          const productStateRequest = new sql.Request(transaction);
+          const productStateResult = await productStateRequest
+            .input('productId', sql.Int, item.productId)
+            .query(`
+              SELECT id, ISNULL(is_preorder, 0) AS is_preorder, stock
+              FROM products
+              WHERE id = @productId
+            `);
+
+          if (productStateResult.recordset.length === 0) {
+            throw new Error(`Product not found for product ID: ${item.productId}`);
+          }
+
+          const productState = productStateResult.recordset[0];
+          const isPreorder = Number(productState.is_preorder) === 1;
+
+          if (isPreorder) {
+            throw new Error(`Unable to process preorder item for product ID: ${item.productId}`);
+          }
+
+          throw new Error(`Insufficient stock for product ID: ${item.productId}. Available: ${productState.stock}, Requested: ${item.quantity}`);
         }
 
         console.log('[ORDERS Post] Stock reduced for product:', item.productId, 'by quantity:', item.quantity);
@@ -534,8 +569,27 @@ router.post('/', optionalAuth, async (req, res) => {
         order_number: orderResult.recordset[0].order_number,
         customer_email: orderResult.recordset[0].customer_email
       });
-      
-      res.status(201).json(orderResult.recordset[0]);
+
+      let checkoutAuth = null;
+
+      // Guest checkout: auto register/login using email + phone so customer can access account immediately.
+      if (!req.user && customerPhone) {
+        try {
+          checkoutAuth = await userService.checkoutAutoRegisterOrLogin(
+            normalizedEmail,
+            customerName,
+            customerPhone,
+            shippingAddress || null
+          );
+        } catch (authError) {
+          console.warn('[ORDERS Post] Checkout auto auth skipped:', authError.message);
+        }
+      }
+
+      res.status(201).json({
+        ...orderResult.recordset[0],
+        checkoutAuth
+      });
     } catch (error) {
       console.error('[ORDERS Post] Transaction error:', error);
       await transaction.rollback();

@@ -372,6 +372,16 @@ const Checkout = ({
     }));
   };
 
+  const persistCheckoutAuth = (token, user) => {
+    if (!token || !user) {
+      return;
+    }
+
+    localStorage.setItem('authToken', token);
+    localStorage.setItem('user', JSON.stringify(user));
+    window.dispatchEvent(new Event('auth-changed'));
+  };
+
   const validateDetails = () => {
     if (!formData.customerName.trim()) {
       setMessage('Please enter your name');
@@ -457,8 +467,7 @@ const Checkout = ({
         try {
           // Try to login with email + phone number as password
           const loginResp = await loginUser(email, phone);
-          localStorage.setItem('authToken', loginResp.data.token);
-          localStorage.setItem('user', JSON.stringify(loginResp.data.user));
+          persistCheckoutAuth(loginResp.data.token, loginResp.data.user);
         } catch (loginErr) {
           if (loginErr.response?.status === 401 || loginErr.response?.status === 404) {
             // Not found or wrong credentials — try to register as new customer
@@ -466,8 +475,7 @@ const Checkout = ({
               await registerUser(email, phone, formData.customerName.trim(), phone, address);
               // Registration succeeded — now login to get token
               const loginResp = await loginUser(email, phone);
-              localStorage.setItem('authToken', loginResp.data.token);
-              localStorage.setItem('user', JSON.stringify(loginResp.data.user));
+              persistCheckoutAuth(loginResp.data.token, loginResp.data.user);
             } catch (regErr) {
               // 409: email exists but different phone/password — proceed as guest
               // Any other error — proceed as guest silently
@@ -504,7 +512,7 @@ const Checkout = ({
       
       // GST MUST NEVER be discounted - always charged on original product value
       // GST is independent of any coupons or loyalty point redemptions
-      const gstForOrder = gstAmount;
+      const gstForOrder = 0;
       
       // Calculate total: (subtotal - discount) + original GST + shipping
       // GST is never reduced under any circumstances
@@ -516,6 +524,7 @@ const Checkout = ({
         sessionId,
         customerName: formData.customerName,
         customerEmail: normalizedEmail,
+        customerPhone: formData.customerPhone.trim(),
         shippingAddress: `${formData.shippingAddress}, ${formData.city} - ${formData.zipCode}`,
         items: cartItems.map(item => ({
           productId: item.product_id,
@@ -524,7 +533,7 @@ const Checkout = ({
           price: item.price
         })),
         subtotalAmount,
-        gstAmount,
+        gstAmount: 0,
         shippingCharge: calculatedShippingCharge,
         totalAmount: calculatedTotal,
         paymentMethod: selectedPayment,
@@ -533,6 +542,10 @@ const Checkout = ({
         appliedDiscount: appliedDiscount || null,
         appliedRewards: appliedRewards || null
       });
+
+      if (response.data?.checkoutAuth?.token && response.data?.checkoutAuth?.user) {
+        persistCheckoutAuth(response.data.checkoutAuth.token, response.data.checkoutAuth.user);
+      }
 
       setOrderId(response.data?.id || response.data?.orderId || 'ORD-' + Date.now());
       setStep('confirmation');
@@ -593,7 +606,7 @@ const Checkout = ({
                     <span>₹{subtotalAmount.toFixed(2)}</span>
                   </div>
                   <div className="breakdown-row">
-                    <span>GST (18%):</span>
+                    <span>GST (0%):</span>
                     <span>₹{gstAmount.toFixed(2)}</span>
                   </div>
                   <div className="breakdown-row">
@@ -924,7 +937,7 @@ const Checkout = ({
                   <span>₹{subtotalAmount.toFixed(2)}</span>
                 </div>
                 <div className="summary-line">
-                  <span>GST (18%):</span>
+                  <span>GST (0%):</span>
                   <span>₹{gstAmount.toFixed(2)}</span>
                 </div>
                 <div className="summary-line">

@@ -331,6 +331,56 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
+.order-label-actions {
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.print-label-btn {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #7c3aed 0%, #db2777 100%);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.print-label-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px rgba(124, 58, 237, 0.28);
+}
+
+.print-label-btn:active {
+  transform: translateY(0);
+}
+
+.print-compact-btn {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #0f766e 0%, #115e59 100%);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.print-compact-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px rgba(15, 118, 110, 0.28);
+}
+
+.print-compact-btn:active {
+  transform: translateY(0);
+}
+
 .order-header {
   display: flex;
   justify-content: space-between;
