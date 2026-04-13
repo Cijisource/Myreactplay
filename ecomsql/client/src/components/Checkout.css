@@ -86,12 +86,79 @@
 }
 
 .order-summary-sidebar h3 {
-  margin: 0 0 20px 0;
+  margin: 0;
   font-size: 18px;
   color: #333;
-  border-bottom: 2px solid #667eea;
-  padding-bottom: 10px;
   font-weight: 700;
+}
+
+/* Collapsible Order Summary */
+.order-summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #667eea;
+  margin-bottom: 0;
+}
+
+.order-summary-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.order-summary-collapsed-total {
+  font-size: 13px;
+  color: #667eea;
+  font-weight: 600;
+}
+
+.order-summary-toggle-btn {
+  background: none;
+  border: 1px solid #ddd;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #667eea;
+  font-size: 11px;
+  transition: background 0.2s, border-color 0.2s;
+  flex-shrink: 0;
+  margin-left: 8px;
+  margin-top: 2px;
+}
+
+.order-summary-toggle-btn:hover {
+  background: #f0f0ff;
+  border-color: #667eea;
+}
+
+.toggle-chevron {
+  display: inline-block;
+  transition: transform 0.3s ease;
+  line-height: 1;
+}
+
+.toggle-chevron.collapsed {
+  transform: rotate(180deg);
+}
+
+.order-summary-body {
+  overflow: hidden;
+  max-height: 1200px;
+  opacity: 1;
+  margin-top: 20px;
+  transition: max-height 0.35s ease, opacity 0.25s ease, margin-top 0.35s ease;
+}
+
+.order-summary-body.collapsed {
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
 }
 
 .order-items {

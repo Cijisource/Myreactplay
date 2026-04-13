@@ -117,7 +117,7 @@ const OrderManagement = () => {
     const safeOrderNumber = selectedOrder.order_number || `ORDER-${selectedOrder.id}`;
     const safeCustomerName = selectedOrder.customer_name || 'N/A';
     const safeCustomerEmail = selectedOrder.customer_email || 'N/A';
-    const safeShippingAddress = selectedOrder.shipping_address || 'N/A';
+    const safeShippingAddress = selectedOrder.shipping_address || 'Tower C22, Flat No. 704, Puravankara Windermere, No. 45 Bhavani Amman Kovil Street, Pallikaranai, Chennai - 600100';
     const safeStatus = selectedOrder.status || 'pending';
     const safeCreatedAt = selectedOrder.created_at
       ? new Date(selectedOrder.created_at).toLocaleString('en-IN', {
@@ -164,6 +164,8 @@ const OrderManagement = () => {
             .section { margin-top: 12px; }
             .section h3 { margin: 0 0 6px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; }
             .address { border: 1px dashed #9ca3af; border-radius: 8px; padding: 10px; font-size: 14px; white-space: pre-wrap; }
+            .return-box { border: 1px solid #6b7280; border-radius: 8px; padding: 10px; font-size: 12px; background: #f9fafb; color: #374151; }
+            .return-box .return-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #6b7280; margin-bottom: 4px; }
             table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
             th, td { border: 1px solid #d1d5db; padding: 7px 8px; text-align: left; }
             th { background: #f3f4f6; }
@@ -224,6 +226,15 @@ const OrderManagement = () => {
               <span>Payable: Rs. ${Number(selectedOrder.total_amount || 0).toFixed(2)}</span>
             </div>
 
+            <div class="section">
+              <div class="return-box">
+                <div class="return-label">If Undelivered, Return To</div>
+                Tower C22, Flat No. 704, Puravankara Windermere,<br/>
+                No. 45 Bhavani Amman Kovil Street, Pallikaranai,<br/>
+                Chennai - 600100
+              </div>
+            </div>
+
             <div class="barcode">*${safeOrderNumber}*</div>
           </div>
 
@@ -249,7 +260,7 @@ const OrderManagement = () => {
     const safeOrderNumber = selectedOrder.order_number || `ORDER-${selectedOrder.id}`;
     const safeCustomerName = selectedOrder.customer_name || 'N/A';
     const safeCustomerEmail = selectedOrder.customer_email || 'N/A';
-    const safeShippingAddress = selectedOrder.shipping_address || 'N/A';
+    const safeShippingAddress = selectedOrder.shipping_address || 'Tower C22, Flat No. 704, Puravankara Windermere, No. 45 Bhavani Amman Kovil Street, Pallikaranai, Chennai - 600100';
     const safeStatus = selectedOrder.status || 'pending';
     const safeTotal = Number(selectedOrder.total_amount || 0).toFixed(2);
 
