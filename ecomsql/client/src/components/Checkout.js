@@ -51,6 +51,8 @@ const Checkout = ({
   const [shippingZones, setShippingZones] = useState([]);
   const [citiesLoading, setCitiesLoading] = useState(true);
 
+  const [orderSummaryCollapsed, setOrderSummaryCollapsed] = useState(true);
+
   const [formData, setFormData] = useState({
     customerName: '',
     customerEmail: '',
@@ -587,63 +589,87 @@ const Checkout = ({
 
           <div className="checkout-content">
             <div className="order-summary-sidebar">
-              <h3>Order Summary</h3>
-              <div className="order-items">
-                {cartItems.map(item => (
-                  <div key={item.id} className="order-item">
-                    <div className="item-details">
-                      <p className="item-name">{item.product_name}</p>
-                      <span className="item-qty">Qty: {item.quantity}</span>
-                    </div>
-                    <span className="item-price">₹{(item.price * item.quantity).toFixed(2)}</span>
-                  </div>
-                ))}
+              <div className="order-summary-header">
+                <div className="order-summary-title-group">
+                  <h3>Order Summary</h3>
+                  {orderSummaryCollapsed && (
+                    <span className="order-summary-collapsed-total">
+                      {cartItems.length} item{cartItems.length !== 1 ? 's' : ''} &bull; ₹{(() => {
+                        const discountAmount = (appliedDiscount?.amount || 0) + (appliedRewards?.discountAmount || 0);
+                        const subtotalAfterDiscount = Math.max(0, subtotalAmount - discountAmount);
+                        return (subtotalAfterDiscount + gstAmount + calculatedShippingCharge).toFixed(2);
+                      })()}
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="order-summary-toggle-btn"
+                  onClick={() => setOrderSummaryCollapsed(prev => !prev)}
+                  aria-expanded={!orderSummaryCollapsed}
+                  aria-label={orderSummaryCollapsed ? 'Expand order summary' : 'Collapse order summary'}
+                >
+                  <span className={`toggle-chevron${orderSummaryCollapsed ? ' collapsed' : ''}`}>▲</span>
+                </button>
               </div>
-              <div className="order-total">
-                <div className="total-breakdown">
-                  <div className="breakdown-row">
-                    <span>Subtotal:</span>
-                    <span>₹{subtotalAmount.toFixed(2)}</span>
-                  </div>
-                  <div className="breakdown-row">
-                    <span>GST (0%):</span>
-                    <span>₹{gstAmount.toFixed(2)}</span>
-                  </div>
-                  <div className="breakdown-row">
-                    <span>Shipping:</span>
-                    <span>{calculatedShippingCharge === 0 ? <span style={{ color: '#28a745' }}>Free</span> : <span style={{ color: '#FFC107' }}>₹{calculatedShippingCharge.toFixed(2)}</span>}</span>
-                  </div>
-                  
-                  {/* Applied Discounts in Summary Table - Always show divider if any discount exists */}
-                  {(appliedDiscount || appliedRewards) && (
+              <div className={`order-summary-body${orderSummaryCollapsed ? ' collapsed' : ''}`}>
+                <div className="order-items">
+                  {cartItems.map(item => (
+                    <div key={item.id} className="order-item">
+                      <div className="item-details">
+                        <p className="item-name">{item.product_name}</p>
+                        <span className="item-qty">Qty: {item.quantity}</span>
+                      </div>
+                      <span className="item-price">₹{(item.price * item.quantity).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="order-total">
+                  <div className="total-breakdown">
+                    <div className="breakdown-row">
+                      <span>Subtotal:</span>
+                      <span>₹{subtotalAmount.toFixed(2)}</span>
+                    </div>
+                    <div className="breakdown-row">
+                      <span>GST (0%):</span>
+                      <span>₹{gstAmount.toFixed(2)}</span>
+                    </div>
+                    <div className="breakdown-row">
+                      <span>Shipping:</span>
+                      <span>{calculatedShippingCharge === 0 ? <span style={{ color: '#28a745' }}>Free</span> : <span style={{ color: '#FFC107' }}>₹{calculatedShippingCharge.toFixed(2)}</span>}</span>
+                    </div>
+
+                    {/* Applied Discounts in Summary Table - Always show divider if any discount exists */}
+                    {(appliedDiscount || appliedRewards) && (
+                      <div className="breakdown-divider"></div>
+                    )}
+
+                    {/* Coupon Discount */}
+                    {appliedDiscount && (
+                      <div className="breakdown-row discount-breakdown-row">
+                        <span style={{ color: '#FF6B6B', fontWeight: '600' }}>Coupon ({appliedDiscount.code}):</span>
+                        <span style={{ color: '#FF6B6B', fontWeight: '600' }}>-₹{appliedDiscount.amount.toFixed(2)}</span>
+                      </div>
+                    )}
+
+                    {/* Loyalty Points Discount */}
+                    {appliedRewards && appliedRewards.points > 0 && (
+                      <div className="breakdown-row discount-breakdown-row">
+                        <span style={{ color: '#FFC107', fontWeight: '600' }}>Loyalty Points ({appliedRewards.points}):</span>
+                        <span style={{ color: '#FFC107', fontWeight: '600' }}>-₹{appliedRewards.discountAmount.toFixed(2)}</span>
+                      </div>
+                    )}
+
                     <div className="breakdown-divider"></div>
-                  )}
-                  
-                  {/* Coupon Discount */}
-                  {appliedDiscount && (
-                    <div className="breakdown-row discount-breakdown-row">
-                      <span style={{ color: '#FF6B6B', fontWeight: '600' }}>Coupon ({appliedDiscount.code}):</span>
-                      <span style={{ color: '#FF6B6B', fontWeight: '600' }}>-₹{appliedDiscount.amount.toFixed(2)}</span>
+                    <div className="breakdown-row total-row">
+                      <h4>Total Amount</h4>
+                      <p className="total-price">₹{(() => {
+                        const discountAmount = (appliedDiscount?.amount || 0) + (appliedRewards?.discountAmount || 0);
+                        const subtotalAfterDiscount = Math.max(0, subtotalAmount - discountAmount);
+                        // GST is calculated on ORIGINAL subtotal and never discounted
+                        return (subtotalAfterDiscount + gstAmount + calculatedShippingCharge).toFixed(2);
+                      })()}</p>
                     </div>
-                  )}
-                  
-                  {/* Loyalty Points Discount */}
-                  {appliedRewards && appliedRewards.points > 0 && (
-                    <div className="breakdown-row discount-breakdown-row">
-                      <span style={{ color: '#FFC107', fontWeight: '600' }}>Loyalty Points ({appliedRewards.points}):</span>
-                      <span style={{ color: '#FFC107', fontWeight: '600' }}>-₹{appliedRewards.discountAmount.toFixed(2)}</span>
-                    </div>
-                  )}
-                  
-                  <div className="breakdown-divider"></div>
-                  <div className="breakdown-row total-row">
-                    <h4>Total Amount</h4>
-                    <p className="total-price">₹{(() => {
-                      const discountAmount = (appliedDiscount?.amount || 0) + (appliedRewards?.discountAmount || 0);
-                      const subtotalAfterDiscount = Math.max(0, subtotalAmount - discountAmount);
-                      // GST is calculated on ORIGINAL subtotal and never discounted
-                      return (subtotalAfterDiscount + gstAmount + calculatedShippingCharge).toFixed(2);
-                    })()}</p>
                   </div>
                 </div>
               </div>
