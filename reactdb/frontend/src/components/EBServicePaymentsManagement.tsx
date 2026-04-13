@@ -17,6 +17,7 @@ interface EBServicePayment {
   updatedDate?: string | null;
   billedUnits?: number | null;
   serviceName?: string;
+  serviceNumber?: string;
 }
 
 interface PaymentFormData {
@@ -26,16 +27,40 @@ interface PaymentFormData {
   billedUnits?: number | null;
 }
 
+interface ServiceAllocationSummary {
+  serviceId: number;
+  lastReadingDate?: string | null;
+  room?: {
+    number: string;
+  };
+}
+
+interface ServiceRoomInfo {
+  roomNumber: string;
+  lastReadingDate?: string | null;
+}
+
+const getYearMonth = (dateStr: string | undefined): string => {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+};
+
 export default function EBServicePaymentsManagement(): JSX.Element {
   const [payments, setPayments] = useState<EBServicePayment[]>([]);
   const [services, setServices] = useState<ServiceDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [searchField, setSearchField] = useState<'billAmount' | 'billDate' | 'consumerName'>('billDate');
+  const [searchField, setSearchField] = useState<'billAmount' | 'billDate' | 'consumerName' | 'serviceNumber'>('billDate');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showStatsGrid, setShowStatsGrid] = useState(true);
+  const [serviceRoomsMap, setServiceRoomsMap] = useState<Record<number, ServiceRoomInfo[]>>({});
+  const [selectedServiceRooms, setSelectedServiceRooms] = useState<{ serviceNumber: string; rooms: ServiceRoomInfo[] } | null>(null);
   const [formData, setFormData] = useState<PaymentFormData>({
     serviceId: 0,
     billAmount: 0,
@@ -58,12 +83,51 @@ export default function EBServicePaymentsManagement(): JSX.Element {
           const service = servicesRes.data.find((s: any) => s.id === payment.serviceId);
           return {
             ...payment,
-            serviceName: service?.consumerName || 'Unknown'
+            serviceName: service?.consumerName || 'Unknown',
+            serviceNumber: service?.consumerNo || 'N/A'
           };
         });
 
         setPayments(enrichedPayments);
         setServices(servicesRes.data);
+
+        // Room mapping is used for the Service Number -> View Rooms popup.
+        try {
+          const allocationsRes = await apiService.getServiceAllocationsForReading();
+          const allocations = allocationsRes.data as ServiceAllocationSummary[];
+          const groupedRooms = allocations.reduce<Record<number, Record<string, ServiceRoomInfo>>>((acc, allocation) => {
+            const roomNo = allocation.room?.number;
+            if (!allocation.serviceId || !roomNo) return acc;
+
+            if (!acc[allocation.serviceId]) {
+              acc[allocation.serviceId] = {};
+            }
+
+            const existing = acc[allocation.serviceId][roomNo];
+            const existingDateMs = existing?.lastReadingDate ? new Date(existing.lastReadingDate).getTime() : 0;
+            const currentDateMs = allocation.lastReadingDate ? new Date(allocation.lastReadingDate).getTime() : 0;
+
+            if (!existing || currentDateMs >= existingDateMs) {
+              acc[allocation.serviceId][roomNo] = {
+                roomNumber: roomNo,
+                lastReadingDate: allocation.lastReadingDate || null
+              };
+            }
+
+            return acc;
+          }, {});
+
+          const normalizedRoomsMap = Object.entries(groupedRooms).reduce<Record<number, ServiceRoomInfo[]>>((acc, [serviceId, roomsByNumber]) => {
+            acc[Number(serviceId)] = Object.values(roomsByNumber).sort((a, b) => a.roomNumber.localeCompare(b.roomNumber));
+            return acc;
+          }, {});
+
+          setServiceRoomsMap(normalizedRoomsMap);
+        } catch (allocErr) {
+          console.error('Failed to fetch service allocations for room popup:', allocErr);
+          setServiceRoomsMap({});
+        }
+
         setError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load EB service payments');
@@ -86,14 +150,27 @@ export default function EBServicePaymentsManagement(): JSX.Element {
         case 'billAmount':
           return payment.billAmount.toString().includes(term);
         case 'billDate':
-          return new Date(payment.billDate).toLocaleDateString('en-US').includes(term);
+          return getYearMonth(payment.billDate) === searchTerm;
         case 'consumerName':
           return payment.serviceName?.toLowerCase().includes(term);
+        case 'serviceNumber':
+          return payment.serviceNumber?.toLowerCase().includes(term);
         default:
           return true;
       }
     });
   }, [payments, searchTerm, searchField]);
+
+  const filteredTotals = useMemo(() => {
+    return filteredPayments.reduce(
+      (acc, payment) => {
+        acc.billAmount += payment.billAmount || 0;
+        acc.billedUnits += payment.billedUnits || 0;
+        return acc;
+      },
+      { billAmount: 0, billedUnits: 0 }
+    );
+  }, [filteredPayments]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -120,7 +197,8 @@ export default function EBServicePaymentsManagement(): JSX.Element {
             return {
               ...p,
               ...formData,
-              serviceName: service?.consumerName || 'Unknown'
+              serviceName: service?.consumerName || 'Unknown',
+              serviceNumber: service?.consumerNo || 'N/A'
             };
           }
           return p;
@@ -130,7 +208,8 @@ export default function EBServicePaymentsManagement(): JSX.Element {
         const service = services.find(s => s.id === formData.serviceId);
         setPayments([...payments, {
           ...response.data,
-          serviceName: service?.consumerName || 'Unknown'
+          serviceName: service?.consumerName || 'Unknown',
+          serviceNumber: service?.consumerNo || 'N/A'
         }]);
       }
 
@@ -182,6 +261,14 @@ export default function EBServicePaymentsManagement(): JSX.Element {
     });
     setEditingId(null);
     setShowForm(false);
+  };
+
+  const handleViewRooms = (serviceId: number, serviceNumber: string) => {
+    const rooms = serviceRoomsMap[serviceId] || [];
+    setSelectedServiceRooms({
+      serviceNumber,
+      rooms
+    });
   };
 
   const formatDate = (dateStr: string | undefined): string => {
@@ -388,25 +475,39 @@ export default function EBServicePaymentsManagement(): JSX.Element {
             <select
               id="searchField"
               value={searchField}
-              onChange={(e) => setSearchField(e.target.value as any)}
+              onChange={(e) => {
+                setSearchField(e.target.value as 'billAmount' | 'billDate' | 'consumerName' | 'serviceNumber');
+                setSearchTerm('');
+              }}
               className="search-field-select"
             >
-              <option value="billDate">Bill Date</option>
+              <option value="billDate">Bill Month</option>
               <option value="billAmount">Bill Amount</option>
               <option value="consumerName">Consumer Name</option>
+              <option value="serviceNumber">Service Number</option>
             </select>
           </div>
-          <input
-            type="text"
-            placeholder={`Search by ${searchField}...`}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="search-input"
-          />
+          {searchField === 'billDate' ? (
+            <input
+              type="month"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="search-input"
+              aria-label="Search by bill month"
+            />
+          ) : (
+            <input
+              type="text"
+              placeholder={`Search by ${searchField}...`}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="search-input"
+            />
+          )}
         </div>
         {searchTerm && (
           <div className="search-results-info">
-            Found {filteredPayments.length} result{filteredPayments.length !== 1 ? 's' : ''}
+            Found {filteredPayments.length} result{filteredPayments.length !== 1 ? 's' : ''} | Total Bill Amount: {formatCurrency(filteredTotals.billAmount)} | Total Units: {filteredTotals.billedUnits}
           </div>
         )}
       </div>
@@ -419,6 +520,7 @@ export default function EBServicePaymentsManagement(): JSX.Element {
               <thead>
                 <tr>
                   <th>Consumer Name</th>
+                  <th>Service Number</th>
                   <th>Bill Date</th>
                   <th>Bill Amount</th>
                   <th>Billed Units</th>
@@ -430,6 +532,18 @@ export default function EBServicePaymentsManagement(): JSX.Element {
                 {filteredPayments.map(payment => (
                   <tr key={payment.id}>
                     <td className="bold">{payment.serviceName}</td>
+                    <td>
+                      <div className="service-number-cell">
+                        <span>{payment.serviceNumber || 'N/A'}</span>
+                        <button
+                          type="button"
+                          className="btn-link"
+                          onClick={() => handleViewRooms(payment.serviceId, payment.serviceNumber || 'N/A')}
+                        >
+                          View Rooms
+                        </button>
+                      </div>
+                    </td>
                     <td>{formatDate(payment.billDate)}</td>
                     <td className="amount">{formatCurrency(payment.billAmount)}</td>
                     <td>{payment.billedUnits ? `${payment.billedUnits} units` : '—'}</td>
@@ -462,6 +576,36 @@ export default function EBServicePaymentsManagement(): JSX.Element {
           </div>
         )}
       </div>
+
+      {selectedServiceRooms && (
+        <div className="rooms-modal-overlay" onClick={() => setSelectedServiceRooms(null)}>
+          <div className="rooms-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="rooms-modal-header">
+              <h3>Rooms for Service Number: {selectedServiceRooms.serviceNumber}</h3>
+              <button
+                type="button"
+                className="rooms-modal-close"
+                onClick={() => setSelectedServiceRooms(null)}
+                aria-label="Close rooms popup"
+              >
+                ×
+              </button>
+            </div>
+            {selectedServiceRooms.rooms.length > 0 ? (
+              <ul className="rooms-list">
+                {selectedServiceRooms.rooms.map((room) => (
+                  <li key={room.roomNumber}>
+                    <div className="room-item-main">Room {room.roomNumber}</div>
+                    <div className="room-item-meta">Last Reading Taken Date: {room.lastReadingDate ? formatDate(room.lastReadingDate) : 'No reading yet'}</div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="rooms-empty">No rooms allocated for this service number.</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

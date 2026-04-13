@@ -389,6 +389,111 @@
   white-space: nowrap;
 }
 
+.service-number-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.btn-link {
+  border: none;
+  background: none;
+  color: #2563eb;
+  padding: 0;
+  text-align: left;
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.btn-link:hover {
+  color: #1e40af;
+}
+
+.rooms-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.rooms-modal-content {
+  width: min(380px, 100%);
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 14px 30px rgba(2, 6, 23, 0.25);
+  overflow: hidden;
+}
+
+.rooms-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.rooms-modal-header h3 {
+  margin: 0;
+  color: #1e293b;
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+
+.rooms-modal-close {
+  border: none;
+  background: none;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.rooms-modal-close:hover {
+  color: #1e293b;
+}
+
+.rooms-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.75rem 0.9rem 0.9rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.rooms-list li {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.45rem 0.6rem;
+  color: #334155;
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.room-item-main {
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.room-item-meta {
+  margin-top: 0.15rem;
+  color: #64748b;
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+.rooms-empty {
+  margin: 0;
+  padding: 0.9rem;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
 /* No Results */
 .no-results {
   padding: 3rem 1.5rem;
@@ -436,6 +541,14 @@
   .payments-table th,
   .payments-table td {
     padding: 0.75rem 0.5rem;
+  }
+
+  .rooms-modal-content {
+    width: 100%;
+  }
+
+  .rooms-modal-header h3 {
+    font-size: 0.85rem;
   }
 
   .stat-card {
