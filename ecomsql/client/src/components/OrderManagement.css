@@ -109,6 +109,59 @@
   background: #fafafa;
 }
 
+.orders-scroll-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 8px 8px;
+}
+
+.orders-loading-more,
+.orders-end-message {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.orders-scroll-sentinel {
+  width: 100%;
+  height: 1px;
+}
+
+.orders-loading-row td {
+  text-align: center;
+  padding: 14px 10px;
+  background: #fafafa;
+}
+
+.orders-loading-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #4b5563;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.orders-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #d1d5db;
+  border-top-color: #667eea;
+  border-radius: 50%;
+  animation: ordersSpin 0.8s linear infinite;
+}
+
+@keyframes ordersSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .status {
   display: inline-block;
   padding: 8px 14px;
