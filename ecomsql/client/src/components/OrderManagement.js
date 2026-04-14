@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { getOrders, getSellerOrders, getOrderById, updateOrderStatus } from '../api';
+import { getOrders, getSellerOrders, getOrderById, getOrderShippingBreakdown, updateOrderStatus } from '../api';
 import { hasRole } from '../utils/authUtils';
 import './OrderManagement.css';
 
@@ -13,6 +13,9 @@ const OrderManagement = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [statusLoading, setStatusLoading] = useState(false);
+  const [shippingBreakdown, setShippingBreakdown] = useState(null);
+  const [shippingBreakdownLoading, setShippingBreakdownLoading] = useState(false);
+  const [showShippingDetails, setShowShippingDetails] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const loadMoreRef = useRef(null);
   const loadMoreInFlightRef = useRef(false);
@@ -123,10 +126,36 @@ const OrderManagement = () => {
     try {
       const response = await getOrderById(orderId);
       setSelectedOrder(response.data);
+      setShippingBreakdown(null);
+      setShowShippingDetails(false);
+      // Auto-load shipping breakdown for all users
+      await handleLoadShippingBreakdown(response.data.id);
     } catch (err) {
       setError('Failed to load order details');
       console.error(err);
     }
+  };
+
+  const handleLoadShippingBreakdown = async (orderId = selectedOrder?.id) => {
+    if (!orderId || !isSellerOrAdmin) {
+      return;
+    }
+
+    try {
+      setShippingBreakdownLoading(true);
+      const response = await getOrderShippingBreakdown(orderId);
+      setShippingBreakdown(response.data || null);
+    } catch (err) {
+      setError('Failed to load shipping audit details');
+      console.error(err);
+    } finally {
+      setShippingBreakdownLoading(false);
+    }
+  };
+
+  const handleViewOrderWithAudit = async (orderId) => {
+    await handleViewOrder(orderId);
+    await handleLoadShippingBreakdown(orderId);
   };
 
   const getStatusBadgeClass = (status) => {
@@ -456,6 +485,13 @@ const OrderManagement = () => {
                 <button className="print-compact-btn" onClick={handlePrintShippingLabel4x6}>
                   🧾 Print 4x6 Shipping Label
                 </button>
+                <button
+                  className="shipping-audit-btn"
+                  onClick={() => handleLoadShippingBreakdown(selectedOrder.id)}
+                  disabled={shippingBreakdownLoading}
+                >
+                  {shippingBreakdownLoading ? 'Calculating Audit...' : '📦 Shipping Audit'}
+                </button>
               </div>
             )}
 
@@ -570,10 +606,44 @@ const OrderManagement = () => {
                   <span>GST (18%):</span>
                   <span>₹{selectedOrder.gst_amount ? selectedOrder.gst_amount.toFixed(2) : '0.00'}</span>
                 </div>
-                <div className="summary-row">
-                  <span>Shipping:</span>
+                {/* Expandable Shipping Details */}
+                <div className="summary-row shipping-header-row">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => setShowShippingDetails(!showShippingDetails)}>
+                    <span>Shipping:</span>
+                    {shippingBreakdown && <span className={`shipping-expand-icon ${showShippingDetails ? 'expanded' : ''}`}>▼</span>}
+                  </div>
                   <span>₹{selectedOrder.shipping_charge ? selectedOrder.shipping_charge.toFixed(2) : '0.00'}</span>
                 </div>
+                
+                {/* Shipping Details Breakdown */}
+                {shippingBreakdown && showShippingDetails && (
+                  <div className="shipping-details-breakdown">
+                    <div className="shipping-detail-item">
+                      <span className="detail-label">City:</span>
+                      <span className="detail-value">{shippingBreakdown.city || 'N/A'}</span>
+                    </div>
+                    <div className="shipping-detail-item">
+                      <span className="detail-label">Zone:</span>
+                      <span className="detail-value">{shippingBreakdown.zone || 'N/A'}</span>
+                    </div>
+                    <div className="shipping-detail-item">
+                      <span className="detail-label">Base Rate per 100g:</span>
+                      <span className="detail-value">₹{shippingBreakdown.baseShippingCharge !== null ? (Number(shippingBreakdown.baseShippingCharge) / 10).toFixed(2) : 'N/A'}</span>
+                    </div>
+                    <div className="shipping-detail-item">
+                      <span className="detail-label">Total Weight:</span>
+                      <span className="detail-value">{Number(shippingBreakdown.totalWeightKg || 0).toFixed(2)} kg</span>
+                    </div>
+                    <div className="shipping-detail-item">
+                      <span className="detail-label">Chargeable Weight:</span>
+                      <span className="detail-value">{shippingBreakdown.chargeableWeightKg} kg</span>
+                    </div>
+                    <div className="shipping-detail-item">
+                      <span className="detail-label">Calculated Charge:</span>
+                      <span className="detail-value">₹{shippingBreakdown.calculatedShippingCharge !== null ? Number(shippingBreakdown.calculatedShippingCharge).toFixed(2) : 'N/A'}</span>
+                    </div>
+                  </div>
+                )}
 
                 {/* Display Applied Coupon */}
                 {selectedOrder.applied_discount_code && (
@@ -613,6 +683,50 @@ const OrderManagement = () => {
                 </div>
               </div>
             </div>
+
+            {isSellerOrAdmin && shippingBreakdown && (
+              <div className="shipping-audit-section">
+                <h4>Shipping Audit Breakdown</h4>
+                <div className="shipping-audit-grid">
+                  <div className="shipping-audit-item">
+                    <label>City</label>
+                    <p>{shippingBreakdown.city || 'N/A'}</p>
+                  </div>
+                  <div className="shipping-audit-item">
+                    <label>Zone</label>
+                    <p>{shippingBreakdown.zone || 'N/A'}</p>
+                  </div>
+                  <div className="shipping-audit-item">
+                    <label>Base Charge</label>
+                    <p>₹{shippingBreakdown.baseShippingCharge !== null ? Number(shippingBreakdown.baseShippingCharge).toFixed(2) : 'N/A'}</p>
+                  </div>
+                  <div className="shipping-audit-item">
+                    <label>Total Weight</label>
+                    <p>{Number(shippingBreakdown.totalWeightKg || 0).toFixed(2)} kg</p>
+                  </div>
+                  <div className="shipping-audit-item">
+                    <label>Chargeable Weight</label>
+                    <p>{shippingBreakdown.chargeableWeightKg} kg</p>
+                  </div>
+                  <div className="shipping-audit-item">
+                    <label>Calculated Shipping</label>
+                    <p>₹{shippingBreakdown.calculatedShippingCharge !== null ? Number(shippingBreakdown.calculatedShippingCharge).toFixed(2) : 'N/A'}</p>
+                  </div>
+                  <div className="shipping-audit-item">
+                    <label>Stored Shipping</label>
+                    <p>₹{Number(shippingBreakdown.storedShippingCharge || 0).toFixed(2)}</p>
+                  </div>
+                  <div className="shipping-audit-item">
+                    <label>Difference</label>
+                    <p className={(shippingBreakdown.difference || 0) === 0 ? 'shipping-diff-ok' : 'shipping-diff-alert'}>
+                      {shippingBreakdown.difference === null
+                        ? 'N/A'
+                        : `${shippingBreakdown.difference > 0 ? '+' : ''}₹${Number(shippingBreakdown.difference).toFixed(2)}`}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="order-items-section">
               <h4>Order Items</h4>
@@ -724,12 +838,22 @@ const OrderManagement = () => {
                     </td>
                     <td>{new Date(order.created_at).toLocaleString('en-IN', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
                     <td>
-                      <button
-                        className="view-btn"
-                        onClick={() => handleViewOrder(order.id)}
-                      >
-                        View
-                      </button>
+                      <div className="order-actions">
+                        <button
+                          className="view-btn"
+                          onClick={() => handleViewOrder(order.id)}
+                        >
+                          View
+                        </button>
+                        {isSellerOrAdmin && (
+                          <button
+                            className="audit-btn"
+                            onClick={() => handleViewOrderWithAudit(order.id)}
+                          >
+                            Audit
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

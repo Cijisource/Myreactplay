@@ -13,7 +13,7 @@ const ShippingZoneManagement = ({ onClose }) => {
   const [formData, setFormData] = useState({
     zone_name: '',
     zone_code: '',
-    shipping_charge: '',
+    base_charge_per_100g: '',
     description: ''
   });
 
@@ -61,7 +61,7 @@ const ShippingZoneManagement = ({ onClose }) => {
     setFormData({
       zone_name: '',
       zone_code: '',
-      shipping_charge: '',
+      base_charge_per_100g: '',
       description: ''
     });
     setEditingId(null);
@@ -72,19 +72,33 @@ const ShippingZoneManagement = ({ onClose }) => {
     e.preventDefault();
     setMessage('');
 
-    if (!formData.zone_name.trim() || !formData.zone_code.trim() || !formData.shipping_charge) {
-      setMessage('Zone name, zone code, and shipping charge are required');
+    if (!formData.zone_name.trim() || !formData.zone_code.trim() || !formData.base_charge_per_100g) {
+      setMessage('Zone name, zone code, and base charge per 100g are required');
       setMessageType('error');
       return;
     }
 
+    const shippingChargePerKg = Number(formData.base_charge_per_100g) * 10;
+    if (Number.isNaN(shippingChargePerKg) || shippingChargePerKg < 0) {
+      setMessage('Base charge per 100g must be a valid non-negative number');
+      setMessageType('error');
+      return;
+    }
+
+    const payload = {
+      zone_name: formData.zone_name.trim(),
+      zone_code: formData.zone_code.trim(),
+      shipping_charge: shippingChargePerKg,
+      description: formData.description
+    };
+
     try {
       if (editingId) {
-        await updateShippingZone(editingId, formData);
+        await updateShippingZone(editingId, payload);
         setMessage('Shipping zone updated successfully');
         setMessageType('success');
       } else {
-        await addShippingZone(formData);
+        await addShippingZone(payload);
         setMessage('Shipping zone added successfully');
         setMessageType('success');
       }
@@ -101,7 +115,9 @@ const ShippingZoneManagement = ({ onClose }) => {
     setFormData({
       zone_name: zone.zone_name,
       zone_code: zone.zone_code,
-      shipping_charge: zone.shipping_charge,
+      base_charge_per_100g: zone.shipping_charge !== undefined && zone.shipping_charge !== null
+        ? (Number(zone.shipping_charge) / 10).toFixed(2)
+        : '',
       description: zone.description || ''
     });
     setEditingId(zone.id);
@@ -162,7 +178,7 @@ const ShippingZoneManagement = ({ onClose }) => {
                           <tr>
                             <th>Zone Name</th>
                             <th>Zone Code</th>
-                            <th>Shipping Charge (₹)</th>
+                            <th>Base Charge / 100g (₹)</th>
                             <th>Description</th>
                             <th>Actions</th>
                           </tr>
@@ -172,7 +188,7 @@ const ShippingZoneManagement = ({ onClose }) => {
                             <tr key={zone.id}>
                               <td>{zone.zone_name}</td>
                               <td><code>{zone.zone_code}</code></td>
-                              <td className="charge">{zone.shipping_charge}</td>
+                              <td className="charge">{(Number(zone.shipping_charge || 0) / 10).toFixed(2)}</td>
                               <td>{zone.description || '-'}</td>
                               <td className="actions">
                                 <button
@@ -226,14 +242,14 @@ const ShippingZoneManagement = ({ onClose }) => {
                     </div>
 
                     <div className="form-group">
-                      <label htmlFor="shipping_charge">Shipping Charge (₹) *</label>
+                      <label htmlFor="base_charge_per_100g">Base Charge per 100g (₹) *</label>
                       <input
                         type="number"
-                        id="shipping_charge"
-                        name="shipping_charge"
-                        value={formData.shipping_charge}
+                        id="base_charge_per_100g"
+                        name="base_charge_per_100g"
+                        value={formData.base_charge_per_100g}
                         onChange={handleChange}
-                        placeholder="e.g., 49"
+                        placeholder="e.g., 4.90"
                         step="0.01"
                         min="0"
                         required

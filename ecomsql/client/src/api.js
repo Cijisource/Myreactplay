@@ -170,6 +170,7 @@ export const clearCart = (sessionId) => apiClient.delete(`/cart/session/${sessio
 export const getOrders = (params = {}) => apiClient.get('/orders', { params });
 export const getSellerOrders = (params = {}) => apiClient.get('/orders/seller/orders', { params });
 export const getOrderById = (id) => apiClient.get(`/orders/${id}`);
+export const getOrderShippingBreakdown = (id) => apiClient.get(`/orders/${id}/shipping-breakdown`);
 export const createOrder = (data) => apiClient.post('/orders', data);
 export const updateOrderStatus = (id, data) => apiClient.put(`/orders/${id}`, data);
 
@@ -184,6 +185,8 @@ export const getAllStates = () => apiClient.get('/shipping/states/all');
 export const getLocationFromIP = () => apiClient.get('/shipping/location-from-ip');
 export const getShippingRateByCity = (city, qty = 1, orderAmount = 0) => 
   apiClient.get('/shipping/rate-by-city', { params: { city, qty, orderAmount } });
+export const calculateShippingForItems = (city, items) =>
+  apiClient.post('/shipping/calculate', { city, items });
 
 // Shipping Management API (Seller & Admin Only)
 export const addCity = (cityData) => apiClient.post('/shipping/manage/cities', cityData);

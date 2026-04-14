@@ -19,6 +19,7 @@ BEGIN
         description NVARCHAR(MAX),
         category_id INT NOT NULL,
         price DECIMAL(10, 2) NOT NULL,
+        weight_kg DECIMAL(10, 2) NOT NULL DEFAULT 0.50,
         stock INT DEFAULT 0,
         sku NVARCHAR(100) UNIQUE,
         created_at DATETIME2 DEFAULT GETDATE(),

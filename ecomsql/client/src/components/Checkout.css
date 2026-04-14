@@ -397,6 +397,52 @@
   font-style: italic;
 }
 
+.shipping-breakdown-toggle {
+  width: 100%;
+  margin: 8px 0 10px;
+  padding: 8px 10px;
+  border: 1px solid #a5d6a7;
+  background: rgba(255, 255, 255, 0.75);
+  color: #1b5e20;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.shipping-breakdown-chevron {
+  transition: transform 0.2s ease;
+}
+
+.shipping-breakdown-chevron.expanded {
+  transform: rotate(180deg);
+}
+
+.shipping-breakdown-panel {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #c8e6c9;
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.shipping-breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 13px;
+  color: #2e7d32;
+}
+
+.shipping-breakdown-row span:last-child {
+  font-weight: 600;
+  text-align: right;
+}
+
 /* Searchable Dropdown */
 .searchable-dropdown {
   position: relative;
@@ -1021,4 +1067,59 @@
     align-items: center;
     justify-content: center;
   }
+}
+
+/* Shipping Details Styles for Payment Screen */
+.shipping-header-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.shipping-header-line:hover {
+  background-color: #f5f5f5;
+}
+
+.shipping-expand-icon {
+  display: inline-block;
+  font-size: 12px;
+  color: #667eea;
+  transition: transform 0.3s ease;
+  font-weight: bold;
+  margin-left: 4px;
+}
+
+.shipping-expand-icon.expanded {
+  transform: rotate(180deg);
+}
+
+.shipping-details-breakdown-payment {
+  margin: 8px 0 12px 0;
+  padding: 10px;
+  background-color: #f0f7ff;
+  border-left: 3px solid #667eea;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.shipping-detail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  margin: 2px 0;
+}
+
+.detail-label {
+  font-weight: 600;
+  color: #555;
+  min-width: 130px;
+}
+
+.detail-value {
+  color: #333;
+  font-weight: 500;
+  text-align: right;
 }

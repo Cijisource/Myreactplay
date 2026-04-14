@@ -13,6 +13,7 @@ const EditProduct = ({ product, onClose, onSaved }) => {
     description: product.description || '',
     category_id: product.category_id || '',
     price: product.price || '',
+    weight_kg: product.weight_kg || '0.50',
     stock: product.stock || '',
     sku: product.sku || '',
     is_preorder: product.is_preorder || false,
@@ -60,6 +61,10 @@ const EditProduct = ({ product, onClose, onSaved }) => {
       setMessage('Please enter a valid price');
       return false;
     }
+    if (!formData.weight_kg || parseFloat(formData.weight_kg) <= 0) {
+      setMessage('Please enter a valid product weight in kg');
+      return false;
+    }
     if (!formData.stock || parseInt(formData.stock) < 0) {
       setMessage('Please enter a valid stock quantity');
       return false;
@@ -80,6 +85,7 @@ const EditProduct = ({ product, onClose, onSaved }) => {
         description: formData.description,
         category_id: parseInt(formData.category_id),
         price: parseFloat(formData.price),
+        weight_kg: parseFloat(formData.weight_kg),
         stock: parseInt(formData.stock),
         sku: formData.sku,
         is_preorder: formData.is_preorder,
@@ -173,6 +179,20 @@ const EditProduct = ({ product, onClose, onSaved }) => {
                 onChange={handleChange}
                 placeholder="Enter stock quantity"
                 min="0"
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Weight (kg) *</label>
+              <input
+                type="number"
+                name="weight_kg"
+                value={formData.weight_kg}
+                onChange={handleChange}
+                placeholder="0.50"
+                step="0.01"
+                min="0.01"
                 required
               />
             </div>

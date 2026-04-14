@@ -26,7 +26,7 @@ router.get('/', optionalAuth, async (req, res) => {
     const offset = (pageNum - 1) * pageSize;
     
     let query = `
-      SELECT p.id, p.name, p.description, p.category_id, p.price, p.stock, p.sku, p.seller_id,
+      SELECT p.id, p.name, p.description, p.category_id, p.price, p.stock, p.sku, p.weight_kg, p.seller_id,
              p.is_preorder, p.preorder_release_date,
              p.created_at, p.updated_at, c.name as category_name,
              (SELECT TOP 1 image_url FROM product_images WHERE product_id = p.id ORDER BY uploaded_at DESC) as image_url
@@ -123,7 +123,7 @@ router.get('/:id', async (req, res) => {
     const result = await pool.request()
       .input('id', sql.Int, req.params.id)
       .query(`
-        SELECT p.id, p.name, p.description, p.category_id, p.price, p.stock, p.sku, p.seller_id,
+        SELECT p.id, p.name, p.description, p.category_id, p.price, p.stock, p.sku, p.weight_kg, p.seller_id,
                p.is_preorder, p.preorder_release_date,
                p.created_at, p.updated_at, c.name as category_name
         FROM products p
@@ -161,7 +161,7 @@ router.get('/:id', async (req, res) => {
 // Create product (Seller/Admin only)
 router.post('/', verifyToken, checkRole(['Seller', 'Administrator']), async (req, res) => {
   try {
-    const { name, description, category_id, price, stock, sku, is_preorder, preorder_release_date } = req.body;
+    const { name, description, category_id, price, stock, sku, weight_kg, is_preorder, preorder_release_date } = req.body;
     const sellerId = req.user.userId;
     
     console.log('[CREATE_PRODUCT] Received request:', {
@@ -170,6 +170,7 @@ router.post('/', verifyToken, checkRole(['Seller', 'Administrator']), async (req
       price,
       stock,
       sku,
+      weight_kg,
       is_preorder,
       preorder_release_date,
       sellerId
@@ -187,16 +188,17 @@ router.post('/', verifyToken, checkRole(['Seller', 'Administrator']), async (req
       .input('price', sql.Decimal(10, 2), price)
       .input('stock', sql.Int, stock || 0)
       .input('sku', sql.NVarChar, sku || null)
+      .input('weight_kg', sql.Decimal(10, 2), weight_kg || 0.5)
       .input('seller_id', sql.Int, sellerId)
       .input('is_preorder', sql.Bit, is_preorder ? 1 : 0)
       .input('preorder_release_date', sql.Date, preorder_release_date || null)
       .query(`
-        INSERT INTO products (name, description, category_id, price, stock, sku, seller_id, is_preorder, preorder_release_date)
+        INSERT INTO products (name, description, category_id, price, stock, sku, weight_kg, seller_id, is_preorder, preorder_release_date)
         OUTPUT INSERTED.id, INSERTED.name, INSERTED.description, INSERTED.category_id, 
-               INSERTED.price, INSERTED.stock, INSERTED.sku, INSERTED.seller_id,
+               INSERTED.price, INSERTED.stock, INSERTED.sku, INSERTED.weight_kg, INSERTED.seller_id,
                INSERTED.is_preorder, INSERTED.preorder_release_date,
                INSERTED.created_at, INSERTED.updated_at
-        VALUES (@name, @description, @category_id, @price, @stock, @sku, @seller_id, @is_preorder, @preorder_release_date)
+        VALUES (@name, @description, @category_id, @price, @stock, @sku, @weight_kg, @seller_id, @is_preorder, @preorder_release_date)
       `);
     
     console.log('[CREATE_PRODUCT] Product created successfully:', result.recordset[0]);
@@ -219,7 +221,7 @@ router.post('/', verifyToken, checkRole(['Seller', 'Administrator']), async (req
 // Update product (Seller/Admin only)
 router.put('/:id', verifyToken, checkRole(['Seller', 'Administrator']), async (req, res) => {
   try {
-    const { name, description, category_id, price, stock, sku, is_preorder, preorder_release_date } = req.body;
+    const { name, description, category_id, price, stock, sku, weight_kg, is_preorder, preorder_release_date } = req.body;
     const productId = req.params.id;
     const pool = await getConnection();
     
@@ -231,16 +233,17 @@ router.put('/:id', verifyToken, checkRole(['Seller', 'Administrator']), async (r
       .input('price', sql.Decimal(10, 2), price)
       .input('stock', sql.Int, stock)
       .input('sku', sql.NVarChar, sku || null)
+      .input('weight_kg', sql.Decimal(10, 2), weight_kg || 0.5)
       .input('is_preorder', sql.Bit, is_preorder ? 1 : 0)
       .input('preorder_release_date', sql.Date, preorder_release_date || null)
       .query(`
         UPDATE products 
         SET name = @name, description = @description, category_id = @category_id, 
-            price = @price, stock = @stock, sku = @sku,
+            price = @price, stock = @stock, sku = @sku, weight_kg = @weight_kg,
             is_preorder = @is_preorder, preorder_release_date = @preorder_release_date,
             updated_at = GETDATE()
         OUTPUT INSERTED.id, INSERTED.name, INSERTED.description, INSERTED.category_id, 
-               INSERTED.price, INSERTED.stock, INSERTED.sku, INSERTED.seller_id,
+               INSERTED.price, INSERTED.stock, INSERTED.sku, INSERTED.weight_kg, INSERTED.seller_id,
                INSERTED.is_preorder, INSERTED.preorder_release_date,
                INSERTED.created_at, INSERTED.updated_at
         WHERE id = @id
