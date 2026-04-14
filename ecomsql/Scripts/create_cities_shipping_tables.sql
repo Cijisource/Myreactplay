@@ -24,16 +24,19 @@ IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[sh
 BEGIN
     CREATE TABLE [dbo].[shipping_zones] (
         [id] INT PRIMARY KEY IDENTITY(1,1),
-        [zone_name] NVARCHAR(50) NOT NULL UNIQUE,
-        [zone_code] NVARCHAR(20) NOT NULL UNIQUE,
+        [zone_name] NVARCHAR(50) NOT NULL,
+        [zone_code] NVARCHAR(20) NOT NULL,
         [shipping_charge] DECIMAL(10, 2) NOT NULL,
         [description] NVARCHAR(255),
         [is_active] BIT DEFAULT 1,
+        [seller_id] INT NULL,
         [created_at] DATETIME DEFAULT GETDATE(),
         [updated_at] DATETIME DEFAULT GETDATE()
     );
     
     CREATE INDEX idx_zone_code ON [dbo].[shipping_zones]([zone_code]);
+    CREATE INDEX idx_shipping_zones_zone_code_seller ON [dbo].[shipping_zones]([zone_code], [seller_id]);
+    CREATE INDEX idx_shipping_zones_seller ON [dbo].[shipping_zones]([seller_id]);
     
     PRINT 'Shipping Zones table created successfully';
 END

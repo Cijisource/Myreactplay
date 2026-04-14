@@ -10,7 +10,7 @@ router.get('/:sessionId', async (req, res) => {
       .input('sessionId', sql.NVarChar, req.params.sessionId)
       .query(`
         SELECT c.id, c.cart_session_id, c.product_id, c.quantity, c.added_at,
-               p.name as product_name, p.price, p.stock
+               p.name as product_name, p.price, p.stock, p.weight_kg
         FROM cart_items c
         LEFT JOIN products p ON c.product_id = p.id
         WHERE c.cart_session_id = @sessionId

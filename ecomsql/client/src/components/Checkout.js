@@ -1,23 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import QRCode from 'qrcode.react';
-import { createOrder, getAllCities, getShippingZones, getLocationFromIP, getShippingRateByCity, registerUser, loginUser } from '../api';
+import { createOrder, getAllCities, getLocationFromIP, calculateShippingForItems, registerUser, loginUser } from '../api';
 import { getUser } from '../utils/authUtils';
 import './Checkout.css';
-
-// Function to get shipping charge for a city using zone_code from API
-const getShippingCharge = (city, citiesArray, zonesMap) => {
-  // Find the city in the array
-  const cityData = citiesArray.find(c => c.city_name?.toLowerCase() === city.toLowerCase());
-  
-  if (!cityData || !cityData.shipping_zone) {
-    // Return null if city not found - indicates data not loaded
-    return null;
-  }
-  
-  // Get the zone code from city data and return the corresponding charge
-  const zoneCode = cityData.shipping_zone;
-  return zonesMap[zoneCode] || null;
-};
 
 const Checkout = ({ 
   cartItems, 
@@ -48,7 +33,6 @@ const Checkout = ({
   
   // Shipping data states
   const [cities, setCities] = useState([]);
-  const [shippingZones, setShippingZones] = useState([]);
   const [citiesLoading, setCitiesLoading] = useState(true);
 
   const [orderSummaryCollapsed, setOrderSummaryCollapsed] = useState(true);
@@ -73,42 +57,67 @@ const Checkout = ({
     charge: shippingCharge || 0,
     zone: 'unknown',
     city: '',
-    pincode: ''
+    pincode: '',
+    baseShippingCharge: null,
+    totalWeightKg: null,
+    chargeableWeightKg: null,
+    estimatedDistanceKm: null
   });
   const [locationLoading, setLocationLoading] = useState(true);
   // eslint-disable-next-line no-unused-vars
   const [shippingLoading, setShippingLoading] = useState(false);
+  
+  // Shipping breakdown states for payment screen
+  const [shippingBreakdown, setShippingBreakdown] = useState(null);
+  const [showShippingDetailsInPayment, setShowShippingDetailsInPayment] = useState(false);
+  const [showShippingDetailsInInfo, setShowShippingDetailsInInfo] = useState(false);
 
   // Fetch shipping rates when city changes
   const fetchShippingRates = useCallback(async (city) => {
-    if (!city) return;
+    if (!city || !Array.isArray(cartItems) || cartItems.length === 0) return;
     
     try {
       setShippingLoading(true);
       console.log('[Checkout] Fetching shipping rates for city:', city);
       
-      const response = await getShippingRateByCity(city, 1, subtotalAmount);
+      const response = await calculateShippingForItems(
+        city,
+        cartItems.map(item => ({
+          productId: item.product_id,
+          quantity: item.quantity
+        }))
+      );
       
       if (response.data.success) {
         console.log('[Checkout] Shipping rates received:', response.data);
+        setCalculatedShippingCharge(response.data.shippingCharge || 0);
         setShippingData(prev => ({
           ...prev,
           charge: response.data.shippingCharge,
           zone: response.data.zone,
-          city: response.data.city
+          city: response.data.city,
+          baseShippingCharge: response.data.baseShippingCharge ?? null,
+          totalWeightKg: response.data.totalWeightKg ?? null,
+          chargeableWeightKg: response.data.chargeableWeightKg ?? null,
+          estimatedDistanceKm: response.data.estimatedDistanceKm ?? null
         }));
       }
     } catch (error) {
       console.warn('[Checkout] Failed to fetch shipping rates:', error.message);
-      // Use fallback rate
+      // Fallback to zero when shipping cannot be determined.
+      setCalculatedShippingCharge(0);
       setShippingData(prev => ({
         ...prev,
-        charge: 99
+        charge: 0,
+        baseShippingCharge: null,
+        totalWeightKg: null,
+        chargeableWeightKg: null,
+        estimatedDistanceKm: null
       }));
     } finally {
       setShippingLoading(false);
     }
-  }, [subtotalAmount]);
+  }, [cartItems]);
 
   // Generate UPI/GPay QR code
   useEffect(() => {
@@ -118,6 +127,22 @@ const Checkout = ({
       setQrValue(upiString);
     }
   }, [step, selectedPayment, subtotalAmount, gstAmount, calculatedShippingCharge, formData.customerName]);
+
+  // Fetch shipping breakdown when entering payment step
+  useEffect(() => {
+    if (step === 'payment' && formData.city && cartItems.length > 0) {
+      const fetchShippingBreakdown = async () => {
+        try {
+          const response = await calculateShippingForItems(formData.city, cartItems);
+          setShippingBreakdown(response.data || null);
+        } catch (error) {
+          console.error('[Checkout] Error fetching shipping breakdown:', error);
+          setShippingBreakdown(null);
+        }
+      };
+      fetchShippingBreakdown();
+    }
+  }, [step, formData.city, cartItems]);
 
   // Load cities from API on component mount
   useEffect(() => {
@@ -142,23 +167,6 @@ const Checkout = ({
     };
     
     loadCitiesData();
-  }, []);
-
-  // Load shipping zones from API on component mount
-  useEffect(() => {
-    const loadShippingZones = async () => {
-      try {
-        const response = await getShippingZones();
-        const zones = response.data || [];
-        setShippingZones(zones);
-        console.log('[Checkout] Shipping zones loaded from database:', zones);
-      } catch (error) {
-        console.error('[Checkout] Error loading shipping zones:', error);
-        setShippingZones([]);
-      }
-    };
-    
-    loadShippingZones();
   }, []);
 
   // Pre-fill form data if user is logged in
@@ -256,22 +264,50 @@ const Checkout = ({
   };
 
   // Calculate shipping based on selected city using API zone data
-  const calculateShipping = (city) => {
-    if (shippingZones.length === 0 || cities.length === 0) {
-      // Require both cities and zones from database
-      console.warn('[Checkout] Cannot calculate shipping - cities or zones not loaded from database');
+  const calculateShipping = async (city) => {
+    if (!city || !Array.isArray(cartItems) || cartItems.length === 0) {
+      console.warn('[Checkout] Cannot calculate shipping - missing city or cart items');
       return null;
     }
-    
-    // Build zones map from database zones
-    const zonesMap = {};
-    shippingZones.forEach(zone => {
-      zonesMap[zone.zone_code] = zone.shipping_charge;
-    });
-    
-    const charge = getShippingCharge(city, cities, zonesMap);
-    setCalculatedShippingCharge(charge);
-    return charge;
+
+    try {
+      const response = await calculateShippingForItems(
+        city,
+        cartItems.map(item => ({
+          productId: item.product_id,
+          quantity: item.quantity
+        }))
+      );
+
+      if (response.data?.success) {
+        const charge = response.data.shippingCharge || 0;
+        setCalculatedShippingCharge(charge);
+        setShippingData(prev => ({
+          ...prev,
+          charge,
+          zone: response.data.zone,
+          city: response.data.city,
+          baseShippingCharge: response.data.baseShippingCharge ?? null,
+          totalWeightKg: response.data.totalWeightKg ?? null,
+          chargeableWeightKg: response.data.chargeableWeightKg ?? null,
+          estimatedDistanceKm: response.data.estimatedDistanceKm ?? null
+        }));
+        return charge;
+      }
+    } catch (error) {
+      console.warn('[Checkout] Shipping calculation failed:', error.message);
+    }
+
+    setCalculatedShippingCharge(0);
+    setShippingData(prev => ({
+      ...prev,
+      charge: 0,
+      baseShippingCharge: null,
+      totalWeightKg: null,
+      chargeableWeightKg: null,
+      estimatedDistanceKm: null
+    }));
+    return null;
   };
 
   // Handle city selection
@@ -283,6 +319,8 @@ const Checkout = ({
       city: cityName,
       zipCode: zipCode
     }));
+    setShowShippingDetailsInInfo(false);
+    setShowShippingDetailsInInfo(false);
     setCityDropdownOpen(false);
     // Calculate shipping when city is selected
     calculateShipping(cityName);
@@ -445,7 +483,7 @@ const Checkout = ({
     }
 
     // Recalculate shipping rates for the selected city
-    const shippingCharge = calculateShipping(formData.city);
+    const shippingCharge = await calculateShipping(formData.city);
     
     // Validate that shipping charges were calculated successfully
     if (shippingCharge === null || shippingCharge === undefined) {
@@ -511,6 +549,13 @@ const Checkout = ({
 
       // Calculate discount amounts (applies ONLY to product value, never to GST)
       const discountAmount = (appliedDiscount?.amount || 0) + (appliedRewards?.discountAmount || 0);
+
+      const latestShippingCharge = await calculateShipping(formData.city);
+      if (latestShippingCharge === null || latestShippingCharge === undefined) {
+        setMessage('Unable to calculate shipping charges. Please verify your city and try again.');
+        setLoading(false);
+        return;
+      }
       
       // GST MUST NEVER be discounted - always charged on original product value
       // GST is independent of any coupons or loyalty point redemptions
@@ -519,7 +564,7 @@ const Checkout = ({
       // Calculate total: (subtotal - discount) + original GST + shipping
       // GST is never reduced under any circumstances
       const subtotalAfterDiscount = Math.max(0, subtotalAmount - discountAmount);
-      const calculatedTotal = subtotalAfterDiscount + gstForOrder + calculatedShippingCharge;
+      const calculatedTotal = subtotalAfterDiscount + gstForOrder + latestShippingCharge;
 
       // Create order
       const response = await createOrder({
@@ -527,6 +572,7 @@ const Checkout = ({
         customerName: formData.customerName,
         customerEmail: normalizedEmail,
         customerPhone: formData.customerPhone.trim(),
+        shippingCity: formData.city,
         shippingAddress: `${formData.shippingAddress}, ${formData.city} - ${formData.zipCode}`,
         items: cartItems.map(item => ({
           productId: item.product_id,
@@ -536,7 +582,7 @@ const Checkout = ({
         })),
         subtotalAmount,
         gstAmount: 0,
-        shippingCharge: calculatedShippingCharge,
+        shippingCharge: latestShippingCharge,
         totalAmount: calculatedTotal,
         paymentMethod: selectedPayment,
         paymentScreenshot: paymentScreenshotBase64,
@@ -838,6 +884,39 @@ const Checkout = ({
                     <span className="shipping-label">🚚 Shipping Cost for {formData.city}:</span>
                     <span className="shipping-cost">₹{calculatedShippingCharge}</span>
                   </div>
+                  <button
+                    type="button"
+                    className="shipping-breakdown-toggle"
+                    onClick={() => setShowShippingDetailsInInfo(prev => !prev)}
+                    aria-expanded={showShippingDetailsInInfo}
+                  >
+                    <span>Shipping charge details</span>
+                    <span className={`shipping-breakdown-chevron${showShippingDetailsInInfo ? ' expanded' : ''}`}>▼</span>
+                  </button>
+                  {showShippingDetailsInInfo && (
+                    <div className="shipping-breakdown-panel">
+                      <div className="shipping-breakdown-row">
+                        <span>Zone:</span>
+                        <span>{shippingData.zone && shippingData.zone !== 'unknown' ? shippingData.zone.toUpperCase() : 'N/A'}</span>
+                      </div>
+                      <div className="shipping-breakdown-row">
+                        <span>Base Charge per 100g:</span>
+                        <span>{shippingData.baseShippingCharge !== null ? `₹${(Number(shippingData.baseShippingCharge) / 10).toFixed(2)}` : 'N/A'}</span>
+                      </div>
+                      <div className="shipping-breakdown-row">
+                        <span>Total Weight:</span>
+                        <span>{shippingData.totalWeightKg !== null ? `${Number(shippingData.totalWeightKg).toFixed(2)} kg` : 'N/A'}</span>
+                      </div>
+                      <div className="shipping-breakdown-row">
+                        <span>Chargeable Weight:</span>
+                        <span>{shippingData.chargeableWeightKg !== null ? `${shippingData.chargeableWeightKg} kg` : 'N/A'}</span>
+                      </div>
+                      <div className="shipping-breakdown-row">
+                        <span>Estimated Distance:</span>
+                        <span>{shippingData.estimatedDistanceKm !== null ? `${shippingData.estimatedDistanceKm} km` : 'N/A'}</span>
+                      </div>
+                    </div>
+                  )}
                   <p className="shipping-note">Shipping charge is calculated based on your delivery location</p>
                 </div>
               )}
@@ -966,10 +1045,42 @@ const Checkout = ({
                   <span>GST (0%):</span>
                   <span>₹{gstAmount.toFixed(2)}</span>
                 </div>
-                <div className="summary-line">
-                  <span>Shipping:</span>
+                
+                {/* Collapsible Shipping Details */}
+                <div className="summary-line shipping-header-line">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => setShowShippingDetailsInPayment(!showShippingDetailsInPayment)}>
+                    <span>Shipping:</span>
+                    {shippingBreakdown && <span className={`shipping-expand-icon ${showShippingDetailsInPayment ? 'expanded' : ''}`}>▼</span>}
+                  </div>
                   <span>{calculatedShippingCharge === 0 ? 'Free' : `₹${calculatedShippingCharge.toFixed(2)}`}</span>
                 </div>
+                
+                {/* Shipping Details Breakdown */}
+                {shippingBreakdown && showShippingDetailsInPayment && (
+                  <div className="shipping-details-breakdown-payment">
+                    <div className="shipping-detail-item">
+                      <span className="detail-label">City:</span>
+                      <span className="detail-value">{shippingBreakdown.city || 'N/A'}</span>
+                    </div>
+                    <div className="shipping-detail-item">
+                      <span className="detail-label">Zone:</span>
+                      <span className="detail-value">{shippingBreakdown.zone || 'N/A'}</span>
+                    </div>
+                    <div className="shipping-detail-item">
+                      <span className="detail-label">Base Rate per 100g:</span>
+                      <span className="detail-value">₹{(Number(shippingBreakdown.baseShippingCharge || 0) / 10).toFixed(2)}</span>
+                    </div>
+                    <div className="shipping-detail-item">
+                      <span className="detail-label">Total Weight:</span>
+                      <span className="detail-value">{Number(shippingBreakdown.totalWeightKg || 0).toFixed(2)} kg</span>
+                    </div>
+                    <div className="shipping-detail-item">
+                      <span className="detail-label">Chargeable Weight:</span>
+                      <span className="detail-value">{shippingBreakdown.chargeableWeightKg} kg</span>
+                    </div>
+                  </div>
+                )}
+                
                 {(appliedDiscount || appliedRewards) && (
                   <>
                     <div className="summary-divider"></div>

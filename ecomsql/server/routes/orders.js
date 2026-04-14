@@ -1,8 +1,21 @@
 const express = require('express');
 const { getConnection, sql } = require('../config');
-const { verifyToken, optionalAuth } = require('../middleware/auth');
+const { verifyToken, optionalAuth, checkRole } = require('../middleware/auth');
 const userService = require('../services/userService');
 const router = express.Router();
+
+function roundTo2(value) {
+  return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+}
+
+function extractCityFromShippingAddress(shippingAddress) {
+  if (!shippingAddress || typeof shippingAddress !== 'string') {
+    return null;
+  }
+
+  const match = shippingAddress.match(/,\s*([^,]+?)\s*-\s*\d+\s*$/);
+  return match?.[1]?.trim() || null;
+}
 
 function normalizeOrdersWithDiscounts(rows) {
   const orderMap = new Map();
@@ -219,6 +232,102 @@ router.get('/', verifyToken, async (req, res) => {
       code: error.code,
       details: 'Failed to retrieve orders'
     });
+  }
+});
+
+// Get shipping charge audit breakdown for an order (Seller/Admin only)
+router.get('/:id/shipping-breakdown', async (req, res) => {
+  try {
+    const orderId = Number(req.params.id);
+    if (!Number.isInteger(orderId) || orderId <= 0) {
+      return res.status(400).json({ error: 'Invalid order ID' });
+    }
+
+    const pool = await getConnection();
+    const orderResult = await pool.request()
+      .input('orderId', sql.Int, orderId)
+      .query(`
+        SELECT id, order_number, shipping_address, shipping_charge
+        FROM orders
+        WHERE id = @orderId
+      `);
+
+    if (orderResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    const order = orderResult.recordset[0];
+    const cityName = extractCityFromShippingAddress(order.shipping_address);
+
+    const itemsResult = await pool.request()
+      .input('orderId', sql.Int, orderId)
+      .query(`
+        SELECT oi.product_id, oi.quantity, ISNULL(p.weight_kg, 0.50) AS weight_kg
+        FROM order_items oi
+        LEFT JOIN products p ON p.id = oi.product_id
+        WHERE oi.order_id = @orderId
+      `);
+
+    const lineItems = itemsResult.recordset || [];
+    const totalWeightKg = lineItems.reduce((acc, item) => {
+      const itemWeight = Number(item.weight_kg) || 0.5;
+      const quantity = Math.max(1, Number(item.quantity) || 1);
+      return acc + (itemWeight * quantity);
+    }, 0);
+
+    const chargeableWeightKg = Math.max(1, Math.ceil(totalWeightKg));
+
+    let zoneCode = null;
+    let baseShippingCharge = null;
+    let calculatedShippingCharge = null;
+
+    if (cityName) {
+      const cityResult = await pool.request()
+        .input('city', sql.NVarChar(100), cityName)
+        .query(`
+          SELECT TOP 1 shipping_zone
+          FROM cities
+          WHERE LOWER(city_name) = LOWER(@city)
+        `);
+
+      if (cityResult.recordset.length > 0) {
+        zoneCode = cityResult.recordset[0].shipping_zone;
+
+        const zoneResult = await pool.request()
+          .input('zoneCode', sql.NVarChar(20), zoneCode)
+          .query(`
+            SELECT TOP 1 shipping_charge
+            FROM shipping_zones
+            WHERE zone_code = @zoneCode AND is_active = 1
+          `);
+
+        if (zoneResult.recordset.length > 0) {
+          baseShippingCharge = Number(zoneResult.recordset[0].shipping_charge || 0);
+          calculatedShippingCharge = roundTo2(baseShippingCharge * chargeableWeightKg);
+        }
+      }
+    }
+
+    const storedShippingCharge = Number(order.shipping_charge || 0);
+
+    res.json({
+      orderId: order.id,
+      orderNumber: order.order_number,
+      city: cityName,
+      zone: zoneCode,
+      baseShippingCharge: baseShippingCharge !== null ? roundTo2(baseShippingCharge) : null,
+      totalWeightKg: roundTo2(totalWeightKg),
+      chargeableWeightKg,
+      calculatedShippingCharge,
+      storedShippingCharge: roundTo2(storedShippingCharge),
+      difference: calculatedShippingCharge !== null
+        ? roundTo2(storedShippingCharge - calculatedShippingCharge)
+        : null,
+      itemCount: lineItems.length
+    });
+  } catch (error) {
+    console.error('[ORDERS Shipping Breakdown] Error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 

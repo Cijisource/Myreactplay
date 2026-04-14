@@ -15,6 +15,7 @@ const ProductUpload = () => {
     description: '',
     category_id: '',
     price: '',
+    weight_kg: '0.50',
     stock: '',
     sku: '',
     is_preorder: false,
@@ -108,6 +109,7 @@ const ProductUpload = () => {
         description: productForm.description,
         category_id: parseInt(productForm.category_id),
         price: parseFloat(productForm.price),
+        weight_kg: parseFloat(productForm.weight_kg) || 0.5,
         stock: parseInt(productForm.stock) || 0,
         sku: productForm.sku,
         is_preorder: productForm.is_preorder,
@@ -132,6 +134,7 @@ const ProductUpload = () => {
         description: '',
         category_id: '',
         price: '',
+        weight_kg: '0.50',
         stock: '',
         sku: '',
         is_preorder: false,
@@ -257,6 +260,20 @@ const ProductUpload = () => {
                   placeholder="0.00"
                   step="0.01"
                   min="0"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Weight (kg) *</label>
+                <input
+                  type="number"
+                  name="weight_kg"
+                  value={productForm.weight_kg}
+                  onChange={handleProductChange}
+                  placeholder="0.50"
+                  step="0.01"
+                  min="0.01"
                   required
                 />
               </div>
