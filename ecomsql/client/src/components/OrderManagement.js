@@ -1,39 +1,57 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getOrders, getSellerOrders, getOrderById, updateOrderStatus } from '../api';
 import { hasRole } from '../utils/authUtils';
 import './OrderManagement.css';
 
 const OrderManagement = () => {
+  const INITIAL_ORDERS_LIMIT = 3;
+  const ORDERS_PAGE_SIZE = 3;
   const [orders, setOrders] = useState([]);
+  const [hasMoreOrders, setHasMoreOrders] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [statusLoading, setStatusLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const loadMoreRef = useRef(null);
+  const loadMoreInFlightRef = useRef(false);
   const isSellerOrAdmin = hasRole('Seller') || hasRole('Administrator');
 
-  const loadOrdersMemo = useCallback(() => {
-    loadOrders();
-  }, []);
-
-  useEffect(() => {
-    loadOrdersMemo();
-  }, [loadOrdersMemo]);
-
-  const loadOrders = async () => {
+  const fetchOrdersPage = useCallback(async ({ append = false, offset = 0, limit = INITIAL_ORDERS_LIMIT } = {}) => {
     try {
-      setLoading(true);
-      setError(''); // Clear previous errors
+      if (append && loadMoreInFlightRef.current) {
+        return;
+      }
+
+      if (append) {
+        loadMoreInFlightRef.current = true;
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
+      setError('');
       const isSeller = hasRole('Seller');
-      console.log('[OrderManagement] Loading orders, isSeller:', isSeller);
-      
-      const response = isSeller ? await getSellerOrders() : await getOrders();
+      console.log('[OrderManagement] Loading orders, isSeller:', isSeller, 'offset:', offset, 'limit:', limit, 'append:', append);
+
+      const query = { limit, offset };
+      const response = isSeller ? await getSellerOrders(query) : await getOrders(query);
       console.log('[OrderManagement] Orders response:', response);
-      
-      const ordersData = Array.isArray(response.data) ? response.data : [];
-      console.log('[OrderManagement] Parsed orders:', ordersData.length, 'orders found');
-      
-      setOrders(ordersData);
+
+      const payload = response.data;
+      const ordersData = Array.isArray(payload)
+        ? payload
+        : (Array.isArray(payload?.orders) ? payload.orders : []);
+      const hasMore = Array.isArray(payload)
+        ? false
+        : (typeof payload?.pagination?.hasMore === 'boolean'
+          ? payload.pagination.hasMore
+          : ordersData.length === limit);
+
+      console.log('[OrderManagement] Parsed orders:', ordersData.length, 'orders found, hasMore:', hasMore);
+
+      setOrders((prev) => (append ? [...prev, ...ordersData] : ordersData));
+      setHasMoreOrders(hasMore);
     } catch (err) {
       console.error('[OrderManagement] Error loading orders:', err);
       console.error('[OrderManagement] Error details:', {
@@ -48,12 +66,58 @@ const OrderManagement = () => {
       if (err.response?.status === 401) {
         errorMessage += ' - Please log in again. If the issue persists, clear your browser cache and try again.';
       }
-      
+
+      if (append) {
+        setHasMoreOrders(false);
+      }
       setError(`Failed to load orders: ${errorMessage}`);
     } finally {
-      setLoading(false);
+      if (append) {
+        setLoadingMore(false);
+        loadMoreInFlightRef.current = false;
+      } else {
+        setLoading(false);
+      }
     }
-  };
+  }, [INITIAL_ORDERS_LIMIT]);
+
+  const loadOrders = useCallback(() => {
+    setHasMoreOrders(true);
+    return fetchOrdersPage({ append: false, offset: 0, limit: INITIAL_ORDERS_LIMIT });
+  }, [fetchOrdersPage, INITIAL_ORDERS_LIMIT]);
+
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
+
+  useEffect(() => {
+    if (selectedOrder || loading || loadingMore || !hasMoreOrders || orders.length === 0) {
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry?.isIntersecting) {
+          fetchOrdersPage({ append: true, offset: orders.length, limit: ORDERS_PAGE_SIZE });
+        }
+      },
+      {
+        root: null,
+        rootMargin: '200px 0px',
+        threshold: 0.1
+      }
+    );
+
+    const sentinel = loadMoreRef.current;
+    if (sentinel) {
+      observer.observe(sentinel);
+    }
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [selectedOrder, loading, loadingMore, hasMoreOrders, orders.length, fetchOrdersPage, ORDERS_PAGE_SIZE]);
 
   const handleViewOrder = async (orderId) => {
     try {
@@ -669,8 +733,32 @@ const OrderManagement = () => {
                     </td>
                   </tr>
                 ))}
+
+                {loadingMore && (
+                  <tr className="orders-loading-row">
+                    <td colSpan="8">
+                      <div className="orders-loading-inline">
+                        <span className="orders-spinner" aria-hidden="true" />
+                        <span>Loading more orders...</span>
+                      </div>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
+          )}
+
+          {!selectedOrder && orders.length > 0 && (
+            <div className="orders-scroll-footer">
+              {hasMoreOrders ? (
+                <>
+                  <div className="orders-loading-more">Scroll down to load more orders</div>
+                  <div ref={loadMoreRef} className="orders-scroll-sentinel" aria-hidden="true" />
+                </>
+              ) : (
+                <div className="orders-end-message">You have reached the end of your orders.</div>
+              )}
+            </div>
           )}
         </div>
       )}

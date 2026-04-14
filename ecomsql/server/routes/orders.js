@@ -51,12 +51,37 @@ router.get('/seller/orders', verifyToken, async (req, res) => {
   try {
     const sellerId = req.user.userId;
     const pool = await getConnection();
-    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), 500);
-    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+    const hasPaginationQuery = req.query.page !== undefined || req.query.limit !== undefined || req.query.offset !== undefined;
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 200);
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const offset = req.query.offset !== undefined
+      ? Math.max(parseInt(req.query.offset, 10) || 0, 0)
+      : (page - 1) * limit;
     
-    console.log('[ORDERS Seller] Fetching orders for seller:', sellerId, 'limit:', limit, 'offset:', offset);
+    console.log('[ORDERS Seller] Fetching orders for seller:', sellerId, 'limit:', limit, 'offset:', offset, 'paged:', hasPaginationQuery);
+
+    if (!hasPaginationQuery) {
+      const fullResult = await pool.request()
+        .query(`
+         SELECT o.id, o.order_number, o.total_amount, o.status,
+           o.customer_email, o.customer_name, o.shipping_address,
+           o.payment_screenshot, o.discount_amount, o.applied_discount_code,
+           o.created_at, o.updated_at,
+           od.discount_code AS od_discount_code,
+           od.discount_type AS od_discount_type,
+           od.discount_amount AS od_discount_amount
+         FROM orders o
+         LEFT JOIN order_discounts od ON od.order_id = o.id
+         ORDER BY o.created_at DESC
+        `);
+
+      const ordersWithDiscounts = normalizeOrdersWithDiscounts(fullResult.recordset || []);
+      return res.json(ordersWithDiscounts);
+    }
+
+    const countResult = await pool.request().query('SELECT COUNT(*) AS total FROM orders');
+    const total = countResult.recordset?.[0]?.total || 0;
     
-    // Single query to avoid N+1 discount lookups.
     const result = await pool.request()
       .input('limit', sql.Int, limit)
       .input('offset', sql.Int, offset)
@@ -83,8 +108,17 @@ router.get('/seller/orders', verifyToken, async (req, res) => {
       `);
     
     const ordersWithDiscounts = normalizeOrdersWithDiscounts(result.recordset || []);
-    
-    res.json(ordersWithDiscounts);
+
+    res.json({
+      orders: ordersWithDiscounts,
+      pagination: {
+        page,
+        limit,
+        offset,
+        total,
+        hasMore: offset + ordersWithDiscounts.length < total
+      }
+    });
   } catch (error) {
     console.error('[ERROR] Seller orders endpoint error:', error);
     res.status(500).json({ 
@@ -101,24 +135,77 @@ router.get('/', verifyToken, async (req, res) => {
     // Normalize userName to match order storage: trim and lowercase.
     const userEmail = (req.user?.userName || '').trim().toLowerCase();
 
+    const hasPaginationQuery = req.query.page !== undefined || req.query.limit !== undefined || req.query.offset !== undefined;
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 200);
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const offset = req.query.offset !== undefined
+      ? Math.max(parseInt(req.query.offset, 10) || 0, 0)
+      : (page - 1) * limit;
+
+    if (!hasPaginationQuery) {
+      const result = await pool.request()
+        .input('customerEmail', sql.NVarChar, userEmail)
+        .query(`
+           SELECT o.id, o.order_number, o.total_amount, o.status, o.customer_email, o.customer_name,
+             o.shipping_address, o.payment_screenshot, o.discount_amount, o.applied_discount_code,
+             o.created_at, o.updated_at,
+             od.discount_code AS od_discount_code,
+             od.discount_type AS od_discount_type,
+             od.discount_amount AS od_discount_amount
+          FROM orders o
+          LEFT JOIN order_discounts od ON od.order_id = o.id
+          WHERE o.customer_email = @customerEmail
+           ORDER BY o.created_at DESC
+        `);
+
+      const ordersWithDiscounts = normalizeOrdersWithDiscounts(result.recordset || []);
+      return res.json(ordersWithDiscounts);
+    }
+
+    const countResult = await pool.request()
+      .input('customerEmail', sql.NVarChar, userEmail)
+      .query('SELECT COUNT(*) AS total FROM orders WHERE customer_email = @customerEmail');
+    const total = countResult.recordset?.[0]?.total || 0;
+
     const result = await pool.request()
+      .input('limit', sql.Int, limit)
+      .input('offset', sql.Int, offset)
       .input('customerEmail', sql.NVarChar, userEmail)
       .query(`
-         SELECT o.id, o.order_number, o.total_amount, o.status, o.customer_email, o.customer_name,
-           o.shipping_address, o.payment_screenshot, o.discount_amount, o.applied_discount_code,
-           o.created_at, o.updated_at,
-               od.discount_code AS od_discount_code,
-               od.discount_type AS od_discount_type,
-               od.discount_amount AS od_discount_amount
-        FROM orders o
-        LEFT JOIN order_discounts od ON od.order_id = o.id
-        WHERE o.customer_email = @customerEmail
-         ORDER BY o.created_at DESC
+         WITH paged_orders AS (
+           SELECT o.id, o.order_number, o.total_amount, o.status,
+             o.customer_email, o.customer_name, o.shipping_address,
+             o.payment_screenshot, o.discount_amount, o.applied_discount_code,
+             o.created_at, o.updated_at
+           FROM orders o
+           WHERE o.customer_email = @customerEmail
+           ORDER BY o.created_at DESC
+           OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+         )
+         SELECT p.id, p.order_number, p.total_amount, p.status,
+           p.customer_email, p.customer_name, p.shipping_address,
+           p.payment_screenshot, p.discount_amount, p.applied_discount_code,
+           p.created_at, p.updated_at,
+           od.discount_code AS od_discount_code,
+           od.discount_type AS od_discount_type,
+           od.discount_amount AS od_discount_amount
+         FROM paged_orders p
+         LEFT JOIN order_discounts od ON od.order_id = p.id
+         ORDER BY p.created_at DESC
       `);
 
     const ordersWithDiscounts = normalizeOrdersWithDiscounts(result.recordset || []);
     
-    res.json(ordersWithDiscounts);
+    res.json({
+      orders: ordersWithDiscounts,
+      pagination: {
+        page,
+        limit,
+        offset,
+        total,
+        hasMore: offset + ordersWithDiscounts.length < total
+      }
+    });
   } catch (error) {
     console.error('[ORDERS Get] Error endpoint error:', error);
     console.error('[ORDERS Get] Error details:', {

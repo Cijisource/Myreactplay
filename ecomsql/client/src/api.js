@@ -167,8 +167,8 @@ export const removeFromCart = (itemId) => apiClient.delete(`/cart/${itemId}`);
 export const clearCart = (sessionId) => apiClient.delete(`/cart/session/${sessionId}`);
 
 // Orders
-export const getOrders = () => apiClient.get('/orders');
-export const getSellerOrders = () => apiClient.get('/orders/seller/orders');
+export const getOrders = (params = {}) => apiClient.get('/orders', { params });
+export const getSellerOrders = (params = {}) => apiClient.get('/orders/seller/orders', { params });
 export const getOrderById = (id) => apiClient.get(`/orders/${id}`);
 export const createOrder = (data) => apiClient.post('/orders', data);
 export const updateOrderStatus = (id, data) => apiClient.put(`/orders/${id}`, data);
