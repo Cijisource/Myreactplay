@@ -43,10 +43,20 @@ const guestCheckinDir = process.env.GUEST_CHECKIN_DIR ||
 // Azure container name for guest checkin files
 const AZURE_COMPLAINS_CONTAINER = process.env.AZURE_COMPLAINS_CONTAINER || 'complains';
 const AZURE_GUEST_CHECKIN_CONTAINER = process.env.AZURE_GUEST_CHECKIN_CONTAINER || 'guest-checkins';
-const AZURE_PAYMENTS_CONTAINER = process.env.AZURE_PAYMENTS_CONTAINER || 'payments';
 const AZURE_STORAGE_BASE = process.env.AZURE_STORAGE_BASE_URL ||
   process.env.AZURE_BLOB_URL?.replace(/\/[^/]+$/, '') ||
   'https://complexstore.blob.core.windows.net';
+
+const getPaymentProofContainerName = (paymentDate?: string): string => {
+  const parsedPaymentDate = paymentDate ? new Date(paymentDate) : new Date();
+
+  if (Number.isNaN(parsedPaymentDate.getTime())) {
+    const currentDate = new Date();
+    return `${currentDate.getFullYear()}${currentDate.getMonth() + 1}`;
+  }
+
+  return `${parsedPaymentDate.getFullYear()}${parsedPaymentDate.getMonth() + 1}`;
+};
 
 console.log('Environment:', { NODE_ENV: process.env.NODE_ENV, isDocker });
 console.log('Complains directory:', complainsDir);
@@ -1097,6 +1107,7 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
           ISNULL(o.RentFixed, rd.Rent) as rentFixed,
           CAST(latestPayment.rentReceivedOn AS NVARCHAR) as rentReceivedOn,
           latestPayment.screenshotUrl as screenshotUrl,
+          latestPayment.folder as folder,
           ISNULL(CAST(monthlyTotals.totalRentReceived AS FLOAT), 0) as rentReceived,
           ISNULL(CAST(monthlyTotals.totalCharges AS FLOAT), 0) as charges,
           @month as [month],
@@ -1123,7 +1134,8 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
         OUTER APPLY (
           SELECT TOP 1
             rcLatest.RentReceivedOn as rentReceivedOn,
-            rcLatest.screenshoturl as screenshotUrl
+            rcLatest.screenshoturl as screenshotUrl,
+            rcLatest.folder as folder
           FROM RentalCollection rcLatest
           WHERE rcLatest.OccupancyId = o.Id
             AND YEAR(CAST(rcLatest.RentReceivedOn AS DATE)) = @year
@@ -5591,6 +5603,7 @@ app.post('/api/rental/upload-payment', uploadPaymentScreenshot.single('screensho
     }
 
     const paymentDate = rentReceivedOn || new Date().toISOString().split('T')[0];
+    const paymentProofContainer = getPaymentProofContainerName(paymentDate);
 
     let screenshotUrl = '';
     if (req.file) {
@@ -5598,17 +5611,11 @@ app.post('/api/rental/upload-payment', uploadPaymentScreenshot.single('screensho
 
       if (isAzureConfigured()) {
         try {
-          const parsedPaymentDate = new Date(paymentDate);
-          const monthFolder = Number.isNaN(parsedPaymentDate.getTime())
-            ? new Date().toISOString().slice(0, 7)
-            : `${parsedPaymentDate.getFullYear()}-${String(parsedPaymentDate.getMonth() + 1).padStart(2, '0')}`;
-
-          const blobName = `${monthFolder}/${req.file.filename}`;
           const fileBuffer = fs.readFileSync(req.file.path);
 
           screenshotUrl = await uploadAzureBlobToContainer(
-            AZURE_PAYMENTS_CONTAINER,
-            blobName,
+            paymentProofContainer,
+            req.file.filename,
             fileBuffer,
             req.file.mimetype
           );
@@ -5648,6 +5655,7 @@ app.post('/api/rental/upload-payment', uploadPaymentScreenshot.single('screensho
         .input('charges', sql.Money, charges ? parseFloat(charges) : 0)
         .input('modeOfPayment', sql.NVarChar(10), modeOfPayment || '')
         .input('screenshotUrl', sql.NVarChar(sql.MAX), screenshotUrl)
+        .input('folder', sql.NVarChar(100), paymentProofContainer)
         .input('updateDate', sql.DateTime, new Date())
         .query(`
           UPDATE RentalCollection
@@ -5656,10 +5664,11 @@ app.post('/api/rental/upload-payment', uploadPaymentScreenshot.single('screensho
             Charges = @charges,
             ModeofPayment = @modeOfPayment,
             screenshoturl = CASE WHEN @screenshotUrl != '' THEN @screenshotUrl ELSE screenshoturl END,
+            folder = CASE WHEN @screenshotUrl != '' THEN @folder ELSE folder END,
             UpdatedDate = @updateDate
           WHERE Id = @id;
           
-          SELECT Id, OccupancyId, RentReceivedOn, RentReceived, Charges, RentBalance, screenshoturl
+          SELECT Id, OccupancyId, RentReceivedOn, RentReceived, Charges, RentBalance, screenshoturl, folder
           FROM RentalCollection
           WHERE Id = @id
         `);
@@ -5673,13 +5682,14 @@ app.post('/api/rental/upload-payment', uploadPaymentScreenshot.single('screensho
         .input('charges', sql.Money, charges ? parseFloat(charges) : 0)
         .input('modeOfPayment', sql.NVarChar(10), modeOfPayment || '')
         .input('screenshotUrl', sql.NVarChar(sql.MAX), screenshotUrl)
+        .input('folder', sql.NVarChar(100), paymentProofContainer)
         .input('createDate', sql.DateTime, new Date())
         .query(`
           INSERT INTO RentalCollection 
           (OccupancyId, RentReceivedOn, RentReceived, Charges, ModeofPayment, screenshoturl, folder, CreatedDate)
-          VALUES (@occupancyId, @rentReceivedOn, @rentReceived, @charges, @modeOfPayment, @screenshotUrl, 'payments', @createDate);
+          VALUES (@occupancyId, @rentReceivedOn, @rentReceived, @charges, @modeOfPayment, @screenshotUrl, @folder, @createDate);
           
-          SELECT Id, OccupancyId, RentReceivedOn, RentReceived, Charges, RentBalance, screenshoturl
+          SELECT Id, OccupancyId, RentReceivedOn, RentReceived, Charges, RentBalance, screenshoturl, folder
           FROM RentalCollection
           WHERE Id = SCOPE_IDENTITY()
         `);

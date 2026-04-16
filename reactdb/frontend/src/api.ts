@@ -198,6 +198,10 @@ const xhrRequestWithAuthRetry = (
   });
 };
 
+const AZURE_STORAGE_BASE_URL =
+  import.meta.env.VITE_AZURE_STORAGE_BASE_URL ||
+  'https://complexstore.blob.core.windows.net';
+
 // Get the base API URL for file serving
 const getApiBaseUrl = (): string => {
   if (!API_URL) return window.location.origin;
@@ -212,6 +216,21 @@ const getApiBaseUrl = (): string => {
   // If API_URL is relative, use the current origin
   // console.log('[File URL] Using relative API, origin:', window.location.origin);
   return window.location.origin;
+};
+
+const extractFileName = (filePath: string): string => {
+  if (!filePath) return '';
+
+  try {
+    if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+      const parsedUrl = new URL(filePath);
+      return decodeURIComponent(parsedUrl.pathname.split('/').filter(Boolean).pop() || '');
+    }
+  } catch {
+    return '';
+  }
+
+  return decodeURIComponent(filePath.split(/[\\/]/).filter(Boolean).pop() || '');
 };
 
 // Helper function to construct file URLs
@@ -245,6 +264,43 @@ export const getFileUrl = (filePath: string): string => {
   const fullUrl = `${baseUrl}/api/tenantphotos/${filePath}`;
   // console.log('[File URL] Constructed URL from filename:', { filePath, baseUrl, fullUrl });
   return fullUrl;
+};
+
+export const getRentalPaymentProofUrl = (
+  filePath: string,
+  paymentDate?: string | null,
+  containerName?: string | null
+): string => {
+  if (!filePath) return '';
+
+  const fileName = extractFileName(filePath);
+  const parsedPaymentDate = paymentDate ? new Date(paymentDate) : null;
+
+  if (fileName && containerName) {
+    return `${AZURE_STORAGE_BASE_URL}/${containerName}/${encodeURIComponent(fileName)}`;
+  }
+
+  if (fileName && parsedPaymentDate && !Number.isNaN(parsedPaymentDate.getTime())) {
+    const derivedContainerName = `${parsedPaymentDate.getFullYear()}${parsedPaymentDate.getMonth() + 1}`;
+    return `${AZURE_STORAGE_BASE_URL}/${derivedContainerName}/${encodeURIComponent(fileName)}`;
+  }
+
+  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+    return filePath;
+  }
+
+  const normalizedPath = filePath.replace(/^\/+/, '');
+  const baseUrl = getApiBaseUrl();
+
+  if (normalizedPath.startsWith('api/payments/')) {
+    return `${baseUrl}/${normalizedPath}`;
+  }
+
+  if (normalizedPath.startsWith('payments/')) {
+    return `${baseUrl}/${normalizedPath}`;
+  }
+
+  return `${baseUrl}/api/payments/${encodeURIComponent(normalizedPath)}`;
 };
 
 export const getGuestCheckinFileUrl = (filePath: string): string => {

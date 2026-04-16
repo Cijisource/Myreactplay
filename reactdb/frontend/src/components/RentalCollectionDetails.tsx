@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { apiService, getFileUrl } from '../api';
+import { apiService, getRentalPaymentProofUrl } from '../api';
 import SearchableDropdown from './SearchableDropdown';
 import './RentalCollectionDetails.css';
 
@@ -32,6 +32,7 @@ interface MonthlyPaymentStatus {
   checkInDate: string;
   checkOutDate: string | null;
   screenshotUrl: string | null;
+  folder: string | null;
   paymentStatus: 'paid' | 'partial' | 'pending';
   proRataRent: number;
   rentBalance: number;
@@ -101,6 +102,15 @@ export default function RentalCollectionDetails() {
       .filter((payment) => payment.paymentStatus === 'paid')
       .map((payment) => payment.occupancyId)
   );
+
+  const getProofUrl = (
+    screenshotUrl: string | null,
+    paymentDate?: string | null,
+    containerName?: string | null
+  ): string => {
+    if (!screenshotUrl) return '';
+    return getRentalPaymentProofUrl(screenshotUrl, paymentDate, containerName);
+  };
 
   const fetchCurrentMonthPayments = async () => {
     try {
@@ -513,14 +523,14 @@ export default function RentalCollectionDetails() {
                       <td>
                         {item.screenshotUrl ? (
                           <a
-                            href={getFileUrl(item.screenshotUrl)}
+                            href={getProofUrl(item.screenshotUrl, item.rentReceivedOn, item.folder)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="last-proof-link"
                             title="Open latest payment proof"
                           >
                             <img
-                              src={getFileUrl(item.screenshotUrl)}
+                              src={getProofUrl(item.screenshotUrl, item.rentReceivedOn, item.folder)}
                               alt={`Payment proof ${item.tenantName}`}
                               className="last-proof-thumb"
                             />
@@ -815,13 +825,13 @@ export default function RentalCollectionDetails() {
                       <div className="payment-screenshot">
                         <div className="screenshot-label">Payment Proof</div>
                         <a
-                          href={getFileUrl(record.screenshotUrl)}
+                          href={getProofUrl(record.screenshotUrl, record.rentReceivedOn, record.folder)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="screenshot-link"
                         >
                           <img
-                            src={getFileUrl(record.screenshotUrl)}
+                            src={getProofUrl(record.screenshotUrl, record.rentReceivedOn, record.folder)}
                             alt="Payment proof screenshot"
                             className="screenshot-thumbnail"
                           />
@@ -920,7 +930,7 @@ export default function RentalCollectionDetails() {
                 <div className="current-image-section">
                   <h3>Current Payment Proof</h3>
                   <img 
-                    src={getFileUrl(editingRecord.screenshotUrl)} 
+                    src={getProofUrl(editingRecord.screenshotUrl, editingRecord.rentReceivedOn, editingRecord.folder)} 
                     alt="Current payment proof" 
                     className="current-image"
                   />
