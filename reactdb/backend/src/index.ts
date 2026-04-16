@@ -43,6 +43,7 @@ const guestCheckinDir = process.env.GUEST_CHECKIN_DIR ||
 // Azure container name for guest checkin files
 const AZURE_COMPLAINS_CONTAINER = process.env.AZURE_COMPLAINS_CONTAINER || 'complains';
 const AZURE_GUEST_CHECKIN_CONTAINER = process.env.AZURE_GUEST_CHECKIN_CONTAINER || 'guest-checkins';
+const AZURE_PAYMENTS_CONTAINER = process.env.AZURE_PAYMENTS_CONTAINER || 'payments';
 const AZURE_STORAGE_BASE = process.env.AZURE_STORAGE_BASE_URL ||
   process.env.AZURE_BLOB_URL?.replace(/\/[^/]+$/, '') ||
   'https://complexstore.blob.core.windows.net';
@@ -1094,25 +1095,41 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
           t.Name as tenantName,
           rd.Number as roomNumber,
           ISNULL(o.RentFixed, rd.Rent) as rentFixed,
-          ISNULL(CAST(rc.RentReceivedOn AS NVARCHAR), NULL) as rentReceivedOn,
-          ISNULL(CAST(rc.RentReceived AS FLOAT), 0) as rentReceived,
-          ISNULL(CAST(rc.Charges AS FLOAT), 0) as charges,
+          CAST(latestPayment.rentReceivedOn AS NVARCHAR) as rentReceivedOn,
+          latestPayment.screenshotUrl as screenshotUrl,
+          ISNULL(CAST(monthlyTotals.totalRentReceived AS FLOAT), 0) as rentReceived,
+          ISNULL(CAST(monthlyTotals.totalCharges AS FLOAT), 0) as charges,
           @month as [month],
           @year as [year],
           CAST(o.CheckInDate AS NVARCHAR) as checkInDate,
           CAST(o.CheckOutDate AS NVARCHAR) as checkOutDate,
           CASE 
-            WHEN rc.Id IS NULL THEN 'pending'
-            WHEN ISNULL(CAST(rc.RentBalance AS FLOAT), 0) = 0 THEN 'paid'
-            WHEN ISNULL(CAST(rc.RentReceived AS FLOAT), 0) > 0 THEN 'partial'
+            WHEN ISNULL(monthlyTotals.totalRentReceived, 0) + ISNULL(monthlyTotals.totalCharges, 0) = 0 THEN 'pending'
+            WHEN ISNULL(monthlyTotals.totalRentReceived, 0) > 0 THEN 'partial'
             ELSE 'pending'
           END as paymentStatus
         FROM Occupancy o
         INNER JOIN Tenant t ON o.TenantId = t.Id
         INNER JOIN RoomDetail rd ON o.RoomId = rd.Id
-        LEFT JOIN RentalCollection rc ON rc.OccupancyId = o.Id
-          AND YEAR(CAST(rc.RentReceivedOn AS DATE)) = @year
-          AND MONTH(CAST(rc.RentReceivedOn AS DATE)) = @month
+        OUTER APPLY (
+          SELECT
+            SUM(ISNULL(CAST(rcMonth.RentReceived AS FLOAT), 0)) as totalRentReceived,
+            SUM(ISNULL(CAST(rcMonth.Charges AS FLOAT), 0)) as totalCharges
+          FROM RentalCollection rcMonth
+          WHERE rcMonth.OccupancyId = o.Id
+            AND YEAR(CAST(rcMonth.RentReceivedOn AS DATE)) = @year
+            AND MONTH(CAST(rcMonth.RentReceivedOn AS DATE)) = @month
+        ) monthlyTotals
+        OUTER APPLY (
+          SELECT TOP 1
+            rcLatest.RentReceivedOn as rentReceivedOn,
+            rcLatest.screenshoturl as screenshotUrl
+          FROM RentalCollection rcLatest
+          WHERE rcLatest.OccupancyId = o.Id
+            AND YEAR(CAST(rcLatest.RentReceivedOn AS DATE)) = @year
+            AND MONTH(CAST(rcLatest.RentReceivedOn AS DATE)) = @month
+          ORDER BY CAST(rcLatest.RentReceivedOn AS DATE) DESC, rcLatest.Id DESC
+        ) latestPayment
         WHERE 
           -- Occupancy is active during this month
           CAST(o.CheckInDate AS DATE) <= EOMONTH(DATEFROMPARTS(@year, @month, 1))
@@ -5573,9 +5590,38 @@ app.post('/api/rental/upload-payment', uploadPaymentScreenshot.single('screensho
       });
     }
 
+    const paymentDate = rentReceivedOn || new Date().toISOString().split('T')[0];
+
     let screenshotUrl = '';
     if (req.file) {
       screenshotUrl = `/api/payments/${req.file.filename}`;
+
+      if (isAzureConfigured()) {
+        try {
+          const parsedPaymentDate = new Date(paymentDate);
+          const monthFolder = Number.isNaN(parsedPaymentDate.getTime())
+            ? new Date().toISOString().slice(0, 7)
+            : `${parsedPaymentDate.getFullYear()}-${String(parsedPaymentDate.getMonth() + 1).padStart(2, '0')}`;
+
+          const blobName = `${monthFolder}/${req.file.filename}`;
+          const fileBuffer = fs.readFileSync(req.file.path);
+
+          screenshotUrl = await uploadAzureBlobToContainer(
+            AZURE_PAYMENTS_CONTAINER,
+            blobName,
+            fileBuffer,
+            req.file.mimetype
+          );
+
+          try {
+            fs.unlinkSync(req.file.path);
+          } catch (cleanupError) {
+            console.warn('Could not delete local payment proof after Azure upload:', cleanupError);
+          }
+        } catch (azureUploadError) {
+          console.error('Azure upload failed for payment proof, using local storage path:', azureUploadError);
+        }
+      }
     }
 
     const pool = getPool();
@@ -5584,7 +5630,7 @@ app.post('/api/rental/upload-payment', uploadPaymentScreenshot.single('screensho
     const existingRecord = await pool
       .request()
       .input('occupancyId', sql.Int, parseInt(occupancyId))
-      .input('rentReceivedOn', sql.NChar(10), rentReceivedOn || new Date().toISOString().split('T')[0])
+      .input('rentReceivedOn', sql.NChar(10), paymentDate)
       .query(`
         SELECT Id FROM RentalCollection 
         WHERE OccupancyId = @occupancyId 
@@ -5622,7 +5668,7 @@ app.post('/api/rental/upload-payment', uploadPaymentScreenshot.single('screensho
       result = await pool
         .request()
         .input('occupancyId', sql.Int, parseInt(occupancyId))
-        .input('rentReceivedOn', sql.NChar(10), rentReceivedOn || new Date().toISOString().split('T')[0])
+        .input('rentReceivedOn', sql.NChar(10), paymentDate)
         .input('rentReceived', sql.Money, parseFloat(rentReceived))
         .input('charges', sql.Money, charges ? parseFloat(charges) : 0)
         .input('modeOfPayment', sql.NVarChar(10), modeOfPayment || '')

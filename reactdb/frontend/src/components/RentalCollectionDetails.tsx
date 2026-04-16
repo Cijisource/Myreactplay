@@ -18,6 +18,26 @@ interface OccupancyInfo {
   checkOutDate: string | null;
 }
 
+interface MonthlyPaymentStatus {
+  occupancyId: number;
+  tenantId: number;
+  tenantName: string;
+  roomNumber: string;
+  rentFixed: number;
+  rentReceivedOn: string | null;
+  rentReceived: number;
+  charges: number;
+  month: number;
+  year: number;
+  checkInDate: string;
+  checkOutDate: string | null;
+  screenshotUrl: string | null;
+  paymentStatus: 'paid' | 'partial' | 'pending';
+  proRataRent: number;
+  rentBalance: number;
+  occupancyDays: number;
+}
+
 interface RentalRecord {
   id: number;
   occupancyId: number;
@@ -71,10 +91,48 @@ export default function RentalCollectionDetails() {
     rentReceivedOn: new Date().toISOString().split('T')[0],
     screenshot: null
   });
+  const [currentMonthPayments, setCurrentMonthPayments] = useState<MonthlyPaymentStatus[]>([]);
+  const [currentMonthLoading, setCurrentMonthLoading] = useState(false);
+  const [currentMonthError, setCurrentMonthError] = useState<string | null>(null);
+
+  const currentMonthYear = new Date().toISOString().slice(0, 7);
+  const paidOccupancyIds = new Set(
+    currentMonthPayments
+      .filter((payment) => payment.paymentStatus === 'paid')
+      .map((payment) => payment.occupancyId)
+  );
+
+  const fetchCurrentMonthPayments = async () => {
+    try {
+      setCurrentMonthLoading(true);
+      setCurrentMonthError(null);
+      const response = await apiService.getPaymentsByMonth(currentMonthYear);
+      const records = response.data || response || [];
+      setCurrentMonthPayments(records);
+    } catch (err) {
+      console.error('Error fetching current month payments:', err);
+      setCurrentMonthError('Failed to load current month occupied room status.');
+    } finally {
+      setCurrentMonthLoading(false);
+    }
+  };
+
+  const formatMonthTitle = (monthYear: string): string => {
+    const [year, month] = monthYear.split('-').map(Number);
+    if (!year || !month) {
+      return monthYear;
+    }
+
+    return new Date(year, month - 1, 1).toLocaleDateString('en-IN', {
+      month: 'long',
+      year: 'numeric'
+    });
+  };
 
   // Load occupancy options on mount
   useEffect(() => {
     fetchOccupancies();
+    fetchCurrentMonthPayments();
   }, []);
 
   const fetchOccupancies = async () => {
@@ -232,6 +290,7 @@ export default function RentalCollectionDetails() {
       
       // Refresh rental details
       await fetchRentalDetails();
+      await fetchCurrentMonthPayments();
       
       // Show success message
       console.log('Payment recorded successfully:', response);
@@ -243,14 +302,6 @@ export default function RentalCollectionDetails() {
       setLoading(false);
       setUploadProgress(0);
     }
-  };
-
-  const calculateBalance = (index: number): number => {
-    const monthlyRecords = rentalRecords.slice(0, index + 1);
-    const totalReceived = monthlyRecords.reduce((sum, r) => sum + r.rentReceived, 0);
-    const totalCharges = monthlyRecords.reduce((sum, r) => sum + r.charges, 0);
-    const totalBalance = occupancyInfo ? (occupancyInfo.rentFixed * (index + 1)) - totalReceived - totalCharges : 0;
-    return Math.max(0, totalBalance);
   };
 
   const handleEditClick = (record: RentalRecord) => {
@@ -318,6 +369,7 @@ export default function RentalCollectionDetails() {
 
       // Refresh rental details
       await fetchRentalDetails();
+      await fetchCurrentMonthPayments();
       
       // Close modal
       handleCancelEdit();
@@ -345,6 +397,17 @@ export default function RentalCollectionDetails() {
     }).format(num);
   };
 
+  const getDisplayBalance = (record: RentalRecord): number => {
+    const storedBalance = Number(record.rentBalance || 0);
+    if (storedBalance > 0) {
+      return storedBalance;
+    }
+
+    // Fallback when legacy records have 0 in RentBalance even for partial payments.
+    const fallback = Number(record.rentFixed || 0) - (Number(record.rentReceived || 0) + Number(record.charges || 0));
+    return Math.max(0, fallback);
+  };
+
   if (loading && !occupancyInfo) {
     return (
       <div className="rental-collection-details">
@@ -366,6 +429,115 @@ export default function RentalCollectionDetails() {
         </div>
       )}
 
+      <div className="current-month-status-card">
+        <div className="current-month-header">
+          <div>
+            <h3>Occupied Rooms Rental Status - {formatMonthTitle(currentMonthYear)}</h3>
+            <p>Shows rental payment status for all occupied rooms in the current month.</p>
+          </div>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={fetchCurrentMonthPayments}
+            disabled={currentMonthLoading}
+          >
+            {currentMonthLoading ? 'Refreshing...' : 'Refresh'}
+          </button>
+        </div>
+
+        {currentMonthError && (
+          <div className="current-month-error">{currentMonthError}</div>
+        )}
+
+        {!currentMonthError && currentMonthPayments.length === 0 && !currentMonthLoading && (
+          <div className="empty-state compact">
+            <p>No occupied room records found for this month.</p>
+          </div>
+        )}
+
+        {currentMonthPayments.length > 0 && (
+          <>
+            <div className="current-month-summary-grid">
+              <div className="current-month-summary-item">
+                <span>Total Occupied Rooms</span>
+                <strong>{currentMonthPayments.length}</strong>
+              </div>
+              <div className="current-month-summary-item">
+                <span>Fully Paid</span>
+                <strong>{currentMonthPayments.filter((item) => item.paymentStatus === 'paid').length}</strong>
+              </div>
+              <div className="current-month-summary-item">
+                <span>Partial</span>
+                <strong>{currentMonthPayments.filter((item) => item.paymentStatus === 'partial').length}</strong>
+              </div>
+              <div className="current-month-summary-item">
+                <span>Pending</span>
+                <strong>{currentMonthPayments.filter((item) => item.paymentStatus === 'pending').length}</strong>
+              </div>
+            </div>
+
+            <div className="table-wrapper current-month-table-wrapper">
+              <table className="payment-table current-month-table compact-grid">
+                <thead>
+                  <tr>
+                    <th>Room</th>
+                    <th>Tenant</th>
+                    <th>Pro-Rata Rent</th>
+                    <th>Received</th>
+                    <th>Charges</th>
+                    <th>Balance</th>
+                    <th>Status</th>
+                    <th>Last Payment</th>
+                    <th>Proof</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentMonthPayments.map((item) => (
+                    <tr key={item.occupancyId}>
+                      <td>{item.roomNumber}</td>
+                      <td>{item.tenantName}</td>
+                      <td className="amount">{formatCurrency(item.proRataRent)}</td>
+                      <td className="amount received">{formatCurrency(item.rentReceived)}</td>
+                      <td className="amount">{formatCurrency(item.charges)}</td>
+                      <td className="amount balance">{formatCurrency(item.rentBalance)}</td>
+                      <td>
+                        <span className={`payment-status-badge ${item.paymentStatus}`}>
+                          {item.paymentStatus}
+                        </span>
+                      </td>
+                      <td>
+                        {item.rentReceivedOn
+                          ? new Date(item.rentReceivedOn).toLocaleDateString('en-IN')
+                          : 'No payment'}
+                      </td>
+                      <td>
+                        {item.screenshotUrl ? (
+                          <a
+                            href={getFileUrl(item.screenshotUrl)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="last-proof-link"
+                            title="Open latest payment proof"
+                          >
+                            <img
+                              src={getFileUrl(item.screenshotUrl)}
+                              alt={`Payment proof ${item.tenantName}`}
+                              className="last-proof-thumb"
+                            />
+                          </a>
+                        ) : (
+                          <span className="no-proof">-</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
+
       {/* Occupancy Selector */}
       <div className="selector-card">
         <div className="selector-wrapper">
@@ -375,7 +547,10 @@ export default function RentalCollectionDetails() {
             onChange={(option) => setSelectedOccupancyId(parseInt(option.id.toString()))}
             options={occupancyOptions.map(opt => ({
               id: opt.id.toString(),
-              label: opt.label
+              label: opt.label,
+              optionClassName: paidOccupancyIds.has(opt.id) ? 'paid-occupancy-option' : '',
+              optionBadgeText: paidOccupancyIds.has(opt.id) ? 'Paid' : undefined,
+              optionBadgeVariant: paidOccupancyIds.has(opt.id) ? 'success' : undefined
             }))}
             placeholder="Search by tenant name or room number..."
           />
@@ -587,7 +762,7 @@ export default function RentalCollectionDetails() {
             
             {rentalRecords.length > 0 ? (
               <div className="payment-records-container">
-                {rentalRecords.map((record, index) => (
+                {rentalRecords.map((record) => (
                   <div key={record.id} className="payment-record-card">
                     <div className="payment-record-header">
                       <div className="payment-date">
@@ -632,7 +807,7 @@ export default function RentalCollectionDetails() {
                       </div>
                       <div className="detail-item">
                         <span className="label">Balance</span>
-                        <span className="value balance">{formatCurrency(calculateBalance(index))}</span>
+                        <span className="value balance">{formatCurrency(getDisplayBalance(record))}</span>
                       </div>
                     </div>
 

@@ -118,6 +118,51 @@
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.dropdown-option-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropdown-option-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 0.2rem 0.5rem;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.dropdown-option-badge.default {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.dropdown-option-badge.success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.dropdown-option-badge.warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.dropdown-option.paid-occupancy-option {
+  background: #f0fdf4;
+  border-left: 3px solid #22c55e;
+}
+
+.dropdown-option.paid-occupancy-option:hover {
+  background: #dcfce7;
 }
 
 .dropdown-option:last-child {
@@ -132,6 +177,11 @@
   background-color: #e7f3ff;
   color: #007bff;
   font-weight: 500;
+}
+
+.dropdown-option.selected.paid-occupancy-option {
+  background-color: #dbeafe;
+  border-left-color: #2563eb;
 }
 
 .dropdown-option.selected:hover {
