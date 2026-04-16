@@ -423,6 +423,9 @@ export default function RentalCollectionDetails() {
     }).format(num);
   };
 
+  const getTotalReceived = (rentReceived: number, charges: number): number =>
+    Number(rentReceived || 0) + Number(charges || 0);
+
   const getDisplayBalance = (record: RentalRecord): number => {
     const storedBalance = Number(record.rentBalance || 0);
     if (storedBalance > 0) {
@@ -513,11 +516,11 @@ export default function RentalCollectionDetails() {
                     <th>Room</th>
                     <th>Tenant</th>
                     <th>Pro-Rata Rent</th>
-                    <th>Received</th>
                     <th>Charges</th>
                     <th>Balance</th>
                     <th>Status</th>
                     <th>Last Payment</th>
+                    <th>Received</th>
                     <th>Proof</th>
                   </tr>
                 </thead>
@@ -527,7 +530,6 @@ export default function RentalCollectionDetails() {
                       <td>{item.roomNumber}</td>
                       <td>{item.tenantName}</td>
                       <td className="amount">{formatCurrency(item.proRataRent)}</td>
-                      <td className="amount received">{formatCurrency(item.rentReceived)}</td>
                       <td className="amount">{formatCurrency(item.charges)}</td>
                       <td className="amount balance">{formatCurrency(item.rentBalance)}</td>
                       <td>
@@ -540,6 +542,7 @@ export default function RentalCollectionDetails() {
                           ? new Date(item.rentReceivedOn).toLocaleDateString('en-IN')
                           : 'No payment'}
                       </td>
+                      <td className="amount received">{formatCurrency(getTotalReceived(item.rentReceived, item.charges))}</td>
                       <td>
                         {item.screenshotUrl ? (
                           <button
@@ -623,8 +626,8 @@ export default function RentalCollectionDetails() {
           {/* Financial Summary Cards */}
           <div className="summary-cards-grid">
             <div className="summary-card">
-              <div className="card-label">Total Rent Received</div>
-              <div className="card-value received">{formatCurrency(occupancyInfo.totalRentReceived)}</div>
+              <div className="card-label">Total Received (Rent + Charges)</div>
+              <div className="card-value received">{formatCurrency(getTotalReceived(occupancyInfo.totalRentReceived, occupancyInfo.totalCharges))}</div>
               <div className="card-subtext">{occupancyInfo.paymentRecordsCount} payment(s)</div>
             </div>
             
@@ -837,7 +840,7 @@ export default function RentalCollectionDetails() {
                       </div>
                       <div className="detail-item">
                         <span className="label">Received</span>
-                        <span className="value received">{formatCurrency(record.rentReceived)}</span>
+                        <span className="value received">{formatCurrency(getTotalReceived(record.rentReceived, record.charges))}</span>
                       </div>
                       <div className="detail-item">
                         <span className="label">Balance</span>
