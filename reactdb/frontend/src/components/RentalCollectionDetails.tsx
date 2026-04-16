@@ -60,6 +60,7 @@ interface RentalRecord {
 interface OccupancyOption {
   id: number;
   label: string;
+  roomNumber: string;
 }
 
 interface FormData {
@@ -81,6 +82,7 @@ export default function RentalCollectionDetails() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showForm, setShowForm] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [proofPreview, setProofPreview] = useState<{ url: string; alt: string } | null>(null);
   const [editingRecord, setEditingRecord] = useState<RentalRecord | null>(null);
   const [editFormData, setEditFormData] = useState<Partial<RentalRecord & { screenshot: File | null }>>({});
   const [editPreviewUrl, setEditPreviewUrl] = useState<string | null>(null);
@@ -112,12 +114,18 @@ export default function RentalCollectionDetails() {
     return getRentalPaymentProofUrl(screenshotUrl, paymentDate, containerName);
   };
 
+  const compareRoomNumbers = (left: string, right: string): number =>
+    left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' });
+
   const fetchCurrentMonthPayments = async () => {
     try {
       setCurrentMonthLoading(true);
       setCurrentMonthError(null);
       const response = await apiService.getPaymentsByMonth(currentMonthYear);
-      const records = response.data || response || [];
+      const records = (response.data || response || []).sort(
+        (a: MonthlyPaymentStatus, b: MonthlyPaymentStatus) =>
+          compareRoomNumbers(a.roomNumber, b.roomNumber)
+      );
       setCurrentMonthPayments(records);
     } catch (err) {
       console.error('Error fetching current month payments:', err);
@@ -180,14 +188,22 @@ export default function RentalCollectionDetails() {
         return {
           id: occupancy.occupancyId,
           label: `${occupancy.tenantName.trim()} - Room ${occupancy.roomNumber.trim()} (In: ${checkInDate}, Out: ${checkOutDate})`,
+          roomNumber: occupancy.roomNumber.trim(),
           sortKey: checkOutTime
         };
       });
       
-      // Sort by checkout date descending (active first, then most recent checkouts)
-      const sortedOptions = optionsWithDates.sort((a: any, b: any) => b.sortKey - a.sortKey);
+      const sortedOptions = optionsWithDates.sort((a: any, b: any) =>
+        compareRoomNumbers(a.roomNumber, b.roomNumber) || b.sortKey - a.sortKey
+      );
       
-      const options = sortedOptions.map(({ id, label }: { id: string; label: string }) => ({ id, label }));
+      const options = sortedOptions.map(
+        ({ id, label, roomNumber }: { id: number; label: string; roomNumber: string }) => ({
+          id,
+          label,
+          roomNumber
+        })
+      );
       setOccupancyOptions(options);
     } catch (err) {
       console.error('Error fetching occupancies:', err);
@@ -418,6 +434,10 @@ export default function RentalCollectionDetails() {
     return Math.max(0, fallback);
   };
 
+  const openProofPreview = (url: string, alt: string) => {
+    setProofPreview({ url, alt });
+  };
+
   if (loading && !occupancyInfo) {
     return (
       <div className="rental-collection-details">
@@ -522,19 +542,23 @@ export default function RentalCollectionDetails() {
                       </td>
                       <td>
                         {item.screenshotUrl ? (
-                          <a
-                            href={getProofUrl(item.screenshotUrl, item.rentReceivedOn, item.folder)}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <button
+                            type="button"
                             className="last-proof-link"
-                            title="Open latest payment proof"
+                            title="Preview latest payment proof"
+                            onClick={() =>
+                              openProofPreview(
+                                getProofUrl(item.screenshotUrl, item.rentReceivedOn, item.folder),
+                                `Payment proof ${item.tenantName}`
+                              )
+                            }
                           >
                             <img
                               src={getProofUrl(item.screenshotUrl, item.rentReceivedOn, item.folder)}
                               alt={`Payment proof ${item.tenantName}`}
                               className="last-proof-thumb"
                             />
-                          </a>
+                          </button>
                         ) : (
                           <span className="no-proof">-</span>
                         )}
@@ -824,18 +848,23 @@ export default function RentalCollectionDetails() {
                     {record.screenshotUrl && (
                       <div className="payment-screenshot">
                         <div className="screenshot-label">Payment Proof</div>
-                        <a
-                          href={getProofUrl(record.screenshotUrl, record.rentReceivedOn, record.folder)}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          type="button"
                           className="screenshot-link"
+                          onClick={() =>
+                            openProofPreview(
+                              getProofUrl(record.screenshotUrl, record.rentReceivedOn, record.folder),
+                              `Payment proof screenshot for ${record.tenantName}`
+                            )
+                          }
+                          title="Preview payment proof"
                         >
                           <img
                             src={getProofUrl(record.screenshotUrl, record.rentReceivedOn, record.folder)}
                             alt="Payment proof screenshot"
                             className="screenshot-thumbnail"
                           />
-                        </a>
+                        </button>
                       </div>
                     )}
                   </div>
@@ -853,6 +882,36 @@ export default function RentalCollectionDetails() {
       {!selectedOccupancyId && !loading && (
         <div className="empty-state">
           <p>👆 Select a tenant and room to view rental collection details</p>
+        </div>
+      )}
+
+      {proofPreview && (
+        <div
+          className="proof-preview-overlay"
+          onClick={() => setProofPreview(null)}
+          role="presentation"
+        >
+          <div
+            className="proof-preview-modal"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Payment proof preview"
+          >
+            <button
+              type="button"
+              className="proof-preview-close"
+              onClick={() => setProofPreview(null)}
+              aria-label="Close payment proof preview"
+            >
+              ✕
+            </button>
+            <img
+              src={proofPreview.url}
+              alt={proofPreview.alt}
+              className="proof-preview-image"
+            />
+          </div>
         </div>
       )}
 
