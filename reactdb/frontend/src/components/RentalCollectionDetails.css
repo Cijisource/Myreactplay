@@ -36,6 +36,174 @@
   margin-bottom: 24px;
 }
 
+/* Current Month Occupancy Status */
+.current-month-status-card {
+  background: white;
+  padding: 24px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 24px;
+}
+
+.current-month-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.current-month-header h3 {
+  margin: 0 0 6px 0;
+  color: #1a202c;
+  font-size: 20px;
+}
+
+.current-month-header p {
+  margin: 0;
+  color: #718096;
+  font-size: 14px;
+}
+
+.current-month-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.current-month-summary-item {
+  background: #f7fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.current-month-summary-item span {
+  font-size: 12px;
+  color: #718096;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.current-month-summary-item strong {
+  font-size: 22px;
+  color: #1a202c;
+}
+
+.current-month-error {
+  background: #fff5f5;
+  color: #c53030;
+  border: 1px solid #feb2b2;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.current-month-table-wrapper {
+  margin-top: 8px;
+}
+
+.current-month-table.compact-grid {
+  font-size: 12.5px;
+}
+
+.current-month-table.compact-grid th,
+.current-month-table.compact-grid td {
+  padding: 8px 10px;
+  white-space: nowrap;
+}
+
+.current-month-table.compact-grid th:nth-child(1),
+.current-month-table.compact-grid td:nth-child(1) {
+  width: 72px;
+  min-width: 72px;
+  max-width: 72px;
+}
+
+.current-month-table.compact-grid th {
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: #4a5568;
+}
+
+.current-month-table td {
+  vertical-align: middle;
+}
+
+.current-month-table.compact-grid td:nth-child(2) {
+  min-width: 320px;
+  max-width: 480px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (min-width: 1280px) {
+  .current-month-table.compact-grid td:nth-child(2) {
+    min-width: 420px;
+    max-width: 640px;
+  }
+}
+
+.last-proof-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  overflow: hidden;
+  width: 42px;
+  height: 42px;
+  background: #f8fafc;
+  padding: 0;
+  cursor: pointer;
+}
+
+.last-proof-link:hover {
+  border-color: #667eea;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.25);
+}
+
+.last-proof-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.payment-status-badge {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.payment-status-badge.paid {
+  background: #c6f6d5;
+  color: #22543d;
+}
+
+.payment-status-badge.partial {
+  background: #fefcbf;
+  color: #744210;
+}
+
+.payment-status-badge.pending {
+  background: #fed7d7;
+  color: #742a2a;
+}
+
+.empty-state.compact {
+  padding: 16px 12px;
+}
+
 .selector-wrapper {
   display: flex;
   flex-direction: column;
@@ -571,6 +739,10 @@
   border-radius: 8px;
   overflow: hidden;
   transition: transform 0.2s, box-shadow 0.2s;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
 }
 
 .screenshot-link:hover {
@@ -591,6 +763,56 @@
 
 .screenshot-thumbnail:hover {
   border-color: #667eea;
+}
+
+.proof-preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 10001;
+}
+
+.proof-preview-modal {
+  position: relative;
+  width: min(420px, 100%);
+  max-height: 80vh;
+  background: white;
+  border-radius: 14px;
+  padding: 0.75rem;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.proof-preview-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.7);
+  color: white;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.proof-preview-image {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  max-height: calc(80vh - 1.5rem);
+  object-fit: contain;
+  border-radius: 10px;
 }
 
 /* Table (old styles - keeping for reference) */
@@ -1175,6 +1397,35 @@
     padding: 16px;
   }
 
+  .current-month-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .current-month-header .btn {
+    width: 100%;
+  }
+
+  .current-month-table.compact-grid th,
+  .current-month-table.compact-grid td {
+    padding: 7px 8px;
+    font-size: 12px;
+  }
+
+  .current-month-table.compact-grid td:nth-child(2) {
+    min-width: 220px;
+    max-width: 320px;
+  }
+
+  .last-proof-link {
+    width: 36px;
+    height: 36px;
+  }
+
+  .proof-preview-modal {
+    width: min(360px, 100%);
+  }
+
   .header-section h1 {
     font-size: 22px;
   }
@@ -1270,6 +1521,11 @@
     font-size: 10px;
   }
 
+  .current-month-table.compact-grid td:nth-child(2) {
+    min-width: 180px;
+    max-width: 240px;
+  }
+
   /* Payment Records - small mobile */
   .payment-records-container {
     grid-template-columns: 1fr;
@@ -1287,6 +1543,22 @@
 
   .screenshot-thumbnail {
     max-height: 150px;
+  }
+
+  .proof-preview-overlay {
+    padding: 0.75rem;
+  }
+
+  .proof-preview-modal {
+    width: 100%;
+    padding: 0.5rem;
+  }
+
+  .proof-preview-close {
+    top: 0.35rem;
+    right: 0.35rem;
+    width: 32px;
+    height: 32px;
   }
 
   .detail-item {

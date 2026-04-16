@@ -5,6 +5,9 @@ interface Option {
   id: string | number;
   label: string;
   value?: string | number;
+  optionClassName?: string;
+  optionBadgeText?: string;
+  optionBadgeVariant?: 'default' | 'success' | 'warning';
   [key: string]: any;
 }
 
@@ -184,13 +187,18 @@ export default function SearchableDropdown({
               filteredOptions.map(option => (
                 <div
                   key={option.id}
-                  className={`dropdown-option ${value === option.id ? 'selected' : ''}`}
+                  className={`dropdown-option ${value === option.id ? 'selected' : ''} ${option.optionClassName || ''}`}
                   onClick={(e) => handleOptionSelect(option, e)}
                   onTouchStart={(e) => handleOptionTouchStart(option, e)}
                   role="option"
                   aria-selected={value === option.id}
                 >
-                  {option.label}
+                  <span className="dropdown-option-label">{option.label}</span>
+                  {option.optionBadgeText && (
+                    <span className={`dropdown-option-badge ${option.optionBadgeVariant || 'default'}`}>
+                      {option.optionBadgeText}
+                    </span>
+                  )}
                 </div>
               ))
             ) : (
