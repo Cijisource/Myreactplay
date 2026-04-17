@@ -94,6 +94,99 @@
   color: #1a202c;
 }
 
+.current-month-summary-item.highlight-received {
+  background: #f0fff4;
+  border-color: #9ae6b4;
+}
+
+.current-month-summary-item.highlight-received strong {
+  color: #276749;
+}
+
+.current-month-summary-item.highlight-charges {
+  background: #fffbeb;
+  border-color: #f6e05e;
+}
+
+.current-month-summary-item.highlight-charges strong {
+  color: #744210;
+}
+
+/* Date range filter bar inside current-month-status-card */
+.rental-date-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 12px 0 16px;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 16px;
+}
+
+.rental-date-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rental-date-filter-group label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #718096;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.rental-date-filter-group input[type="month"] {
+  padding: 6px 10px;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #1a202c;
+  background: #f7fafc;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.rental-date-filter-group select {
+  padding: 6px 10px;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #1a202c;
+  background: #f7fafc;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.rental-date-filter-group input[type="month"]:focus {
+  border-color: #4299e1;
+  background: white;
+}
+
+.rental-date-filter-group select:focus {
+  border-color: #4299e1;
+  background: white;
+}
+
+.rental-reset-filter-btn {
+  padding: 6px 14px;
+  background: #edf2f7;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #4a5568;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.rental-reset-filter-btn:hover {
+  background: #e2e8f0;
+  color: #1a202c;
+}
+
 .current-month-error {
   background: #fff5f5;
   color: #c53030;

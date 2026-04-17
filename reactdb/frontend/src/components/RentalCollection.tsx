@@ -30,6 +30,16 @@ interface UnpaidDetail {
   latest_date: string;
 }
 
+function getCurrentMonthRange(): { start: string; end: string } {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth(); // 0-indexed
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const fmt = (d: Date) => d.toISOString().split('T')[0];
+  return { start: fmt(firstDay), end: fmt(lastDay) };
+}
+
 export default function RentalCollection() {
   const [summary, setSummary] = useState<SummaryData[]>([]);
   const [unpaidTenants, setUnpaidTenants] = useState<UnpaidTenant[]>([]);
@@ -42,6 +52,9 @@ export default function RentalCollection() {
   const [editingMonth, setEditingMonth] = useState('');
   const [editingTenantName, setEditingTenantName] = useState('');
   const [editingProRataRent, setEditingProRataRent] = useState(0);
+  const defaultRange = getCurrentMonthRange();
+  const [startDate, setStartDate] = useState<string>(defaultRange.start);
+  const [endDate, setEndDate] = useState<string>(defaultRange.end);
 
   useEffect(() => {
     fetchData();
@@ -153,9 +166,16 @@ export default function RentalCollection() {
     );
   }
 
-  const totalCollected = summary.reduce((sum, s) => sum + (s.total_collected as number || 0), 0);
-  const totalOutstanding = summary.reduce((sum, s) => sum + (s.total_outstanding as number || 0), 0);
-  const totalOccupancies = summary.reduce((max, s) => Math.max(max, s.total_occupancies || 0), 0);
+  const startMonth = startDate.substring(0, 7);
+  const endMonth = endDate.substring(0, 7);
+
+  const filteredSummary = summary.filter(s => s.month >= startMonth && s.month <= endMonth);
+  const filteredUnpaidTenants = unpaidTenants.filter(t => t.month >= startMonth && t.month <= endMonth);
+
+  const totalCollected = filteredSummary.reduce((sum, s) => sum + (s.total_collected as number || 0), 0);
+  const totalOutstanding = filteredSummary.reduce((sum, s) => sum + (s.total_outstanding as number || 0), 0);
+  const totalProRataCharges = totalCollected + totalOutstanding;
+  const totalOccupancies = filteredSummary.reduce((max, s) => Math.max(max, s.total_occupancies || 0), 0);
 
   return (
     <div className="rental-container">
@@ -164,12 +184,46 @@ export default function RentalCollection() {
         <p>Monitor rental payments and identify outstanding dues</p>
       </div>
 
+      {/* Date Range Filter */}
+      <div className="date-filter-bar">
+        <div className="date-filter-group">
+          <label htmlFor="startDate">From</label>
+          <input
+            type="date"
+            id="startDate"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
+        </div>
+        <div className="date-filter-group">
+          <label htmlFor="endDate">To</label>
+          <input
+            type="date"
+            id="endDate"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+          />
+        </div>
+        <button
+          className="reset-filter-btn"
+          onClick={() => { const r = getCurrentMonthRange(); setStartDate(r.start); setEndDate(r.end); }}
+        >
+          Reset to Current Month
+        </button>
+      </div>
+
       {/* Summary Cards */}
       <div className="summary-cards">
         <div className="card">
           <div className="card-content">
-            <h3>Total Collected</h3>
-            <p className="amount">₹ {totalCollected.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
+            <h3>Total Pro-Rata Charges</h3>
+            <p className="amount">₹ {totalProRataCharges.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
+          </div>
+        </div>
+        <div className="card">
+          <div className="card-content">
+            <h3>Total Pro-Rata Rent Received</h3>
+            <p className="amount collected">₹ {totalCollected.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
           </div>
         </div>
         <div className="card">
@@ -189,7 +243,7 @@ export default function RentalCollection() {
       {/* Monthly Summary */}
       <div className="section">
         <h2>Monthly Summary</h2>
-        {summary.length > 0 ? (
+        {filteredSummary.length > 0 ? (
           <div className="table-wrapper">
             <table className="summary-table">
               <thead>
@@ -197,16 +251,18 @@ export default function RentalCollection() {
                   <th>Month</th>
                   <th>Properties</th>
                   <th>Total Records</th>
+                  <th>Pro-Rata Charges</th>
                   <th>Total Collected</th>
                   <th>Outstanding Due</th>
                 </tr>
               </thead>
               <tbody>
-                {summary.map((row, idx) => (
+                {filteredSummary.map((row, idx) => (
                   <tr key={idx}>
                     <td><strong>{row.month}</strong></td>
                     <td>{row.total_occupancies}</td>
                     <td>{row.total_records}</td>
+                    <td>₹ {((row.total_collected as number) + (row.total_outstanding as number)).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
                     <td className="paid">₹ {(row.total_collected as number).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
                     <td className="unpaid">₹ {(row.total_outstanding as number).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
                   </tr>
@@ -215,21 +271,21 @@ export default function RentalCollection() {
             </table>
           </div>
         ) : (
-          <div className="info-box">No rental data available</div>
+          <div className="info-box">No rental data available for selected period</div>
         )}
       </div>
 
       {/* Unpaid Tenants by Month */}
       <div className="section">
         <h2>Unpaid Tenants by Month</h2>
-        {unpaidTenants.length > 0 ? (
+        {filteredUnpaidTenants.length > 0 ? (
           <>
             <div className="month-selector">
               <label>Select Month:</label>
               <SearchableDropdown
                 value={selectedMonth}
                 onChange={(option) => handleMonthChange(option.id.toString())}
-                options={unpaidTenants.map((tenant) => ({
+                options={filteredUnpaidTenants.map((tenant) => ({
                   id: tenant.month,
                   label: `${tenant.month} (${tenant.outstanding_count} unpaid)`
                 }))}
@@ -286,7 +342,7 @@ export default function RentalCollection() {
           </>
         ) : (
           <div className="info-box">
-            No unpaid rental records found
+            No unpaid rental records found for selected period
           </div>
         )}
       </div>

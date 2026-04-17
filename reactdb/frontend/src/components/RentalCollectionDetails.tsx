@@ -71,6 +71,13 @@ interface FormData {
   screenshot: File | null;
 }
 
+function getDefaultMonthValue() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+}
+
 export default function RentalCollectionDetails() {
   const [occupancyOptions, setOccupancyOptions] = useState<OccupancyOption[]>([]);
   const [selectedOccupancyId, setSelectedOccupancyId] = useState<number | null>(null);
@@ -84,7 +91,9 @@ export default function RentalCollectionDetails() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [proofPreview, setProofPreview] = useState<{ url: string; alt: string } | null>(null);
   const [editingRecord, setEditingRecord] = useState<RentalRecord | null>(null);
-  const [editFormData, setEditFormData] = useState<Partial<RentalRecord & { screenshot: File | null }>>({});
+  const [editFormData, setEditFormData] = useState<Partial<RentalRecord & { screenshot: File | null }>>({})
+  const [selectedMonthFilter, setSelectedMonthFilter] = useState<string>(getDefaultMonthValue());
+  const [selectedRoomFilter, setSelectedRoomFilter] = useState<string>('all');
   const [editPreviewUrl, setEditPreviewUrl] = useState<string | null>(null);
   
   const [formData, setFormData] = useState<FormData>({
@@ -98,11 +107,19 @@ export default function RentalCollectionDetails() {
   const [currentMonthLoading, setCurrentMonthLoading] = useState(false);
   const [currentMonthError, setCurrentMonthError] = useState<string | null>(null);
 
-  const currentMonthYear = new Date().toISOString().slice(0, 7);
+  const currentMonthYear = selectedMonthFilter;
   const paidOccupancyIds = new Set(
     currentMonthPayments
       .filter((payment) => payment.paymentStatus === 'paid')
       .map((payment) => payment.occupancyId)
+  );
+
+  const roomFilterOptions = Array.from(
+    new Set(currentMonthPayments.map((payment) => payment.roomNumber))
+  ).sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }));
+
+  const filteredCurrentMonthPayments = currentMonthPayments.filter((payment) =>
+    selectedRoomFilter === 'all' ? true : payment.roomNumber === selectedRoomFilter
   );
 
   const getProofUrl = (
@@ -152,6 +169,16 @@ export default function RentalCollectionDetails() {
     fetchOccupancies();
     fetchCurrentMonthPayments();
   }, []);
+
+  // Re-fetch when month filter changes
+  useEffect(() => {
+    fetchCurrentMonthPayments();
+  }, [currentMonthYear]);
+
+  // Reset room filter when month changes
+  useEffect(() => {
+    setSelectedRoomFilter('all');
+  }, [currentMonthYear]);
 
   const fetchOccupancies = async () => {
     try {
@@ -466,7 +493,7 @@ export default function RentalCollectionDetails() {
         <div className="current-month-header">
           <div>
             <h3>Occupied Rooms Rental Status - {formatMonthTitle(currentMonthYear)}</h3>
-            <p>Shows rental payment status for all occupied rooms in the current month.</p>
+            <p>Shows rental payment status for all occupied rooms in the selected period.</p>
           </div>
           <button
             type="button"
@@ -478,34 +505,80 @@ export default function RentalCollectionDetails() {
           </button>
         </div>
 
+        {/* Date Range Filter */}
+        <div className="rental-date-filter-bar">
+          <div className="rental-date-filter-group">
+            <label htmlFor="selectedMonthFilter">Month</label>
+            <input
+              type="month"
+              id="selectedMonthFilter"
+              value={selectedMonthFilter}
+              onChange={(e) => setSelectedMonthFilter(e.target.value)}
+            />
+          </div>
+          <div className="rental-date-filter-group">
+            <label htmlFor="selectedRoomFilter">Room</label>
+            <select
+              id="selectedRoomFilter"
+              value={selectedRoomFilter}
+              onChange={(e) => setSelectedRoomFilter(e.target.value)}
+            >
+              <option value="all">All Rooms</option>
+              {roomFilterOptions.map((roomNumber) => (
+                <option key={roomNumber} value={roomNumber}>
+                  Room {roomNumber}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            className="rental-reset-filter-btn"
+            onClick={() => {
+              setSelectedMonthFilter(getDefaultMonthValue());
+              setSelectedRoomFilter('all');
+            }}
+          >
+            Reset to Current Month
+          </button>
+        </div>
+
         {currentMonthError && (
           <div className="current-month-error">{currentMonthError}</div>
         )}
 
-        {!currentMonthError && currentMonthPayments.length === 0 && !currentMonthLoading && (
+        {!currentMonthError && filteredCurrentMonthPayments.length === 0 && !currentMonthLoading && (
           <div className="empty-state compact">
-            <p>No occupied room records found for this month.</p>
+            <p>No occupied room records found for this filter.</p>
           </div>
         )}
 
-        {currentMonthPayments.length > 0 && (
+        {filteredCurrentMonthPayments.length > 0 && (
           <>
             <div className="current-month-summary-grid">
               <div className="current-month-summary-item">
                 <span>Total Occupied Rooms</span>
-                <strong>{currentMonthPayments.length}</strong>
+                <strong>{filteredCurrentMonthPayments.length}</strong>
               </div>
               <div className="current-month-summary-item">
                 <span>Fully Paid</span>
-                <strong>{currentMonthPayments.filter((item) => item.paymentStatus === 'paid').length}</strong>
+                <strong>{filteredCurrentMonthPayments.filter((item) => item.paymentStatus === 'paid').length}</strong>
               </div>
               <div className="current-month-summary-item">
                 <span>Partial</span>
-                <strong>{currentMonthPayments.filter((item) => item.paymentStatus === 'partial').length}</strong>
+                <strong>{filteredCurrentMonthPayments.filter((item) => item.paymentStatus === 'partial').length}</strong>
               </div>
               <div className="current-month-summary-item">
                 <span>Pending</span>
-                <strong>{currentMonthPayments.filter((item) => item.paymentStatus === 'pending').length}</strong>
+                <strong>{filteredCurrentMonthPayments.filter((item) => item.paymentStatus === 'pending').length}</strong>
+              </div>
+              <div className="current-month-summary-item highlight-received">
+                <span>Total Pro-Rata Rent Received</span>
+                <strong>{formatCurrency(filteredCurrentMonthPayments.reduce((sum, item) => sum + (item.rentReceived || 0), 0))}</strong>
+              </div>
+              <div className="current-month-summary-item highlight-charges">
+                <span>Total Charges</span>
+                <strong>{formatCurrency(filteredCurrentMonthPayments.reduce((sum, item) => sum + (item.charges || 0), 0))}</strong>
               </div>
             </div>
 
@@ -525,7 +598,7 @@ export default function RentalCollectionDetails() {
                   </tr>
                 </thead>
                 <tbody>
-                  {currentMonthPayments.map((item) => (
+                  {filteredCurrentMonthPayments.map((item) => (
                     <tr key={item.occupancyId}>
                       <td>{item.roomNumber}</td>
                       <td>{item.tenantName}</td>
