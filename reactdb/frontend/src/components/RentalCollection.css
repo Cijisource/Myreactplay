@@ -90,6 +90,71 @@
   color: #dc3545;
 }
 
+.card-content .amount.collected {
+  color: #16a34a;
+}
+
+/* Date Filter Bar */
+.date-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: clamp(0.75rem, 2vw, 1.25rem);
+  padding: clamp(1rem, 2.5vw, 1.5rem) clamp(1rem, 3vw, 2rem);
+  background: white;
+  border-bottom: 1px solid #e2e8f0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.date-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.date-filter-group label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.date-filter-group input[type="date"] {
+  padding: 0.45rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  color: #1e293b;
+  background: #f8fafc;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.date-filter-group input[type="date"]:focus {
+  border-color: #2563eb;
+  background: white;
+}
+
+.reset-filter-btn {
+  padding: 0.45rem 1rem;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #475569;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.reset-filter-btn:hover {
+  background: #e2e8f0;
+  color: #1e293b;
+}
+
 /* Sections */
 .section {
   margin: clamp(1.5rem, 3vw, 2.5rem) 0 0 0;
