@@ -186,6 +186,20 @@ export default function TransactionManagement() {
     }
   });
 
+  const getCategoryTotalBadgeClassName = (transactionType: string) => {
+    const normalizedType = transactionType.trim().toLowerCase();
+
+    if (normalizedType === 'income') {
+      return 'stat-badge total income-total';
+    }
+
+    if (normalizedType === 'expense') {
+      return 'stat-badge total expense-total';
+    }
+
+    return 'stat-badge total';
+  };
+
   return (
     <div className="management-container transactions-container">
       <h2 className="section-heading">Transactions</h2>
@@ -384,7 +398,7 @@ export default function TransactionManagement() {
                 </h3>
                 <div className="category-stats">
                   <span className="stat-badge">Count: {groupedData.transactions.length}</span>
-                  <span className="stat-badge total">Total: ₹{groupedData.total.toFixed(2)}</span>
+                  <span className={getCategoryTotalBadgeClassName(groupedData.type)}>Total: ₹{groupedData.total.toFixed(2)}</span>
                 </div>
               </div>
               <div className="table-responsive">
@@ -427,9 +441,9 @@ export default function TransactionManagement() {
                 <span className="net-balance-label">Net Balance (Total Amount):</span>
                 <span className="net-balance-value">₹{filteredTransactions.reduce((sum, t) => {
                   const transactionType = t.transactionType?.transactionType;
-                  if (transactionType === 'Income' || transactionType === 'CashDep') {
+                  if (transactionType === 'Income') {
                     return sum + t.amount;
-                  } else if (transactionType === 'Expense') {
+                  } else if (transactionType === 'Expense' || transactionType === 'CashDep') {
                     return sum - t.amount;
                   }
                   return sum;

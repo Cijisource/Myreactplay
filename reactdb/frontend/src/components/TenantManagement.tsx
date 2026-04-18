@@ -43,6 +43,7 @@ export interface TenantWithOccupancy extends Tenant {
   occupancyId?: number;
   roomNumber?: string;
   roomId?: number;
+  roomIds?: number[];
   checkInDate?: string;
   checkOutDate?: string | null;
   rentFixed?: number;
@@ -124,19 +125,8 @@ export default function TenantManagement() {
         roomNumber: tenant.roomNumber ? String(tenant.roomNumber).trim() : tenant.roomNumber,
       }));
       
-      // Remove duplicate tenant IDs (keep first occurrence)
-      const seenIds = new Set<number>();
-      const uniqueTenants = normalizedTenants.filter((tenant: TenantWithOccupancy) => {
-        if (seenIds.has(tenant.id)) {
-          console.warn(`Duplicate tenant ID found: ${tenant.id} (${tenant.name}). Filtering out duplicate.`);
-          return false;
-        }
-        seenIds.add(tenant.id);
-        return true;
-      });
-      
       // Construct Azure photo URLs for all tenants
-      const tenantsWithAzurePhotos = uniqueTenants.map((tenant: TenantWithOccupancy) => {
+      const tenantsWithAzurePhotos = normalizedTenants.map((tenant: TenantWithOccupancy) => {
         if (tenant.photoUrl) {
           const azureUrl = `${tenant.photoUrl}`;
           return {
@@ -352,7 +342,10 @@ export default function TenantManagement() {
   ) => {
     try {
       const tenantName = formData.name.trim();
-      const hasOccupancy = formData.roomId && formData.checkInDate;
+      const hasOccupancy = (
+        Boolean(formData.roomId) ||
+        (Array.isArray(formData.roomIds) && formData.roomIds.length > 0)
+      ) && Boolean(formData.checkInDate);
       
       if (editingTenant) {
         await apiService.updateTenant(editingTenant.id, formData);
@@ -453,10 +446,17 @@ export default function TenantManagement() {
   };
 
   const stats = useMemo(() => {
+    const uniqueTenantIds = new Set(allUniqueTenants.map((tenant) => tenant.id));
+    const occupiedTenantIds = new Set(
+      allUniqueTenants
+        .filter((tenant) => tenant.isCurrentlyOccupied)
+        .map((tenant) => tenant.id)
+    );
+
     return {
-      totalTenants: allUniqueTenants.length,
-      occupiedTenants: allUniqueTenants.filter((t) => t.isCurrentlyOccupied).length,
-      vacantTenants: allUniqueTenants.filter((t) => !t.isCurrentlyOccupied).length,
+      totalTenants: uniqueTenantIds.size,
+      occupiedTenants: occupiedTenantIds.size,
+      vacantTenants: uniqueTenantIds.size - occupiedTenantIds.size,
     };
   }, [allUniqueTenants]);
 
@@ -598,7 +598,7 @@ export default function TenantManagement() {
         <div className="tenants-grid">
           {sortedAndFilteredTenants.map((tenant) => (
             <TenantCard
-              key={tenant.id}
+              key={`${tenant.id}-${tenant.occupancyId ?? 'vacant'}`}
               tenant={tenant}
               onView={handleViewTenant}
               onEdit={handleEditTenant}

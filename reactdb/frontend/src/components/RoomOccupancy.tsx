@@ -14,6 +14,7 @@ interface OccupancyData {
   tenantPhone?: string;
   checkInDate?: string;
   checkOutDate?: string | null;
+  lastCheckOutDate?: string | null;
   currentPendingPayment?: number;
   currentRentReceived?: number;
   lastPaymentDate?: string;
@@ -182,6 +183,41 @@ export default function RoomOccupancy(): JSX.Element {
     if (days < 30) return `${days} days`;
     return `${Math.floor(days / 30)} months`;
   };
+
+  const getVacancyAgingDays = (checkOutDate: string | null | undefined): number => {
+    if (!checkOutDate) return -1;
+
+    const checkOut = new Date(checkOutDate);
+    const today = new Date();
+
+    checkOut.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+
+    const days = Math.floor((today.getTime() - checkOut.getTime()) / (1000 * 60 * 60 * 24));
+    return days < 0 ? -1 : days;
+  };
+
+  const compareRoomNumbers = (left: string, right: string): number =>
+    left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' });
+
+  const sortedFilteredRooms = useMemo(() => {
+    return [...filteredRooms].sort((left, right) => {
+      if (left.isOccupied !== right.isOccupied) {
+        return left.isOccupied ? 1 : -1;
+      }
+
+      if (!left.isOccupied && !right.isOccupied) {
+        const leftAgingDays = getVacancyAgingDays(left.lastCheckOutDate);
+        const rightAgingDays = getVacancyAgingDays(right.lastCheckOutDate);
+
+        if (leftAgingDays !== rightAgingDays) {
+          return rightAgingDays - leftAgingDays;
+        }
+      }
+
+      return compareRoomNumbers(String(left.roomNumber || ''), String(right.roomNumber || ''));
+    });
+  }, [filteredRooms]);
 
   const toggleRoomExpanded = (roomId: number) => {
     setExpandedRooms(prev => {
@@ -376,12 +412,19 @@ export default function RoomOccupancy(): JSX.Element {
 
       {/* Room Grid */}
       <div className="rooms-grid">
-        {filteredRooms.length > 0 ? (
-          filteredRooms.map(room => (
+        {sortedFilteredRooms.length > 0 ? (
+          sortedFilteredRooms.map(room => (
             <div key={room.roomId} className={`room-card ${room.isOccupied ? 'occupied' : 'vacant'}`}>
               <div className="room-header">
                 <div>
-                  <h3>Room {room.roomNumber}</h3>
+                  <h3>
+                    Room {room.roomNumber}
+                    {!room.isOccupied && (
+                      <span className="room-aging-inline">
+                        {' '}• Aging: {calculateVacancyAging(room.lastCheckOutDate)}
+                      </span>
+                    )}
+                  </h3>
                   <p className="room-rent">{formatCurrency(room.roomRent)}/month • {room.beds} bed{room.beds > 1 ? 's' : ''}</p>
                 </div>
                 <div className={`occupancy-badge ${room.isOccupied ? 'occupied' : 'vacant'}`}>
@@ -441,7 +484,10 @@ export default function RoomOccupancy(): JSX.Element {
                     <div className="room-vacant-info">
                       <p className="vacant-message">No tenant assigned</p>
                       <p className="vacant-action">Ready for new occupant</p>
-                      <p className="vacancy-aging">⏱️ Vacancy Aging: {calculateVacancyAging(null)} (No previous checkout data)</p>
+                      <p className="vacancy-aging">
+                        ⏱️ Vacancy Aging: {calculateVacancyAging(room.lastCheckOutDate)}
+                        {!room.lastCheckOutDate ? ' (No previous checkout data)' : ''}
+                      </p>
                     </div>
                   )}
                 </>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiService, getRentalPaymentProofUrl } from '../api';
+import { useAuth } from './AuthContext';
 import SearchableDropdown from './SearchableDropdown';
 import './RentalCollectionDetails.css';
 
@@ -90,6 +91,7 @@ function getDefaultMonthValue() {
 }
 
 export default function RentalCollectionDetails() {
+  const { hasRole, hasAnyRole } = useAuth();
   const [occupancyOptions, setOccupancyOptions] = useState<OccupancyOption[]>([]);
   const [selectedOccupancyId, setSelectedOccupancyId] = useState<number | null>(null);
   const [occupancyInfo, setOccupancyInfo] = useState<OccupancyInfo | null>(null);
@@ -120,7 +122,6 @@ export default function RentalCollectionDetails() {
   const [tenantReviews, setTenantReviews] = useState<Record<number, TenantReviewState>>({});
   const [expandedReviewRows, setExpandedReviewRows] = useState<Record<number, boolean>>({});
   const [savingReviewRows, setSavingReviewRows] = useState<Record<number, boolean>>({});
-  const [commentPopupOccupancyId, setCommentPopupOccupancyId] = useState<number | null>(null);
 
   const currentMonthYear = selectedMonthFilter;
   const paidOccupancyIds = new Set(
@@ -136,6 +137,7 @@ export default function RentalCollectionDetails() {
   const filteredCurrentMonthPayments = currentMonthPayments.filter((payment) =>
     selectedRoomFilter === 'all' ? true : payment.roomNumber === selectedRoomFilter
   );
+  const canChangeReviewStatus = hasAnyRole(['admin', 'accountant']) || !hasRole('manager');
 
   const getProofUrl = (
     screenshotUrl: string | null,
@@ -337,12 +339,26 @@ export default function RentalCollectionDetails() {
       setError(null);
       setUploadProgress(0);
 
+      const paymentDate = formData.rentReceivedOn || new Date().toISOString().split('T')[0];
+      const selectedPaymentMode = formData.modeOfPayment || 'cash';
+
+      if (selectedPaymentMode === 'checkout') {
+        const shouldProceedWithCheckout = window.confirm(
+          'This will save payment and check out the room on the selected payment date. Do you want to continue?'
+        );
+
+        if (!shouldProceedWithCheckout) {
+          setLoading(false);
+          return;
+        }
+      }
+
       const formDataToSend = new FormData();
       formDataToSend.append('occupancyId', selectedOccupancyId.toString());
       formDataToSend.append('rentReceived', formData.rentReceived);
       formDataToSend.append('charges', formData.charges || '0');
-      formDataToSend.append('modeOfPayment', formData.modeOfPayment);
-      formDataToSend.append('rentReceivedOn', formData.rentReceivedOn);
+      formDataToSend.append('modeOfPayment', selectedPaymentMode);
+      formDataToSend.append('rentReceivedOn', paymentDate);
       
       if (formData.screenshot) {
         formDataToSend.append('screenshot', formData.screenshot);
@@ -352,6 +368,24 @@ export default function RentalCollectionDetails() {
         formDataToSend,
         setUploadProgress
       );
+
+      let checkoutWarning: string | null = null;
+      if (selectedPaymentMode === 'checkout') {
+        try {
+          const parsedCharges = formData.charges ? parseFloat(formData.charges) : 0;
+          await apiService.checkoutOccupancy(
+            selectedOccupancyId,
+            paymentDate,
+            undefined,
+            Number.isFinite(parsedCharges) ? parsedCharges : 0
+          );
+        } catch (checkoutError) {
+          checkoutWarning = checkoutError instanceof Error
+            ? `Payment saved, but checkout failed: ${checkoutError.message}`
+            : 'Payment saved, but checkout failed.';
+          console.error('Checkout failed after payment save:', checkoutError);
+        }
+      }
 
       // Reset form and refresh data
       setFormData({
@@ -369,6 +403,11 @@ export default function RentalCollectionDetails() {
       // Refresh rental details
       await fetchRentalDetails();
       await fetchCurrentMonthPayments();
+      await fetchOccupancies();
+
+      if (checkoutWarning) {
+        setError(checkoutWarning);
+      }
       
       // Show success message
       console.log('Payment recorded successfully:', response);
@@ -426,14 +465,28 @@ export default function RentalCollectionDetails() {
     try {
       setLoading(true);
       setUploadProgress(0);
+
+      const paymentDate = editFormData.rentReceivedOn?.toString() || '';
+      const selectedPaymentMode = editFormData.modeOfPayment?.toString() || 'cash';
+
+      if (selectedPaymentMode === 'checkout') {
+        const shouldProceedWithCheckout = window.confirm(
+          'This will update payment and check out the room on the payment date. Do you want to continue?'
+        );
+
+        if (!shouldProceedWithCheckout) {
+          setLoading(false);
+          return;
+        }
+      }
       
       // Create FormData for update
       const updateData = new FormData();
       updateData.append('occupancyId', editingRecord.occupancyId.toString());
       updateData.append('rentReceived', editFormData.rentReceived?.toString() || '0');
       updateData.append('charges', editFormData.charges?.toString() || '0');
-      updateData.append('modeOfPayment', editFormData.modeOfPayment?.toString() || 'cash');
-      updateData.append('rentReceivedOn', editFormData.rentReceivedOn?.toString() || '');
+      updateData.append('modeOfPayment', selectedPaymentMode);
+      updateData.append('rentReceivedOn', paymentDate);
       
       if (editFormData.screenshot) {
         updateData.append('screenshot', editFormData.screenshot);
@@ -445,15 +498,38 @@ export default function RentalCollectionDetails() {
         setUploadProgress(progress);
       });
 
+      let checkoutWarning: string | null = null;
+      if (selectedPaymentMode === 'checkout' && paymentDate) {
+        try {
+          const parsedCharges = Number(editFormData.charges || 0);
+          await apiService.checkoutOccupancy(
+            editingRecord.occupancyId,
+            paymentDate,
+            undefined,
+            Number.isFinite(parsedCharges) ? parsedCharges : 0
+          );
+        } catch (checkoutError) {
+          checkoutWarning = checkoutError instanceof Error
+            ? `Payment updated, but checkout failed: ${checkoutError.message}`
+            : 'Payment updated, but checkout failed.';
+          console.error('Checkout failed after payment update:', checkoutError);
+        }
+      }
+
       // Refresh rental details
       await fetchRentalDetails();
       await fetchCurrentMonthPayments();
+      await fetchOccupancies();
+
+      if (checkoutWarning) {
+        setError(checkoutWarning);
+      }
       
       // Close modal
       handleCancelEdit();
       
       // Show success
-      alert('Payment updated successfully');
+      alert(checkoutWarning ? 'Payment updated. Checkout failed; please retry from occupancy checkout.' : 'Payment updated successfully');
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to update payment';
       setError(errorMsg);
@@ -616,10 +692,6 @@ export default function RentalCollectionDetails() {
     }));
   };
 
-  const toggleCommentPopup = (occupancyId: number) => {
-    setCommentPopupOccupancyId((prev) => (prev === occupancyId ? null : occupancyId));
-  };
-
   if (loading && !occupancyInfo) {
     return (
       <div className="rental-collection-details">
@@ -755,12 +827,7 @@ export default function RentalCollectionDetails() {
                     const review = tenantReviews[item.occupancyId] || { decision: null, comment: '' };
                     const isReviewExpanded = expandedReviewRows[item.occupancyId] || false;
                     const isSavingReview = savingReviewRows[item.occupancyId] || false;
-                    const isCommentPopupOpen = commentPopupOccupancyId === item.occupancyId;
                     const savedReviewDate = formatReviewSavedDate(item.reviewVerifiedOn);
-                    const hasComment = review.comment.trim().length > 0;
-                    const commentPreview = hasComment
-                      ? review.comment.trim().slice(0, 42) + (review.comment.trim().length > 42 ? '...' : '')
-                      : 'No comment added';
 
                     return (
                       <tr key={item.occupancyId}>
@@ -806,6 +873,28 @@ export default function RentalCollectionDetails() {
                         <td className="review-cell">
                           <div className="tenant-review-panel">
                             <div className="tenant-review-topline">
+                              <div className="tenant-review-actions" role="group" aria-label={`Review actions for ${item.tenantName}`}>
+                                <button
+                                  type="button"
+                                  className={`review-icon-button approve ${review.decision === 'approved' ? 'active' : ''}`}
+                                  onClick={() => handleTenantReviewDecision(item.occupancyId, 'approved')}
+                                  aria-pressed={review.decision === 'approved'}
+                                  title={canChangeReviewStatus ? `Approve ${item.tenantName}` : 'Managers can update comments only'}
+                                  disabled={isSavingReview || !canChangeReviewStatus}
+                                >
+                                  <span className="review-icon" aria-hidden="true">✓</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`review-icon-button reject ${review.decision === 'rejected' ? 'active' : ''}`}
+                                  onClick={() => handleTenantReviewDecision(item.occupancyId, 'rejected')}
+                                  aria-pressed={review.decision === 'rejected'}
+                                  title={canChangeReviewStatus ? `Reject ${item.tenantName}` : 'Managers can update comments only'}
+                                  disabled={isSavingReview || !canChangeReviewStatus}
+                                >
+                                  <span className="review-icon" aria-hidden="true">✕</span>
+                                </button>
+                              </div>
                               <button
                                 type="button"
                                 className={`review-status-trigger ${review.decision || 'unreviewed'}`}
@@ -829,81 +918,12 @@ export default function RentalCollectionDetails() {
                                   ▾
                                 </span>
                               </button>
-                              {hasComment && (
-                                <button
-                                  type="button"
-                                  className="review-comment-eye-btn"
-                                  onClick={() => toggleCommentPopup(item.occupancyId)}
-                                  aria-label="View comment"
-                                  title="View comment"
-                                  aria-expanded={isCommentPopupOpen}
-                                  aria-controls={`review-comment-popup-${item.occupancyId}`}
-                                >
-                                  <svg
-                                    className="review-eye-svg"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    aria-hidden="true"
-                                  >
-                                    <path
-                                      d="M2.25 12C3.75 7.8 7.65 5.25 12 5.25C16.35 5.25 20.25 7.8 21.75 12C20.25 16.2 16.35 18.75 12 18.75C7.65 18.75 3.75 16.2 2.25 12Z"
-                                      stroke="currentColor"
-                                      strokeWidth="1.8"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    />
-                                    <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" />
-                                  </svg>
-                                </button>
-                              )}
                             </div>
-                            {isCommentPopupOpen && hasComment && (
-                              <div id={`review-comment-popup-${item.occupancyId}`} className="review-comment-popup" role="dialog" aria-label="Comment preview">
-                                <div className="review-comment-popup-header">
-                                  <span>Comment</span>
-                                  <button
-                                    type="button"
-                                    className="review-comment-popup-close"
-                                    onClick={() => setCommentPopupOccupancyId(null)}
-                                    aria-label="Close comment preview"
-                                  >
-                                    ×
-                                  </button>
-                                </div>
-                                <p>{review.comment}</p>
-                              </div>
-                            )}
                             {isReviewExpanded && (
                               <div
                                 id={`review-panel-${item.occupancyId}`}
                                 className="review-panel-body"
                               >
-                                <div className="tenant-review-actions" role="group" aria-label={`Review actions for ${item.tenantName}`}>
-                                  <button
-                                    type="button"
-                                    className={`review-icon-button approve ${review.decision === 'approved' ? 'active' : ''}`}
-                                    onClick={() => handleTenantReviewDecision(item.occupancyId, 'approved')}
-                                    aria-pressed={review.decision === 'approved'}
-                                    title={`Approve ${item.tenantName}`}
-                                    disabled={isSavingReview}
-                                  >
-                                    <span className="review-icon" aria-hidden="true">✓</span>
-                                    <span>Approve</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className={`review-icon-button reject ${review.decision === 'rejected' ? 'active' : ''}`}
-                                    onClick={() => handleTenantReviewDecision(item.occupancyId, 'rejected')}
-                                    aria-pressed={review.decision === 'rejected'}
-                                    title={`Reject ${item.tenantName}`}
-                                    disabled={isSavingReview}
-                                  >
-                                    <span className="review-icon" aria-hidden="true">✕</span>
-                                    <span>Reject</span>
-                                  </button>
-                                </div>
-                                <div className="review-comment-summary">{commentPreview}</div>
                                 <label className="review-comment-label" htmlFor={`review-comment-${item.occupancyId}`}>
                                   Reviewer Comment
                                 </label>
@@ -930,6 +950,9 @@ export default function RentalCollectionDetails() {
                                       ? `Saved by ${item.reviewVerifiedBy}${savedReviewDate ? ` on ${savedReviewDate}` : ''}`
                                       : 'Not saved yet'}
                                   </span>
+                                  {!canChangeReviewStatus && (
+                                    <span className="review-meta-text">Managers can update comments only.</span>
+                                  )}
                                   <span>{isSavingReview ? 'Saving...' : `${review.comment.length}/240`}</span>
                                 </div>
                               </div>
@@ -1086,6 +1109,7 @@ export default function RentalCollectionDetails() {
                       <option value="upi">UPI</option>
                       <option value="bank">Bank Transfer</option>
                       <option value="other">Other</option>
+                      <option value="checkout">CheckOut</option>
                     </select>
                   </div>
                 </div>
@@ -1356,6 +1380,7 @@ export default function RentalCollectionDetails() {
                   <option value="bank_transfer">Bank Transfer</option>
                   <option value="online_payment">Online Payment</option>
                   <option value="upi">UPI</option>
+                  <option value="checkout">CheckOut</option>
                 </select>
               </div>
 

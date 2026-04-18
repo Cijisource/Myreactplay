@@ -334,6 +334,12 @@
   margin: 0 0 0.25rem 0;
 }
 
+.room-aging-inline {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #b45309;
+}
+
 .room-rent {
   color: #718096;
   margin: 0;

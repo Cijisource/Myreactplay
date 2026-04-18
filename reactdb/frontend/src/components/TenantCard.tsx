@@ -80,16 +80,14 @@ export default function TenantCard({
           👤
         </button>
       )}
-      {!tenant.isCurrentlyOccupied && (
-        <button
-          className="action-icon-btn action-checkin"
-          onClick={() => onCheckIn(tenant)}
-          title="Check in tenant to a room"
-          aria-label="Check In"
-        >
-          🏠
-        </button>
-      )}
+      <button
+        className="action-icon-btn action-checkin"
+        onClick={() => onCheckIn(tenant)}
+        title={tenant.isCurrentlyOccupied ? 'Check in tenant to another room' : 'Check in tenant to a room'}
+        aria-label="Check In"
+      >
+        🏠
+      </button>
       <button
         className="action-icon-btn action-edit"
         onClick={() => onEdit(tenant)}

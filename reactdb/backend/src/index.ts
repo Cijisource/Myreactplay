@@ -1280,7 +1280,7 @@ const requireRole = (allowedRoles: string[]) => {
 // Room Occupancy Endpoint
 
 // Get occupancy records with explicit room-tenant linking (via FK_Occupancy_Tenant)
-app.get('/api/occupancy/links', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
+app.get('/api/occupancy/links', verifyToken, requireRole(['admin', 'manager', 'accountant', 'property_manager']), async (req: Request, res: Response) => {
   try {
     const pool = getPool();
     const result = await pool.request().query(`
@@ -1350,12 +1350,20 @@ app.get('/api/rooms/occupancy', async (req: Request, res: Response) => {
         rd.Number as roomNumber,
         ISNULL(CAST(rd.Rent AS FLOAT), 0) as roomRent,
         ISNULL(rd.Beds, 0) as beds,
-        CASE WHEN o.Id IS NOT NULL AND o.CheckOutDate > CAST(GETDATE() AS DATE) THEN 1 ELSE 0 END as isOccupied,
+        CASE WHEN o.Id IS NOT NULL THEN 1 ELSE 0 END as isOccupied,
         o.TenantId as tenantId,
         t.Name as tenantName,
         t.Phone as tenantPhone,
         o.CheckInDate as checkInDate,
         o.CheckOutDate as checkOutDate,
+        (
+          SELECT TOP 1 CAST(oHistory.CheckOutDate AS NVARCHAR(10))
+          FROM Occupancy oHistory
+          WHERE oHistory.RoomId = rd.Id
+            AND oHistory.CheckOutDate IS NOT NULL
+            AND CAST(oHistory.CheckOutDate AS DATE) <= CAST(GETDATE() AS DATE)
+          ORDER BY CAST(oHistory.CheckOutDate AS DATE) DESC, oHistory.Id DESC
+        ) as lastCheckOutDate,
         ISNULL(CAST(COALESCE(
           (SELECT TOP 1 CAST(RentReceived AS FLOAT) 
            FROM RentalCollection 
@@ -1380,7 +1388,7 @@ app.get('/api/rooms/occupancy', async (req: Request, res: Response) => {
            AND MONTH(RentReceivedOn) = MONTH(GETDATE())
            ORDER BY RentReceivedOn DESC), NULL) AS NVARCHAR(10)), NULL) as lastPaymentDate
       FROM RoomDetail rd
-      LEFT JOIN Occupancy o ON rd.Id = o.RoomId AND o.CheckOutDate > CAST(GETDATE() AS DATE)
+      LEFT JOIN Occupancy o ON rd.Id = o.RoomId AND (o.CheckOutDate IS NULL OR CAST(o.CheckOutDate AS DATE) > CAST(GETDATE() AS DATE))
       LEFT JOIN Tenant t ON o.TenantId = t.Id
       ORDER BY rd.Number ASC
     `);
@@ -2034,6 +2042,7 @@ app.put('/api/tenants/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { 
+      roomIds, checkInDate,
       name, phone, address, city, 
       photoUrl, photo2Url, photo3Url, photo4Url, photo5Url, photo6Url, photo7Url, photo8Url, photo9Url, photo10Url,
       proof1Url, proof2Url, proof3Url, proof4Url, proof5Url, proof6Url, proof7Url, proof8Url, proof9Url, proof10Url
@@ -2067,6 +2076,85 @@ app.put('/api/tenants/:id', async (req: Request, res: Response) => {
         error: 'Phone number already exists',
         details: `Phone number ${phone.trim()} is already used by another tenant.`
       });
+    }
+
+    const requestedRoomIds = Array.isArray(roomIds)
+      ? Array.from(new Set(roomIds.map((value: any) => parseInt(value, 10)).filter((value: number) => Number.isInteger(value) && value > 0)))
+      : [];
+
+    if (requestedRoomIds.length > 0) {
+      if (!checkInDate || typeof checkInDate !== 'string') {
+        return res.status(400).json({ error: 'checkInDate is required when assigning roomIds' });
+      }
+
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(checkInDate)) {
+        return res.status(400).json({ error: 'Invalid checkInDate format. Use YYYY-MM-DD.' });
+      }
+
+      if (new Date(checkInDate) > new Date()) {
+        return res.status(400).json({ error: 'Check-in date cannot be in the future' });
+      }
+
+      const roomValidationResult = await pool
+        .request()
+        .input('tenantId', sql.Int, tenantId)
+        .input('roomIdsCsv', sql.NVarChar(sql.MAX), requestedRoomIds.join(','))
+        .query(`
+          WITH RequestedRooms AS (
+            SELECT DISTINCT TRY_CAST(value AS INT) AS RoomId
+            FROM STRING_SPLIT(@roomIdsCsv, ',')
+            WHERE TRY_CAST(value AS INT) IS NOT NULL
+          )
+          SELECT
+            rr.RoomId as roomId,
+            rd.Number as roomNumber,
+            CAST(ISNULL(rd.Rent, 0) AS FLOAT) as roomRent,
+            CASE
+              WHEN EXISTS (
+                SELECT 1
+                FROM Occupancy oActive
+                WHERE oActive.RoomId = rr.RoomId
+                  AND (oActive.CheckOutDate IS NULL OR CAST(oActive.CheckOutDate AS DATE) > CAST(GETDATE() AS DATE))
+                  AND oActive.TenantId <> @tenantId
+              ) THEN 1
+              ELSE 0
+            END as occupiedByOther,
+            CASE
+              WHEN EXISTS (
+                SELECT 1
+                FROM Occupancy oSame
+                WHERE oSame.RoomId = rr.RoomId
+                  AND oSame.TenantId = @tenantId
+                  AND (oSame.CheckOutDate IS NULL OR CAST(oSame.CheckOutDate AS DATE) > CAST(GETDATE() AS DATE))
+              ) THEN 1
+              ELSE 0
+            END as alreadyAssignedToTenant
+          FROM RequestedRooms rr
+          LEFT JOIN RoomDetail rd ON rd.Id = rr.RoomId
+        `);
+
+      const unknownRoomIds = roomValidationResult.recordset
+        .filter((row: any) => !row.roomNumber)
+        .map((row: any) => row.roomId);
+
+      if (unknownRoomIds.length > 0) {
+        return res.status(400).json({
+          error: 'Some selected rooms do not exist',
+          details: `Invalid room IDs: ${unknownRoomIds.join(', ')}`
+        });
+      }
+
+      const occupiedRooms = roomValidationResult.recordset
+        .filter((row: any) => row.occupiedByOther === 1)
+        .map((row: any) => row.roomNumber);
+
+      if (occupiedRooms.length > 0) {
+        return res.status(400).json({
+          error: 'Some selected rooms are currently occupied by another tenant',
+          details: `Occupied room(s): ${occupiedRooms.join(', ')}`
+        });
+      }
     }
 
     // **FEATURE 2 & 3: Handle file deletion for removed photos/proofs**
@@ -2222,7 +2310,57 @@ app.put('/api/tenants/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Tenant not found' });
     }
     
-    res.json({ message: 'Tenant updated successfully', deletedFiles: true });
+    let createdOccupancies = 0;
+
+    if (requestedRoomIds.length > 0) {
+      const roomAssignmentRows = await pool
+        .request()
+        .input('tenantId', sql.Int, tenantId)
+        .input('roomIdsCsv', sql.NVarChar(sql.MAX), requestedRoomIds.join(','))
+        .query(`
+          WITH RequestedRooms AS (
+            SELECT DISTINCT TRY_CAST(value AS INT) AS RoomId
+            FROM STRING_SPLIT(@roomIdsCsv, ',')
+            WHERE TRY_CAST(value AS INT) IS NOT NULL
+          )
+          SELECT
+            rr.RoomId as roomId,
+            CAST(ISNULL(rd.Rent, 0) AS FLOAT) as roomRent
+          FROM RequestedRooms rr
+          INNER JOIN RoomDetail rd ON rd.Id = rr.RoomId
+          WHERE NOT EXISTS (
+            SELECT 1
+            FROM Occupancy o
+            WHERE o.RoomId = rr.RoomId
+              AND o.TenantId = @tenantId
+              AND (o.CheckOutDate IS NULL OR CAST(o.CheckOutDate AS DATE) > CAST(GETDATE() AS DATE))
+          )
+            AND NOT EXISTS (
+            SELECT 1
+            FROM Occupancy oActive
+            WHERE oActive.RoomId = rr.RoomId
+              AND (oActive.CheckOutDate IS NULL OR CAST(oActive.CheckOutDate AS DATE) > CAST(GETDATE() AS DATE))
+              AND oActive.TenantId <> @tenantId
+          )
+        `);
+
+      for (const row of roomAssignmentRows.recordset) {
+        await pool
+          .request()
+          .input('tenantId', sql.Int, tenantId)
+          .input('roomId', sql.Int, row.roomId)
+          .input('checkInDate', sql.NChar(10), checkInDate)
+          .input('rentFixed', sql.Decimal(10, 2), row.roomRent || 0)
+          .query(`
+            INSERT INTO Occupancy (TenantId, RoomId, CheckInDate, CheckOutDate, CreatedDate, UpdatedDate, RentFixed)
+            VALUES (@tenantId, @roomId, @checkInDate, NULL, GETUTCDATE(), GETUTCDATE(), @rentFixed)
+          `);
+
+        createdOccupancies += 1;
+      }
+    }
+
+    res.json({ message: 'Tenant updated successfully', deletedFiles: true, createdOccupancies });
   } catch (error) {
     console.error('Update tenant error:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -2395,22 +2533,6 @@ app.post('/api/occupancy/checkin', async (req: Request, res: Response) => {
 
     if (roomResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Room not found' });
-    }
-
-    // Check if tenant already has an active occupancy
-    const activeOccupancyResult = await pool
-      .request()
-      .input('tenantId', sql.Int, tenantId)
-      .query(`
-        SELECT Id, RoomId FROM Occupancy 
-        WHERE TenantId = @tenantId AND (CheckOutDate IS NULL OR CheckOutDate > CAST(GETDATE() AS DATE))
-      `);
-
-    if (activeOccupancyResult.recordset.length > 0) {
-      return res.status(400).json({ 
-        error: 'Tenant already has an active occupancy',
-        details: `Tenant is currently in Room ${activeOccupancyResult.recordset[0].RoomId}`
-      });
     }
 
     // Create new occupancy record with pro-rata rent calculation
@@ -3153,7 +3275,7 @@ app.post('/api/complaints/upload', upload.fields([
 // Service Details Management Endpoints
 
 // Get all service details
-app.get('/api/services/details', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
+app.get('/api/services/details', verifyToken, requireRole(['admin', 'manager', 'accountant']), async (req: Request, res: Response) => {
   try {
     const pool = getPool();
     const result = await pool.request().query(`
@@ -3181,7 +3303,7 @@ app.get('/api/services/details', verifyToken, requireRole(['admin']), async (req
 });
 
 // Get single service detail
-app.get('/api/services/details/:id', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
+app.get('/api/services/details/:id', verifyToken, requireRole(['admin', 'manager', 'accountant']), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const pool = getPool();
@@ -5059,7 +5181,7 @@ app.get('/api/service-allocations-with-payments', verifyToken, requireRole(['adm
 });
 
 // Get service allocations for meter reading (searchable)
-app.get('/api/service-allocations-for-reading', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
+app.get('/api/service-allocations-for-reading', verifyToken, requireRole(['admin', 'manager', 'utilities_manager']), async (req: Request, res: Response) => {
   try {
     const { search } = req.query;
     const pool = getPool();
@@ -5824,6 +5946,13 @@ app.put('/api/rental/reviews/:occupancyId', verifyToken, requireRole(['admin', '
     const { monthYear, decision, comment } = req.body;
     const trimmedComment = typeof comment === 'string' ? comment.trim() : '';
     const normalizedDecision = decision === 'approved' || decision === 'rejected' ? decision : null;
+    const currentUser = (req as any).user || {};
+    const userRoles = Array.isArray(currentUser.roles)
+      ? currentUser.roles
+      : typeof currentUser.roles === 'string'
+        ? currentUser.roles.split(',').map((role: string) => role.trim()).filter(Boolean)
+        : [];
+    const canChangeReviewDecision = userRoles.includes('admin') || userRoles.includes('accountant') || !userRoles.includes('manager');
 
     if (!Number.isInteger(occupancyId) || occupancyId <= 0) {
       return res.status(400).json({ error: 'Valid occupancy ID is required.' });
@@ -5850,12 +5979,26 @@ app.put('/api/rental/reviews/:occupancyId', verifyToken, requireRole(['admin', '
       .input('occupancyId', sql.Int, occupancyId)
       .input('reviewMonth', sql.NChar(7), monthYear)
       .query(`
-        SELECT TOP 1 Id
+        SELECT TOP 1
+          Id,
+          CASE
+            WHEN IsVerified = 1 THEN 'approved'
+            WHEN IsDisputeRaised = 1 THEN 'rejected'
+            ELSE NULL
+          END as reviewDecision
         FROM CollectionVerification
         WHERE OccupancyId = @occupancyId
           AND ReviewMonth = @reviewMonth
         ORDER BY VerifiedOn DESC, Id DESC
       `);
+
+    const existingDecision = existingReview.recordset[0]?.reviewDecision || null;
+
+    if (!canChangeReviewDecision && normalizedDecision !== existingDecision) {
+      return res.status(403).json({ error: 'Managers can update comments only. Status changes are not allowed.' });
+    }
+
+    const finalDecision = canChangeReviewDecision ? normalizedDecision : existingDecision;
 
     const reviewQuery = existingReview.recordset.length > 0
       ? `
@@ -5911,8 +6054,8 @@ app.put('/api/rental/reviews/:occupancyId', verifyToken, requireRole(['admin', '
       .input('reviewMonth', sql.NChar(7), monthYear)
       .input('comments', sql.NVarChar(200), trimmedComment || null)
       .input('verifiedBy', sql.NVarChar(100), verifiedBy)
-      .input('isVerified', sql.Bit, normalizedDecision === 'approved')
-      .input('isDisputeRaised', sql.Bit, normalizedDecision === 'rejected')
+      .input('isVerified', sql.Bit, finalDecision === 'approved')
+      .input('isDisputeRaised', sql.Bit, finalDecision === 'rejected')
       .query(reviewQuery);
 
     res.json(reviewResult.recordset[0]);
