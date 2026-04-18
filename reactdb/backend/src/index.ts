@@ -1098,6 +1098,7 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
       .request()
       .input('year', sql.Int, year)
       .input('month', sql.Int, month)
+      .input('reviewMonth', sql.NChar(7), monthYear)
       .query(`
         SELECT 
           o.Id as occupancyId,
@@ -1110,6 +1111,14 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
           latestPayment.folder as folder,
           ISNULL(CAST(monthlyTotals.totalRentReceived AS FLOAT), 0) as rentReceived,
           ISNULL(CAST(monthlyTotals.totalCharges AS FLOAT), 0) as charges,
+          CASE
+            WHEN latestReview.IsVerified = 1 THEN 'approved'
+            WHEN latestReview.IsDisputeRaised = 1 THEN 'rejected'
+            ELSE NULL
+          END as reviewDecision,
+          latestReview.Comments as reviewComment,
+          latestReview.VerifiedBy as reviewVerifiedBy,
+          CONVERT(NVARCHAR(33), latestReview.VerifiedOn, 126) as reviewVerifiedOn,
           @month as [month],
           @year as [year],
           CAST(o.CheckInDate AS NVARCHAR) as checkInDate,
@@ -1142,6 +1151,18 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
             AND MONTH(CAST(rcLatest.RentReceivedOn AS DATE)) = @month
           ORDER BY CAST(rcLatest.RentReceivedOn AS DATE) DESC, rcLatest.Id DESC
         ) latestPayment
+        OUTER APPLY (
+          SELECT TOP 1
+            cv.Comments,
+            cv.VerifiedBy,
+            cv.VerifiedOn,
+            cv.IsVerified,
+            cv.IsDisputeRaised
+          FROM CollectionVerification cv
+          WHERE cv.OccupancyId = o.Id
+            AND cv.ReviewMonth = @reviewMonth
+          ORDER BY cv.VerifiedOn DESC, cv.Id DESC
+        ) latestReview
         WHERE 
           -- Occupancy is active during this month
           CAST(o.CheckInDate AS DATE) <= EOMONTH(DATEFROMPARTS(@year, @month, 1))
@@ -5792,6 +5813,114 @@ app.get('/api/rental/occupancy/:occupancyId/summary', async (req: Request, res: 
     const errorMessage = error instanceof Error ? error.message : String(error);
     res.status(500).json({ 
       error: 'Failed to retrieve rental summary',
+      details: errorMessage
+    });
+  }
+});
+
+app.put('/api/rental/reviews/:occupancyId', verifyToken, requireRole(['admin', 'manager', 'accountant']), async (req: Request, res: Response) => {
+  try {
+    const occupancyId = parseInt(req.params.occupancyId, 10);
+    const { monthYear, decision, comment } = req.body;
+    const trimmedComment = typeof comment === 'string' ? comment.trim() : '';
+    const normalizedDecision = decision === 'approved' || decision === 'rejected' ? decision : null;
+
+    if (!Number.isInteger(occupancyId) || occupancyId <= 0) {
+      return res.status(400).json({ error: 'Valid occupancy ID is required.' });
+    }
+
+    if (typeof monthYear !== 'string' || !/^\d{4}-\d{2}$/.test(monthYear)) {
+      return res.status(400).json({ error: 'monthYear must be in YYYY-MM format.' });
+    }
+
+    const verifiedBy = ((req as any).user?.name || (req as any).user?.username || 'system').toString().trim();
+    const pool = getPool();
+
+    const occupancyResult = await pool
+      .request()
+      .input('occupancyId', sql.Int, occupancyId)
+      .query('SELECT Id FROM Occupancy WHERE Id = @occupancyId');
+
+    if (occupancyResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Occupancy not found.' });
+    }
+
+    const existingReview = await pool
+      .request()
+      .input('occupancyId', sql.Int, occupancyId)
+      .input('reviewMonth', sql.NChar(7), monthYear)
+      .query(`
+        SELECT TOP 1 Id
+        FROM CollectionVerification
+        WHERE OccupancyId = @occupancyId
+          AND ReviewMonth = @reviewMonth
+        ORDER BY VerifiedOn DESC, Id DESC
+      `);
+
+    const reviewQuery = existingReview.recordset.length > 0
+      ? `
+          UPDATE CollectionVerification
+          SET
+            Comments = @comments,
+            VerifiedBy = @verifiedBy,
+            VerifiedOn = GETDATE(),
+            IsVerified = @isVerified,
+            IsDisputeRaised = @isDisputeRaised,
+            ReviewMonth = @reviewMonth
+          WHERE Id = @reviewId;
+
+          SELECT TOP 1
+            OccupancyId as occupancyId,
+            ReviewMonth as reviewMonth,
+            CASE
+              WHEN IsVerified = 1 THEN 'approved'
+              WHEN IsDisputeRaised = 1 THEN 'rejected'
+              ELSE NULL
+            END as reviewDecision,
+            Comments as reviewComment,
+            VerifiedBy as reviewVerifiedBy,
+            CONVERT(NVARCHAR(33), VerifiedOn, 126) as reviewVerifiedOn
+          FROM CollectionVerification
+          WHERE Id = @reviewId
+        `
+      : `
+          INSERT INTO CollectionVerification
+            (OccupancyId, Comments, VerifiedBy, VerifiedOn, IsVerified, IsDisputeRaised, ReviewMonth)
+          VALUES
+            (@occupancyId, @comments, @verifiedBy, GETDATE(), @isVerified, @isDisputeRaised, @reviewMonth);
+
+          SELECT TOP 1
+            OccupancyId as occupancyId,
+            ReviewMonth as reviewMonth,
+            CASE
+              WHEN IsVerified = 1 THEN 'approved'
+              WHEN IsDisputeRaised = 1 THEN 'rejected'
+              ELSE NULL
+            END as reviewDecision,
+            Comments as reviewComment,
+            VerifiedBy as reviewVerifiedBy,
+            CONVERT(NVARCHAR(33), VerifiedOn, 126) as reviewVerifiedOn
+          FROM CollectionVerification
+          WHERE Id = SCOPE_IDENTITY()
+        `;
+
+    const reviewResult = await pool
+      .request()
+      .input('reviewId', sql.Int, existingReview.recordset[0]?.Id ?? null)
+      .input('occupancyId', sql.Int, occupancyId)
+      .input('reviewMonth', sql.NChar(7), monthYear)
+      .input('comments', sql.NVarChar(200), trimmedComment || null)
+      .input('verifiedBy', sql.NVarChar(100), verifiedBy)
+      .input('isVerified', sql.Bit, normalizedDecision === 'approved')
+      .input('isDisputeRaised', sql.Bit, normalizedDecision === 'rejected')
+      .query(reviewQuery);
+
+    res.json(reviewResult.recordset[0]);
+  } catch (error) {
+    console.error('Save rental review error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({
+      error: 'Failed to save rental review',
       details: errorMessage
     });
   }

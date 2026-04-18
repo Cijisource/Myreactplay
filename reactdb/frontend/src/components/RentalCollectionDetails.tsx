@@ -37,6 +37,17 @@ interface MonthlyPaymentStatus {
   proRataRent: number;
   rentBalance: number;
   occupancyDays: number;
+  reviewDecision: TenantReviewDecision;
+  reviewComment: string | null;
+  reviewVerifiedBy: string | null;
+  reviewVerifiedOn: string | null;
+}
+
+type TenantReviewDecision = 'approved' | 'rejected' | null;
+
+interface TenantReviewState {
+  decision: TenantReviewDecision;
+  comment: string;
 }
 
 interface RentalRecord {
@@ -106,6 +117,10 @@ export default function RentalCollectionDetails() {
   const [currentMonthPayments, setCurrentMonthPayments] = useState<MonthlyPaymentStatus[]>([]);
   const [currentMonthLoading, setCurrentMonthLoading] = useState(false);
   const [currentMonthError, setCurrentMonthError] = useState<string | null>(null);
+  const [tenantReviews, setTenantReviews] = useState<Record<number, TenantReviewState>>({});
+  const [expandedReviewRows, setExpandedReviewRows] = useState<Record<number, boolean>>({});
+  const [savingReviewRows, setSavingReviewRows] = useState<Record<number, boolean>>({});
+  const [commentPopupOccupancyId, setCommentPopupOccupancyId] = useState<number | null>(null);
 
   const currentMonthYear = selectedMonthFilter;
   const paidOccupancyIds = new Set(
@@ -139,11 +154,21 @@ export default function RentalCollectionDetails() {
       setCurrentMonthLoading(true);
       setCurrentMonthError(null);
       const response = await apiService.getPaymentsByMonth(currentMonthYear);
-      const records = (response.data || response || []).sort(
+      const records = ((response.data || response || []) as MonthlyPaymentStatus[]).sort(
         (a: MonthlyPaymentStatus, b: MonthlyPaymentStatus) =>
           compareRoomNumbers(a.roomNumber, b.roomNumber)
       );
       setCurrentMonthPayments(records);
+      setTenantReviews(
+        records.reduce<Record<number, TenantReviewState>>((accumulator, record) => {
+          accumulator[record.occupancyId] = {
+            decision: record.reviewDecision || null,
+            comment: record.reviewComment || ''
+          };
+
+          return accumulator;
+        }, {})
+      );
     } catch (err) {
       console.error('Error fetching current month payments:', err);
       setCurrentMonthError('Failed to load current month occupied room status.');
@@ -468,6 +493,133 @@ export default function RentalCollectionDetails() {
     setProofPreview({ url, alt });
   };
 
+  const formatReviewSavedDate = (value: string | null): string | null => {
+    if (!value) {
+      return null;
+    }
+
+    const parsedDate = new Date(value);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return null;
+    }
+
+    return parsedDate.toLocaleDateString('en-IN');
+  };
+
+  const applySavedReviewToPayments = (
+    occupancyId: number,
+    review: {
+      reviewDecision: TenantReviewDecision;
+      reviewComment: string | null;
+      reviewVerifiedBy: string | null;
+      reviewVerifiedOn: string | null;
+    }
+  ) => {
+    setCurrentMonthPayments((prev) =>
+      prev.map((payment) =>
+        payment.occupancyId === occupancyId
+          ? {
+              ...payment,
+              ...review
+            }
+          : payment
+      )
+    );
+  };
+
+  const persistTenantReview = async (occupancyId: number, review: TenantReviewState) => {
+    try {
+      setSavingReviewRows((prev) => ({
+        ...prev,
+        [occupancyId]: true
+      }));
+
+      const response = await apiService.saveRentalReview(occupancyId, {
+        monthYear: currentMonthYear,
+        decision: review.decision,
+        comment: review.comment.trim() || null
+      });
+
+      const savedReview = response.data || response;
+
+      setTenantReviews((prev) => ({
+        ...prev,
+        [occupancyId]: {
+          decision: savedReview.reviewDecision || null,
+          comment: savedReview.reviewComment || ''
+        }
+      }));
+
+      applySavedReviewToPayments(occupancyId, {
+        reviewDecision: savedReview.reviewDecision || null,
+        reviewComment: savedReview.reviewComment || null,
+        reviewVerifiedBy: savedReview.reviewVerifiedBy || null,
+        reviewVerifiedOn: savedReview.reviewVerifiedOn || null
+      });
+    } catch (reviewError) {
+      console.error('Error saving tenant review:', reviewError);
+      setError(reviewError instanceof Error ? reviewError.message : 'Failed to save rental review.');
+    } finally {
+      setSavingReviewRows((prev) => ({
+        ...prev,
+        [occupancyId]: false
+      }));
+    }
+  };
+
+  const handleTenantReviewDecision = async (occupancyId: number, decision: Exclude<TenantReviewDecision, null>) => {
+    const existingReview = tenantReviews[occupancyId] || { decision: null, comment: '' };
+    const nextReview: TenantReviewState = {
+      decision,
+      comment: existingReview.comment || ''
+    };
+
+    setTenantReviews((prev) => ({
+      ...prev,
+      [occupancyId]: nextReview
+    }));
+
+    setExpandedReviewRows((prev) => ({
+      ...prev,
+      [occupancyId]: false
+    }));
+
+    await persistTenantReview(occupancyId, nextReview);
+  };
+
+  const handleTenantReviewComment = (occupancyId: number, comment: string) => {
+    setTenantReviews((prev) => ({
+      ...prev,
+      [occupancyId]: {
+        decision: prev[occupancyId]?.decision ?? null,
+        comment
+      }
+    }));
+  };
+
+  const handleTenantReviewBlur = async (event: React.FocusEvent<HTMLTextAreaElement>, occupancyId: number) => {
+    const nextFocusedElement = event.relatedTarget as HTMLElement | null;
+
+    // If focus moves to approve/reject actions, let that click path handle persistence.
+    if (nextFocusedElement?.closest('.tenant-review-actions')) {
+      return;
+    }
+
+    const review = tenantReviews[occupancyId] || { decision: null, comment: '' };
+    await persistTenantReview(occupancyId, review);
+  };
+
+  const toggleTenantReviewPanel = (occupancyId: number) => {
+    setExpandedReviewRows((prev) => ({
+      ...prev,
+      [occupancyId]: !prev[occupancyId]
+    }));
+  };
+
+  const toggleCommentPopup = (occupancyId: number) => {
+    setCommentPopupOccupancyId((prev) => (prev === occupancyId ? null : occupancyId));
+  };
+
   if (loading && !occupancyInfo) {
     return (
       <div className="rental-collection-details">
@@ -595,52 +747,198 @@ export default function RentalCollectionDetails() {
                     <th>Last Payment</th>
                     <th>Received</th>
                     <th>Proof</th>
+                    <th>Review</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredCurrentMonthPayments.map((item) => (
-                    <tr key={item.occupancyId}>
-                      <td>{item.roomNumber}</td>
-                      <td>{item.tenantName}</td>
-                      <td className="amount">{formatCurrency(item.proRataRent)}</td>
-                      <td className="amount">{formatCurrency(item.charges)}</td>
-                      <td className="amount balance">{formatCurrency(item.rentBalance)}</td>
-                      <td>
-                        <span className={`payment-status-badge ${item.paymentStatus}`}>
-                          {item.paymentStatus}
-                        </span>
-                      </td>
-                      <td>
-                        {item.rentReceivedOn
-                          ? new Date(item.rentReceivedOn).toLocaleDateString('en-IN')
-                          : 'No payment'}
-                      </td>
-                      <td className="amount received">{formatCurrency(getTotalReceived(item.rentReceived, item.charges))}</td>
-                      <td>
-                        {item.screenshotUrl ? (
-                          <button
-                            type="button"
-                            className="last-proof-link"
-                            title="Preview latest payment proof"
-                            onClick={() =>
-                              openProofPreview(
-                                getProofUrl(item.screenshotUrl, item.rentReceivedOn, item.folder),
-                                `Payment proof ${item.tenantName}`
-                              )
-                            }
-                          >
-                            <img
-                              src={getProofUrl(item.screenshotUrl, item.rentReceivedOn, item.folder)}
-                              alt={`Payment proof ${item.tenantName}`}
-                              className="last-proof-thumb"
-                            />
-                          </button>
-                        ) : (
-                          <span className="no-proof">-</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredCurrentMonthPayments.map((item) => {
+                    const review = tenantReviews[item.occupancyId] || { decision: null, comment: '' };
+                    const isReviewExpanded = expandedReviewRows[item.occupancyId] || false;
+                    const isSavingReview = savingReviewRows[item.occupancyId] || false;
+                    const isCommentPopupOpen = commentPopupOccupancyId === item.occupancyId;
+                    const savedReviewDate = formatReviewSavedDate(item.reviewVerifiedOn);
+                    const hasComment = review.comment.trim().length > 0;
+                    const commentPreview = hasComment
+                      ? review.comment.trim().slice(0, 42) + (review.comment.trim().length > 42 ? '...' : '')
+                      : 'No comment added';
+
+                    return (
+                      <tr key={item.occupancyId}>
+                        <td>{item.roomNumber}</td>
+                        <td>{item.tenantName}</td>
+                        <td className="amount">{formatCurrency(item.proRataRent)}</td>
+                        <td className="amount">{formatCurrency(item.charges)}</td>
+                        <td className="amount balance">{formatCurrency(item.rentBalance)}</td>
+                        <td>
+                          <span className={`payment-status-badge ${item.paymentStatus}`}>
+                            {item.paymentStatus}
+                          </span>
+                        </td>
+                        <td>
+                          {item.rentReceivedOn
+                            ? new Date(item.rentReceivedOn).toLocaleDateString('en-IN')
+                            : 'No payment'}
+                        </td>
+                        <td className="amount received">{formatCurrency(getTotalReceived(item.rentReceived, item.charges))}</td>
+                        <td>
+                          {item.screenshotUrl ? (
+                            <button
+                              type="button"
+                              className="last-proof-link"
+                              title="Preview latest payment proof"
+                              onClick={() =>
+                                openProofPreview(
+                                  getProofUrl(item.screenshotUrl, item.rentReceivedOn, item.folder),
+                                  `Payment proof ${item.tenantName}`
+                                )
+                              }
+                            >
+                              <img
+                                src={getProofUrl(item.screenshotUrl, item.rentReceivedOn, item.folder)}
+                                alt={`Payment proof ${item.tenantName}`}
+                                className="last-proof-thumb"
+                              />
+                            </button>
+                          ) : (
+                            <span className="no-proof">-</span>
+                          )}
+                        </td>
+                        <td className="review-cell">
+                          <div className="tenant-review-panel">
+                            <div className="tenant-review-topline">
+                              <button
+                                type="button"
+                                className={`review-status-trigger ${review.decision || 'unreviewed'}`}
+                                onClick={() => toggleTenantReviewPanel(item.occupancyId)}
+                                aria-expanded={isReviewExpanded}
+                                aria-controls={`review-panel-${item.occupancyId}`}
+                                aria-label={review.decision ? `Marked ${review.decision}` : 'Pending review'}
+                                title={review.decision ? `Marked ${review.decision}` : 'Pending review'}
+                                disabled={isSavingReview}
+                              >
+                                <span className={`review-status-text ${review.decision || 'unreviewed'}`}>
+                                  {review.decision === 'approved' ? (
+                                    <span className="review-status-icon approved" aria-hidden="true">✓</span>
+                                  ) : review.decision === 'rejected' ? (
+                                    <span className="review-status-icon rejected" aria-hidden="true">✕</span>
+                                  ) : (
+                                    <span className="review-status-icon" aria-hidden="true"></span>
+                                  )}
+                                </span>
+                                <span className={`review-status-caret ${isReviewExpanded ? 'expanded' : ''}`} aria-hidden="true">
+                                  ▾
+                                </span>
+                              </button>
+                              {hasComment && (
+                                <button
+                                  type="button"
+                                  className="review-comment-eye-btn"
+                                  onClick={() => toggleCommentPopup(item.occupancyId)}
+                                  aria-label="View comment"
+                                  title="View comment"
+                                  aria-expanded={isCommentPopupOpen}
+                                  aria-controls={`review-comment-popup-${item.occupancyId}`}
+                                >
+                                  <svg
+                                    className="review-eye-svg"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    aria-hidden="true"
+                                  >
+                                    <path
+                                      d="M2.25 12C3.75 7.8 7.65 5.25 12 5.25C16.35 5.25 20.25 7.8 21.75 12C20.25 16.2 16.35 18.75 12 18.75C7.65 18.75 3.75 16.2 2.25 12Z"
+                                      stroke="currentColor"
+                                      strokeWidth="1.8"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    />
+                                    <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" />
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
+                            {isCommentPopupOpen && hasComment && (
+                              <div id={`review-comment-popup-${item.occupancyId}`} className="review-comment-popup" role="dialog" aria-label="Comment preview">
+                                <div className="review-comment-popup-header">
+                                  <span>Comment</span>
+                                  <button
+                                    type="button"
+                                    className="review-comment-popup-close"
+                                    onClick={() => setCommentPopupOccupancyId(null)}
+                                    aria-label="Close comment preview"
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                                <p>{review.comment}</p>
+                              </div>
+                            )}
+                            {isReviewExpanded && (
+                              <div
+                                id={`review-panel-${item.occupancyId}`}
+                                className="review-panel-body"
+                              >
+                                <div className="tenant-review-actions" role="group" aria-label={`Review actions for ${item.tenantName}`}>
+                                  <button
+                                    type="button"
+                                    className={`review-icon-button approve ${review.decision === 'approved' ? 'active' : ''}`}
+                                    onClick={() => handleTenantReviewDecision(item.occupancyId, 'approved')}
+                                    aria-pressed={review.decision === 'approved'}
+                                    title={`Approve ${item.tenantName}`}
+                                    disabled={isSavingReview}
+                                  >
+                                    <span className="review-icon" aria-hidden="true">✓</span>
+                                    <span>Approve</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={`review-icon-button reject ${review.decision === 'rejected' ? 'active' : ''}`}
+                                    onClick={() => handleTenantReviewDecision(item.occupancyId, 'rejected')}
+                                    aria-pressed={review.decision === 'rejected'}
+                                    title={`Reject ${item.tenantName}`}
+                                    disabled={isSavingReview}
+                                  >
+                                    <span className="review-icon" aria-hidden="true">✕</span>
+                                    <span>Reject</span>
+                                  </button>
+                                </div>
+                                <div className="review-comment-summary">{commentPreview}</div>
+                                <label className="review-comment-label" htmlFor={`review-comment-${item.occupancyId}`}>
+                                  Reviewer Comment
+                                </label>
+                                <textarea
+                                  id={`review-comment-${item.occupancyId}`}
+                                  className="review-comment-input"
+                                  value={review.comment}
+                                  onChange={(event) => handleTenantReviewComment(item.occupancyId, event.target.value)}
+                                  onBlur={(event) => handleTenantReviewBlur(event, item.occupancyId)}
+                                  placeholder={
+                                    review.decision === 'approved'
+                                      ? 'Add an approval note'
+                                      : review.decision === 'rejected'
+                                        ? 'Add a rejection reason'
+                                        : 'Add an optional review comment'
+                                  }
+                                  rows={3}
+                                  maxLength={240}
+                                  disabled={isSavingReview}
+                                />
+                                <div className="review-comment-footer">
+                                  <span className="review-meta-text">
+                                    {item.reviewVerifiedBy
+                                      ? `Saved by ${item.reviewVerifiedBy}${savedReviewDate ? ` on ${savedReviewDate}` : ''}`
+                                      : 'Not saved yet'}
+                                  </span>
+                                  <span>{isSavingReview ? 'Saving...' : `${review.comment.length}/240`}</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
