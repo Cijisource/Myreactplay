@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import ProductListing from './components/ProductListing';
 import Wishlist from './components/Wishlist';
 import RefundPolicy from './components/RefundPolicy';
@@ -64,7 +64,6 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/refund-policy" element={<RefundPolicy />} />
-          <Route path="/wishlist" element={<Wishlist />} />
           <Route
             path="/*"
             element={<MainApp />}
@@ -76,6 +75,7 @@ function App() {
 }
 
 function MainApp() {
+  const location = useLocation();
   const [user, setUser] = useState(null);
   const [currentPage, setCurrentPage] = useState('products');
   const [searchQuery, setSearchQuery] = useState('');
@@ -198,6 +198,15 @@ function MainApp() {
   };
 
   const renderPage = () => {
+    // Handle /wishlist URL path
+    if (location.pathname === '/wishlist') {
+      if (!isAuthenticated()) {
+        window.location.href = '/login';
+        return null;
+      }
+      return <Wishlist />;
+    }
+
     // Redirect to login if trying to access protected pages
     const protectedPages = ['orders', 'profile'];
     if (protectedPages.includes(currentPage) && !isAuthenticated()) {

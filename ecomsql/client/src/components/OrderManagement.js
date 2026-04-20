@@ -399,6 +399,9 @@ const OrderManagement = () => {
             .block h4 { margin: 0 0 5px 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
             .name { font-size: 14px; font-weight: 800; margin-bottom: 4px; }
             .addr { font-size: 12px; line-height: 1.35; white-space: pre-wrap; }
+            .return-block { margin-top: 8px; border: 1px solid #6b7280; border-radius: 6px; padding: 8px; background: #f9fafb; }
+            .return-block h4 { margin: 0 0 4px 0; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; }
+            .return-addr { font-size: 11px; line-height: 1.4; color: #374151; }
             .meta { margin-top: 8px; font-size: 11px; line-height: 1.5; }
             .barcode { margin-top: 10px; text-align: center; font-family: monospace; font-size: 18px; letter-spacing: 1.8px; }
             .footer { margin-top: 6px; text-align: center; font-size: 10px; color: #4b5563; }
@@ -412,6 +415,11 @@ const OrderManagement = () => {
                 <p class="order">${safeOrderNumber}</p>
               </div>
               <div class="chip">${safeStatus}</div>
+            </div>
+
+            <div class="return-block">
+              <h4>From / Return Address</h4>
+              <div class="return-addr">Tower C22, Flat No. 704, Puravankara Windermere,<br/>No. 45 Bhavani Amman Kovil Street, Pallikaranai,<br/>Chennai - 600100</div>
             </div>
 
             <div class="block">
