@@ -31,7 +31,9 @@ function normalizeOrdersWithDiscounts(rows) {
         status: row.status,
         customer_email: row.customer_email,
         customer_name: row.customer_name,
+        customer_phone: row.customer_phone,
         shipping_address: row.shipping_address,
+        payment_method: row.payment_method,
         payment_screenshot: row.payment_screenshot,
         discount_amount: row.discount_amount,
         applied_discount_code: row.applied_discount_code,
@@ -77,13 +79,14 @@ router.get('/seller/orders', verifyToken, async (req, res) => {
       const fullResult = await pool.request()
         .query(`
          SELECT o.id, o.order_number, o.total_amount, o.status,
-           o.customer_email, o.customer_name, o.shipping_address,
-           o.payment_screenshot, o.discount_amount, o.applied_discount_code,
+           o.customer_email, o.customer_name, u.PhoneNumber AS customer_phone, o.shipping_address,
+           o.payment_method, o.payment_screenshot, o.discount_amount, o.applied_discount_code,
            o.created_at, o.updated_at,
            od.discount_code AS od_discount_code,
            od.discount_type AS od_discount_type,
            od.discount_amount AS od_discount_amount
          FROM orders o
+         LEFT JOIN [User] u ON LOWER(LTRIM(RTRIM(u.UserName))) = LOWER(LTRIM(RTRIM(o.customer_email)))
          LEFT JOIN order_discounts od ON od.order_id = o.id
          ORDER BY o.created_at DESC
         `);
@@ -101,16 +104,17 @@ router.get('/seller/orders', verifyToken, async (req, res) => {
       .query(`
        WITH paged_orders AS (
          SELECT o.id, o.order_number, o.total_amount, o.status,
-           o.customer_email, o.customer_name, o.shipping_address,
-           o.payment_screenshot, o.discount_amount, o.applied_discount_code,
+           o.customer_email, o.customer_name, u.PhoneNumber AS customer_phone, o.shipping_address,
+           o.payment_method, o.payment_screenshot, o.discount_amount, o.applied_discount_code,
            o.created_at, o.updated_at
          FROM orders o
+         LEFT JOIN [User] u ON LOWER(LTRIM(RTRIM(u.UserName))) = LOWER(LTRIM(RTRIM(o.customer_email)))
          ORDER BY o.created_at DESC
          OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
        )
        SELECT p.id, p.order_number, p.total_amount, p.status,
-         p.customer_email, p.customer_name, p.shipping_address,
-         p.payment_screenshot, p.discount_amount, p.applied_discount_code,
+         p.customer_email, p.customer_name, p.customer_phone, p.shipping_address,
+         p.payment_method, p.payment_screenshot, p.discount_amount, p.applied_discount_code,
          p.created_at, p.updated_at,
                od.discount_code AS od_discount_code,
                od.discount_type AS od_discount_type,
@@ -160,12 +164,13 @@ router.get('/', verifyToken, async (req, res) => {
         .input('customerEmail', sql.NVarChar, userEmail)
         .query(`
            SELECT o.id, o.order_number, o.total_amount, o.status, o.customer_email, o.customer_name,
-             o.shipping_address, o.payment_screenshot, o.discount_amount, o.applied_discount_code,
+            u.PhoneNumber AS customer_phone, o.shipping_address, o.payment_method, o.payment_screenshot, o.discount_amount, o.applied_discount_code,
              o.created_at, o.updated_at,
              od.discount_code AS od_discount_code,
              od.discount_type AS od_discount_type,
              od.discount_amount AS od_discount_amount
           FROM orders o
+         LEFT JOIN [User] u ON LOWER(LTRIM(RTRIM(u.UserName))) = LOWER(LTRIM(RTRIM(o.customer_email)))
           LEFT JOIN order_discounts od ON od.order_id = o.id
           WHERE o.customer_email = @customerEmail
            ORDER BY o.created_at DESC
@@ -187,17 +192,18 @@ router.get('/', verifyToken, async (req, res) => {
       .query(`
          WITH paged_orders AS (
            SELECT o.id, o.order_number, o.total_amount, o.status,
-             o.customer_email, o.customer_name, o.shipping_address,
-             o.payment_screenshot, o.discount_amount, o.applied_discount_code,
+             o.customer_email, o.customer_name, u.PhoneNumber AS customer_phone, o.shipping_address,
+             o.payment_method, o.payment_screenshot, o.discount_amount, o.applied_discount_code,
              o.created_at, o.updated_at
            FROM orders o
+           LEFT JOIN [User] u ON LOWER(LTRIM(RTRIM(u.UserName))) = LOWER(LTRIM(RTRIM(o.customer_email)))
            WHERE o.customer_email = @customerEmail
            ORDER BY o.created_at DESC
            OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
          )
          SELECT p.id, p.order_number, p.total_amount, p.status,
-           p.customer_email, p.customer_name, p.shipping_address,
-           p.payment_screenshot, p.discount_amount, p.applied_discount_code,
+           p.customer_email, p.customer_name, p.customer_phone, p.shipping_address,
+           p.payment_method, p.payment_screenshot, p.discount_amount, p.applied_discount_code,
            p.created_at, p.updated_at,
            od.discount_code AS od_discount_code,
            od.discount_type AS od_discount_type,
@@ -339,7 +345,12 @@ router.get('/:id', async (req, res) => {
       .input('id', sql.Int, req.params.id)
       .query(`
         SELECT id, order_number, total_amount, status, customer_email, customer_name, 
-               shipping_address, payment_screenshot, discount_amount, applied_discount_code,
+               (
+                 SELECT TOP 1 u.PhoneNumber
+                 FROM [User] u
+                 WHERE LOWER(LTRIM(RTRIM(u.UserName))) = LOWER(LTRIM(RTRIM(orders.customer_email)))
+               ) AS customer_phone,
+               shipping_address, payment_method, payment_screenshot, discount_amount, applied_discount_code,
                subtotal_amount, gst_amount, shipping_charge, created_at, updated_at
         FROM orders
         WHERE id = @id
@@ -389,7 +400,7 @@ router.get('/:id', async (req, res) => {
 // Create order from cart
 router.post('/', optionalAuth, async (req, res) => {
   try {
-    const { sessionId, customerEmail, customerName, customerPhone, shippingAddress, items, subtotalAmount, gstAmount, shippingCharge, totalAmount, paymentScreenshot, orderDate, appliedDiscount, appliedRewards } = req.body;
+    const { sessionId, customerEmail, customerName, customerPhone, shippingAddress, items, subtotalAmount, gstAmount, shippingCharge, totalAmount, paymentMethod, paymentScreenshot, orderDate, appliedDiscount, appliedRewards } = req.body;
     const effectiveGstAmount = 0;
     
     // Extract discount and reward values from objects
@@ -410,6 +421,7 @@ router.post('/', optionalAuth, async (req, res) => {
       gstAmount: effectiveGstAmount,
       shippingCharge: shippingCharge,
       totalAmount: totalAmount,
+      paymentMethod: paymentMethod,
       rewardPoints: appliedRewards?.points || 0
     });
     
@@ -466,14 +478,15 @@ router.post('/', optionalAuth, async (req, res) => {
         .input('customerEmail', sql.NVarChar, normalizedEmail)
         .input('customerName', sql.NVarChar, customerName)
         .input('shippingAddress', sql.NVarChar, shippingAddress || null)
+        .input('paymentMethod', sql.NVarChar(50), paymentMethod || null)
         .input('paymentScreenshot', sql.NVarChar(sql.MAX), paymentScreenshot || null)
         .input('createdAt', sql.DateTime2, createdDate)
         .query(`
-          INSERT INTO orders (order_number, subtotal_amount, gst_amount, shipping_charge, discount_amount, discount_code, reward_code_used, total_amount, customer_email, customer_name, shipping_address, payment_screenshot, status, created_at)
+          INSERT INTO orders (order_number, subtotal_amount, gst_amount, shipping_charge, discount_amount, discount_code, reward_code_used, total_amount, customer_email, customer_name, shipping_address, payment_method, payment_screenshot, status, created_at)
           OUTPUT INSERTED.id, INSERTED.order_number, INSERTED.total_amount, INSERTED.status, 
-                 INSERTED.customer_email, INSERTED.customer_name, INSERTED.shipping_address, 
+                 INSERTED.customer_email, INSERTED.customer_name, INSERTED.shipping_address, INSERTED.payment_method,
                  INSERTED.created_at, INSERTED.updated_at
-          VALUES (@orderNumber, @subtotalAmount, @gstAmount, @shippingCharge, @discountAmount, @discountCode, @rewardCodeUsed, @totalAmount, @customerEmail, @customerName, @shippingAddress, @paymentScreenshot, 'pending', @createdAt)
+          VALUES (@orderNumber, @subtotalAmount, @gstAmount, @shippingCharge, @discountAmount, @discountCode, @rewardCodeUsed, @totalAmount, @customerEmail, @customerName, @shippingAddress, @paymentMethod, @paymentScreenshot, 'pending', @createdAt)
         `);
 
       const orderId = orderResult.recordset[0].id;

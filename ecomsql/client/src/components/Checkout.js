@@ -365,9 +365,9 @@ const Checkout = ({
         return;
       }
       
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        setMessage('File size must be less than 5MB');
+      // Validate file size (max 1MB)
+      if (file.size > 1 * 1024 * 1024) {
+        setMessage('File size must be less than 1MB');
         return;
       }
 

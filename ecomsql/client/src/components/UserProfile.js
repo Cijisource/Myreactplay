@@ -15,10 +15,7 @@ function UserProfile() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editFormData, setEditFormData] = useState({
     phoneNumber: '',
-    shippingAddress: '',
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: ''
+    shippingAddress: ''
   });
   const [updateLoading, setUpdateLoading] = useState(false);
   const [updateMessage, setUpdateMessage] = useState('');
@@ -53,13 +50,9 @@ function UserProfile() {
   // Initialize form data when user is loaded
   useEffect(() => {
     if (user && isEditingProfile) {
-      const storedPassword = localStorage.getItem('userPassword') || '';
       setEditFormData({
         phoneNumber: user.phoneNumber || '',
-        shippingAddress: user.shippingAddress || '',
-        currentPassword: storedPassword,
-        newPassword: user.phoneNumber || '',
-        confirmPassword: user.phoneNumber || ''
+        shippingAddress: user.shippingAddress || ''
       });
     }
   }, [user, isEditingProfile]);
@@ -134,21 +127,10 @@ function UserProfile() {
 
   const handleEditFormChange = (e) => {
     const { name, value } = e.target;
-    
-    // If phone number is being changed, auto-populate password fields
-    if (name === 'phoneNumber') {
-      setEditFormData(prev => ({
-        ...prev,
-        [name]: value,
-        newPassword: value,
-        confirmPassword: value
-      }));
-    } else {
-      setEditFormData(prev => ({
-        ...prev,
-        [name]: value
-      }));
-    }
+    setEditFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
   };
 
   const handleSaveProfile = async (e) => {
@@ -157,45 +139,15 @@ function UserProfile() {
     setUpdateMessage('');
 
     try {
-      // Validate password if provided
-      const isPasswordChange = editFormData.newPassword || editFormData.currentPassword;
-      
-      if (isPasswordChange) {
-        if (!editFormData.currentPassword) {
-          setUpdateMessage('Current password is required to change password');
-          setUpdateLoading(false);
-          return;
-        }
-        if (!editFormData.newPassword) {
-          setUpdateMessage('New password is required');
-          setUpdateLoading(false);
-          return;
-        }
-        if (editFormData.newPassword.length < 6) {
-          setUpdateMessage('New password must be at least 6 characters');
-          setUpdateLoading(false);
-          return;
-        }
-        if (editFormData.newPassword !== editFormData.confirmPassword) {
-          setUpdateMessage('New passwords do not match');
-          setUpdateLoading(false);
-          return;
-        }
-      }
-
       const response = await updateUserProfile({
         phoneNumber: editFormData.phoneNumber.trim() || null,
-        shippingAddress: editFormData.shippingAddress.trim() || null,
-        currentPassword: editFormData.currentPassword || undefined,
-        newPassword: editFormData.newPassword || undefined
+        shippingAddress: editFormData.shippingAddress.trim() || null
       });
 
       setUser(response.data.user);
       localStorage.setItem('user', JSON.stringify(response.data.user));
-      
-      // Update stored password if a new password was set
-      if (editFormData.newPassword) {
-        localStorage.setItem('userPassword', editFormData.newPassword);
+      if (editFormData.phoneNumber.trim()) {
+        localStorage.setItem('userPassword', editFormData.phoneNumber.trim());
       }
       
       setIsEditingProfile(false);
@@ -274,46 +226,7 @@ function UserProfile() {
               />
             </div>
 
-            <div className="password-divider">Change Password (Optional)</div>
-
-            <div className="profile-field">
-              <label htmlFor="currentPassword">Current Password:</label>
-              <input
-                type="text"
-                id="currentPassword"
-                name="currentPassword"
-                value={editFormData.currentPassword}
-                onChange={handleEditFormChange}
-                placeholder="Enter your current password"
-                autoComplete="off"
-              />
-            </div>
-
-            <div className="profile-field">
-              <label htmlFor="newPassword">New Password:</label>
-              <input
-                type="text"
-                id="newPassword"
-                name="newPassword"
-                value={editFormData.newPassword}
-                onChange={handleEditFormChange}
-                placeholder="Enter a new password (min 6 characters)"
-                autoComplete="off"
-              />
-            </div>
-
-            <div className="profile-field">
-              <label htmlFor="confirmPassword">Confirm New Password:</label>
-              <input
-                type="text"
-                id="confirmPassword"
-                name="confirmPassword"
-                value={editFormData.confirmPassword}
-                onChange={handleEditFormChange}
-                placeholder="Re-enter your new password"
-                autoComplete="off"
-              />
-            </div>
+            <div className="password-divider">Password is always your phone number</div>
 
             <div className="profile-field">
               <label>Role:</label>

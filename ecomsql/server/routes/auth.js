@@ -8,9 +8,9 @@ const router = express.Router();
 // Register endpoint
 router.post('/register', [
   body('email').isEmail().normalizeEmail(),
-  body('password').isLength({ min: 6 }),
+  body('password').optional(),
   body('name').notEmpty().trim(),
-  body('phoneNumber').optional().trim(),
+  body('phoneNumber').notEmpty().trim(),
   body('shippingAddress').optional().trim()
 ], async (req, res) => {
   try {
@@ -22,6 +22,10 @@ router.post('/register', [
     // Support both 'email' and 'userName' for backwards compatibility
     const email = req.body.email || req.body.userName;
     const { password, name, phoneNumber, shippingAddress } = req.body;
+
+    if (!phoneNumber || !phoneNumber.trim()) {
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
 
     // Always register as Customer role
     const user = await userService.registerUser(email, password, name, 'Customer', phoneNumber, shippingAddress);
@@ -41,7 +45,14 @@ router.post('/register', [
 
 // Login endpoint
 router.post('/login', [
-  body('email').isEmail().normalizeEmail(),
+  body('email').optional({ checkFalsy: true }).isEmail().withMessage('Please enter a valid email address').normalizeEmail(),
+  body('userName').optional({ checkFalsy: true }).trim(),
+  body().custom((_, { req }) => {
+    if (!req.body.email && !req.body.userName) {
+      throw new Error('Email is required');
+    }
+    return true;
+  }),
   body('password').notEmpty()
 ], async (req, res) => {
   try {
@@ -51,7 +62,9 @@ router.post('/login', [
     }
 
     // Support both 'email' and 'userName' for backwards compatibility
-    const email = req.body.email || req.body.userName;
+    const email = req.body.email
+      ? req.body.email.trim().toLowerCase()
+      : req.body.userName.trim();
     const { password } = req.body;
     
     console.log('[AUTH ROUTE] Login attempt for email:', email);
@@ -110,53 +123,31 @@ router.put('/me', verifyToken, [
     const { phoneNumber, shippingAddress, currentPassword, newPassword } = req.body;
     const userId = req.user.userId;
 
-    // If password change is requested, use the password-aware update function
-    if (newPassword) {
-      const updatedUser = await userService.updateUserProfileWithPassword(
-        userId,
-        phoneNumber,
-        shippingAddress,
-        currentPassword,
-        newPassword
-      );
-
-      res.json({
-        message: 'Profile updated successfully',
-        user: {
-          id: updatedUser.Id,
-          userName: updatedUser.UserName,
-          email: updatedUser.UserName,
-          name: updatedUser.Name,
-          phoneNumber: updatedUser.PhoneNumber,
-          shippingAddress: updatedUser.ShippingAddress,
-          createdDate: updatedUser.CreatedDate,
-          lastLogin: updatedUser.LastLogin
-        }
-      });
-    } else {
-      // Update profile without password
-      const updatedUser = await userService.updateUserProfile(userId, phoneNumber, shippingAddress);
-
-      res.json({
-        message: 'Profile updated successfully',
-        user: {
-          id: updatedUser.Id,
-          userName: updatedUser.UserName,
-          email: updatedUser.UserName,
-          name: updatedUser.Name,
-          phoneNumber: updatedUser.PhoneNumber,
-          shippingAddress: updatedUser.ShippingAddress,
-          createdDate: updatedUser.CreatedDate,
-          lastLogin: updatedUser.LastLogin
-        }
+    if (currentPassword || newPassword) {
+      return res.status(400).json({
+        error: 'Password is managed automatically from phone number. Update phone number to change password.'
       });
     }
+
+    // Update profile; if phone number changes, password is updated to match phone in service layer.
+    const updatedUser = await userService.updateUserProfile(userId, phoneNumber, shippingAddress);
+
+    res.json({
+      message: 'Profile updated successfully',
+      user: {
+        id: updatedUser.Id,
+        userName: updatedUser.UserName,
+        email: updatedUser.UserName,
+        name: updatedUser.Name,
+        phoneNumber: updatedUser.PhoneNumber,
+        shippingAddress: updatedUser.ShippingAddress,
+        createdDate: updatedUser.CreatedDate,
+        lastLogin: updatedUser.LastLogin
+      }
+    });
   } catch (error) {
     console.error('Update profile error:', error);
-    const errorMessage = error.message === 'Current password is incorrect' 
-      ? 'Current password is incorrect'
-      : 'Failed to update profile';
-    res.status(error.message === 'Current password is incorrect' ? 401 : 500).json({ error: errorMessage });
+    res.status(500).json({ error: 'Failed to update profile' });
   }
 });
 
@@ -198,7 +189,7 @@ router.put('/users/:userId/role', verifyToken, isAdmin, [
 
 // Reset user password (Admin only)
 router.put('/users/:userId/reset-password', verifyToken, isAdmin, [
-  body('newPassword').notEmpty().isLength({ min: 6 })
+  body('newPassword').optional()
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -207,12 +198,11 @@ router.put('/users/:userId/reset-password', verifyToken, isAdmin, [
     }
 
     const { userId } = req.params;
-    const { newPassword } = req.body;
 
-    const result = await userService.resetUserPassword(parseInt(userId), newPassword);
+    const result = await userService.resetUserPassword(parseInt(userId));
 
     res.json({
-      message: 'User password reset successfully',
+      message: 'User password reset to phone number successfully',
       user: result
     });
   } catch (error) {

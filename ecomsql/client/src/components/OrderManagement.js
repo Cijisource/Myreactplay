@@ -3,6 +3,127 @@ import { getOrders, getSellerOrders, getOrderById, getOrderShippingBreakdown, up
 import { hasRole } from '../utils/authUtils';
 import './OrderManagement.css';
 
+const DEFAULT_SELLER_WHATSAPP_PHONE = '9894438549';
+
+function formatPaymentMethod(paymentMethod) {
+  switch ((paymentMethod || '').trim().toLowerCase()) {
+    case 'gpay':
+      return 'GPay';
+    case 'upi':
+      return 'UPI';
+    case 'card':
+      return 'Credit Card';
+    default:
+      return 'Payment Method';
+  }
+}
+
+function getOrderCustomerPhone(order) {
+  return (
+    order?.customer_phone ||
+    order?.shipping_phone ||
+    order?.phone ||
+    order?.customer_mobile ||
+    ''
+  );
+}
+
+function getOrderSellerPhone(order) {
+  return (
+    order?.seller_phone ||
+    order?.seller_mobile ||
+    order?.seller_contact_phone ||
+    order?.seller?.phone ||
+    DEFAULT_SELLER_WHATSAPP_PHONE
+  );
+}
+
+function getOrderSellerName(order) {
+  return (
+    order?.seller_name ||
+    order?.seller_display_name ||
+    order?.seller?.name ||
+    order?.seller?.display_name ||
+    ''
+  );
+}
+
+function normalizePhoneForWhatsApp(rawPhone) {
+  const digits = String(rawPhone || '').replace(/\D/g, '');
+
+  if (!digits) {
+    return '';
+  }
+
+  if (digits.startsWith('00') && digits.length > 2) {
+    return digits.slice(2);
+  }
+
+  if (digits.length === 10) {
+    return `91${digits}`;
+  }
+
+  if (digits.length === 11 && digits.startsWith('0')) {
+    return `91${digits.slice(1)}`;
+  }
+
+  return digits;
+}
+
+function buildWhatsAppOrderMessage(order) {
+  const safeOrderNumber = order?.order_number || `ORDER-${order?.id || 'N/A'}`;
+  const safeCustomerName = order?.customer_name || 'Customer';
+  const safeStatus = order?.status || 'pending';
+  const safeTotal = Number(order?.total_amount || 0).toFixed(2);
+  const safeDate = order?.created_at
+    ? new Date(order.created_at).toLocaleString('en-IN', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    : 'N/A';
+
+  return [
+    `Hi ${safeCustomerName},`,
+    '',
+    `This is regarding your order ${safeOrderNumber}.`,
+    `Status: ${safeStatus}`,
+    `Total Amount: Rs. ${safeTotal}`,
+    `Order Date: ${safeDate}`,
+    '',
+    'Please let us know if you need any help with your order.'
+  ].join('\n');
+}
+
+function buildWhatsAppSellerOrderMessage(order) {
+  const safeSellerName = getOrderSellerName(order) || 'Seller';
+  const safeOrderNumber = order?.order_number || `ORDER-${order?.id || 'N/A'}`;
+  const safeStatus = order?.status || 'pending';
+  const safeTotal = Number(order?.total_amount || 0).toFixed(2);
+  const safeDate = order?.created_at
+    ? new Date(order.created_at).toLocaleString('en-IN', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    : 'N/A';
+
+  return [
+    `Hi ${safeSellerName},`,
+    '',
+    `I am contacting you about my order ${safeOrderNumber}.`,
+    `Status: ${safeStatus}`,
+    `Total Amount: Rs. ${safeTotal}`,
+    `Order Date: ${safeDate}`,
+    '',
+    'Please share an update when possible. Thank you.'
+  ].join('\n');
+}
+
 const OrderManagement = () => {
   const INITIAL_ORDERS_LIMIT = 3;
   const ORDERS_PAGE_SIZE = 3;
@@ -20,6 +141,8 @@ const OrderManagement = () => {
   const loadMoreRef = useRef(null);
   const loadMoreInFlightRef = useRef(false);
   const isSellerOrAdmin = hasRole('Seller') || hasRole('Administrator');
+  const isSeller = hasRole('Seller');
+  const isCustomerView = !isSellerOrAdmin;
 
   const fetchOrdersPage = useCallback(async ({ append = false, offset = 0, limit = INITIAL_ORDERS_LIMIT } = {}) => {
     try {
@@ -158,6 +281,42 @@ const OrderManagement = () => {
     await handleLoadShippingBreakdown(orderId);
   };
 
+  const handleContactCustomerOnWhatsApp = (order) => {
+    const rawPhone = getOrderCustomerPhone(order);
+    const phoneNumber = normalizePhoneForWhatsApp(rawPhone);
+
+    if (!phoneNumber) {
+      setError('Customer phone number is not available for this order.');
+      return;
+    }
+
+    const message = buildWhatsAppOrderMessage(order);
+    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+    const openedWindow = window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+
+    if (!openedWindow) {
+      window.location.href = whatsappUrl;
+    }
+  };
+
+  const handleContactSellerOnWhatsApp = (order) => {
+    const rawPhone = getOrderSellerPhone(order);
+    const phoneNumber = normalizePhoneForWhatsApp(rawPhone);
+
+    if (!phoneNumber) {
+      setError('Seller phone number is not available for this order.');
+      return;
+    }
+
+    const message = buildWhatsAppSellerOrderMessage(order);
+    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+    const openedWindow = window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+
+    if (!openedWindow) {
+      window.location.href = whatsappUrl;
+    }
+  };
+
   const getStatusBadgeClass = (status) => {
     switch (status) {
       case 'pending':
@@ -210,8 +369,10 @@ const OrderManagement = () => {
     const safeOrderNumber = selectedOrder.order_number || `ORDER-${selectedOrder.id}`;
     const safeCustomerName = selectedOrder.customer_name || 'N/A';
     const safeCustomerEmail = selectedOrder.customer_email || 'N/A';
+    const safeCustomerPhone = selectedOrder.customer_phone || 'N/A';
     const safeShippingAddress = selectedOrder.shipping_address || 'Tower C22, Flat No. 704, Puravankara Windermere, No. 45 Bhavani Amman Kovil Street, Pallikaranai, Chennai - 600100';
     const safeStatus = selectedOrder.status || 'pending';
+    const safePaymentMethod = formatPaymentMethod(selectedOrder.payment_method);
     const safeCreatedAt = selectedOrder.created_at
       ? new Date(selectedOrder.created_at).toLocaleString('en-IN', {
           year: 'numeric',
@@ -292,6 +453,7 @@ const OrderManagement = () => {
               <div class="address">
                 <strong>${safeCustomerName}</strong>\n
                 ${safeShippingAddress}\n
+                Phone: ${safeCustomerPhone}\n
                 Email: ${safeCustomerEmail}
               </div>
             </div>
@@ -316,7 +478,7 @@ const OrderManagement = () => {
 
             <div class="totals">
               <span>Shipping: Rs. ${Number(selectedOrder.shipping_charge || 0).toFixed(2)}</span>
-              <span>Payable: Rs. ${Number(selectedOrder.total_amount || 0).toFixed(2)}</span>
+              <span>Paid using ${safePaymentMethod}: Rs. ${Number(selectedOrder.total_amount || 0).toFixed(2)}</span>
             </div>
 
             <div class="section">
@@ -353,9 +515,11 @@ const OrderManagement = () => {
     const safeOrderNumber = selectedOrder.order_number || `ORDER-${selectedOrder.id}`;
     const safeCustomerName = selectedOrder.customer_name || 'N/A';
     const safeCustomerEmail = selectedOrder.customer_email || 'N/A';
+    const safeCustomerPhone = selectedOrder.customer_phone || 'N/A';
     const safeShippingAddress = selectedOrder.shipping_address || 'Tower C22, Flat No. 704, Puravankara Windermere, No. 45 Bhavani Amman Kovil Street, Pallikaranai, Chennai - 600100';
     const safeStatus = selectedOrder.status || 'pending';
     const safeTotal = Number(selectedOrder.total_amount || 0).toFixed(2);
+    const safePaymentMethod = formatPaymentMethod(selectedOrder.payment_method);
 
     const labelWindow = window.open('', '_blank', 'width=520,height=760');
     if (!labelWindow) {
@@ -381,6 +545,9 @@ const OrderManagement = () => {
             .block h4 { margin: 0 0 5px 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
             .name { font-size: 14px; font-weight: 800; margin-bottom: 4px; }
             .addr { font-size: 12px; line-height: 1.35; white-space: pre-wrap; }
+            .return-block { margin-top: 8px; border: 1px solid #6b7280; border-radius: 6px; padding: 8px; background: #f9fafb; }
+            .return-block h4 { margin: 0 0 4px 0; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; }
+            .return-addr { font-size: 11px; line-height: 1.4; color: #374151; }
             .meta { margin-top: 8px; font-size: 11px; line-height: 1.5; }
             .barcode { margin-top: 10px; text-align: center; font-family: monospace; font-size: 18px; letter-spacing: 1.8px; }
             .footer { margin-top: 6px; text-align: center; font-size: 10px; color: #4b5563; }
@@ -396,14 +563,20 @@ const OrderManagement = () => {
               <div class="chip">${safeStatus}</div>
             </div>
 
+            <div class="return-block">
+              <h4>From / Return Address</h4>
+              <div class="return-addr">Tower C22, Flat No. 704, Puravankara Windermere,<br/>No. 45 Bhavani Amman Kovil Street, Pallikaranai,<br/>Chennai - 600100</div>
+            </div>
+
             <div class="block">
               <h4>Ship To</h4>
               <div class="name">${safeCustomerName}</div>
-              <div class="addr">${safeShippingAddress}\nEmail: ${safeCustomerEmail}</div>
+              <div class="addr">${safeShippingAddress}\nPhone: ${safeCustomerPhone}\nEmail: ${safeCustomerEmail}</div>
             </div>
 
             <div class="meta">
               <div><strong>Amount:</strong> Rs. ${safeTotal}</div>
+              <div><strong>Paid using ${safePaymentMethod}:</strong> Rs. ${safeTotal}</div>
               <div><strong>Order Date:</strong> ${selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString('en-IN') : 'N/A'}</div>
             </div>
 
@@ -845,6 +1018,40 @@ const OrderManagement = () => {
                         >
                           View
                         </button>
+                        {isSeller && (
+                          <button
+                            type="button"
+                            className="whatsapp-btn"
+                            onClick={() => handleContactCustomerOnWhatsApp(order)}
+                            title={getOrderCustomerPhone(order) ? 'Contact customer on WhatsApp' : 'Customer phone number not available'}
+                            aria-label="Contact customer on WhatsApp"
+                            disabled={!getOrderCustomerPhone(order)}
+                          >
+                            <svg className="whatsapp-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                              <path d="M19.11 4.93A9.84 9.84 0 0 0 12.08 2c-5.45 0-9.88 4.43-9.88 9.88a9.8 9.8 0 0 0 1.33 4.93L2 22l5.35-1.41a9.84 9.84 0 0 0 4.73 1.2h.01c5.45 0 9.88-4.43 9.88-9.88a9.81 9.81 0 0 0-2.86-6.98zm-7.03 15.2h-.01a8.17 8.17 0 0 1-4.16-1.14l-.3-.18-3.17.83.85-3.09-.2-.32a8.15 8.15 0 0 1-1.26-4.35c0-4.51 3.67-8.18 8.19-8.18a8.13 8.13 0 0 1 5.81 2.42 8.1 8.1 0 0 1 2.39 5.78c0 4.51-3.67 8.19-8.14 8.23zm4.49-6.12c-.25-.13-1.47-.72-1.7-.8-.23-.09-.39-.13-.56.12-.16.25-.64.8-.79.97-.14.17-.29.19-.54.07-.25-.13-1.04-.38-1.97-1.21-.73-.65-1.22-1.45-1.36-1.69-.14-.25-.01-.38.11-.5.11-.11.25-.29.37-.43.13-.15.17-.25.25-.42.08-.17.04-.31-.02-.43-.07-.13-.56-1.35-.76-1.85-.2-.48-.4-.41-.56-.42h-.48c-.17 0-.43.07-.66.31-.23.25-.87.85-.87 2.07 0 1.22.89 2.41 1.01 2.57.13.17 1.75 2.67 4.24 3.75.59.25 1.05.4 1.41.51.59.19 1.12.16 1.54.1.47-.07 1.47-.6 1.68-1.18.21-.58.21-1.08.15-1.18-.05-.1-.21-.16-.46-.29z" />
+                            </svg>
+                            <span>WhatsApp</span>
+                          </button>
+                        )}
+                        {isCustomerView && (
+                          <button
+                            type="button"
+                            className="whatsapp-btn"
+                            onClick={() => handleContactSellerOnWhatsApp(order)}
+                            title={getOrderSellerPhone(order)
+                              ? `Contact ${getOrderSellerName(order) || 'seller'} on WhatsApp`
+                              : 'Seller phone number not available'}
+                            aria-label={getOrderSellerName(order)
+                              ? `Contact ${getOrderSellerName(order)} on WhatsApp`
+                              : 'Contact seller on WhatsApp'}
+                            disabled={!getOrderSellerPhone(order)}
+                          >
+                            <svg className="whatsapp-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                              <path d="M19.11 4.93A9.84 9.84 0 0 0 12.08 2c-5.45 0-9.88 4.43-9.88 9.88a9.8 9.8 0 0 0 1.33 4.93L2 22l5.35-1.41a9.84 9.84 0 0 0 4.73 1.2h.01c5.45 0 9.88-4.43 9.88-9.88a9.81 9.81 0 0 0-2.86-6.98zm-7.03 15.2h-.01a8.17 8.17 0 0 1-4.16-1.14l-.3-.18-3.17.83.85-3.09-.2-.32a8.15 8.15 0 0 1-1.26-4.35c0-4.51 3.67-8.18 8.19-8.18a8.13 8.13 0 0 1 5.81 2.42 8.1 8.1 0 0 1 2.39 5.78c0 4.51-3.67 8.19-8.14 8.23zm4.49-6.12c-.25-.13-1.47-.72-1.7-.8-.23-.09-.39-.13-.56.12-.16.25-.64.8-.79.97-.14.17-.29.19-.54.07-.25-.13-1.04-.38-1.97-1.21-.73-.65-1.22-1.45-1.36-1.69-.14-.25-.01-.38.11-.5.11-.11.25-.29.37-.43.13-.15.17-.25.25-.42.08-.17.04-.31-.02-.43-.07-.13-.56-1.35-.76-1.85-.2-.48-.4-.41-.56-.42h-.48c-.17 0-.43.07-.66.31-.23.25-.87.85-.87 2.07 0 1.22.89 2.41 1.01 2.57.13.17 1.75 2.67 4.24 3.75.59.25 1.05.4 1.41.51.59.19 1.12.16 1.54.1.47-.07 1.47-.6 1.68-1.18.21-.58.21-1.08.15-1.18-.05-.1-.21-.16-.46-.29z" />
+                            </svg>
+                            <span>{getOrderSellerName(order) ? `WhatsApp ${getOrderSellerName(order)}` : 'WhatsApp Seller'}</span>
+                          </button>
+                        )}
                         {isSellerOrAdmin && (
                           <button
                             className="audit-btn"
