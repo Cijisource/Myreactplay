@@ -146,6 +146,32 @@ export default function TenantElectricityCharges(): JSX.Element {
     return parsedDate.toLocaleDateString('en-GB');
   };
 
+  const isCheckoutInSelectedMonth = (checkOutDate?: string | null): boolean => {
+    if (!checkOutDate) {
+      return false;
+    }
+
+    // Prefer direct YYYY-MM-DD extraction to avoid timezone shifting edge cases.
+    const datePart = checkOutDate.includes('T') ? checkOutDate.split('T')[0] : checkOutDate;
+    const dateParts = datePart.split('-');
+
+    if (dateParts.length >= 2) {
+      const checkOutYear = Number(dateParts[0]);
+      const checkOutMonth = Number(dateParts[1]);
+
+      if (!Number.isNaN(checkOutYear) && !Number.isNaN(checkOutMonth)) {
+        return checkOutYear === year && checkOutMonth === month;
+      }
+    }
+
+    const parsedDate = new Date(checkOutDate);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return false;
+    }
+
+    return parsedDate.getFullYear() === year && parsedDate.getMonth() + 1 === month;
+  };
+
   const toggleMobileTooltip = (tooltipKey: string) => {
     setActiveMobileTooltip((current) => (current === tooltipKey ? null : tooltipKey));
   };
@@ -235,6 +261,9 @@ export default function TenantElectricityCharges(): JSX.Element {
               new Map(roomTenants.map(charge => [charge.tenantId, charge])).values()
             );
             const hasOccupancy = roomTenants.length > 0;
+            const hasCheckoutInSelectedMonth = uniqueRoomTenants.some((charge) =>
+              isCheckoutInSelectedMonth(charge.checkOutDate)
+            );
             const occupancyTooltip = hasOccupancy
               ? uniqueRoomTenants
                   .map((charge) => `${charge.tenantName} | Check-In: ${formatDisplayDate(charge.checkInDate)} | Check-Out: ${formatDisplayDate(charge.checkOutDate)}`)
@@ -250,6 +279,36 @@ export default function TenantElectricityCharges(): JSX.Element {
               >
                 <span>Room {room.roomNumber}</span>
                 {hasOccupancy && <span className="occupied-person-icon" aria-label="Occupied room"> 👤</span>}
+                {hasCheckoutInSelectedMonth && (
+                  <span
+                    className="checkout-month-icon"
+                    aria-label="Has checkout in selected month"
+                    title="Checkout in selected month"
+                  >
+                    <svg
+                      className="checkout-month-icon-svg"
+                      viewBox="0 0 20 20"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M7.5 5.833h5v5M12.5 5.833l-5 5"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M5.833 3.75h8.334a2.083 2.083 0 0 1 2.083 2.083v8.334a2.083 2.083 0 0 1-2.083 2.083H5.833A2.083 2.083 0 0 1 3.75 14.167V5.833A2.083 2.083 0 0 1 5.833 3.75Z"
+                        stroke="currentColor"
+                        strokeWidth="1.4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </span>
+                )}
                 <span className="mobile-tooltip-wrapper">
                   <button
                     type="button"
@@ -367,12 +426,76 @@ export default function TenantElectricityCharges(): JSX.Element {
           <tbody>
             {displayCharges.map(charge => {
               const tenantTooltip = `Check-In: ${formatDisplayDate(charge.checkInDate)} | Check-Out: ${formatDisplayDate(charge.checkOutDate)}`;
+              const hasCheckoutInSelectedMonth = isCheckoutInSelectedMonth(charge.checkOutDate);
+              const isGuestTenant = charge.occupancyDaysInMonth > 0 && charge.occupancyDaysInMonth < 5;
 
               return (
               <tr key={charge.id} title={tenantTooltip}>
-                <td style={{ fontWeight: '600' }}>Room {charge.roomNumber}</td>
+                <td style={{ fontWeight: '600' }}>
+                  <span>Room {charge.roomNumber}</span>
+                  {hasCheckoutInSelectedMonth && (
+                    <span
+                      className="checkout-month-icon"
+                      aria-label="Tenant checked out in selected month"
+                      title="Tenant checked out in selected month"
+                    >
+                      <svg
+                        className="checkout-month-icon-svg"
+                        viewBox="0 0 20 20"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                        aria-hidden="true"
+                      >
+                        <path
+                          d="M7.5 5.833h5v5M12.5 5.833l-5 5"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M5.833 3.75h8.334a2.083 2.083 0 0 1 2.083 2.083v8.334a2.083 2.083 0 0 1-2.083 2.083H5.833A2.083 2.083 0 0 1 3.75 14.167V5.833A2.083 2.083 0 0 1 5.833 3.75Z"
+                          stroke="currentColor"
+                          strokeWidth="1.4"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </span>
+                  )}
+                </td>
                 <td>
                   <span>{charge.tenantName}</span>
+                  {isGuestTenant && (
+                    <span
+                      className="guest-tenant-indicator"
+                      aria-label="Guest tenant, stayed less than 5 days"
+                      title="Guest stay (less than 5 days)"
+                    >
+                      <svg
+                        className="guest-tenant-icon-svg"
+                        viewBox="0 0 20 20"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                        aria-hidden="true"
+                      >
+                        <path
+                          d="M10 10.833a2.917 2.917 0 1 0 0-5.833 2.917 2.917 0 0 0 0 5.833Z"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M4.167 15.417c.5-2.167 2.25-3.334 5.833-3.334 3.583 0 5.333 1.167 5.833 3.334"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </span>
+                  )}
                   <span className="mobile-tooltip-wrapper">
                     <button
                       type="button"
