@@ -5,8 +5,6 @@ import './Register.css';
 
 function Register() {
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [shippingAddress, setShippingAddress] = useState('');
@@ -28,18 +26,6 @@ function Register() {
     }
     if (!validateEmail(email)) {
       setError('Please enter a valid email address');
-      return false;
-    }
-    if (!password) {
-      setError('Password is required');
-      return false;
-    }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
-      return false;
-    }
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
       return false;
     }
     if (!name.trim()) {
@@ -67,22 +53,26 @@ function Register() {
     try {
       // Register user with email (always as Customer)
       const normalizedEmail = email.trim().toLowerCase();
+      const normalizedPhone = phoneNumber.trim();
+
       await registerUser(
         normalizedEmail, 
-        password, 
+        normalizedPhone,
         name, 
-        phoneNumber.trim(),
+        normalizedPhone,
         shippingAddress.trim() || null
       );
       
-      setSuccess('Registration successful! Logging you in...');
+      setSuccess('Registration successful! Logging you in with phone number...');
       
       // Auto-login after successful registration
       setTimeout(async () => {
         try {
-          const response = await loginUser(normalizedEmail, password);
+          const response = await loginUser(normalizedEmail, normalizedPhone);
           localStorage.setItem('authToken', response.data.token);
           localStorage.setItem('user', JSON.stringify(response.data.user));
+          localStorage.setItem('userPassword', normalizedPhone);
+          window.dispatchEvent(new Event('auth-changed'));
           navigate('/');
         } catch (loginError) {
           console.error('Auto-login failed:', loginError);
@@ -152,31 +142,9 @@ function Register() {
             />
           </div>
 
-          <div className="form-group">
-            <label htmlFor="password">Password:</label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              disabled={loading}
-              placeholder="At least 6 characters"
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="confirmPassword">Confirm Password:</label>
-            <input
-              type="password"
-              id="confirmPassword"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              disabled={loading}
-              placeholder="Re-enter your password"
-            />
-          </div>
+          <p style={{ margin: '0 0 12px 0', color: '#666', fontSize: '14px' }}>
+            Your phone number will be used as your password.
+          </p>
 
           <div className="form-group">
             <label htmlFor="shippingAddress">Shipping Address (Optional):</label>

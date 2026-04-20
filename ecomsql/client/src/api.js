@@ -111,8 +111,8 @@ export const getAdminUserById = (userId) =>
 export const updateUserRole = (userId, roleId) => 
   apiClient.put(`/auth/users/${userId}/role`, { roleId });
 
-export const resetUserPassword = (userId, newPassword) =>
-  apiClient.put(`/auth/users/${userId}/reset-password`, { newPassword });
+export const resetUserPassword = (userId) =>
+  apiClient.put(`/auth/users/${userId}/reset-password`, {});
 
 export const getProducts = (params) => {
   const token = localStorage.getItem('authToken');

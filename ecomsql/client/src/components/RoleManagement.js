@@ -11,8 +11,6 @@ const RoleManagement = () => {
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [selectedRoleId, setSelectedRoleId] = useState('');
   const [resetPasswordMode, setResetPasswordMode] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
 
   const fetchUsersAndRoles = useCallback(async () => {
     try {
@@ -65,31 +63,14 @@ const RoleManagement = () => {
   };
 
   const handleResetPassword = async () => {
-    if (!newPassword || !confirmPassword) {
-      setError('Please enter both password fields');
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      setError('Password must be at least 6 characters');
-      return;
-    }
-
     try {
       setError('');
       setSuccessMessage('');
 
-      await resetUserPassword(selectedUserId, newPassword);
+      await resetUserPassword(selectedUserId);
 
-      setSuccessMessage('Password reset successfully!');
+      setSuccessMessage('Password reset to user phone number successfully!');
       setResetPasswordMode(false);
-      setNewPassword('');
-      setConfirmPassword('');
 
       // Refresh the users list
       setTimeout(() => {
@@ -219,7 +200,7 @@ const RoleManagement = () => {
                               className="btn btn-warning"
                               onClick={() => setResetPasswordMode(true)}
                             >
-                              Reset Password
+                              Reset Password To Phone
                             </button>
                             <button
                               className="btn btn-secondary"
@@ -234,46 +215,21 @@ const RoleManagement = () => {
                         </>
                       ) : (
                         <>
-                          <div className="password-reset-group">
-                            <div className="password-field">
-                              <label htmlFor="new-password">New Password:</label>
-                              <input
-                                type="password"
-                                id="new-password"
-                                value={newPassword}
-                                onChange={(e) => setNewPassword(e.target.value)}
-                                placeholder="Enter new password (min 6 characters)"
-                                className="password-input"
-                              />
-                            </div>
-
-                            <div className="password-field">
-                              <label htmlFor="confirm-password">Confirm Password:</label>
-                              <input
-                                type="password"
-                                id="confirm-password"
-                                value={confirmPassword}
-                                onChange={(e) => setConfirmPassword(e.target.value)}
-                                placeholder="Confirm new password"
-                                className="password-input"
-                              />
-                            </div>
-                          </div>
+                          <p>
+                            This will reset the user password to their current phone number.
+                          </p>
 
                           <div className="role-editor-actions">
                             <button
                               className="btn btn-primary"
                               onClick={handleResetPassword}
-                              disabled={!newPassword || !confirmPassword}
                             >
-                              Reset Password
+                              Confirm Reset
                             </button>
                             <button
                               className="btn btn-secondary"
                               onClick={() => {
                                 setResetPasswordMode(false);
-                                setNewPassword('');
-                                setConfirmPassword('');
                               }}
                             >
                               Cancel

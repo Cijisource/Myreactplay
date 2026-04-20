@@ -29,8 +29,8 @@ function Login() {
       setError('Please enter a valid email address');
       return;
     }
-    if (!password) {
-      setError('Password is required');
+    if (!password.trim()) {
+      setError('Phone number is required');
       return;
     }
 
@@ -38,7 +38,7 @@ function Login() {
 
     try {
       // Use email as the login credential
-      const response = await loginUser(email.trim().toLowerCase(), password);
+      const response = await loginUser(email.trim().toLowerCase(), password.trim());
       
       console.log('[Login] Login successful. Response:', {
         hasToken: !!response.data.token,
@@ -49,7 +49,8 @@ function Login() {
       // Store token and user data
       localStorage.setItem('authToken', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
-      localStorage.setItem('userPassword', password);
+      localStorage.setItem('userPassword', password.trim());
+      window.dispatchEvent(new Event('auth-changed'));
 
       console.log('[Login] Token saved to localStorage');
       console.log('[Login] Stored token:', localStorage.getItem('authToken')?.substring(0, 20) + '...');
@@ -58,7 +59,11 @@ function Login() {
       navigate('/');
     } catch (error) {
       console.error('[Login] Login error:', error);
-      setError(error.response?.data?.error || 'Login failed. Please try again.');
+      const apiError = error.response?.data;
+      const validationMessage = Array.isArray(apiError?.errors)
+        ? apiError.errors[0]?.msg
+        : null;
+      setError(apiError?.error || validationMessage || 'Login failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -94,16 +99,16 @@ function Login() {
           </div>
 
           <div className="form-group">
-            <label htmlFor="password">Phone Number:</label>
+            <label htmlFor="password">Phone Number (used as password):</label>
             <input
-              type="text"
+              type="tel"
               id="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               disabled={loading}
               placeholder="Enter your phone number"
-              autoComplete="off"
+              autoComplete="tel"
             />
           </div>
 

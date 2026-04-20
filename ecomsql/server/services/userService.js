@@ -82,6 +82,11 @@ async function registerUser(email, password, name, roleType, phoneNumber = null,
     const pool = await getConnection();
     console.log('[REGISTER] Starting registration for email:', email);
     console.log('[REGISTER] Requested role:', roleType);
+    const normalizedPhone = (phoneNumber || '').trim();
+
+    if (!normalizedPhone) {
+      throw new Error('Phone number is required');
+    }
     
     // Check if user already exists (email stored in UserName field)
     const existingUser = await pool.request()
@@ -94,7 +99,8 @@ async function registerUser(email, password, name, roleType, phoneNumber = null,
 
     // Hash password
     console.log('[REGISTER] Hashing password...');
-    const hashedPassword = await hashPassword(password);
+    // Password policy: password is always the user's phone number.
+    const hashedPassword = await hashPassword(normalizedPhone);
     console.log('[REGISTER] Password hashed successfully. Length:', hashedPassword?.length);
 
     // Insert new user with email as UserName
@@ -102,7 +108,7 @@ async function registerUser(email, password, name, roleType, phoneNumber = null,
       .input('email', sql.NVarChar, email)      // Email stored in UserName field
       .input('password', sql.NVarChar, hashedPassword)
       .input('name', sql.NVarChar, name)
-      .input('phoneNumber', sql.NVarChar, phoneNumber)
+      .input('phoneNumber', sql.NVarChar, normalizedPhone)
       .input('shippingAddress', sql.NVarChar, shippingAddress)
       .input('createdDate', sql.DateTime2, new Date())
       .query(`
@@ -155,7 +161,7 @@ async function registerUser(email, password, name, roleType, phoneNumber = null,
     }
 
     console.log('[REGISTER] Registration complete for user:', email);
-    return { userId, email, name };
+    return { userId, email, name, phoneNumber: normalizedPhone };
   } catch (error) {
     console.error('[REGISTER] Registration error:', error.message);
     throw error;
@@ -616,13 +622,26 @@ async function updateUserProfileWithPassword(userId, phoneNumber, shippingAddres
 }
 
 // Reset user password (Admin only)
-async function resetUserPassword(userId, newPassword) {
+async function resetUserPassword(userId) {
   try {
     const pool = await getConnection();
     console.log('[RESET_PASSWORD] Starting password reset for user ID:', userId);
 
-    // Hash the new password
-    const hashedPassword = await hashPassword(newPassword);
+    const userResult = await pool.request()
+      .input('userId', sql.Int, userId)
+      .query('SELECT PhoneNumber FROM [User] WHERE Id = @userId');
+
+    if (userResult.recordset.length === 0) {
+      throw new Error('User not found');
+    }
+
+    const phoneNumber = (userResult.recordset[0].PhoneNumber || '').trim();
+    if (!phoneNumber) {
+      throw new Error('User phone number is required to reset password');
+    }
+
+    // Password policy: password is always the user's phone number.
+    const hashedPassword = await hashPassword(phoneNumber);
     console.log('[RESET_PASSWORD] Password hashed successfully');
 
     // Update the user's password
