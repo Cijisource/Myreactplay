@@ -21,6 +21,8 @@ interface TenantCharge {
   proRataPercentage: number;
   chargePerUnit: number;
   totalCharge: number;
+  checkInDate: string;
+  checkOutDate?: string | null;
   occupancyDaysInMonth: number;
   totalDaysInMonth: number;
   status: string;
@@ -65,12 +67,17 @@ export default function TenantElectricityCharges(): JSX.Element {
   const [searchTerm, setSearchTerm] = useState('');
   const [chargePerUnit, setChargePerUnit] = useState(15);
   const [recalculateLoading, setRecalculateLoading] = useState(false);
+  const [activeMobileTooltip, setActiveMobileTooltip] = useState<string | null>(null);
 
   const [year, month] = selectedMonth.split('-').map(Number);
 
   useEffect(() => {
     fetchBillingData();
   }, [selectedMonth]);
+
+  useEffect(() => {
+    setActiveMobileTooltip(null);
+  }, [viewMode, selectedMonth, selectedRoom]);
 
   const fetchBillingData = async () => {
     try {
@@ -125,6 +132,23 @@ export default function TenantElectricityCharges(): JSX.Element {
   const filteredChargesByRoom = selectedRoom
     ? filteredCharges.filter(c => c.roomId === selectedRoom)
     : filteredCharges;
+
+  const formatDisplayDate = (dateString?: string | null): string => {
+    if (!dateString) {
+      return 'N/A';
+    }
+
+    const parsedDate = new Date(dateString);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return dateString;
+    }
+
+    return parsedDate.toLocaleDateString('en-GB');
+  };
+
+  const toggleMobileTooltip = (tooltipKey: string) => {
+    setActiveMobileTooltip((current) => (current === tooltipKey ? null : tooltipKey));
+  };
 
   const renderReportView = () => {
     if (!billingReport) {
@@ -205,9 +229,44 @@ export default function TenantElectricityCharges(): JSX.Element {
           </tr>
         </thead>
         <tbody>
-          {roomBillings.map(room => (
-            <tr key={room.id}>
-              <td style={{ fontWeight: '600' }}>Room {room.roomNumber}</td>
+          {roomBillings.map(room => {
+            const roomTenants = charges.filter(charge => charge.roomId === room.id);
+            const uniqueRoomTenants = Array.from(
+              new Map(roomTenants.map(charge => [charge.tenantId, charge])).values()
+            );
+            const hasOccupancy = roomTenants.length > 0;
+            const occupancyTooltip = hasOccupancy
+              ? uniqueRoomTenants
+                  .map((charge) => `${charge.tenantName} | Check-In: ${formatDisplayDate(charge.checkInDate)} | Check-Out: ${formatDisplayDate(charge.checkOutDate)}`)
+                  .join('\n')
+              : 'No occupied tenants for this billing month';
+
+            return (
+            <tr key={`${room.id}-${room.serviceId}`}>
+              <td
+                style={{ fontWeight: '600' }}
+                className={hasOccupancy ? 'occupied-room-cell' : ''}
+                title={occupancyTooltip}
+              >
+                <span>Room {room.roomNumber}</span>
+                {hasOccupancy && <span className="occupied-person-icon" aria-label="Occupied room"> 👤</span>}
+                <span className="mobile-tooltip-wrapper">
+                  <button
+                    type="button"
+                    className="mobile-tooltip-trigger"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      toggleMobileTooltip(`room-${room.id}-${room.serviceId}`);
+                    }}
+                    aria-label="Show occupancy details"
+                  >
+                    i
+                  </button>
+                  {activeMobileTooltip === `room-${room.id}-${room.serviceId}` && (
+                    <span className="mobile-tooltip-bubble" role="tooltip">{occupancyTooltip}</span>
+                  )}
+                </span>
+              </td>
               <td>{room.serviceName}</td>
               <td>{room.meterNo}</td>
               <td style={{ textAlign: 'center' }}>{room.totalUnitsConsumed}</td>
@@ -234,7 +293,7 @@ export default function TenantElectricityCharges(): JSX.Element {
                 </button>
               </td>
             </tr>
-          ))}
+          )})}
         </tbody>
       </table>
     );
@@ -306,10 +365,31 @@ export default function TenantElectricityCharges(): JSX.Element {
             </tr>
           </thead>
           <tbody>
-            {displayCharges.map(charge => (
-              <tr key={charge.id}>
+            {displayCharges.map(charge => {
+              const tenantTooltip = `Check-In: ${formatDisplayDate(charge.checkInDate)} | Check-Out: ${formatDisplayDate(charge.checkOutDate)}`;
+
+              return (
+              <tr key={charge.id} title={tenantTooltip}>
                 <td style={{ fontWeight: '600' }}>Room {charge.roomNumber}</td>
-                <td>{charge.tenantName}</td>
+                <td>
+                  <span>{charge.tenantName}</span>
+                  <span className="mobile-tooltip-wrapper">
+                    <button
+                      type="button"
+                      className="mobile-tooltip-trigger"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggleMobileTooltip(`tenant-${charge.id}`);
+                      }}
+                      aria-label="Show check-in and check-out"
+                    >
+                      i
+                    </button>
+                    {activeMobileTooltip === `tenant-${charge.id}` && (
+                      <span className="mobile-tooltip-bubble" role="tooltip">{tenantTooltip}</span>
+                    )}
+                  </span>
+                </td>
                 <td><a href={`tel:${charge.tenantPhone}`}>{charge.tenantPhone}</a></td>
                 <td>{charge.serviceName}</td>
                 <td>{charge.occupancyDaysInMonth}/{charge.totalDaysInMonth} days</td>
@@ -324,7 +404,7 @@ export default function TenantElectricityCharges(): JSX.Element {
                   </span>
                 </td>
               </tr>
-            ))}
+            )})}
           </tbody>
         </table>
 
