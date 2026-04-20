@@ -70,6 +70,7 @@ BEGIN
         customer_email NVARCHAR(255) NOT NULL,
         customer_name NVARCHAR(255) NOT NULL,
         shipping_address NVARCHAR(MAX),
+        payment_method NVARCHAR(50) NULL,
         created_at DATETIME2 DEFAULT GETDATE(),
         updated_at DATETIME2 DEFAULT GETDATE()
     );

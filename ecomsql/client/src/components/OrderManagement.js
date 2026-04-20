@@ -3,6 +3,19 @@ import { getOrders, getSellerOrders, getOrderById, getOrderShippingBreakdown, up
 import { hasRole } from '../utils/authUtils';
 import './OrderManagement.css';
 
+function formatPaymentMethod(paymentMethod) {
+  switch ((paymentMethod || '').trim().toLowerCase()) {
+    case 'gpay':
+      return 'GPay';
+    case 'upi':
+      return 'UPI';
+    case 'card':
+      return 'Credit Card';
+    default:
+      return 'Payment Method';
+  }
+}
+
 const OrderManagement = () => {
   const INITIAL_ORDERS_LIMIT = 3;
   const ORDERS_PAGE_SIZE = 3;
@@ -210,8 +223,10 @@ const OrderManagement = () => {
     const safeOrderNumber = selectedOrder.order_number || `ORDER-${selectedOrder.id}`;
     const safeCustomerName = selectedOrder.customer_name || 'N/A';
     const safeCustomerEmail = selectedOrder.customer_email || 'N/A';
+    const safeCustomerPhone = selectedOrder.customer_phone || 'N/A';
     const safeShippingAddress = selectedOrder.shipping_address || 'Tower C22, Flat No. 704, Puravankara Windermere, No. 45 Bhavani Amman Kovil Street, Pallikaranai, Chennai - 600100';
     const safeStatus = selectedOrder.status || 'pending';
+    const safePaymentMethod = formatPaymentMethod(selectedOrder.payment_method);
     const safeCreatedAt = selectedOrder.created_at
       ? new Date(selectedOrder.created_at).toLocaleString('en-IN', {
           year: 'numeric',
@@ -292,6 +307,7 @@ const OrderManagement = () => {
               <div class="address">
                 <strong>${safeCustomerName}</strong>\n
                 ${safeShippingAddress}\n
+                Phone: ${safeCustomerPhone}\n
                 Email: ${safeCustomerEmail}
               </div>
             </div>
@@ -316,7 +332,7 @@ const OrderManagement = () => {
 
             <div class="totals">
               <span>Shipping: Rs. ${Number(selectedOrder.shipping_charge || 0).toFixed(2)}</span>
-              <span>Payable: Rs. ${Number(selectedOrder.total_amount || 0).toFixed(2)}</span>
+              <span>Paid using ${safePaymentMethod}: Rs. ${Number(selectedOrder.total_amount || 0).toFixed(2)}</span>
             </div>
 
             <div class="section">
@@ -353,9 +369,11 @@ const OrderManagement = () => {
     const safeOrderNumber = selectedOrder.order_number || `ORDER-${selectedOrder.id}`;
     const safeCustomerName = selectedOrder.customer_name || 'N/A';
     const safeCustomerEmail = selectedOrder.customer_email || 'N/A';
+    const safeCustomerPhone = selectedOrder.customer_phone || 'N/A';
     const safeShippingAddress = selectedOrder.shipping_address || 'Tower C22, Flat No. 704, Puravankara Windermere, No. 45 Bhavani Amman Kovil Street, Pallikaranai, Chennai - 600100';
     const safeStatus = selectedOrder.status || 'pending';
     const safeTotal = Number(selectedOrder.total_amount || 0).toFixed(2);
+    const safePaymentMethod = formatPaymentMethod(selectedOrder.payment_method);
 
     const labelWindow = window.open('', '_blank', 'width=520,height=760');
     if (!labelWindow) {
@@ -399,11 +417,12 @@ const OrderManagement = () => {
             <div class="block">
               <h4>Ship To</h4>
               <div class="name">${safeCustomerName}</div>
-              <div class="addr">${safeShippingAddress}\nEmail: ${safeCustomerEmail}</div>
+              <div class="addr">${safeShippingAddress}\nPhone: ${safeCustomerPhone}\nEmail: ${safeCustomerEmail}</div>
             </div>
 
             <div class="meta">
               <div><strong>Amount:</strong> Rs. ${safeTotal}</div>
+              <div><strong>Paid using ${safePaymentMethod}:</strong> Rs. ${safeTotal}</div>
               <div><strong>Order Date:</strong> ${selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString('en-IN') : 'N/A'}</div>
             </div>
 
