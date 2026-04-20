@@ -403,6 +403,10 @@ export const apiService = {
   getUnpaidTenants: () => api.get('/rental/unpaid-tenants'),
   getUnpaidDetails: (month: string) => api.get(`/rental/unpaid-details/${month}`),
   getPaymentsByMonth: (monthYear: string) => api.get(`/rental/payments/${monthYear}`),
+  saveRentalReview: (
+    occupancyId: number,
+    data: { monthYear: string; decision: 'approved' | 'rejected' | null; comment: string | null }
+  ) => api.put(`/rental/reviews/${occupancyId}`, data),
   getRentalCollectionByOccupancy: (occupancyId: number) => api.get(`/rental/occupancy/${occupancyId}`),
   getRentalSummaryByOccupancy: (occupancyId: number) => api.get(`/rental/occupancy/${occupancyId}/summary`),
   getPaymentBalance: () => api.get('/rental/payment-balance'),

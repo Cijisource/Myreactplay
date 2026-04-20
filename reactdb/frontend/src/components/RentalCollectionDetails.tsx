@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiService, getRentalPaymentProofUrl } from '../api';
+import { useAuth } from './AuthContext';
 import SearchableDropdown from './SearchableDropdown';
 import './RentalCollectionDetails.css';
 
@@ -37,6 +38,17 @@ interface MonthlyPaymentStatus {
   proRataRent: number;
   rentBalance: number;
   occupancyDays: number;
+  reviewDecision: TenantReviewDecision;
+  reviewComment: string | null;
+  reviewVerifiedBy: string | null;
+  reviewVerifiedOn: string | null;
+}
+
+type TenantReviewDecision = 'approved' | 'rejected' | null;
+
+interface TenantReviewState {
+  decision: TenantReviewDecision;
+  comment: string;
 }
 
 interface RentalRecord {
@@ -79,6 +91,7 @@ function getDefaultMonthValue() {
 }
 
 export default function RentalCollectionDetails() {
+  const { hasRole, hasAnyRole } = useAuth();
   const [occupancyOptions, setOccupancyOptions] = useState<OccupancyOption[]>([]);
   const [selectedOccupancyId, setSelectedOccupancyId] = useState<number | null>(null);
   const [occupancyInfo, setOccupancyInfo] = useState<OccupancyInfo | null>(null);
@@ -106,6 +119,9 @@ export default function RentalCollectionDetails() {
   const [currentMonthPayments, setCurrentMonthPayments] = useState<MonthlyPaymentStatus[]>([]);
   const [currentMonthLoading, setCurrentMonthLoading] = useState(false);
   const [currentMonthError, setCurrentMonthError] = useState<string | null>(null);
+  const [tenantReviews, setTenantReviews] = useState<Record<number, TenantReviewState>>({});
+  const [expandedReviewRows, setExpandedReviewRows] = useState<Record<number, boolean>>({});
+  const [savingReviewRows, setSavingReviewRows] = useState<Record<number, boolean>>({});
 
   const currentMonthYear = selectedMonthFilter;
   const paidOccupancyIds = new Set(
@@ -121,6 +137,7 @@ export default function RentalCollectionDetails() {
   const filteredCurrentMonthPayments = currentMonthPayments.filter((payment) =>
     selectedRoomFilter === 'all' ? true : payment.roomNumber === selectedRoomFilter
   );
+  const canChangeReviewStatus = hasAnyRole(['admin', 'accountant']) || !hasRole('manager');
 
   const getProofUrl = (
     screenshotUrl: string | null,
@@ -139,11 +156,21 @@ export default function RentalCollectionDetails() {
       setCurrentMonthLoading(true);
       setCurrentMonthError(null);
       const response = await apiService.getPaymentsByMonth(currentMonthYear);
-      const records = (response.data || response || []).sort(
+      const records = ((response.data || response || []) as MonthlyPaymentStatus[]).sort(
         (a: MonthlyPaymentStatus, b: MonthlyPaymentStatus) =>
           compareRoomNumbers(a.roomNumber, b.roomNumber)
       );
       setCurrentMonthPayments(records);
+      setTenantReviews(
+        records.reduce<Record<number, TenantReviewState>>((accumulator, record) => {
+          accumulator[record.occupancyId] = {
+            decision: record.reviewDecision || null,
+            comment: record.reviewComment || ''
+          };
+
+          return accumulator;
+        }, {})
+      );
     } catch (err) {
       console.error('Error fetching current month payments:', err);
       setCurrentMonthError('Failed to load current month occupied room status.');
@@ -312,12 +339,26 @@ export default function RentalCollectionDetails() {
       setError(null);
       setUploadProgress(0);
 
+      const paymentDate = formData.rentReceivedOn || new Date().toISOString().split('T')[0];
+      const selectedPaymentMode = formData.modeOfPayment || 'cash';
+
+      if (selectedPaymentMode === 'checkout') {
+        const shouldProceedWithCheckout = window.confirm(
+          'This will save payment and check out the room on the selected payment date. Do you want to continue?'
+        );
+
+        if (!shouldProceedWithCheckout) {
+          setLoading(false);
+          return;
+        }
+      }
+
       const formDataToSend = new FormData();
       formDataToSend.append('occupancyId', selectedOccupancyId.toString());
       formDataToSend.append('rentReceived', formData.rentReceived);
       formDataToSend.append('charges', formData.charges || '0');
-      formDataToSend.append('modeOfPayment', formData.modeOfPayment);
-      formDataToSend.append('rentReceivedOn', formData.rentReceivedOn);
+      formDataToSend.append('modeOfPayment', selectedPaymentMode);
+      formDataToSend.append('rentReceivedOn', paymentDate);
       
       if (formData.screenshot) {
         formDataToSend.append('screenshot', formData.screenshot);
@@ -327,6 +368,24 @@ export default function RentalCollectionDetails() {
         formDataToSend,
         setUploadProgress
       );
+
+      let checkoutWarning: string | null = null;
+      if (selectedPaymentMode === 'checkout') {
+        try {
+          const parsedCharges = formData.charges ? parseFloat(formData.charges) : 0;
+          await apiService.checkoutOccupancy(
+            selectedOccupancyId,
+            paymentDate,
+            undefined,
+            Number.isFinite(parsedCharges) ? parsedCharges : 0
+          );
+        } catch (checkoutError) {
+          checkoutWarning = checkoutError instanceof Error
+            ? `Payment saved, but checkout failed: ${checkoutError.message}`
+            : 'Payment saved, but checkout failed.';
+          console.error('Checkout failed after payment save:', checkoutError);
+        }
+      }
 
       // Reset form and refresh data
       setFormData({
@@ -344,6 +403,11 @@ export default function RentalCollectionDetails() {
       // Refresh rental details
       await fetchRentalDetails();
       await fetchCurrentMonthPayments();
+      await fetchOccupancies();
+
+      if (checkoutWarning) {
+        setError(checkoutWarning);
+      }
       
       // Show success message
       console.log('Payment recorded successfully:', response);
@@ -401,14 +465,28 @@ export default function RentalCollectionDetails() {
     try {
       setLoading(true);
       setUploadProgress(0);
+
+      const paymentDate = editFormData.rentReceivedOn?.toString() || '';
+      const selectedPaymentMode = editFormData.modeOfPayment?.toString() || 'cash';
+
+      if (selectedPaymentMode === 'checkout') {
+        const shouldProceedWithCheckout = window.confirm(
+          'This will update payment and check out the room on the payment date. Do you want to continue?'
+        );
+
+        if (!shouldProceedWithCheckout) {
+          setLoading(false);
+          return;
+        }
+      }
       
       // Create FormData for update
       const updateData = new FormData();
       updateData.append('occupancyId', editingRecord.occupancyId.toString());
       updateData.append('rentReceived', editFormData.rentReceived?.toString() || '0');
       updateData.append('charges', editFormData.charges?.toString() || '0');
-      updateData.append('modeOfPayment', editFormData.modeOfPayment?.toString() || 'cash');
-      updateData.append('rentReceivedOn', editFormData.rentReceivedOn?.toString() || '');
+      updateData.append('modeOfPayment', selectedPaymentMode);
+      updateData.append('rentReceivedOn', paymentDate);
       
       if (editFormData.screenshot) {
         updateData.append('screenshot', editFormData.screenshot);
@@ -420,15 +498,38 @@ export default function RentalCollectionDetails() {
         setUploadProgress(progress);
       });
 
+      let checkoutWarning: string | null = null;
+      if (selectedPaymentMode === 'checkout' && paymentDate) {
+        try {
+          const parsedCharges = Number(editFormData.charges || 0);
+          await apiService.checkoutOccupancy(
+            editingRecord.occupancyId,
+            paymentDate,
+            undefined,
+            Number.isFinite(parsedCharges) ? parsedCharges : 0
+          );
+        } catch (checkoutError) {
+          checkoutWarning = checkoutError instanceof Error
+            ? `Payment updated, but checkout failed: ${checkoutError.message}`
+            : 'Payment updated, but checkout failed.';
+          console.error('Checkout failed after payment update:', checkoutError);
+        }
+      }
+
       // Refresh rental details
       await fetchRentalDetails();
       await fetchCurrentMonthPayments();
+      await fetchOccupancies();
+
+      if (checkoutWarning) {
+        setError(checkoutWarning);
+      }
       
       // Close modal
       handleCancelEdit();
       
       // Show success
-      alert('Payment updated successfully');
+      alert(checkoutWarning ? 'Payment updated. Checkout failed; please retry from occupancy checkout.' : 'Payment updated successfully');
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to update payment';
       setError(errorMsg);
@@ -466,6 +567,129 @@ export default function RentalCollectionDetails() {
 
   const openProofPreview = (url: string, alt: string) => {
     setProofPreview({ url, alt });
+  };
+
+  const formatReviewSavedDate = (value: string | null): string | null => {
+    if (!value) {
+      return null;
+    }
+
+    const parsedDate = new Date(value);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return null;
+    }
+
+    return parsedDate.toLocaleDateString('en-IN');
+  };
+
+  const applySavedReviewToPayments = (
+    occupancyId: number,
+    review: {
+      reviewDecision: TenantReviewDecision;
+      reviewComment: string | null;
+      reviewVerifiedBy: string | null;
+      reviewVerifiedOn: string | null;
+    }
+  ) => {
+    setCurrentMonthPayments((prev) =>
+      prev.map((payment) =>
+        payment.occupancyId === occupancyId
+          ? {
+              ...payment,
+              ...review
+            }
+          : payment
+      )
+    );
+  };
+
+  const persistTenantReview = async (occupancyId: number, review: TenantReviewState) => {
+    try {
+      setSavingReviewRows((prev) => ({
+        ...prev,
+        [occupancyId]: true
+      }));
+
+      const response = await apiService.saveRentalReview(occupancyId, {
+        monthYear: currentMonthYear,
+        decision: review.decision,
+        comment: review.comment.trim() || null
+      });
+
+      const savedReview = response.data || response;
+
+      setTenantReviews((prev) => ({
+        ...prev,
+        [occupancyId]: {
+          decision: savedReview.reviewDecision || null,
+          comment: savedReview.reviewComment || ''
+        }
+      }));
+
+      applySavedReviewToPayments(occupancyId, {
+        reviewDecision: savedReview.reviewDecision || null,
+        reviewComment: savedReview.reviewComment || null,
+        reviewVerifiedBy: savedReview.reviewVerifiedBy || null,
+        reviewVerifiedOn: savedReview.reviewVerifiedOn || null
+      });
+    } catch (reviewError) {
+      console.error('Error saving tenant review:', reviewError);
+      setError(reviewError instanceof Error ? reviewError.message : 'Failed to save rental review.');
+    } finally {
+      setSavingReviewRows((prev) => ({
+        ...prev,
+        [occupancyId]: false
+      }));
+    }
+  };
+
+  const handleTenantReviewDecision = async (occupancyId: number, decision: Exclude<TenantReviewDecision, null>) => {
+    const existingReview = tenantReviews[occupancyId] || { decision: null, comment: '' };
+    const nextReview: TenantReviewState = {
+      decision,
+      comment: existingReview.comment || ''
+    };
+
+    setTenantReviews((prev) => ({
+      ...prev,
+      [occupancyId]: nextReview
+    }));
+
+    setExpandedReviewRows((prev) => ({
+      ...prev,
+      [occupancyId]: false
+    }));
+
+    await persistTenantReview(occupancyId, nextReview);
+  };
+
+  const handleTenantReviewComment = (occupancyId: number, comment: string) => {
+    setTenantReviews((prev) => ({
+      ...prev,
+      [occupancyId]: {
+        decision: prev[occupancyId]?.decision ?? null,
+        comment
+      }
+    }));
+  };
+
+  const handleTenantReviewBlur = async (event: React.FocusEvent<HTMLTextAreaElement>, occupancyId: number) => {
+    const nextFocusedElement = event.relatedTarget as HTMLElement | null;
+
+    // If focus moves to approve/reject actions, let that click path handle persistence.
+    if (nextFocusedElement?.closest('.tenant-review-actions')) {
+      return;
+    }
+
+    const review = tenantReviews[occupancyId] || { decision: null, comment: '' };
+    await persistTenantReview(occupancyId, review);
+  };
+
+  const toggleTenantReviewPanel = (occupancyId: number) => {
+    setExpandedReviewRows((prev) => ({
+      ...prev,
+      [occupancyId]: !prev[occupancyId]
+    }));
   };
 
   if (loading && !occupancyInfo) {
@@ -595,52 +819,149 @@ export default function RentalCollectionDetails() {
                     <th>Last Payment</th>
                     <th>Received</th>
                     <th>Proof</th>
+                    <th>Review</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredCurrentMonthPayments.map((item) => (
-                    <tr key={item.occupancyId}>
-                      <td>{item.roomNumber}</td>
-                      <td>{item.tenantName}</td>
-                      <td className="amount">{formatCurrency(item.proRataRent)}</td>
-                      <td className="amount">{formatCurrency(item.charges)}</td>
-                      <td className="amount balance">{formatCurrency(item.rentBalance)}</td>
-                      <td>
-                        <span className={`payment-status-badge ${item.paymentStatus}`}>
-                          {item.paymentStatus}
-                        </span>
-                      </td>
-                      <td>
-                        {item.rentReceivedOn
-                          ? new Date(item.rentReceivedOn).toLocaleDateString('en-IN')
-                          : 'No payment'}
-                      </td>
-                      <td className="amount received">{formatCurrency(getTotalReceived(item.rentReceived, item.charges))}</td>
-                      <td>
-                        {item.screenshotUrl ? (
-                          <button
-                            type="button"
-                            className="last-proof-link"
-                            title="Preview latest payment proof"
-                            onClick={() =>
-                              openProofPreview(
-                                getProofUrl(item.screenshotUrl, item.rentReceivedOn, item.folder),
-                                `Payment proof ${item.tenantName}`
-                              )
-                            }
-                          >
-                            <img
-                              src={getProofUrl(item.screenshotUrl, item.rentReceivedOn, item.folder)}
-                              alt={`Payment proof ${item.tenantName}`}
-                              className="last-proof-thumb"
-                            />
-                          </button>
-                        ) : (
-                          <span className="no-proof">-</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredCurrentMonthPayments.map((item) => {
+                    const review = tenantReviews[item.occupancyId] || { decision: null, comment: '' };
+                    const isReviewExpanded = expandedReviewRows[item.occupancyId] || false;
+                    const isSavingReview = savingReviewRows[item.occupancyId] || false;
+                    const savedReviewDate = formatReviewSavedDate(item.reviewVerifiedOn);
+
+                    return (
+                      <tr key={item.occupancyId}>
+                        <td>{item.roomNumber}</td>
+                        <td>{item.tenantName}</td>
+                        <td className="amount">{formatCurrency(item.proRataRent)}</td>
+                        <td className="amount">{formatCurrency(item.charges)}</td>
+                        <td className="amount balance">{formatCurrency(item.rentBalance)}</td>
+                        <td>
+                          <span className={`payment-status-badge ${item.paymentStatus}`}>
+                            {item.paymentStatus}
+                          </span>
+                        </td>
+                        <td>
+                          {item.rentReceivedOn
+                            ? new Date(item.rentReceivedOn).toLocaleDateString('en-IN')
+                            : 'No payment'}
+                        </td>
+                        <td className="amount received">{formatCurrency(getTotalReceived(item.rentReceived, item.charges))}</td>
+                        <td>
+                          {item.screenshotUrl ? (
+                            <button
+                              type="button"
+                              className="last-proof-link"
+                              title="Preview latest payment proof"
+                              onClick={() =>
+                                openProofPreview(
+                                  getProofUrl(item.screenshotUrl, item.rentReceivedOn, item.folder),
+                                  `Payment proof ${item.tenantName}`
+                                )
+                              }
+                            >
+                              <img
+                                src={getProofUrl(item.screenshotUrl, item.rentReceivedOn, item.folder)}
+                                alt={`Payment proof ${item.tenantName}`}
+                                className="last-proof-thumb"
+                              />
+                            </button>
+                          ) : (
+                            <span className="no-proof">-</span>
+                          )}
+                        </td>
+                        <td className="review-cell">
+                          <div className="tenant-review-panel">
+                            <div className="tenant-review-topline">
+                              <div className="tenant-review-actions" role="group" aria-label={`Review actions for ${item.tenantName}`}>
+                                <button
+                                  type="button"
+                                  className={`review-icon-button approve ${review.decision === 'approved' ? 'active' : ''}`}
+                                  onClick={() => handleTenantReviewDecision(item.occupancyId, 'approved')}
+                                  aria-pressed={review.decision === 'approved'}
+                                  title={canChangeReviewStatus ? `Approve ${item.tenantName}` : 'Managers can update comments only'}
+                                  disabled={isSavingReview || !canChangeReviewStatus}
+                                >
+                                  <span className="review-icon" aria-hidden="true">✓</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`review-icon-button reject ${review.decision === 'rejected' ? 'active' : ''}`}
+                                  onClick={() => handleTenantReviewDecision(item.occupancyId, 'rejected')}
+                                  aria-pressed={review.decision === 'rejected'}
+                                  title={canChangeReviewStatus ? `Reject ${item.tenantName}` : 'Managers can update comments only'}
+                                  disabled={isSavingReview || !canChangeReviewStatus}
+                                >
+                                  <span className="review-icon" aria-hidden="true">✕</span>
+                                </button>
+                              </div>
+                              <button
+                                type="button"
+                                className={`review-status-trigger ${review.decision || 'unreviewed'}`}
+                                onClick={() => toggleTenantReviewPanel(item.occupancyId)}
+                                aria-expanded={isReviewExpanded}
+                                aria-controls={`review-panel-${item.occupancyId}`}
+                                aria-label={review.decision ? `Marked ${review.decision}` : 'Pending review'}
+                                title={review.decision ? `Marked ${review.decision}` : 'Pending review'}
+                                disabled={isSavingReview}
+                              >
+                                <span className={`review-status-text ${review.decision || 'unreviewed'}`}>
+                                  {review.decision === 'approved' ? (
+                                    <span className="review-status-icon approved" aria-hidden="true">✓</span>
+                                  ) : review.decision === 'rejected' ? (
+                                    <span className="review-status-icon rejected" aria-hidden="true">✕</span>
+                                  ) : (
+                                    <span className="review-status-icon" aria-hidden="true"></span>
+                                  )}
+                                </span>
+                                <span className={`review-status-caret ${isReviewExpanded ? 'expanded' : ''}`} aria-hidden="true">
+                                  ▾
+                                </span>
+                              </button>
+                            </div>
+                            {isReviewExpanded && (
+                              <div
+                                id={`review-panel-${item.occupancyId}`}
+                                className="review-panel-body"
+                              >
+                                <label className="review-comment-label" htmlFor={`review-comment-${item.occupancyId}`}>
+                                  Reviewer Comment
+                                </label>
+                                <textarea
+                                  id={`review-comment-${item.occupancyId}`}
+                                  className="review-comment-input"
+                                  value={review.comment}
+                                  onChange={(event) => handleTenantReviewComment(item.occupancyId, event.target.value)}
+                                  onBlur={(event) => handleTenantReviewBlur(event, item.occupancyId)}
+                                  placeholder={
+                                    review.decision === 'approved'
+                                      ? 'Add an approval note'
+                                      : review.decision === 'rejected'
+                                        ? 'Add a rejection reason'
+                                        : 'Add an optional review comment'
+                                  }
+                                  rows={3}
+                                  maxLength={240}
+                                  disabled={isSavingReview}
+                                />
+                                <div className="review-comment-footer">
+                                  <span className="review-meta-text">
+                                    {item.reviewVerifiedBy
+                                      ? `Saved by ${item.reviewVerifiedBy}${savedReviewDate ? ` on ${savedReviewDate}` : ''}`
+                                      : 'Not saved yet'}
+                                  </span>
+                                  {!canChangeReviewStatus && (
+                                    <span className="review-meta-text">Managers can update comments only.</span>
+                                  )}
+                                  <span>{isSavingReview ? 'Saving...' : `${review.comment.length}/240`}</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -788,6 +1109,7 @@ export default function RentalCollectionDetails() {
                       <option value="upi">UPI</option>
                       <option value="bank">Bank Transfer</option>
                       <option value="other">Other</option>
+                      <option value="checkout">CheckOut</option>
                     </select>
                   </div>
                 </div>
@@ -1058,6 +1380,7 @@ export default function RentalCollectionDetails() {
                   <option value="bank_transfer">Bank Transfer</option>
                   <option value="online_payment">Online Payment</option>
                   <option value="upi">UPI</option>
+                  <option value="checkout">CheckOut</option>
                 </select>
               </div>
 

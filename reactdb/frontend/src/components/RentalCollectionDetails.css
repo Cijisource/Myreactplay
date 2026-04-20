@@ -204,6 +204,10 @@
   font-size: 12.5px;
 }
 
+.current-month-table thead {
+  background: linear-gradient(135deg, #1e3a5f 0%, #284b74 100%);
+}
+
 .current-month-table.compact-grid th,
 .current-month-table.compact-grid td {
   padding: 8px 10px;
@@ -221,7 +225,8 @@
   font-size: 11px;
   letter-spacing: 0.3px;
   text-transform: uppercase;
-  color: #4a5568;
+  color: #e2e8f0;
+  border-bottom: none;
 }
 
 .current-month-table td {
@@ -234,6 +239,16 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.current-month-table.compact-grid th:last-child,
+.current-month-table.compact-grid td:last-child {
+  width: 116px;
+  min-width: 116px;
+  max-width: 116px;
+  padding-left: 4px;
+  padding-right: 4px;
+  white-space: normal;
 }
 
 @media (min-width: 1280px) {
@@ -295,6 +310,372 @@
 
 .empty-state.compact {
   padding: 16px 12px;
+}
+
+.review-cell {
+  vertical-align: top;
+}
+
+.tenant-review-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 108px;
+  padding: 5px;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #dbe5f0;
+  border-radius: 10px;
+  position: relative;
+}
+
+.tenant-review-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.review-comment-eye-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #475569;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.review-comment-eye-btn:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.review-eye-svg {
+  width: 17px;
+  height: 17px;
+  display: block;
+}
+
+.review-comment-popup {
+  position: absolute;
+  top: 38px;
+  right: 6px;
+  width: min(250px, calc(100vw - 36px));
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
+  padding: 8px;
+  z-index: 5;
+}
+
+.review-comment-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.review-comment-popup-header span {
+  font-size: 10px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.25px;
+}
+
+.review-comment-popup-close {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #334155;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.review-comment-popup-close:hover {
+  background: #e2e8f0;
+}
+
+.review-comment-popup p {
+  margin: 0;
+  font-size: 13px;
+  color: #334155;
+  line-height: 1.4;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.review-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #dbe5f0;
+}
+
+.tenant-review-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.review-status-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  border-radius: 999px;
+  padding: 3px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.review-status-trigger:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.12);
+}
+
+.review-status-trigger:disabled,
+.review-icon-button:disabled,
+.review-comment-input:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.review-status-trigger.approved {
+  color: #166534;
+  border-color: #86efac;
+  background: #ecfdf3;
+}
+
+.review-status-trigger.rejected {
+  color: #b91c1c;
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
+.review-status-trigger.unreviewed {
+  color: #64748b;
+}
+
+.review-icon-button {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 4px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.review-icon-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+}
+
+.review-icon-button.approve.active {
+  background: #ecfdf3;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.review-icon-button.reject.active {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #b91c1c;
+}
+
+.review-icon {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.review-icon-button.approve .review-icon {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.review-icon-button.reject .review-icon {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.review-comment-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.25px;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.review-comment-summary {
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.3;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.review-comment-summary.collapsed {
+  margin-top: 6px;
+}
+
+.review-comment-input {
+  width: 100%;
+  resize: vertical;
+  min-height: 56px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #1e293b;
+  font-size: 12px;
+  line-height: 1.35;
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.review-comment-input:focus {
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+}
+
+.review-comment-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.review-meta-text {
+  margin-right: auto;
+  color: #475569;
+}
+
+.review-status-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+}
+
+.review-status-caret {
+  font-size: 11px;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+
+.review-status-caret.expanded {
+  transform: rotate(180deg);
+}
+
+.review-status-icon {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid currentColor;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.review-status-icon.approved {
+  background: #dcfce7;
+  border-color: #16a34a;
+  color: #15803d;
+}
+
+.review-status-icon.rejected {
+  background: #fee2e2;
+  border-color: #dc2626;
+  color: #dc2626;
+}
+
+.review-status-icon::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 3px;
+  width: 2px;
+  height: 6px;
+  background: currentColor;
+  border-radius: 999px;
+}
+
+.review-status-icon::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  width: 5px;
+  height: 2px;
+  background: currentColor;
+  border-radius: 999px;
+  transform-origin: left center;
+  transform: rotate(35deg);
+}
+
+.review-status-icon.approved::before,
+.review-status-icon.approved::after,
+.review-status-icon.rejected::before,
+.review-status-icon.rejected::after {
+  content: none;
+}
+
+.review-status-text.approved {
+  color: #166534;
+}
+
+.review-status-text.rejected {
+  color: #b91c1c;
+}
+
+.review-status-text.unreviewed {
+  color: #64748b;
 }
 
 .selector-wrapper {
@@ -1510,6 +1891,19 @@
     max-width: 320px;
   }
 
+  .current-month-table.compact-grid th:last-child,
+  .current-month-table.compact-grid td:last-child {
+    min-width: 180px;
+  }
+
+  .tenant-review-panel {
+    min-width: 170px;
+  }
+
+  .tenant-review-topline {
+    align-items: flex-start;
+  }
+
   .last-proof-link {
     width: 36px;
     height: 36px;
@@ -1612,6 +2006,15 @@
 
   .payment-table {
     font-size: 10px;
+  }
+
+  .tenant-review-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .review-comment-footer {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .current-month-table.compact-grid td:nth-child(2) {

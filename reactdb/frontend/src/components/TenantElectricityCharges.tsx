@@ -21,6 +21,8 @@ interface TenantCharge {
   proRataPercentage: number;
   chargePerUnit: number;
   totalCharge: number;
+  checkInDate: string;
+  checkOutDate?: string | null;
   occupancyDaysInMonth: number;
   totalDaysInMonth: number;
   status: string;
@@ -65,12 +67,17 @@ export default function TenantElectricityCharges(): JSX.Element {
   const [searchTerm, setSearchTerm] = useState('');
   const [chargePerUnit, setChargePerUnit] = useState(15);
   const [recalculateLoading, setRecalculateLoading] = useState(false);
+  const [activeMobileTooltip, setActiveMobileTooltip] = useState<string | null>(null);
 
   const [year, month] = selectedMonth.split('-').map(Number);
 
   useEffect(() => {
     fetchBillingData();
   }, [selectedMonth]);
+
+  useEffect(() => {
+    setActiveMobileTooltip(null);
+  }, [viewMode, selectedMonth, selectedRoom]);
 
   const fetchBillingData = async () => {
     try {
@@ -125,6 +132,49 @@ export default function TenantElectricityCharges(): JSX.Element {
   const filteredChargesByRoom = selectedRoom
     ? filteredCharges.filter(c => c.roomId === selectedRoom)
     : filteredCharges;
+
+  const formatDisplayDate = (dateString?: string | null): string => {
+    if (!dateString) {
+      return 'N/A';
+    }
+
+    const parsedDate = new Date(dateString);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return dateString;
+    }
+
+    return parsedDate.toLocaleDateString('en-GB');
+  };
+
+  const isCheckoutInSelectedMonth = (checkOutDate?: string | null): boolean => {
+    if (!checkOutDate) {
+      return false;
+    }
+
+    // Prefer direct YYYY-MM-DD extraction to avoid timezone shifting edge cases.
+    const datePart = checkOutDate.includes('T') ? checkOutDate.split('T')[0] : checkOutDate;
+    const dateParts = datePart.split('-');
+
+    if (dateParts.length >= 2) {
+      const checkOutYear = Number(dateParts[0]);
+      const checkOutMonth = Number(dateParts[1]);
+
+      if (!Number.isNaN(checkOutYear) && !Number.isNaN(checkOutMonth)) {
+        return checkOutYear === year && checkOutMonth === month;
+      }
+    }
+
+    const parsedDate = new Date(checkOutDate);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return false;
+    }
+
+    return parsedDate.getFullYear() === year && parsedDate.getMonth() + 1 === month;
+  };
+
+  const toggleMobileTooltip = (tooltipKey: string) => {
+    setActiveMobileTooltip((current) => (current === tooltipKey ? null : tooltipKey));
+  };
 
   const renderReportView = () => {
     if (!billingReport) {
@@ -205,9 +255,77 @@ export default function TenantElectricityCharges(): JSX.Element {
           </tr>
         </thead>
         <tbody>
-          {roomBillings.map(room => (
-            <tr key={room.id}>
-              <td style={{ fontWeight: '600' }}>Room {room.roomNumber}</td>
+          {roomBillings.map(room => {
+            const roomTenants = charges.filter(charge => charge.roomId === room.id);
+            const uniqueRoomTenants = Array.from(
+              new Map(roomTenants.map(charge => [charge.tenantId, charge])).values()
+            );
+            const hasOccupancy = roomTenants.length > 0;
+            const hasCheckoutInSelectedMonth = uniqueRoomTenants.some((charge) =>
+              isCheckoutInSelectedMonth(charge.checkOutDate)
+            );
+            const occupancyTooltip = hasOccupancy
+              ? uniqueRoomTenants
+                  .map((charge) => `${charge.tenantName} | Check-In: ${formatDisplayDate(charge.checkInDate)} | Check-Out: ${formatDisplayDate(charge.checkOutDate)}`)
+                  .join('\n')
+              : 'No occupied tenants for this billing month';
+
+            return (
+            <tr key={`${room.id}-${room.serviceId}`}>
+              <td
+                style={{ fontWeight: '600' }}
+                className={hasOccupancy ? 'occupied-room-cell' : ''}
+                title={occupancyTooltip}
+              >
+                <span>Room {room.roomNumber}</span>
+                {hasOccupancy && <span className="occupied-person-icon" aria-label="Occupied room"> 👤</span>}
+                {hasCheckoutInSelectedMonth && (
+                  <span
+                    className="checkout-month-icon"
+                    aria-label="Has checkout in selected month"
+                    title="Checkout in selected month"
+                  >
+                    <svg
+                      className="checkout-month-icon-svg"
+                      viewBox="0 0 20 20"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M7.5 5.833h5v5M12.5 5.833l-5 5"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M5.833 3.75h8.334a2.083 2.083 0 0 1 2.083 2.083v8.334a2.083 2.083 0 0 1-2.083 2.083H5.833A2.083 2.083 0 0 1 3.75 14.167V5.833A2.083 2.083 0 0 1 5.833 3.75Z"
+                        stroke="currentColor"
+                        strokeWidth="1.4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </span>
+                )}
+                <span className="mobile-tooltip-wrapper">
+                  <button
+                    type="button"
+                    className="mobile-tooltip-trigger"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      toggleMobileTooltip(`room-${room.id}-${room.serviceId}`);
+                    }}
+                    aria-label="Show occupancy details"
+                  >
+                    i
+                  </button>
+                  {activeMobileTooltip === `room-${room.id}-${room.serviceId}` && (
+                    <span className="mobile-tooltip-bubble" role="tooltip">{occupancyTooltip}</span>
+                  )}
+                </span>
+              </td>
               <td>{room.serviceName}</td>
               <td>{room.meterNo}</td>
               <td style={{ textAlign: 'center' }}>{room.totalUnitsConsumed}</td>
@@ -234,7 +352,7 @@ export default function TenantElectricityCharges(): JSX.Element {
                 </button>
               </td>
             </tr>
-          ))}
+          )})}
         </tbody>
       </table>
     );
@@ -306,10 +424,95 @@ export default function TenantElectricityCharges(): JSX.Element {
             </tr>
           </thead>
           <tbody>
-            {displayCharges.map(charge => (
-              <tr key={charge.id}>
-                <td style={{ fontWeight: '600' }}>Room {charge.roomNumber}</td>
-                <td>{charge.tenantName}</td>
+            {displayCharges.map(charge => {
+              const tenantTooltip = `Check-In: ${formatDisplayDate(charge.checkInDate)} | Check-Out: ${formatDisplayDate(charge.checkOutDate)}`;
+              const hasCheckoutInSelectedMonth = isCheckoutInSelectedMonth(charge.checkOutDate);
+              const isGuestTenant = charge.occupancyDaysInMonth > 0 && charge.occupancyDaysInMonth < 5;
+
+              return (
+              <tr key={charge.id} title={tenantTooltip}>
+                <td style={{ fontWeight: '600' }}>
+                  <span>Room {charge.roomNumber}</span>
+                  {hasCheckoutInSelectedMonth && (
+                    <span
+                      className="checkout-month-icon"
+                      aria-label="Tenant checked out in selected month"
+                      title="Tenant checked out in selected month"
+                    >
+                      <svg
+                        className="checkout-month-icon-svg"
+                        viewBox="0 0 20 20"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                        aria-hidden="true"
+                      >
+                        <path
+                          d="M7.5 5.833h5v5M12.5 5.833l-5 5"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M5.833 3.75h8.334a2.083 2.083 0 0 1 2.083 2.083v8.334a2.083 2.083 0 0 1-2.083 2.083H5.833A2.083 2.083 0 0 1 3.75 14.167V5.833A2.083 2.083 0 0 1 5.833 3.75Z"
+                          stroke="currentColor"
+                          strokeWidth="1.4"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </span>
+                  )}
+                </td>
+                <td>
+                  <span>{charge.tenantName}</span>
+                  {isGuestTenant && (
+                    <span
+                      className="guest-tenant-indicator"
+                      aria-label="Guest tenant, stayed less than 5 days"
+                      title="Guest stay (less than 5 days)"
+                    >
+                      <svg
+                        className="guest-tenant-icon-svg"
+                        viewBox="0 0 20 20"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                        aria-hidden="true"
+                      >
+                        <path
+                          d="M10 10.833a2.917 2.917 0 1 0 0-5.833 2.917 2.917 0 0 0 0 5.833Z"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M4.167 15.417c.5-2.167 2.25-3.334 5.833-3.334 3.583 0 5.333 1.167 5.833 3.334"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </span>
+                  )}
+                  <span className="mobile-tooltip-wrapper">
+                    <button
+                      type="button"
+                      className="mobile-tooltip-trigger"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggleMobileTooltip(`tenant-${charge.id}`);
+                      }}
+                      aria-label="Show check-in and check-out"
+                    >
+                      i
+                    </button>
+                    {activeMobileTooltip === `tenant-${charge.id}` && (
+                      <span className="mobile-tooltip-bubble" role="tooltip">{tenantTooltip}</span>
+                    )}
+                  </span>
+                </td>
                 <td><a href={`tel:${charge.tenantPhone}`}>{charge.tenantPhone}</a></td>
                 <td>{charge.serviceName}</td>
                 <td>{charge.occupancyDaysInMonth}/{charge.totalDaysInMonth} days</td>
@@ -324,7 +527,7 @@ export default function TenantElectricityCharges(): JSX.Element {
                   </span>
                 </td>
               </tr>
-            ))}
+            )})}
           </tbody>
         </table>
 
