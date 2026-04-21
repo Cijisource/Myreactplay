@@ -281,7 +281,8 @@ export default function GuestCheckinManagement() {
     purpose: '',
     visitingRoomNo: '',
     rentAmount: '',
-    depositAmount: ''
+    depositAmount: '',
+    checkInDate: new Date().toISOString().split('T')[0]
   });
 
   const [formFiles, setFormFiles] = useState<{ proof: File | null; photo: File | null }>({
@@ -292,6 +293,16 @@ export default function GuestCheckinManagement() {
   const [uploadingFiles, setUploadingFiles] = useState<Record<number, boolean>>({});
   const [uploadProgressByGuest, setUploadProgressByGuest] = useState<Record<number, number>>({});
   const [createUploadProgress, setCreateUploadProgress] = useState(0);
+  const [editingGuest, setEditingGuest] = useState<GuestCheckIn | null>(null);
+  const [editFormData, setEditFormData] = useState<{
+    guestName: string;
+    phoneNumber: string;
+    purpose: string;
+    visitingRoomNo: string;
+    rentAmount: string;
+    depositAmount: string;
+    checkInDate: string;
+  } | null>(null);
 
   const phoneRegex = /^\d{10}$/;
 
@@ -535,8 +546,8 @@ export default function GuestCheckinManagement() {
   const handleCreateCheckin = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!selectedStatus) {
-      setError('Select a daily status date first');
+    if (!formData.checkInDate) {
+      setError('Check-in date is required');
       return;
     }
 
@@ -580,13 +591,27 @@ export default function GuestCheckinManagement() {
       setError(null);
       setSuccess(null);
 
-      const created = await apiService.createDailyGuestCheckin(selectedStatus.id, {
+      // Find or auto-create a DailyStatus for the chosen check-in date
+      let statusId: number;
+      const existingStatus = statuses.find(
+        s => new Date(s.date).toISOString().split('T')[0] === formData.checkInDate
+      );
+      if (existingStatus) {
+        statusId = existingStatus.id;
+      } else {
+        const newStatus = await apiService.createDailyStatus({ date: formData.checkInDate });
+        statusId = newStatus.data.id;
+        await fetchStatuses();
+      }
+
+      const created = await apiService.createDailyGuestCheckin(statusId, {
         guestName: formData.guestName.trim(),
         phoneNumber: formData.phoneNumber.trim(),
         purpose: formData.purpose.trim(),
         visitingRoomNo: formData.visitingRoomNo.trim() || undefined,
         rentAmount: parseFloat(formData.rentAmount),
-        depositAmount: parseFloat(formData.depositAmount)
+        depositAmount: parseFloat(formData.depositAmount),
+        checkInTime: formData.checkInDate
       });
 
       // Upload proof/photo files if provided
@@ -594,7 +619,7 @@ export default function GuestCheckinManagement() {
         setCreateUploadProgress(0);
         try {
           await uploadGuestFilesInParallel(
-            selectedStatus.id,
+            statusId,
             created.data.id,
             formFiles.proof,
             formFiles.photo,
@@ -611,12 +636,13 @@ export default function GuestCheckinManagement() {
         purpose: '',
         visitingRoomNo: '',
         rentAmount: '',
-        depositAmount: ''
+        depositAmount: '',
+        checkInDate: new Date().toISOString().split('T')[0]
       });
       setFormFiles({ proof: null, photo: null });
       setCreateUploadProgress(0);
       setSuccess('Guest check-in recorded successfully');
-      await fetchGuestCheckins(selectedStatus.id);
+      await fetchGuestCheckins(statusId);
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to create guest check-in'));
     } finally {
@@ -854,6 +880,70 @@ export default function GuestCheckinManagement() {
     }));
   };
 
+  const startEditGuest = (guest: GuestCheckIn) => {
+    setEditingGuest(guest);
+    setEditFormData({
+      guestName: guest.guestName,
+      phoneNumber: guest.phoneNumber || '',
+      purpose: guest.purpose || '',
+      visitingRoomNo: guest.visitingRoomNo || '',
+      rentAmount: String(guest.rentAmount ?? ''),
+      depositAmount: String(guest.depositAmount ?? ''),
+      checkInDate: new Date(guest.checkInTime).toISOString().split('T')[0]
+    });
+    setCollapsedGuestIds(prev => ({ ...prev, [guest.id]: false }));
+  };
+
+  const cancelEditGuest = () => {
+    setEditingGuest(null);
+    setEditFormData(null);
+  };
+
+  const handleUpdateCheckin = async (guest: GuestCheckIn) => {
+    if (!editFormData) return;
+
+    const normalizedPhone = normalizePhoneDigits(editFormData.phoneNumber);
+    if (!phoneRegex.test(normalizedPhone)) {
+      setError('Phone number must be exactly 10 digits');
+      return;
+    }
+
+    const parsedRent = parseFloat(editFormData.rentAmount);
+    const parsedDeposit = parseFloat(editFormData.depositAmount);
+    if (isNaN(parsedRent) || parsedRent < 0) {
+      setError('Valid rent amount is required');
+      return;
+    }
+    if (isNaN(parsedDeposit) || parsedDeposit < 0) {
+      setError('Valid deposit amount is required');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError(null);
+      setSuccess(null);
+
+      await apiService.updateDailyGuestCheckin(guest.dailyStatusId, guest.id, {
+        guestName: editFormData.guestName.trim(),
+        phoneNumber: normalizedPhone,
+        purpose: editFormData.purpose.trim(),
+        visitingRoomNo: editFormData.visitingRoomNo.trim() || undefined,
+        rentAmount: parsedRent,
+        depositAmount: parsedDeposit,
+        checkInTime: editFormData.checkInDate
+      });
+
+      setSuccess('Guest check-in updated successfully');
+      cancelEditGuest();
+      await refreshCurrentView(guest.dailyStatusId);
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to update guest check-in'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="management-container guest-checkin-container guest-checkin-mobile-layout">
       <h2 className="section-heading">Guest Check-In Management</h2>
@@ -959,6 +1049,17 @@ export default function GuestCheckinManagement() {
           />
         )}
         <form onSubmit={handleCreateCheckin}>
+          <div style={{ marginBottom: '0.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>Check-In Date</label>
+            <input
+              type="date"
+              value={formData.checkInDate}
+              max={new Date().toISOString().split('T')[0]}
+              onChange={(e) => setFormData(prev => ({ ...prev, checkInDate: e.target.value }))}
+              required
+              style={{ width: '100%' }}
+            />
+          </div>
           <input
             type="text"
             placeholder="Guest Name *"
@@ -1075,7 +1176,7 @@ export default function GuestCheckinManagement() {
             </div>
           </div>
           <div className="form-buttons">
-            <button type="submit" className="btn btn-success" disabled={saving || !selectedStatus || !isFormValid}>
+            <button type="submit" className="btn btn-success" disabled={saving || !formData.checkInDate || !isFormValid}>
               {saving ? 'Saving...' : 'Check In Guest'}
             </button>
           </div>
@@ -1149,6 +1250,13 @@ export default function GuestCheckinManagement() {
                     >
                       {isCheckedOut ? 'Checked Out' : 'Check Out'}
                     </button>
+                    <button
+                      className="btn btn-sm btn-secondary"
+                      onClick={() => editingGuest?.id === guest.id ? cancelEditGuest() : startEditGuest(guest)}
+                      disabled={saving}
+                    >
+                      {editingGuest?.id === guest.id ? 'Cancel Edit' : 'Edit'}
+                    </button>
                     {isAdmin && (
                       <button
                         className="btn btn-sm btn-danger"
@@ -1172,6 +1280,89 @@ export default function GuestCheckinManagement() {
 
                 {!isCollapsed && (
                   <div className="guest-card-content">
+                    {editingGuest?.id === guest.id && editFormData ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+                        <h4 style={{ margin: 0 }}>Edit Guest Check-In</h4>
+                        <label style={{ fontWeight: 500, fontSize: '0.85rem' }}>Check-In Date</label>
+                        <input
+                          type="date"
+                          value={editFormData.checkInDate}
+                          max={new Date().toISOString().split('T')[0]}
+                          onChange={(e) => setEditFormData(prev => prev ? { ...prev, checkInDate: e.target.value } : prev)}
+                        />
+                        <input
+                          type="text"
+                          placeholder="Guest Name *"
+                          value={editFormData.guestName}
+                          onChange={(e) => setEditFormData(prev => prev ? { ...prev, guestName: e.target.value } : prev)}
+                        />
+                        <input
+                          type="text"
+                          placeholder="Phone Number"
+                          value={editFormData.phoneNumber}
+                          maxLength={10}
+                          inputMode="numeric"
+                          onChange={(e) => setEditFormData(prev => prev ? { ...prev, phoneNumber: normalizePhoneDigits(e.target.value) } : prev)}
+                        />
+                        <select
+                          value={editFormData.visitingRoomNo}
+                          onChange={(e) => {
+                            const matchedRoom = rooms.find(r => r.number === e.target.value);
+                            setEditFormData(prev => prev ? {
+                              ...prev,
+                              visitingRoomNo: e.target.value,
+                              rentAmount: matchedRoom ? String(matchedRoom.rent ?? prev.rentAmount) : prev.rentAmount
+                            } : prev);
+                          }}
+                        >
+                          <option value="">Select Visiting Room</option>
+                          {rooms.map((room) => (
+                            <option key={room.id} value={room.number}>Room {room.number} (Rent: {room.rent})</option>
+                          ))}
+                        </select>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="Rent Amount"
+                          value={editFormData.rentAmount}
+                          onChange={(e) => setEditFormData(prev => prev ? { ...prev, rentAmount: e.target.value } : prev)}
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="Deposit Amount"
+                          value={editFormData.depositAmount}
+                          onChange={(e) => setEditFormData(prev => prev ? { ...prev, depositAmount: e.target.value } : prev)}
+                        />
+                        <textarea
+                          placeholder="Purpose"
+                          rows={2}
+                          value={editFormData.purpose}
+                          onChange={(e) => setEditFormData(prev => prev ? { ...prev, purpose: e.target.value } : prev)}
+                        />
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-success"
+                            onClick={() => handleUpdateCheckin(guest)}
+                            disabled={saving}
+                          >
+                            {saving ? 'Saving...' : 'Save Changes'}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-secondary"
+                            onClick={cancelEditGuest}
+                            disabled={saving}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
                     <p><strong>Phone:</strong> {guest.phoneNumber || 'N/A'}</p>
                     <p><strong>Status Date:</strong> {guest.statusDate ? new Date(guest.statusDate).toLocaleDateString() : 'N/A'}</p>
                     <p><strong>Visiting Room:</strong> {guest.visitingRoomNo || 'N/A'}</p>
@@ -1199,6 +1390,8 @@ export default function GuestCheckinManagement() {
                       uploadProgress={uploadProgressByGuest[guest.id] || 0}
                       onUpload={handleUploadFiles}
                     />
+                      </>
+                    )}
                   </div>
                 )}
               </div>
