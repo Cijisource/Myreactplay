@@ -302,6 +302,7 @@ export default function GuestCheckinManagement() {
     rentAmount: string;
     depositAmount: string;
     checkInDate: string;
+    checkOutDate: string;
   } | null>(null);
 
   const phoneRegex = /^\d{10}$/;
@@ -886,10 +887,11 @@ export default function GuestCheckinManagement() {
       guestName: guest.guestName,
       phoneNumber: guest.phoneNumber || '',
       purpose: guest.purpose || '',
-      visitingRoomNo: guest.visitingRoomNo || '',
+      visitingRoomNo: (guest.visitingRoomNo || '').trim(),
       rentAmount: String(guest.rentAmount ?? ''),
       depositAmount: String(guest.depositAmount ?? ''),
-      checkInDate: new Date(guest.checkInTime).toISOString().split('T')[0]
+      checkInDate: new Date(guest.checkInTime).toISOString().split('T')[0],
+      checkOutDate: guest.checkOutTime ? new Date(guest.checkOutTime).toISOString().split('T')[0] : ''
     });
     setCollapsedGuestIds(prev => ({ ...prev, [guest.id]: false }));
   };
@@ -931,7 +933,8 @@ export default function GuestCheckinManagement() {
         visitingRoomNo: editFormData.visitingRoomNo.trim() || undefined,
         rentAmount: parsedRent,
         depositAmount: parsedDeposit,
-        checkInTime: editFormData.checkInDate
+        checkInTime: editFormData.checkInDate,
+        checkOutTime: editFormData.checkOutDate ? buildCheckoutDateTimeIso(editFormData.checkOutDate) : undefined
       });
 
       setSuccess('Guest check-in updated successfully');
@@ -1307,7 +1310,7 @@ export default function GuestCheckinManagement() {
                         <select
                           value={editFormData.visitingRoomNo}
                           onChange={(e) => {
-                            const matchedRoom = rooms.find(r => r.number === e.target.value);
+                            const matchedRoom = rooms.find(r => r.number.trim() === e.target.value.trim());
                             setEditFormData(prev => prev ? {
                               ...prev,
                               visitingRoomNo: e.target.value,
@@ -1317,7 +1320,7 @@ export default function GuestCheckinManagement() {
                         >
                           <option value="">Select Visiting Room</option>
                           {rooms.map((room) => (
-                            <option key={room.id} value={room.number}>Room {room.number} (Rent: {room.rent})</option>
+                            <option key={room.id} value={room.number.trim()}>Room {room.number} (Rent: {room.rent})</option>
                           ))}
                         </select>
                         <input
@@ -1341,6 +1344,14 @@ export default function GuestCheckinManagement() {
                           rows={2}
                           value={editFormData.purpose}
                           onChange={(e) => setEditFormData(prev => prev ? { ...prev, purpose: e.target.value } : prev)}
+                        />
+                        <label style={{ fontWeight: 500, fontSize: '0.85rem' }}>Check-Out Date (optional)</label>
+                        <input
+                          type="date"
+                          value={editFormData.checkOutDate}
+                          min={editFormData.checkInDate}
+                          max={new Date().toISOString().split('T')[0]}
+                          onChange={(e) => setEditFormData(prev => prev ? { ...prev, checkOutDate: e.target.value } : prev)}
                         />
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                           <button
