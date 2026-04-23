@@ -490,16 +490,20 @@ export default function RoomOccupancy({ mode = 'occupancy' }: RoomOccupancyProps
 
   const pieRevenueSlices = useMemo((): RevenuePieSlice[] => {
     const source = filteredPieRevenueChartData
-      .map((item) => ({ label: `Room ${item.roomNumber}`, value: item.received }))
+      .map((item) => ({ label: `Room ${item.roomNumber}`, value: item.received, roomNumber: item.roomNumber }))
       .filter((item) => item.value > 0)
-      .sort((left, right) => right.value - left.value);
+      .sort((a, b) => {
+        // Extract numeric part for natural room order
+        const numA = parseInt(String(a.roomNumber).replace(/\D/g, ''));
+        const numB = parseInt(String(b.roomNumber).replace(/\D/g, ''));
+        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+        return String(a.roomNumber).localeCompare(String(b.roomNumber), undefined, { numeric: true, sensitivity: 'base' });
+      });
 
     if (!source.length) return [];
 
-    const top = source.slice(0, 9);
-    const others = source.slice(9).reduce((sum, item) => sum + item.value, 0);
-    const merged = others > 0 ? [...top, { label: 'Others', value: others }] : top;
-
+    // Show all rooms, do not group into 'Others'
+    const merged = source;
     const total = merged.reduce((sum, item) => sum + item.value, 0);
     let angle = -90;
 
@@ -788,11 +792,18 @@ export default function RoomOccupancy({ mode = 'occupancy' }: RoomOccupancyProps
                           const receivedWidth = Math.max(4, (item.received / maxRevenueValue) * 100);
                           const collectionRate = item.expected > 0 ? Math.round((item.received / item.expected) * 100) : 0;
 
+                          // Find the room to get lastCheckOutDate
+                          const room = rooms.find(r => r.roomId === item.roomId);
+                          const lastCheckOutDate = room?.lastCheckOutDate;
+
                           return (
                             <div key={item.roomId} className="revenue-row">
                               <div className="revenue-room-meta">
                                 <span className="room-pill">Room {item.roomNumber}</span>
                                 <span className={`room-state ${item.isOccupied ? 'occupied' : 'vacant'}`}>{item.isOccupied ? 'Occupied' : 'Vacant'}</span>
+                                {!item.isOccupied && lastCheckOutDate && (
+                                  <span className="last-checkout-date">Last Checkout: {formatDate(lastCheckOutDate)}</span>
+                                )}
                               </div>
                               <div className="revenue-bars">
                                 <div className="bar-track expected-track"><div className="bar-fill expected-fill" style={{ width: `${expectedWidth}%` }} /></div>
