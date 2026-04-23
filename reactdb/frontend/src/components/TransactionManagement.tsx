@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { apiService } from '../api';
 import SearchableDropdown from './SearchableDropdown';
 import './ManagementStyles.css';
@@ -23,6 +23,18 @@ interface TransactionType {
   transactionType: string;
 }
 
+interface ExpensePieSlice {
+  label: string;
+  value: number;
+  color: string;
+  percentage: number;
+  startAngle: number;
+  endAngle: number;
+  breakdown?: Array<{ label: string; value: number }>;
+}
+
+const EXPENSE_PIE_COLORS = ['#0f766e', '#2563eb', '#dc2626', '#ea580c', '#7c3aed', '#0891b2', '#ca8a04'];
+
 export default function TransactionManagement() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [transactionTypes, setTransactionTypes] = useState<TransactionType[]>([]);
@@ -35,6 +47,19 @@ export default function TransactionManagement() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'date-desc' | 'amount-desc' | 'amount-asc'>('date-desc');
   const [viewMode, setViewMode] = useState<'list' | 'category'>('category');
+  const [selectedExpenseYear, setSelectedExpenseYear] = useState<string>('all');
+
+  const isExpenseType = (transactionType?: string): boolean => {
+    const normalized = String(transactionType || '').trim().toLowerCase();
+    return normalized.includes('expense') && normalized !== 'cashdep';
+  };
+
+  const formatAmount = (value: number, fractionDigits: number = 2): string => {
+    return new Intl.NumberFormat('en-IN', {
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits
+    }).format(Number(value) || 0);
+  };
 
   // Helper to format date as YYYY-MM-DD using local date (no timezone conversion)
   const formatLocalDate = (date: Date): string => {
@@ -200,11 +225,305 @@ export default function TransactionManagement() {
     return 'stat-badge total';
   };
 
+  const yearlyExpenseReport = useMemo(() => {
+    const expenseTransactions = transactions.filter((t) => isExpenseType(t.transactionType?.transactionType));
+    if (expenseTransactions.length === 0) return [] as Array<{
+      year: number;
+      periodLabel: string;
+      transactionCount: number;
+      totalExpense: number;
+    }>;
+
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    const currentYear = today.getFullYear();
+
+    const yearsWithData = expenseTransactions
+      .map((t) => new Date(t.transactionDate).getFullYear())
+      .filter((year) => !Number.isNaN(year));
+
+    const minYear = Math.min(...yearsWithData);
+    const allYears = Array.from({ length: currentYear - minYear + 1 }, (_, index) => currentYear - index);
+
+    return allYears.map((year) => {
+      const periodStart = new Date(year, 0, 1, 0, 0, 0, 0);
+      const periodEnd = year === currentYear
+        ? new Date(today)
+        : new Date(year, 11, 31, 23, 59, 59, 999);
+
+      const inPeriod = expenseTransactions.filter((t) => {
+        const transactionDate = new Date(t.transactionDate);
+        return transactionDate >= periodStart && transactionDate <= periodEnd;
+      });
+
+      const totalExpense = inPeriod.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+      const periodLabel = year === currentYear
+        ? `Jan 1 - ${today.toLocaleDateString()}`
+        : 'Jan 1 - Dec 31';
+
+      return {
+        year,
+        periodLabel,
+        transactionCount: inPeriod.length,
+        totalExpense
+      };
+    });
+  }, [transactions]);
+
+  const expenseTransactions = useMemo(
+    () => transactions.filter((t) => isExpenseType(t.transactionType?.transactionType)),
+    [transactions]
+  );
+
+  const expenseYearOptions = useMemo(() => {
+    return yearlyExpenseReport.map((row) => String(row.year));
+  }, [yearlyExpenseReport]);
+
+  const filteredYearlyExpenseReport = useMemo(() => {
+    if (selectedExpenseYear === 'all') return yearlyExpenseReport;
+    return yearlyExpenseReport.filter((row) => String(row.year) === selectedExpenseYear);
+  }, [yearlyExpenseReport, selectedExpenseYear]);
+
+  const expensePieSlices = useMemo((): ExpensePieSlice[] => {
+    const source = filteredYearlyExpenseReport
+      .filter((row) => row.totalExpense > 0)
+      .map((row) => ({ label: String(row.year), value: row.totalExpense }))
+      .sort((left, right) => right.value - left.value);
+
+    if (!source.length) return [];
+
+    const total = source.reduce((sum, item) => sum + item.value, 0);
+
+    let angle = -90;
+    return source.map((item, index) => {
+      const percentage = (item.value / total) * 100;
+      const sweep = (percentage / 100) * 360;
+      const slice: ExpensePieSlice = {
+        label: item.label,
+        value: item.value,
+        color: EXPENSE_PIE_COLORS[index % EXPENSE_PIE_COLORS.length],
+        percentage,
+        startAngle: angle,
+        endAngle: angle + sweep
+      };
+      angle += sweep;
+      return slice;
+    });
+  }, [filteredYearlyExpenseReport]);
+
+  const expensePieTotal = useMemo(
+    () => expensePieSlices.reduce((sum, slice) => sum + slice.value, 0),
+    [expensePieSlices]
+  );
+
+  const yearlyExpenseCategoryCharts = useMemo(() => {
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    const currentYear = today.getFullYear();
+
+    return filteredYearlyExpenseReport.map((yearRow) => {
+      const year = yearRow.year;
+      const periodStart = new Date(year, 0, 1, 0, 0, 0, 0);
+      const periodEnd = year === currentYear
+        ? new Date(today)
+        : new Date(year, 11, 31, 23, 59, 59, 999);
+
+      const categoryMap = new Map<string, number>();
+
+      expenseTransactions.forEach((transaction) => {
+        const transactionDate = new Date(transaction.transactionDate);
+        if (transactionDate < periodStart || transactionDate > periodEnd) return;
+
+        const category = String(transaction.description || '').trim() || 'Uncategorized';
+        categoryMap.set(category, (categoryMap.get(category) || 0) + (Number(transaction.amount) || 0));
+      });
+
+      const source = [...categoryMap.entries()]
+        .map(([label, value]) => ({ label, value }))
+        .filter((item) => item.value > 0)
+        .sort((left, right) => right.value - left.value);
+
+      const total = source.reduce((sum, item) => sum + item.value, 0);
+
+      let angle = -90;
+      const slices: ExpensePieSlice[] = source.map((item, index) => {
+        const percentage = total > 0 ? (item.value / total) * 100 : 0;
+        const sweep = (percentage / 100) * 360;
+        const slice: ExpensePieSlice = {
+          label: item.label,
+          value: item.value,
+          color: EXPENSE_PIE_COLORS[index % EXPENSE_PIE_COLORS.length],
+          percentage,
+          startAngle: angle,
+          endAngle: angle + sweep
+        };
+        angle += sweep;
+        return slice;
+      });
+
+      return {
+        year,
+        periodLabel: yearRow.periodLabel,
+        total,
+        slices
+      };
+    });
+  }, [expenseTransactions, filteredYearlyExpenseReport]);
+
+  const polarToCartesian = (centerX: number, centerY: number, radius: number, angleDeg: number) => {
+    const angleRad = ((angleDeg - 90) * Math.PI) / 180;
+    return { x: centerX + radius * Math.cos(angleRad), y: centerY + radius * Math.sin(angleRad) };
+  };
+
+  const describePieArc = (centerX: number, centerY: number, radius: number, startAngle: number, endAngle: number) => {
+    const start = polarToCartesian(centerX, centerY, radius, endAngle);
+    const end = polarToCartesian(centerX, centerY, radius, startAngle);
+    const largeArcFlag = endAngle - startAngle <= 180 ? '0' : '1';
+    return `M ${centerX} ${centerY} L ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArcFlag} 0 ${end.x} ${end.y} Z`;
+  };
+
   return (
     <div className="management-container transactions-container">
       <h2 className="section-heading">Transactions</h2>
       {error && <div className="error-message">{error}</div>}
       {successMessage && <div className="success-message">{successMessage}</div>}
+
+      <div className="category-section">
+        <div className="category-header">
+          <h3 className="category-title">Year-Wise Expense Report</h3>
+          <div className="category-stats">
+            <select
+              className="sort-select"
+              value={selectedExpenseYear}
+              onChange={(e) => setSelectedExpenseYear(e.target.value)}
+              aria-label="Filter expense report by year"
+            >
+              <option value="all">All Years</option>
+              {expenseYearOptions.map((year) => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+            <span className="stat-badge">Till date for current year</span>
+          </div>
+        </div>
+        {filteredYearlyExpenseReport.length === 0 ? (
+          <div className="no-results-message">
+            <p>No expense transactions available for report.</p>
+          </div>
+        ) : (
+          <div className="expense-report-content">
+            {expensePieSlices.length > 0 && (
+              <div className="expense-pie-section">
+                <div className="expense-pie-wrap">
+                  <svg viewBox="0 0 240 240" className="expense-pie-svg">
+                    {expensePieSlices.map((slice) => (
+                      <path key={slice.label} d={describePieArc(120, 120, 98, slice.startAngle, slice.endAngle)} fill={slice.color} stroke="#ffffff" strokeWidth="1.5" />
+                    ))}
+                    <circle cx="120" cy="120" r="52" fill="#ffffff" />
+                    <text x="120" y="112" textAnchor="middle" className="expense-pie-total-label">Total</text>
+                    <text x="120" y="133" textAnchor="middle" className="expense-pie-total-value">₹{formatAmount(expensePieTotal, 0)}</text>
+                  </svg>
+                </div>
+                <div className="expense-pie-legend">
+                  {expensePieSlices.map((slice) => (
+                    <div key={slice.label} className="expense-pie-legend-item-wrap">
+                      <div className="expense-pie-legend-item">
+                        <span className="expense-pie-color-dot" style={{ backgroundColor: slice.color }} />
+                        <span className="expense-pie-label">{slice.label}</span>
+                        <span className="expense-pie-value">₹{formatAmount(slice.value)}</span>
+                        <span className="expense-pie-share">{slice.percentage.toFixed(1)}%</span>
+                      </div>
+                      {slice.label === 'Others' && slice.breakdown && slice.breakdown.length > 0 && (
+                        <div className="expense-pie-others-breakdown">
+                          {slice.breakdown.map((item) => (
+                            <div key={item.label} className="expense-pie-others-row">
+                              <span>{item.label}</span>
+                              <span>₹{formatAmount(item.value)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="table-responsive">
+              <table className="data-table expense-report-table">
+                <thead>
+                  <tr>
+                    <th>Year</th>
+                    <th>Covered Period</th>
+                    <th className="text-right">Expense Count</th>
+                    <th className="text-right">Total Expense (₹)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredYearlyExpenseReport.map((row) => (
+                    <tr key={row.year}>
+                      <td>{row.year}</td>
+                      <td>{row.periodLabel}</td>
+                      <td className="text-right">{row.transactionCount}</td>
+                      <td className="text-right">{formatAmount(row.totalExpense)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="expense-category-year-grid">
+              {yearlyExpenseCategoryCharts.map((yearChart) => (
+                <div key={yearChart.year} className="expense-category-year-card">
+                  <div className="expense-category-year-header">
+                    <h4>Expense Category Pie - {yearChart.year}</h4>
+                    <p>{yearChart.periodLabel}</p>
+                  </div>
+
+                  {yearChart.slices.length === 0 ? (
+                    <div className="chart-info-state">No expense category data for this year.</div>
+                  ) : (
+                    <div className="expense-pie-section">
+                      <div className="expense-pie-wrap">
+                        <svg viewBox="0 0 240 240" className="expense-pie-svg">
+                          {yearChart.slices.map((slice) => (
+                            <path key={slice.label} d={describePieArc(120, 120, 98, slice.startAngle, slice.endAngle)} fill={slice.color} stroke="#ffffff" strokeWidth="1.5" />
+                          ))}
+                          <circle cx="120" cy="120" r="52" fill="#ffffff" />
+                          <text x="120" y="112" textAnchor="middle" className="expense-pie-total-label">Total</text>
+                          <text x="120" y="133" textAnchor="middle" className="expense-pie-total-value">₹{formatAmount(yearChart.total, 0)}</text>
+                        </svg>
+                      </div>
+                      <div className="expense-pie-legend">
+                        {yearChart.slices.map((slice) => (
+                          <div key={slice.label} className="expense-pie-legend-item-wrap">
+                            <div className="expense-pie-legend-item">
+                              <span className="expense-pie-color-dot" style={{ backgroundColor: slice.color }} />
+                              <span className="expense-pie-label" title={slice.label}>{slice.label}</span>
+                              <span className="expense-pie-value">₹{formatAmount(slice.value)}</span>
+                              <span className="expense-pie-share">{slice.percentage.toFixed(1)}%</span>
+                            </div>
+                            {slice.label === 'Others' && slice.breakdown && slice.breakdown.length > 0 && (
+                              <div className="expense-pie-others-breakdown">
+                                {slice.breakdown.map((item) => (
+                                  <div key={item.label} className="expense-pie-others-row">
+                                    <span title={item.label}>{item.label}</span>
+                                    <span>₹{formatAmount(item.value)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="toolbar">
         <input
@@ -357,7 +676,7 @@ export default function TransactionManagement() {
                   <td>{transaction.description}</td>
                   <td>{transaction.transactionType?.transactionType || 'Unknown'}</td>
                   <td>{new Date(transaction.transactionDate).toLocaleDateString()}</td>
-                  <td className="text-right">{transaction.amount.toFixed(2)}</td>
+                  <td className="text-right">{formatAmount(transaction.amount)}</td>
                   <td className="actions">
                     <button className="btn btn-sm btn-info" onClick={() => handleEdit(transaction)}>
                       Edit
@@ -398,7 +717,7 @@ export default function TransactionManagement() {
                 </h3>
                 <div className="category-stats">
                   <span className="stat-badge">Count: {groupedData.transactions.length}</span>
-                  <span className={getCategoryTotalBadgeClassName(groupedData.type)}>Total: ₹{groupedData.total.toFixed(2)}</span>
+                  <span className={getCategoryTotalBadgeClassName(groupedData.type)}>Total: ₹{formatAmount(groupedData.total)}</span>
                 </div>
               </div>
               <div className="table-responsive">
@@ -416,7 +735,7 @@ export default function TransactionManagement() {
                       <tr key={transaction.id}>
                         <td>{transaction.description}</td>
                         <td>{new Date(transaction.transactionDate).toLocaleDateString()}</td>
-                        <td className="text-right">{transaction.amount.toFixed(2)}</td>
+                        <td className="text-right">{formatAmount(transaction.amount)}</td>
                         <td className="actions">
                           <button className="btn btn-sm btn-info" onClick={() => handleEdit(transaction)}>
                             Edit
@@ -439,7 +758,7 @@ export default function TransactionManagement() {
             <div className="net-balance-summary">
               <div className="net-balance-content">
                 <span className="net-balance-label">Net Balance (Total Amount):</span>
-                <span className="net-balance-value">₹{filteredTransactions.reduce((sum, t) => {
+                <span className="net-balance-value">₹{formatAmount(filteredTransactions.reduce((sum, t) => {
                   const transactionType = t.transactionType?.transactionType;
                   if (transactionType === 'Income') {
                     return sum + t.amount;
@@ -447,7 +766,7 @@ export default function TransactionManagement() {
                     return sum - t.amount;
                   }
                   return sum;
-                }, 0).toFixed(2)}</span>
+                }, 0))}</span>
               </div>
             </div>
           )}
