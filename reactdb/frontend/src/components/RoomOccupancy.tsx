@@ -22,6 +22,7 @@ interface MonthlyPaymentRecord {
   roomNumber: string;
   proRataRent: number;
   rentBalance: number;
+  rentReceived?: number;
 }
 
 interface YearlyVacancyRow {
@@ -72,6 +73,23 @@ const getYearMonthKeys = (year: number, currentYear: number, currentMonth: numbe
   return Array.from({ length: endMonth }, (_, index) =>
     `${year}-${String(index + 1).padStart(2, '0')}`
   );
+};
+
+const getAllYearMonthKeys = (year: number): string[] =>
+  Array.from({ length: 12 }, (_, index) =>
+    `${year}-${String(index + 1).padStart(2, '0')}`
+  );
+
+const getRevenueMonthsByFilter = (
+  selectedYear: number,
+  currentYear: number,
+  currentMonth: number
+): string[] => {
+  if (!Number.isFinite(selectedYear)) {
+    return [];
+  }
+
+  return getYearMonthKeys(selectedYear, currentYear, currentMonth);
 };
 
 const getEffectiveDaysInMonth = (
@@ -163,7 +181,12 @@ export default function RoomOccupancy({ mode = 'occupancy' }: RoomOccupancyProps
         setYearlyRevenueLoading(true);
         setYearlyRevenueError(null);
 
-        const months = getYearMonthKeys(selectedRevenueYear, currentYear, currentMonth);
+        const months = getRevenueMonthsByFilter(selectedRevenueYear, currentYear, currentMonth);
+
+        if (!months.length) {
+          setYearlyRevenueRecords([]);
+          return;
+        }
 
         const monthlyResponses = await Promise.all(
           months.map((month) => apiService.getPaymentsByMonth(month))
@@ -274,7 +297,7 @@ export default function RoomOccupancy({ mode = 'occupancy' }: RoomOccupancyProps
         setYearlyPieRevenueLoading(true);
         setYearlyPieRevenueError(null);
 
-        const months = getYearMonthKeys(selectedPieYear, currentYear, currentMonth);
+        const months = getAllYearMonthKeys(selectedPieYear);
 
         const monthlyResponses = await Promise.all(
           months.map((month) => apiService.getPaymentsByMonth(month))
@@ -351,7 +374,7 @@ export default function RoomOccupancy({ mode = 'occupancy' }: RoomOccupancyProps
   );
 
   const revenueChartData = useMemo((): RevenueChartPoint[] => {
-    const roomRevenueMap = new Map<string, { expected: number; pending: number }>();
+    const roomRevenueMap = new Map<string, { expected: number; pending: number; received: number }>();
 
     yearlyRevenueRecords.forEach((record) => {
       const roomNumber = normalizeRoomKey(record.roomNumber);
@@ -359,10 +382,15 @@ export default function RoomOccupancy({ mode = 'occupancy' }: RoomOccupancyProps
 
       const expected = Number(record.proRataRent) || 0;
       const pending = Number(record.rentBalance) || 0;
+      const receivedFromApi = Number(record.rentReceived);
+      const received = Number.isFinite(receivedFromApi)
+        ? Math.max(0, receivedFromApi)
+        : Math.max(0, expected - pending);
 
-      const existing = roomRevenueMap.get(roomNumber) || { expected: 0, pending: 0 };
+      const existing = roomRevenueMap.get(roomNumber) || { expected: 0, pending: 0, received: 0 };
       existing.expected += expected;
       existing.pending += pending;
+      existing.received += received;
       roomRevenueMap.set(roomNumber, existing);
     });
 
@@ -371,8 +399,8 @@ export default function RoomOccupancy({ mode = 'occupancy' }: RoomOccupancyProps
       .map((room) => {
         const roomNumber = String(room.roomNumber || room.roomId).trim();
         const roomKey = normalizeRoomKey(room.roomNumber || room.roomId);
-        const totals = roomRevenueMap.get(roomKey) || { expected: 0, pending: 0 };
-        const received = Math.max(0, totals.expected - totals.pending);
+        const totals = roomRevenueMap.get(roomKey) || { expected: 0, pending: 0, received: 0 };
+        const received = Math.max(0, totals.received);
 
         return {
           roomId: room.roomId,
@@ -406,7 +434,7 @@ export default function RoomOccupancy({ mode = 'occupancy' }: RoomOccupancyProps
   );
 
   const pieRevenueChartData = useMemo((): RevenueChartPoint[] => {
-    const roomRevenueMap = new Map<string, { expected: number; pending: number }>();
+    const roomRevenueMap = new Map<string, { expected: number; pending: number; received: number }>();
 
     yearlyPieRevenueRecords.forEach((record) => {
       const roomNumber = normalizeRoomKey(record.roomNumber);
@@ -414,10 +442,15 @@ export default function RoomOccupancy({ mode = 'occupancy' }: RoomOccupancyProps
 
       const expected = Number(record.proRataRent) || 0;
       const pending = Number(record.rentBalance) || 0;
+      const receivedFromApi = Number(record.rentReceived);
+      const received = Number.isFinite(receivedFromApi)
+        ? Math.max(0, receivedFromApi)
+        : Math.max(0, expected - pending);
 
-      const existing = roomRevenueMap.get(roomNumber) || { expected: 0, pending: 0 };
+      const existing = roomRevenueMap.get(roomNumber) || { expected: 0, pending: 0, received: 0 };
       existing.expected += expected;
       existing.pending += pending;
+      existing.received += received;
       roomRevenueMap.set(roomNumber, existing);
     });
 
@@ -426,8 +459,8 @@ export default function RoomOccupancy({ mode = 'occupancy' }: RoomOccupancyProps
       .map((room) => {
         const roomNumber = String(room.roomNumber || room.roomId).trim();
         const roomKey = normalizeRoomKey(room.roomNumber || room.roomId);
-        const totals = roomRevenueMap.get(roomKey) || { expected: 0, pending: 0 };
-        const received = Math.max(0, totals.expected - totals.pending);
+        const totals = roomRevenueMap.get(roomKey) || { expected: 0, pending: 0, received: 0 };
+        const received = Math.max(0, totals.received);
 
         return {
           roomId: room.roomId,
@@ -457,7 +490,7 @@ export default function RoomOccupancy({ mode = 'occupancy' }: RoomOccupancyProps
 
   const pieRevenueSlices = useMemo((): RevenuePieSlice[] => {
     const source = filteredPieRevenueChartData
-      .map((item) => ({ label: `Room ${item.roomNumber}`, value: item.received > 0 ? item.received : item.expected }))
+      .map((item) => ({ label: `Room ${item.roomNumber}`, value: item.received }))
       .filter((item) => item.value > 0)
       .sort((left, right) => right.value - left.value);
 
