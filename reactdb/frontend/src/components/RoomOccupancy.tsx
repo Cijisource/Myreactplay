@@ -870,9 +870,19 @@ export default function RoomOccupancy({ mode = 'occupancy' }: RoomOccupancyProps
                       <div className="vacancy-list">
                         {filteredYearlyVacancyRows.map((item) => {
                           const width = Math.max(6, (item.vacantDays / vacancyYearSummary.maxVacantDays) * 100);
+                          // Find the room in the main rooms array to check current vacancy
+                          const room = rooms.find(r => r.roomId === item.roomId);
+                          const isCurrentlyVacant = room && !room.isOccupied;
                           return (
-                            <div key={item.roomId} className="vacancy-row">
-                              <div className="vacancy-room">Room {item.roomNumber}</div>
+                            <div
+                              key={item.roomId}
+                              className={`vacancy-row${isCurrentlyVacant ? ' currently-vacant' : ''}`}
+                              style={isCurrentlyVacant ? { border: '2px solid #2563eb', borderRadius: '10px' } : {}}
+                            >
+                              <div className="vacancy-room">
+                                Room {item.roomNumber}
+                                {/* Visual highlight only, no badge text */}
+                              </div>
                               <div className="vacancy-track"><div className={`vacancy-fill ${item.vacantDays === 0 ? 'occupied' : 'vacant'}`} style={{ width: `${width}%` }} /></div>
                               <div className="vacancy-value">{item.vacantDays} vacant / {item.occupiedDays} occupied days</div>
                             </div>

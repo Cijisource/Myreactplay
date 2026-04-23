@@ -1,3 +1,11 @@
+.currently-vacant {
+  border: 2px solid #2563eb !important;
+  border-radius: 10px;
+  box-shadow: 0 0 0 2px #93c5fd33;
+  background: #eff6ff;
+}
+
+
 .occupancy-container {
   width: 100%;
   margin: 0;
