@@ -20,10 +20,10 @@ BEGIN
   CREATE TABLE [dbo].[DailyGuestCheckIn](
     [Id] [int] IDENTITY(1,1) NOT NULL,
     [DailyStatusId] [int] NOT NULL,
-    [GuestName] [varchar](150) NOT NULL,
-    [PhoneNumber] [varchar](25) NULL,
-    [Purpose] [varchar](500) NULL,
-    [VisitingRoomNo] [varchar](20) NULL,
+    [GuestName] [nvarchar](150) NOT NULL,
+    [PhoneNumber] [nvarchar](25) NULL,
+    [Purpose] [nvarchar](500) NULL,
+    [VisitingRoomNo] [nvarchar](20) NULL,
     [RentAmount] [decimal](10,2) NOT NULL CONSTRAINT [DF_DailyGuestCheckIn_RentAmount] DEFAULT (0),
     [DepositAmount] [decimal](10,2) NOT NULL CONSTRAINT [DF_DailyGuestCheckIn_DepositAmount] DEFAULT (0),
     [CheckInTime] [datetime] NOT NULL,
@@ -56,6 +56,58 @@ END
 GO
 
 PRINT 'Applying additive safety checks...';
+GO
+
+IF EXISTS (
+  SELECT 1
+  FROM sys.columns
+  WHERE object_id = OBJECT_ID('dbo.DailyGuestCheckIn')
+    AND name = 'GuestName'
+    AND system_type_id = 167
+)
+BEGIN
+  ALTER TABLE [dbo].[DailyGuestCheckIn] ALTER COLUMN [GuestName] [nvarchar](150) NOT NULL;
+  PRINT 'Converted GuestName to NVARCHAR(150).';
+END
+GO
+
+IF EXISTS (
+  SELECT 1
+  FROM sys.columns
+  WHERE object_id = OBJECT_ID('dbo.DailyGuestCheckIn')
+    AND name = 'PhoneNumber'
+    AND system_type_id = 167
+)
+BEGIN
+  ALTER TABLE [dbo].[DailyGuestCheckIn] ALTER COLUMN [PhoneNumber] [nvarchar](25) NULL;
+  PRINT 'Converted PhoneNumber to NVARCHAR(25).';
+END
+GO
+
+IF EXISTS (
+  SELECT 1
+  FROM sys.columns
+  WHERE object_id = OBJECT_ID('dbo.DailyGuestCheckIn')
+    AND name = 'Purpose'
+    AND system_type_id = 167
+)
+BEGIN
+  ALTER TABLE [dbo].[DailyGuestCheckIn] ALTER COLUMN [Purpose] [nvarchar](500) NULL;
+  PRINT 'Converted Purpose to NVARCHAR(500).';
+END
+GO
+
+IF EXISTS (
+  SELECT 1
+  FROM sys.columns
+  WHERE object_id = OBJECT_ID('dbo.DailyGuestCheckIn')
+    AND name = 'VisitingRoomNo'
+    AND system_type_id = 167
+)
+BEGIN
+  ALTER TABLE [dbo].[DailyGuestCheckIn] ALTER COLUMN [VisitingRoomNo] [nvarchar](20) NULL;
+  PRINT 'Converted VisitingRoomNo to NVARCHAR(20).';
+END
 GO
 
 IF COL_LENGTH('dbo.DailyGuestCheckIn', 'UpdatedDate') IS NULL
