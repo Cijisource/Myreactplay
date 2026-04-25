@@ -4444,9 +4444,9 @@ app.post('/api/daily-status/:id/guest-checkins', async (req: Request, res: Respo
 
     const insertResult = await pool.request()
       .input('dailyStatusId', sql.Int, parseInt(id))
-      .input('guestName', sql.VarChar(150), guestName.trim())
+      .input('guestName', sql.NVarChar(150), guestName.trim())
       .input('phoneNumber', sql.VarChar(25), normalizedPhone)
-      .input('purpose', sql.VarChar(500), purpose.trim())
+      .input('purpose', sql.NVarChar(500), purpose.trim())
       .input('visitingRoomNo', sql.VarChar(20), visitingRoomNo?.trim() || null)
       .input('rentAmount', sql.Decimal(10, 2), parsedRentAmount)
       .input('depositAmount', sql.Decimal(10, 2), parsedDepositAmount)
