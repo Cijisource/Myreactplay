@@ -4451,8 +4451,8 @@ app.post('/api/daily-status/:id/guest-checkins', async (req: Request, res: Respo
       .input('rentAmount', sql.Decimal(10, 2), parsedRentAmount)
       .input('depositAmount', sql.Decimal(10, 2), parsedDepositAmount)
       .input('checkInTime', sql.DateTime, parsedCheckInTime)
-      .input('proofUrl', sql.VarChar(1000), normalizedProofUrl)
-      .input('photoUrl', sql.VarChar(1000), normalizedPhotoUrl)
+      .input('proofUrl', sql.NVarChar(1000), normalizedProofUrl)
+      .input('photoUrl', sql.NVarChar(1000), normalizedPhotoUrl)
       .query(`
         INSERT INTO DailyGuestCheckIn (
           DailyStatusId,
@@ -4595,16 +4595,16 @@ app.put('/api/daily-status/:dailyStatusId/guest-checkins/:guestCheckinId', async
 
     await pool.request()
       .input('guestCheckinId', sql.Int, parseInt(guestCheckinId))
-      .input('guestName', sql.VarChar(150), nextGuestName)
-      .input('phoneNumber', sql.VarChar(25), nextPhoneNumber || null)
-      .input('purpose', sql.VarChar(500), nextPurpose || null)
-      .input('visitingRoomNo', sql.VarChar(20), nextVisitingRoomNo || null)
+      .input('guestName', sql.NVarChar(150), nextGuestName)
+      .input('phoneNumber', sql.NVarChar(25), nextPhoneNumber || null)
+      .input('purpose', sql.NVarChar(500), nextPurpose || null)
+      .input('visitingRoomNo', sql.NVarChar(20), nextVisitingRoomNo || null)
       .input('rentAmount', sql.Decimal(10, 2), nextRentAmount)
       .input('depositAmount', sql.Decimal(10, 2), nextDepositAmount)
       .input('checkInTime', sql.DateTime, nextCheckInTime)
       .input('checkOutTime', sql.DateTime, nextCheckOutTime ? new Date(nextCheckOutTime) : null)
-      .input('proofUrl', sql.VarChar(1000), nextProofUrl)
-      .input('photoUrl', sql.VarChar(1000), nextPhotoUrl)
+      .input('proofUrl', sql.NVarChar(1000), nextProofUrl)
+      .input('photoUrl', sql.NVarChar(1000), nextPhotoUrl)
       .query(`
         UPDATE DailyGuestCheckIn
         SET
