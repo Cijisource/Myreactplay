@@ -1726,7 +1726,7 @@ app.get('/api/tenants/check-phone/:phone', async (req: Request, res: Response) =
 app.post('/api/tenants', async (req: Request, res: Response) => {
   try {
     const { 
-      name, phone, address, city, roomId, checkInDate,
+      name, phone, address, city, roomId, checkInDate, checkOutDate,
       photoUrl, photo2Url, photo3Url, photo4Url, photo5Url, photo6Url, photo7Url, photo8Url, photo9Url, photo10Url,
       proof1Url, proof2Url, proof3Url, proof4Url, proof5Url, proof6Url, proof7Url, proof8Url, proof9Url, proof10Url
     } = req.body;
@@ -1746,12 +1746,28 @@ app.post('/api/tenants', async (req: Request, res: Response) => {
     
     // If creating occupancy, validate the parameters
     const creatingOccupancy = roomId && checkInDate;
-    if (creatingOccupancy) {
-      if (!roomId || !checkInDate) {
-        return res.status(400).json({ 
-          error: 'Both roomId and checkInDate are required to create an occupancy'
-        });
-      }
+    if (roomId && checkInDate && !checkOutDate) {
+      return res.status(400).json({ 
+        error: 'Both check-in date and check-out date are required to create an occupancy'
+      });
+    }
+
+    if (checkOutDate && typeof checkOutDate !== 'string') {
+      return res.status(400).json({ error: 'Invalid checkOutDate format' });
+    }
+
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (checkOutDate && !dateRegex.test(checkOutDate)) {
+      return res.status(400).json({
+        error: 'Invalid checkOutDate format',
+        details: 'Date must be in YYYY-MM-DD format'
+      });
+    }
+
+    if (checkInDate && checkOutDate && new Date(checkOutDate) <= new Date(checkInDate)) {
+      return res.status(400).json({
+        error: 'Check-out date must be after check-in date'
+      });
     }
     
     const pool = getPool();
@@ -1828,10 +1844,11 @@ app.post('/api/tenants', async (req: Request, res: Response) => {
           .input('tenantId', sql.Int, tenantId)
           .input('roomId', sql.Int, roomId)
           .input('checkInDate', sql.NChar(10), checkInDate)
+          .input('checkOutDate', sql.NChar(10), checkOutDate || null)
           .input('rentFixed', sql.Money, roomRent || 0)
           .query(`
             INSERT INTO Occupancy (TenantId, RoomId, CheckInDate, CheckOutDate, CreatedDate, UpdatedDate, RentFixed)
-            VALUES (@tenantId, @roomId, @checkInDate, NULL, GETUTCDATE(), GETUTCDATE(), @rentFixed);
+            VALUES (@tenantId, @roomId, @checkInDate, @checkOutDate, GETUTCDATE(), GETUTCDATE(), @rentFixed);
             SELECT SCOPE_IDENTITY() as occupancyId;
           `);
         
@@ -2042,7 +2059,7 @@ app.put('/api/tenants/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { 
-      roomIds, checkInDate,
+      roomIds, checkInDate, checkOutDate,
       name, phone, address, city, 
       photoUrl, photo2Url, photo3Url, photo4Url, photo5Url, photo6Url, photo7Url, photo8Url, photo9Url, photo10Url,
       proof1Url, proof2Url, proof3Url, proof4Url, proof5Url, proof6Url, proof7Url, proof8Url, proof9Url, proof10Url
@@ -2087,13 +2104,21 @@ app.put('/api/tenants/:id', async (req: Request, res: Response) => {
         return res.status(400).json({ error: 'checkInDate is required when assigning roomIds' });
       }
 
+      if (!checkOutDate || typeof checkOutDate !== 'string') {
+        return res.status(400).json({ error: 'checkOutDate is required when assigning roomIds' });
+      }
+
       const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-      if (!dateRegex.test(checkInDate)) {
-        return res.status(400).json({ error: 'Invalid checkInDate format. Use YYYY-MM-DD.' });
+      if (!dateRegex.test(checkInDate) || !dateRegex.test(checkOutDate)) {
+        return res.status(400).json({ error: 'Invalid checkInDate/checkOutDate format. Use YYYY-MM-DD.' });
       }
 
       if (new Date(checkInDate) > new Date()) {
         return res.status(400).json({ error: 'Check-in date cannot be in the future' });
+      }
+
+      if (new Date(checkOutDate) <= new Date(checkInDate)) {
+        return res.status(400).json({ error: 'Check-out date must be after check-in date' });
       }
 
       const roomValidationResult = await pool
@@ -2312,6 +2337,19 @@ app.put('/api/tenants/:id', async (req: Request, res: Response) => {
     
     let createdOccupancies = 0;
 
+    if (checkOutDate && typeof checkOutDate === 'string') {
+      await pool
+        .request()
+        .input('tenantId', sql.Int, tenantId)
+        .input('checkOutDate', sql.NChar(10), checkOutDate)
+        .query(`
+          UPDATE Occupancy
+          SET CheckOutDate = @checkOutDate, UpdatedDate = GETUTCDATE()
+          WHERE TenantId = @tenantId
+            AND (CheckOutDate IS NULL OR CAST(CheckOutDate AS DATE) > CAST(GETDATE() AS DATE))
+        `);
+    }
+
     if (requestedRoomIds.length > 0) {
       const roomAssignmentRows = await pool
         .request()
@@ -2350,10 +2388,11 @@ app.put('/api/tenants/:id', async (req: Request, res: Response) => {
           .input('tenantId', sql.Int, tenantId)
           .input('roomId', sql.Int, row.roomId)
           .input('checkInDate', sql.NChar(10), checkInDate)
+          .input('checkOutDate', sql.NChar(10), checkOutDate || null)
           .input('rentFixed', sql.Decimal(10, 2), row.roomRent || 0)
           .query(`
             INSERT INTO Occupancy (TenantId, RoomId, CheckInDate, CheckOutDate, CreatedDate, UpdatedDate, RentFixed)
-            VALUES (@tenantId, @roomId, @checkInDate, NULL, GETUTCDATE(), GETUTCDATE(), @rentFixed)
+            VALUES (@tenantId, @roomId, @checkInDate, @checkOutDate, GETUTCDATE(), GETUTCDATE(), @rentFixed)
           `);
 
         createdOccupancies += 1;
@@ -4445,9 +4484,9 @@ app.post('/api/daily-status/:id/guest-checkins', async (req: Request, res: Respo
     const insertResult = await pool.request()
       .input('dailyStatusId', sql.Int, parseInt(id))
       .input('guestName', sql.NVarChar(150), guestName.trim())
-      .input('phoneNumber', sql.VarChar(25), normalizedPhone)
+      .input('phoneNumber', sql.NVarChar(25), normalizedPhone)
       .input('purpose', sql.NVarChar(500), purpose.trim())
-      .input('visitingRoomNo', sql.VarChar(20), visitingRoomNo?.trim() || null)
+      .input('visitingRoomNo', sql.NVarChar(20), visitingRoomNo?.trim() || null)
       .input('rentAmount', sql.Decimal(10, 2), parsedRentAmount)
       .input('depositAmount', sql.Decimal(10, 2), parsedDepositAmount)
       .input('checkInTime', sql.DateTime, parsedCheckInTime)
@@ -4723,8 +4762,8 @@ app.post('/api/daily-status/:dailyStatusId/guest-checkins/:guestCheckinId/upload
       await pool.request()
         .input('dailyStatusId', sql.Int, dailyStatusIdInt)
         .input('guestCheckinId', sql.Int, guestCheckinIdInt)
-        .input('proofUrl', sql.VarChar(1000), proofUrl)
-        .input('photoUrl', sql.VarChar(1000), photoUrl)
+        .input('proofUrl', sql.NVarChar(1000), proofUrl)
+        .input('photoUrl', sql.NVarChar(1000), photoUrl)
         .query(`
           UPDATE DailyGuestCheckIn
           SET
@@ -5936,6 +5975,86 @@ app.get('/api/rental/occupancy/:occupancyId/summary', async (req: Request, res: 
     res.status(500).json({ 
       error: 'Failed to retrieve rental summary',
       details: errorMessage
+    });
+  }
+});
+
+// Get previous month electricity charges for an occupancy
+app.get('/api/rental/occupancy/:occupancyId/previous-month-charges', async (req: Request, res: Response) => {
+  try {
+    const { occupancyId } = req.params;
+    const pool = getPool();
+    
+    // Get occupancy and tenant details
+    const occupancyResult = await pool
+      .request()
+      .input('occupancyId', sql.Int, parseInt(occupancyId))
+      .query(`
+        SELECT 
+          o.Id as occupancyId,
+          o.TenantId as tenantId,
+          o.RoomId as roomId
+        FROM Occupancy o
+        WHERE o.Id = @occupancyId
+      `);
+    
+    if (occupancyResult.recordset.length === 0) {
+      return res.status(404).json({ 
+        error: 'Occupancy not found',
+        totalCharges: 0
+      });
+    }
+    
+    const occupancy = occupancyResult.recordset[0];
+    const tenantId = occupancy.tenantId;
+    
+    // Calculate previous month
+    const now = new Date();
+    let previousMonth = now.getMonth(); // 0-11
+    let previousYear = now.getFullYear();
+    
+    if (previousMonth === 0) {
+      previousMonth = 12;
+      previousYear--;
+    }
+    
+    // Query electricity charges for the tenant in the previous month
+    const chargesResult = await pool
+      .request()
+      .input('tenantId', sql.Int, tenantId)
+      .input('billingYear', sql.Int, previousYear)
+      .input('billingMonth', sql.Int, previousMonth)
+      .query(`
+        SELECT 
+          ISNULL(SUM(CAST(tsc.TotalCharge AS FLOAT)), 0) as totalCharges,
+          COUNT(DISTINCT tsc.ServiceId) as serviceCount,
+          STRING_AGG(sd.ConsumerName, ', ') as serviceNames
+        FROM [dbo].[TenantServiceCharges] tsc
+        INNER JOIN [dbo].[ServiceDetails] sd ON tsc.ServiceId = sd.Id
+        WHERE tsc.TenantId = @tenantId
+          AND tsc.BillingYear = @billingYear
+          AND tsc.BillingMonth = @billingMonth
+      `);
+    
+    const charges = chargesResult.recordset[0] || { totalCharges: 0, serviceCount: 0, serviceNames: null };
+    
+    res.json({
+      occupancyId: parseInt(occupancyId),
+      tenantId: tenantId,
+      previousMonth: previousMonth,
+      previousYear: previousYear,
+      billingPeriod: `${previousMonth}/${previousYear}`,
+      totalCharges: Math.round(charges.totalCharges * 100) / 100,
+      serviceCount: charges.serviceCount || 0,
+      serviceNames: charges.serviceNames || 'N/A'
+    });
+  } catch (error) {
+    console.error('Get previous month charges error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve previous month charges',
+      details: errorMessage,
+      totalCharges: 0
     });
   }
 });

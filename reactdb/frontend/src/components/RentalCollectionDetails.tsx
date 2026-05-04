@@ -28,6 +28,7 @@ interface MonthlyPaymentStatus {
   rentReceivedOn: string | null;
   rentReceived: number;
   charges: number;
+  ebCharges?: number;
   month: number;
   year: number;
   checkInDate: string;
@@ -156,13 +157,31 @@ export default function RentalCollectionDetails() {
       setCurrentMonthLoading(true);
       setCurrentMonthError(null);
       const response = await apiService.getPaymentsByMonth(currentMonthYear);
-      const records = ((response.data || response || []) as MonthlyPaymentStatus[]).sort(
+      let records = ((response.data || response || []) as MonthlyPaymentStatus[]).sort(
         (a: MonthlyPaymentStatus, b: MonthlyPaymentStatus) =>
           compareRoomNumbers(a.roomNumber, b.roomNumber)
       );
-      setCurrentMonthPayments(records);
+      
+      // Fetch EB charges for each occupancy (previous month)
+      const recordsWithEbCharges = await Promise.all(
+        records.map(async (record) => {
+          try {
+            const chargesRes = await apiService.getPreviousMonthCharges(record.occupancyId);
+            const previousMonthCharges = chargesRes.data || chargesRes;
+            return {
+              ...record,
+              ebCharges: previousMonthCharges?.totalCharges || 0
+            };
+          } catch (err) {
+            console.error(`Error fetching EB charges for occupancy ${record.occupancyId}:`, err);
+            return { ...record, ebCharges: 0 };
+          }
+        })
+      );
+      
+      setCurrentMonthPayments(recordsWithEbCharges);
       setTenantReviews(
-        records.reduce<Record<number, TenantReviewState>>((accumulator, record) => {
+        recordsWithEbCharges.reduce<Record<number, TenantReviewState>>((accumulator, record) => {
           accumulator[record.occupancyId] = {
             decision: record.reviewDecision || null,
             comment: record.reviewComment || ''
@@ -281,13 +300,23 @@ export default function RentalCollectionDetails() {
       setLoading(true);
       setError(null);
       
-      const [summaryRes, recordsRes] = await Promise.all([
+      const [summaryRes, recordsRes, chargesRes] = await Promise.all([
         apiService.getRentalSummaryByOccupancy(selectedOccupancyId),
-        apiService.getRentalCollectionByOccupancy(selectedOccupancyId)
+        apiService.getRentalCollectionByOccupancy(selectedOccupancyId),
+        apiService.getPreviousMonthCharges(selectedOccupancyId)
       ]);
       
       setOccupancyInfo(summaryRes.data || summaryRes);
       setRentalRecords(recordsRes.data || recordsRes || []);
+      
+      // Auto-populate charges field with previous month's electricity charges
+      const previousMonthCharges = chargesRes.data || chargesRes;
+      const chargesAmount = previousMonthCharges?.totalCharges || 0;
+      
+      setFormData(prev => ({
+        ...prev,
+        charges: chargesAmount > 0 ? chargesAmount.toString() : ''
+      }));
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to fetch rental details';
       setError(errorMsg);
@@ -804,6 +833,10 @@ export default function RentalCollectionDetails() {
                 <span>Total Charges</span>
                 <strong>{formatCurrency(filteredCurrentMonthPayments.reduce((sum, item) => sum + (item.charges || 0), 0))}</strong>
               </div>
+              <div className="current-month-summary-item highlight-eb">
+                <span>Total EB Charges (Previous Month)</span>
+                <strong>{formatCurrency(filteredCurrentMonthPayments.reduce((sum, item) => sum + (item.ebCharges || 0), 0))}</strong>
+              </div>
             </div>
 
             <div className="table-wrapper current-month-table-wrapper">
@@ -813,7 +846,8 @@ export default function RentalCollectionDetails() {
                     <th>Room</th>
                     <th>Tenant</th>
                     <th>Pro-Rata Rent</th>
-                    <th>Charges</th>
+                    <th>Charges (Current)</th>
+                    <th>EB Charges (Prev Month)</th>
                     <th>Balance</th>
                     <th>Status</th>
                     <th>Last Payment</th>
@@ -828,13 +862,16 @@ export default function RentalCollectionDetails() {
                     const isReviewExpanded = expandedReviewRows[item.occupancyId] || false;
                     const isSavingReview = savingReviewRows[item.occupancyId] || false;
                     const savedReviewDate = formatReviewSavedDate(item.reviewVerifiedOn);
+                    // Check if this is a shop (room numbers like S1, S2, SHOP-1 etc or any number > 100 can be marked as shop)
+                    const isShop = /^[Ss]/.test(item.roomNumber) || /[Ss]hop/i.test(item.roomNumber);
 
                     return (
-                      <tr key={item.occupancyId}>
-                        <td>{item.roomNumber}</td>
+                      <tr key={item.occupancyId} className={isShop ? 'shop-row' : ''}>
+                        <td className={isShop ? 'shop-cell' : ''}><strong>{item.roomNumber}</strong></td>
                         <td>{item.tenantName}</td>
                         <td className="amount">{formatCurrency(item.proRataRent)}</td>
                         <td className="amount">{formatCurrency(item.charges)}</td>
+                        <td className="amount eb-charges" title="Previous month's EB charges">{formatCurrency(item.ebCharges || 0)}</td>
                         <td className="amount balance">{formatCurrency(item.rentBalance)}</td>
                         <td>
                           <span className={`payment-status-badge ${item.paymentStatus}`}>

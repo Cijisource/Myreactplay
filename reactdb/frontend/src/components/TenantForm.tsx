@@ -27,6 +27,12 @@ const MAX_PROOFS = 10;
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = false }: TenantFormProps) {
+  const getDefaultCheckoutDate = (baseDate?: string): string => {
+    const date = baseDate ? new Date(baseDate) : new Date();
+    date.setMonth(date.getMonth() + 3);
+    return date.toISOString().split('T')[0];
+  };
+
   const [formData, setFormData] = useState({
     name: tenant?.name || '',
     phone: tenant?.phone || '',
@@ -35,6 +41,7 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
     roomId: '',
     roomIds: [] as string[],
     checkInDate: '',
+    checkOutDate: tenant?.checkOutDate ?? (!tenant ? getDefaultCheckoutDate() : ''),
   });
 
   const [photos, setPhotos] = useState<FilePreview[]>([]);
@@ -45,6 +52,7 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
   const [replacementProofs, setReplacementProofs] = useState<Map<string, FilePreview>>(new Map());
   const [replacingPhotoField, setReplacingPhotoField] = useState<string | null>(null);
   const [replacingProofField, setReplacingProofField] = useState<string | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -115,6 +123,7 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
       roomId: tenant?.roomId ? String(tenant.roomId) : '',
       roomIds: tenant?.roomId ? [String(tenant.roomId)] : [],
       checkInDate: tenant?.checkInDate || '',
+      checkOutDate: tenant?.checkOutDate ?? (tenant ? '' : getDefaultCheckoutDate()),
     });
     setPhotos([]);
     setProofs([]);
@@ -291,10 +300,21 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => {
+      const nextData = {
+        ...prev,
+        [name]: value,
+      };
+
+      if (name === 'checkInDate' && !tenant?.id) {
+        const previousDefault = getDefaultCheckoutDate(prev.checkInDate || new Date().toISOString().split('T')[0]);
+        if (!prev.checkOutDate || prev.checkOutDate === previousDefault) {
+          nextData.checkOutDate = value ? getDefaultCheckoutDate(value) : '';
+        }
+      }
+
+      return nextData;
+    });
 
     // Real-time phone validation
     if (name === 'phone') {
@@ -311,32 +331,52 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
     e: React.ChangeEvent<HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-
-    // Load check-in date field when room is selected
-    if (name === 'roomId' && value) {
-      setFormData((prev) => ({
+    setFormData((prev) => {
+      const nextData = {
         ...prev,
-        checkInDate: new Date().toISOString().split('T')[0],
-      }));
-    }
+        [name]: value,
+      };
+
+      if (name === 'roomId' && value) {
+        const today = new Date().toISOString().split('T')[0];
+        nextData.checkInDate = today;
+
+        if (!tenant?.id) {
+          const previousDefault = getDefaultCheckoutDate(prev.checkInDate || today);
+          if (!prev.checkOutDate || prev.checkOutDate === previousDefault) {
+            nextData.checkOutDate = getDefaultCheckoutDate(today);
+          }
+        }
+      }
+
+      return nextData;
+    });
   };
 
   const handleMultiRoomSelectChange = (
     e: React.ChangeEvent<HTMLSelectElement>
   ) => {
     const selectedRoomIds = Array.from(e.target.selectedOptions).map((option) => option.value);
+    const today = new Date().toISOString().split('T')[0];
 
-    setFormData((prev) => ({
-      ...prev,
-      roomIds: selectedRoomIds,
-      checkInDate: selectedRoomIds.length > 0
-        ? (prev.checkInDate || new Date().toISOString().split('T')[0])
-        : ''
-    }));
+    setFormData((prev) => {
+      const nextData = {
+        ...prev,
+        roomIds: selectedRoomIds,
+        checkInDate: selectedRoomIds.length > 0
+          ? (prev.checkInDate || today)
+          : '',
+      };
+
+      if (!tenant?.id && selectedRoomIds.length > 0) {
+        const previousDefault = getDefaultCheckoutDate(prev.checkInDate || today);
+        if (!prev.checkOutDate || prev.checkOutDate === previousDefault) {
+          nextData.checkOutDate = getDefaultCheckoutDate(nextData.checkInDate || today);
+        }
+      }
+
+      return nextData;
+    });
   };
 
   const handleSelectCity = (city: string) => {
@@ -595,6 +635,18 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
       setError('Room is required when setting a check-in date');
       return false;
     }
+    if (formData.checkInDate && !formData.checkOutDate) {
+      setError('Checkout date is required when a check-in date is set');
+      return false;
+    }
+    if (formData.checkInDate && formData.checkOutDate) {
+      const checkIn = new Date(formData.checkInDate);
+      const checkOut = new Date(formData.checkOutDate);
+      if (checkOut <= checkIn) {
+        setError('Checkout date must be after check-in date');
+        return false;
+      }
+    }
     return true;
   };
 
@@ -809,6 +861,7 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
         roomId: !tenant?.id && formData.roomId ? parseInt(formData.roomId) : undefined,
         roomIds: tenant?.id ? formData.roomIds.map((roomId) => parseInt(roomId, 10)).filter((roomId) => Number.isInteger(roomId) && roomId > 0) : undefined,
         checkInDate: formData.checkInDate || undefined,
+        checkOutDate: formData.checkOutDate ? formData.checkOutDate : undefined,
         photoUrl: photoUrls[0],
         photo2Url: photoUrls[1],
         photo3Url: photoUrls[2],
@@ -1077,6 +1130,31 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
                   {tenant?.id && <p className="field-hint">Required when assigning selected room(s) to this tenant.</p>}
                 </div>
               )}
+
+              <div className="form-group">
+                <label htmlFor="checkOutDate">Check-out Date</label>
+                <input
+                  id="checkOutDate"
+                  type="date"
+                  name="checkOutDate"
+                  value={formData.checkOutDate}
+                  onChange={handleInputChange}
+                  disabled={loading}
+                  min={formData.checkInDate || undefined}
+                  required={Boolean(
+                    formData.checkInDate ||
+                    (!tenant?.id && formData.roomId) ||
+                    (tenant?.id && (tenant.isCurrentlyOccupied || formData.roomIds.length > 0))
+                  )}
+                />
+                <p className="field-hint">
+                  {tenant?.id
+                    ? tenant.isCurrentlyOccupied
+                      ? 'This tenant is currently occupied. A checkout date is required to save occupancy changes.'
+                      : 'Include a checkout date when assigning room(s) or updating this tenant.'
+                    : 'Defaults to 3 months from today for new tenants.'}
+                </p>
+              </div>
             </>
           </div>
 
