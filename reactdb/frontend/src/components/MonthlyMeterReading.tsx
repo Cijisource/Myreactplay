@@ -532,8 +532,8 @@ export default function MonthlyMeterReading(): JSX.Element {
               {!collapsedCategories['shops'] && (
                 <div className="allocations-grid">
                   {groupedAllocations['shops'].map(alloc => (
-                    <div key={alloc.id} className={`allocation-card ${selectedAllocationId === alloc.id ? 'selected' : ''} shop-category ${collapsedCards[alloc.id] ? 'collapsed' : ''}`}>
-                      <div className="card-collapsed-header" onClick={() => handleSelectAllocation(alloc)}>
+                    <div key={alloc.id} onClick={() => handleSelectAllocation(alloc)} className={`allocation-card ${selectedAllocationId === alloc.id ? 'selected' : ''} shop-category ${collapsedCards[alloc.id] ? 'collapsed' : ''}`}>
+                      <div className="card-collapsed-header">
                         <div className="collapsed-room-info">
                           <h3>Room {alloc.room.number}</h3>
                           <span className="shop-badge">🏪 SHOP</span>
@@ -640,8 +640,8 @@ export default function MonthlyMeterReading(): JSX.Element {
               {!collapsedCategories['residential'] && (
                 <div className="allocations-grid">
                   {groupedAllocations['residential'].map(alloc => (
-                    <div key={alloc.id} className={`allocation-card ${selectedAllocationId === alloc.id ? 'selected' : ''} residential-category ${collapsedCards[alloc.id] ? 'collapsed' : ''}`}>
-                      <div className="card-collapsed-header" onClick={() => handleSelectAllocation(alloc)}>
+                    <div key={alloc.id} onClick={() => handleSelectAllocation(alloc)} className={`allocation-card ${selectedAllocationId === alloc.id ? 'selected' : ''} residential-category ${collapsedCards[alloc.id] ? 'collapsed' : ''}`}>
+                      <div className="card-collapsed-header">
                         <div className="collapsed-room-info">
                           <h3>Room {alloc.room.number}</h3>
                           <span className="residential-badge">🏠 RESIDENTIAL</span>

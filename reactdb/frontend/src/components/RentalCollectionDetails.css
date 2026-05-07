@@ -2065,3 +2065,41 @@
     font-size: 14px;
   }
 }
+
+/* EB Charges and Shop Highlighting */
+.current-month-summary-item.highlight-eb {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border-left: 4px solid #f59e0b;
+}
+
+.current-month-summary-item.highlight-eb .card-value {
+  color: #b45309;
+}
+
+/* Shop Row Highlighting */
+.shop-row {
+  background-color: #fef3c7 !important;
+  border-left: 3px solid #f59e0b;
+}
+
+.shop-cell {
+  background-color: #fde68a;
+  border-radius: 4px;
+  color: #92400e;
+}
+
+/* EB Charges Column */
+.eb-charges {
+  background-color: #fff7ed;
+  font-weight: 600;
+  color: #d97706;
+}
+
+/* Additional table highlighting for better visibility */
+.current-month-table tbody tr:hover {
+  background-color: #f9fafb;
+}
+
+.shop-row:hover {
+  background-color: #fed7aa !important;
+}

@@ -409,6 +409,7 @@ export const apiService = {
   ) => api.put(`/rental/reviews/${occupancyId}`, data),
   getRentalCollectionByOccupancy: (occupancyId: number) => api.get(`/rental/occupancy/${occupancyId}`),
   getRentalSummaryByOccupancy: (occupancyId: number) => api.get(`/rental/occupancy/${occupancyId}/summary`),
+  getPreviousMonthCharges: (occupancyId: number) => api.get(`/rental/occupancy/${occupancyId}/previous-month-charges`),
   getPaymentBalance: () => api.get('/rental/payment-balance'),
   updateRentalPayment: (occupancyId: number, data: { collectedAmount: number; month: string }) => 
     api.put(`/rental/payment/${occupancyId}`, data),
