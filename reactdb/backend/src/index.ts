@@ -6028,7 +6028,8 @@ app.get('/api/rental/occupancy/:occupancyId/previous-month-charges', async (req:
         SELECT 
           ISNULL(SUM(CAST(tsc.TotalCharge AS FLOAT)), 0) as totalCharges,
           COUNT(DISTINCT tsc.ServiceId) as serviceCount,
-          STRING_AGG(sd.ConsumerName, ', ') as serviceNames
+          STRING_AGG(sd.ConsumerName, ', ') as serviceNames,
+          MAX(ISNULL(tsc.TotalUnitsForRoom, 0)) as totalUnitsConsumed
         FROM [dbo].[TenantServiceCharges] tsc
         INNER JOIN [dbo].[ServiceDetails] sd ON tsc.ServiceId = sd.Id
         WHERE tsc.TenantId = @tenantId
@@ -6036,7 +6037,7 @@ app.get('/api/rental/occupancy/:occupancyId/previous-month-charges', async (req:
           AND tsc.BillingMonth = @billingMonth
       `);
     
-    const charges = chargesResult.recordset[0] || { totalCharges: 0, serviceCount: 0, serviceNames: null };
+    const charges = chargesResult.recordset[0] || { totalCharges: 0, serviceCount: 0, serviceNames: null, totalUnitsConsumed: 0 };
     
     res.json({
       occupancyId: parseInt(occupancyId),
@@ -6045,6 +6046,7 @@ app.get('/api/rental/occupancy/:occupancyId/previous-month-charges', async (req:
       previousYear: previousYear,
       billingPeriod: `${previousMonth}/${previousYear}`,
       totalCharges: Math.round(charges.totalCharges * 100) / 100,
+      totalUnitsConsumed: charges.totalUnitsConsumed || 0,
       serviceCount: charges.serviceCount || 0,
       serviceNames: charges.serviceNames || 'N/A'
     });
@@ -6054,7 +6056,8 @@ app.get('/api/rental/occupancy/:occupancyId/previous-month-charges', async (req:
     res.status(500).json({ 
       error: 'Failed to retrieve previous month charges',
       details: errorMessage,
-      totalCharges: 0
+      totalCharges: 0,
+      totalUnitsConsumed: 0
     });
   }
 });

@@ -29,6 +29,7 @@ interface MonthlyPaymentStatus {
   rentReceived: number;
   charges: number;
   ebCharges?: number;
+  totalUnitsConsumed?: number;
   month: number;
   year: number;
   checkInDate: string;
@@ -170,11 +171,12 @@ export default function RentalCollectionDetails() {
             const previousMonthCharges = chargesRes.data || chargesRes;
             return {
               ...record,
-              ebCharges: previousMonthCharges?.totalCharges || 0
+              ebCharges: previousMonthCharges?.totalCharges || 0,
+              totalUnitsConsumed: previousMonthCharges?.totalUnitsConsumed || 0
             };
           } catch (err) {
             console.error(`Error fetching EB charges for occupancy ${record.occupancyId}:`, err);
-            return { ...record, ebCharges: 0 };
+            return { ...record, ebCharges: 0, totalUnitsConsumed: 0 };
           }
         })
       );
@@ -846,8 +848,7 @@ export default function RentalCollectionDetails() {
                     <th>Room</th>
                     <th>Tenant</th>
                     <th>Pro-Rata Rent</th>
-                    <th>Charges (Current)</th>
-                    <th>EB Charges (Prev Month)</th>
+                    <th>EB Charges</th>
                     <th>Balance</th>
                     <th>Status</th>
                     <th>Last Payment</th>
@@ -870,9 +871,10 @@ export default function RentalCollectionDetails() {
                         <td className={isShop ? 'shop-cell' : ''}><strong>{item.roomNumber}</strong></td>
                         <td>{item.tenantName}</td>
                         <td className="amount">{formatCurrency(item.proRataRent)}</td>
-                        <td className="amount">{formatCurrency(item.charges)}</td>
-                        <td className="amount eb-charges" title="Previous month's EB charges">{formatCurrency(item.ebCharges || 0)}</td>
-                        <td className="amount balance">{formatCurrency(item.rentBalance)}</td>
+                        <td className="amount eb-charges" title={`Units consumed: ${item.totalUnitsConsumed ?? 0}`}>
+                          {formatCurrency(item.ebCharges || 0)}
+                        </td>
+                        <td className="amount balance">{formatCurrency(item.proRataRent + (item.ebCharges || 0))}</td>
                         <td>
                           <span className={`payment-status-badge ${item.paymentStatus}`}>
                             {item.paymentStatus}
