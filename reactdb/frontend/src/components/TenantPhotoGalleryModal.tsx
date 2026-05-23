@@ -17,11 +17,6 @@ export default function TenantPhotoGalleryModal({
   initialProofIndex,
   initialTab,
 }: TenantPhotoGalleryModalProps) {
-  const [photoIndex, setPhotoIndex] = React.useState(initialPhotoIndex);
-  const [proofIndex, setProofIndex] = React.useState(initialProofIndex);
-  const [mediaTab, setMediaTab] = React.useState<'photos' | 'proofs'>(initialTab);
-  const [zoom, setZoom] = React.useState(100);
-
   const getTenantPhotos = (tenant: TenantWithOccupancy): string[] => {
     return [
       tenant.photoUrl,
@@ -56,6 +51,42 @@ export default function TenantPhotoGalleryModal({
   const proofs = getTenantProofs(tenant);
   const hasPhotos = photos.length > 0;
   const hasProofs = proofs.length > 0;
+
+  const initialMediaTab = initialTab === 'photos'
+    ? hasPhotos ? 'photos' : 'proofs'
+    : hasProofs ? 'proofs' : 'photos';
+
+  const [photoIndex, setPhotoIndex] = React.useState<number | null>(() => {
+    if (initialPhotoIndex !== null && initialPhotoIndex >= 0 && initialPhotoIndex < photos.length) {
+      return initialPhotoIndex;
+    }
+    return hasPhotos ? 0 : null;
+  });
+
+  const [proofIndex, setProofIndex] = React.useState<number | null>(() => {
+    if (initialProofIndex !== null && initialProofIndex >= 0 && initialProofIndex < proofs.length) {
+      return initialProofIndex;
+    }
+    return hasProofs ? 0 : null;
+  });
+
+  const [mediaTab, setMediaTab] = React.useState<'photos' | 'proofs'>(initialMediaTab);
+  const [zoom, setZoom] = React.useState(100);
+
+  React.useEffect(() => {
+    if (mediaTab === 'photos' && photoIndex === null && hasPhotos) {
+      setPhotoIndex(0);
+    }
+    if (mediaTab === 'proofs' && proofIndex === null && hasProofs) {
+      setProofIndex(0);
+    }
+    if (mediaTab === 'photos' && !hasPhotos && hasProofs) {
+      setMediaTab('proofs');
+    }
+    if (mediaTab === 'proofs' && !hasProofs && hasPhotos) {
+      setMediaTab('photos');
+    }
+  }, [mediaTab, photoIndex, proofIndex, hasPhotos, hasProofs]);
 
   // Handle keyboard navigation
   React.useEffect(() => {

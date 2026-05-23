@@ -1602,7 +1602,7 @@
 }
 
 .gallery-header-content {
-  display: none;
+  display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 1.5rem 2rem;

@@ -375,11 +375,54 @@ export default function TenantManagement() {
     }
   };
 
+  const getTenantPhotos = (tenant: TenantWithOccupancy): string[] => {
+    return [
+      tenant.photoUrl,
+      tenant.photo2Url,
+      tenant.photo3Url,
+      tenant.photo4Url,
+      tenant.photo5Url,
+      tenant.photo6Url,
+      tenant.photo7Url,
+      tenant.photo8Url,
+      tenant.photo9Url,
+      tenant.photo10Url,
+    ].filter((url): url is string => !!url);
+  };
+
+  const getTenantProofs = (tenant: TenantWithOccupancy): string[] => {
+    return [
+      tenant.proof1Url,
+      tenant.proof2Url,
+      tenant.proof3Url,
+      tenant.proof4Url,
+      tenant.proof5Url,
+      tenant.proof6Url,
+      tenant.proof7Url,
+      tenant.proof8Url,
+      tenant.proof9Url,
+      tenant.proof10Url,
+    ].filter((url): url is string => !!url);
+  };
+
   const handleViewTenant = (tenant: TenantWithOccupancy) => {
+    const photos = getTenantPhotos(tenant);
+    const proofs = getTenantProofs(tenant);
+
     setFullScreenTenant(tenant);
-    setFullscreenPhotoIndex(null);
-    setFullscreenProofIndex(null);
-    setFullscreenMediaTab('photos');
+    if (photos.length > 0) {
+      setFullscreenMediaTab('photos');
+      setFullscreenPhotoIndex(0);
+      setFullscreenProofIndex(null);
+    } else if (proofs.length > 0) {
+      setFullscreenMediaTab('proofs');
+      setFullscreenPhotoIndex(null);
+      setFullscreenProofIndex(0);
+    } else {
+      setFullscreenMediaTab('photos');
+      setFullscreenPhotoIndex(null);
+      setFullscreenProofIndex(null);
+    }
   };
 
   const handleCheckoutSuccess = async () => {
