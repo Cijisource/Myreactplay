@@ -476,6 +476,11 @@ export default function TenantManagement() {
     setFullscreenMediaTab('photos');
   };
 
+  const handleCloseGallery = () => {
+    setFullscreenPhotoIndex(null);
+    setFullscreenProofIndex(null);
+  };
+
   const handleViewPhoto = (photoIndex: number) => {
     setFullscreenPhotoIndex(photoIndex);
     setFullscreenProofIndex(null);
@@ -696,7 +701,7 @@ export default function TenantManagement() {
           {(fullscreenPhotoIndex !== null || fullscreenProofIndex !== null) && (
             <TenantPhotoGalleryModal
               tenant={fullScreenTenant}
-              onClose={handleCloseFullscreen}
+              onClose={handleCloseGallery}
               initialPhotoIndex={fullscreenPhotoIndex}
               initialProofIndex={fullscreenProofIndex}
               initialTab={fullscreenMediaTab}

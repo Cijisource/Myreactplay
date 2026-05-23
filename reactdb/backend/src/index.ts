@@ -1513,7 +1513,7 @@ app.get('/api/tenants/with-occupancy', async (req: Request, res: Response) => {
         o.CheckInDate as checkInDate,
         o.CheckOutDate as checkOutDate,
         ISNULL(o.RentFixed, rd.Rent) as rentFixed,
-        CASE WHEN o.CheckOutDate >= CAST(GETDATE() AS DATE) THEN 1 ELSE 0 END as isCurrentlyOccupied,
+        CASE WHEN o.Id IS NOT NULL THEN 1 ELSE 0 END as isCurrentlyOccupied,
         ISNULL(CAST(COALESCE(
           (SELECT TOP 1 CAST(RentBalance AS FLOAT) 
            FROM RentalCollection 
@@ -1538,7 +1538,8 @@ app.get('/api/tenants/with-occupancy', async (req: Request, res: Response) => {
            AND MONTH(RentReceivedOn) = MONTH(GETDATE())
            ORDER BY RentReceivedOn DESC), NULL) AS NVARCHAR(10)), NULL) as lastPaymentDate
       FROM Tenant t
-      LEFT JOIN Occupancy o ON t.Id = o.TenantId AND o.CheckOutDate >= CAST(GETDATE() AS DATE)
+      LEFT JOIN Occupancy o ON t.Id = o.TenantId
+        AND (o.CheckOutDate IS NULL OR LTRIM(RTRIM(o.CheckOutDate)) = '' OR o.CheckOutDate >= CAST(GETDATE() AS DATE))
       LEFT JOIN RoomDetail rd ON o.RoomId = rd.Id
       ORDER BY t.Name ASC
     `);
@@ -1622,10 +1623,15 @@ app.get('/api/tenants/:id', async (req: Request, res: Response) => {
 app.get('/api/tenants/:id/occupancy-history', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const tenantId = parseInt(id, 10);
+    if (Number.isNaN(tenantId)) {
+      return res.status(400).json({ error: 'Invalid tenant ID' });
+    }
+
     const pool = getPool();
     const result = await pool
       .request()
-      .input('tenantId', sql.Int, parseInt(id))
+      .input('tenantId', sql.Int, tenantId)
       .query(`
         SELECT 
           o.Id as occupancyId,

@@ -24,7 +24,7 @@ export default function TenantCard({
   showDeleteConfirm,
 }: TenantCardProps) {
   
-  const handlePhotoClick = (e: React.MouseEvent) => {
+  const handleViewHistory = (e: React.MouseEvent) => {
     e.stopPropagation();
     onView(tenant);
   };
@@ -58,13 +58,21 @@ export default function TenantCard({
       {canViewAllMedia && (
         <button
           className="action-icon-btn action-view"
-          onClick={handlePhotoClick}
+          onClick={handleViewHistory}
           title="View all photos and proofs"
           aria-label="View photos"
         >
           👁
         </button>
       )}
+      <button
+        className="action-icon-btn action-history"
+        onClick={handleViewHistory}
+        title="View tenant history"
+        aria-label="View history"
+      >
+        📜
+      </button>
       {tenant.isCurrentlyOccupied && (
         <button
           className="action-icon-btn action-checkout"
