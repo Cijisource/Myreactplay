@@ -1,7 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
-import { getOccupancyLinks } from '../api';
+import { getOccupancyLinks, getFileUrl } from '../api';
 import SearchableDropdown from './SearchableDropdown';
 import CheckoutModal from './CheckoutModal';
+import TenantFullScreenView from './TenantFullScreenView';
+import TenantPhotoGalleryModal from './TenantPhotoGalleryModal';
+import { TenantWithOccupancy } from './TenantManagement';
 import './OccupancyLinks.css';
 
 interface OccupancyLink {
@@ -50,6 +53,34 @@ export default function OccupancyLinks(): JSX.Element {
   const [checkOutDateFrom, setCheckOutDateFrom] = useState<string>('');
   const [checkOutDateTo, setCheckOutDateTo] = useState<string>('');
   const [selectedOccupancy, setSelectedOccupancy] = useState<OccupancyLink | null>(null);
+  const [fullScreenTenant, setFullScreenTenant] = useState<TenantWithOccupancy | null>(null);
+  const [galleryTenant, setGalleryTenant] = useState<TenantWithOccupancy | null>(null);
+  const [galleryInitialPhotoIndex, setGalleryInitialPhotoIndex] = useState<number | null>(0);
+  const galleryInitialProofIndex: number | null = null;
+  const [galleryInitialTab, setGalleryInitialTab] = useState<'photos' | 'proofs'>('photos');
+
+  const buildTenantFromOccupancy = (occ: OccupancyLink): TenantWithOccupancy => ({
+    id: occ.tenantId,
+    name: occ.tenantName,
+    phone: occ.tenantPhone,
+    address: occ.tenantAddress,
+    city: occ.tenantCity,
+    photoUrl: occ.tenantPhoto || null,
+    azurePhotoUrl: (occ as any).azurePhotoUrl || (occ.tenantPhoto && (occ.tenantPhoto.startsWith('http://') || occ.tenantPhoto.startsWith('https://')) ? occ.tenantPhoto : null),
+    proof1Url: null,
+    proof2Url: null,
+    proof3Url: null,
+    occupancyId: occ.occupancyId,
+    roomNumber: occ.roomNumber,
+    roomId: occ.roomId,
+    checkInDate: occ.checkInDate,
+    checkOutDate: occ.checkOutDate || null,
+    rentFixed: occ.rentFixed,
+    isCurrentlyOccupied: occ.isActive,
+    currentPendingPayment: occ.currentPendingPayment,
+    currentRentReceived: occ.currentRentReceived,
+    lastPaymentDate: occ.lastPaymentDate,
+  });
 
   useEffect(() => {
     const fetchOccupancies = async () => {
@@ -249,6 +280,10 @@ export default function OccupancyLinks(): JSX.Element {
       month: 'short',
       day: 'numeric'
     });
+  };
+
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"%3E%3Crect width="48" height="48" fill="%23f1f5f9"/%3E%3Ctext x="24" y="28" font-size="18" text-anchor="middle" fill="%23718396" font-family="Arial,Helvetica,sans-serif">👤</text%3E%3C/svg%3E';
   };
 
   if (loading) {
@@ -525,6 +560,63 @@ export default function OccupancyLinks(): JSX.Element {
               filteredAndSorted.map(occ => (
                 <tr key={occ.occupancyId} className={`row ${occ.isActive ? 'active' : 'inactive'}`}>
                   <td className="status-cell">
+                    {occ.tenantPhoto ? (
+                      (() => {
+                        // Prefer explicit azurePhotoUrl if provided by API, otherwise handle absolute URLs
+                        const azureUrl = (occ as any).azurePhotoUrl as string | undefined;
+                        let resolved = '';
+                        if (azureUrl) {
+                          resolved = azureUrl;
+                        } else if (occ.tenantPhoto) {
+                          if (occ.tenantPhoto.startsWith('http://') || occ.tenantPhoto.startsWith('https://')) {
+                            resolved = occ.tenantPhoto;
+                          } else {
+                            resolved = getFileUrl(occ.tenantPhoto);
+                          }
+                        }
+
+                        if (import.meta.env.DEV) {
+                          // eslint-disable-next-line no-console
+                          console.log('[OccupancyLinks] tenantPhoto:', occ.tenantPhoto, 'azurePhotoUrl:', azureUrl, 'resolvedUrl:', resolved);
+                        }
+
+                        if (!resolved) {
+                          return (
+                            <div
+                              className="status-thumb placeholder"
+                              title={`View photos for ${occ.tenantName}`}
+                              onClick={() => {
+                                const tenant = buildTenantFromOccupancy(occ);
+                                setGalleryInitialPhotoIndex(0);
+                                setGalleryInitialTab('photos');
+                                setGalleryTenant(tenant);
+                              }}
+                            >
+                              {occ.tenantName ? occ.tenantName.charAt(0).toUpperCase() : '👤'}
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <img
+                            src={resolved}
+                            alt={occ.tenantName}
+                            className="status-thumb"
+                            loading="lazy"
+                            onError={handleImageError}
+                            title={`View photos for ${occ.tenantName}`}
+                            onClick={() => {
+                              const tenant = buildTenantFromOccupancy(occ);
+                              setGalleryInitialPhotoIndex(0);
+                              setGalleryInitialTab('photos');
+                              setGalleryTenant(tenant);
+                            }}
+                          />
+                        );
+                      })()
+                    ) : (
+                      <div className="status-thumb placeholder">{occ.tenantName ? occ.tenantName.charAt(0).toUpperCase() : '👤'}</div>
+                    )}
                     <span className={`badge ${occ.isActive ? 'active' : 'inactive'}`}>
                       {occ.isActive ? '🟢 Active' : '🔴 Ended'}
                     </span>
@@ -553,6 +645,29 @@ export default function OccupancyLinks(): JSX.Element {
                   </td>
                   <td>{occ.lastPaymentDate ? formatDate(occ.lastPaymentDate) : '-'}</td>
                   <td className="actions-cell">
+                    <button
+                      className="action-btn history-btn"
+                      onClick={() => {
+                        const tenant = buildTenantFromOccupancy(occ);
+                        setFullScreenTenant(tenant);
+                      }}
+                      title="View tenant history"
+                    >
+                      📜
+                    </button>
+
+                    <button
+                      className="action-btn photo-btn"
+                      onClick={() => {
+                        const tenant = buildTenantFromOccupancy(occ);
+                        setGalleryInitialPhotoIndex(0);
+                        setGalleryInitialTab('photos');
+                        setGalleryTenant(tenant);
+                      }}
+                      title="View guest photos"
+                    >
+                      📷
+                    </button>
                     {occ.isActive && (
                       <button
                         className="action-btn checkout-btn"
@@ -601,6 +716,23 @@ export default function OccupancyLinks(): JSX.Element {
             };
             fetchOccupancies();
           }}
+        />
+      )}
+
+      {fullScreenTenant && (
+        <TenantFullScreenView
+          tenant={fullScreenTenant}
+          onClose={() => setFullScreenTenant(null)}
+        />
+      )}
+
+      {galleryTenant && (
+        <TenantPhotoGalleryModal
+          tenant={galleryTenant}
+          onClose={() => setGalleryTenant(null)}
+          initialPhotoIndex={galleryInitialPhotoIndex}
+          initialProofIndex={galleryInitialProofIndex}
+          initialTab={galleryInitialTab}
         />
       )}
     </div>
