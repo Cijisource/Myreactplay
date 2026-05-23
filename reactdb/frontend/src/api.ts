@@ -258,6 +258,20 @@ export const getFileUrl = (filePath: string): string => {
     // console.log('[File URL] Constructed URL from tenantphotos path:', { filePath, baseUrl, fullUrl });
     return fullUrl;
   }
+
+  // If the filename looks like the GUID-prefixed uploads we store in Azure,
+  // map directly to the Azure blob storage 'proofs' container.
+  // Example: 9a7c80b8-5190-4154-a021-8a9bdb5ccc19_IMG-20260330-WA0035.jpg
+  const azureGuidPrefix = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}_/;
+  if (azureGuidPrefix.test(filePath)) {
+    return `${AZURE_STORAGE_BASE_URL}/proofs/${encodeURIComponent(filePath)}`;
+  }
+
+  // If the caller already passed a path under the 'proofs' container, use it directly against blob base URL
+  const normalizedForBlob = filePath.replace(/^\/+/, '');
+  if (normalizedForBlob.startsWith('proofs/')) {
+    return `${AZURE_STORAGE_BASE_URL}/${normalizedForBlob}`;
+  }
   
   // For plain filenames, prepend the API tenantphotos path
   const baseUrl = getApiBaseUrl();
