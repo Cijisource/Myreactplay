@@ -182,7 +182,11 @@ export default function TenantFullScreenView({
                   </thead>
                   <tbody>
                     {displayedHistory.map((record) => {
-                      const isCurrent = !record.checkOutDate || !record.checkOutDate.trim();
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      const checkOutDate = record.checkOutDate ? new Date(record.checkOutDate) : null;
+                      if (checkOutDate) checkOutDate.setHours(0, 0, 0, 0);
+                      const isCurrent = !record.checkOutDate || !record.checkOutDate.trim() || (checkOutDate && checkOutDate > today);
                       return (
                         <tr
                           key={record.occupancyId}
@@ -248,7 +252,11 @@ export default function TenantFullScreenView({
                       </thead>
                       <tbody>
                         {displayedHistory.map((record) => {
-                          const isCurrent = !record.checkOutDate || !record.checkOutDate.trim();
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0);
+                          const checkOutDate = record.checkOutDate ? new Date(record.checkOutDate) : null;
+                          if (checkOutDate) checkOutDate.setHours(0, 0, 0, 0);
+                          const isCurrent = !record.checkOutDate || !record.checkOutDate.trim() || (checkOutDate && checkOutDate > today);
                           return (
                             <tr
                               key={`fullscreen-${record.occupancyId}`}
