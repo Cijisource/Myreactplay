@@ -33,6 +33,7 @@ export default function TenantFullScreenView({
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [azurePhotoUrl, setAzurePhotoUrl] = useState<string | null>(tenant.azurePhotoUrl || null);
+  const [historyFullscreen, setHistoryFullscreen] = useState(true);
 
   useEffect(() => {
     const fetchOccupancyHistory = async () => {
@@ -49,6 +50,26 @@ export default function TenantFullScreenView({
     };
     fetchOccupancyHistory();
   }, [tenant.id]);
+
+  const currentOccupancyFallback = tenant.isCurrentlyOccupied
+    ? {
+        occupancyId: tenant.occupancyId ?? 0,
+        roomId: tenant.roomId ?? 0,
+        roomNumber: tenant.roomNumber || '',
+        checkInDate: tenant.checkInDate || '',
+        checkOutDate: tenant.checkOutDate || null,
+        rentFixed: tenant.rentFixed ?? null,
+        depositReceived: null,
+        depositRefunded: null,
+        charges: null,
+      }
+    : null;
+
+  const displayedHistory = occupancyHistory.length > 0
+    ? occupancyHistory
+    : currentOccupancyFallback
+      ? [currentOccupancyFallback]
+      : [];
 
   // Use pre-fetched Azure photo URL from tenant data
   const mainPhotoUrl = azurePhotoUrl || (tenant.photoUrl ? getFileUrl(tenant.photoUrl) : null);
@@ -110,50 +131,161 @@ export default function TenantFullScreenView({
             type="button"
             className="fullscreen-close-btn"
             aria-label="Close full screen view"
+            title="Close"
             onClick={() => onClose?.()}
           >
-            ✕
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
           </button>
         </div>
 
         <div className="fullscreen-body">
           {/* Occupancy History Section */}
-          <div className="fullscreen-section">
-            <h3>Occupancy History</h3>
+          <div className="fullscreen-section history-section">
+            <div className="history-header">
+              <div>
+                <h3>Room Check-In / Check-Out History</h3>
+                <p className="history-note">All rooms this tenant has been checked into. Current occupancy is highlighted below.</p>
+              </div>
+              <button
+                type="button"
+                className="history-fullscreen-btn"
+                onClick={() => setHistoryFullscreen(true)}
+              >
+                Full Screen
+              </button>
+            </div>
             {loadingHistory && <p>Loading occupancy history...</p>}
             {historyError && <p className="form-error">{historyError}</p>}
-            {!loadingHistory && !historyError && occupancyHistory.length === 0 && (
+            {!loadingHistory && !historyError && displayedHistory.length === 0 && (
               <p>No occupancy history found for this tenant.</p>
             )}
-            {!loadingHistory && !historyError && occupancyHistory.length > 0 && (
-              <table className="occupancy-history-table">
-                <thead>
-                  <tr>
-                    <th>Room</th>
-                    <th>Check-in</th>
-                    <th>Check-out</th>
-                    <th>Rent</th>
-                    <th>Deposit Received</th>
-                    <th>Deposit Refunded</th>
-                    <th>Charges</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {occupancyHistory.map((record) => (
-                    <tr key={record.occupancyId}>
-                      <td>{record.roomNumber || 'N/A'}</td>
-                      <td>{record.checkInDate ? new Date(record.checkInDate).toLocaleDateString() : 'N/A'}</td>
-                      <td>{record.checkOutDate ? new Date(record.checkOutDate).toLocaleDateString() : '—'}</td>
-                      <td>{record.rentFixed != null ? `₹${record.rentFixed.toLocaleString()}` : 'N/A'}</td>
-                      <td>{record.depositReceived != null ? `₹${record.depositReceived.toLocaleString()}` : 'N/A'}</td>
-                      <td>{record.depositRefunded != null ? `₹${record.depositRefunded.toLocaleString()}` : 'N/A'}</td>
-                      <td>{record.charges != null ? `₹${record.charges.toLocaleString()}` : 'N/A'}</td>
+            {!loadingHistory && !historyError && displayedHistory.length > 0 && (
+              <>
+                {occupancyHistory.length === 0 && currentOccupancyFallback && (
+                  <p className="history-note">Showing current active occupancy from tenant details.</p>
+                )}
+                <table className="occupancy-history-table">
+                  <thead>
+                    <tr>
+                      <th>Room</th>
+                      <th>Status</th>
+                      <th>Check-in</th>
+                      <th>Check-out</th>
+                      <th>Rent</th>
+                      <th>Deposit Received</th>
+                      <th>Deposit Refunded</th>
+                      <th>Charges</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {displayedHistory.map((record) => {
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      const checkOutDate = record.checkOutDate ? new Date(record.checkOutDate) : null;
+                      if (checkOutDate) checkOutDate.setHours(0, 0, 0, 0);
+                      const isCurrent = !record.checkOutDate || !record.checkOutDate.trim() || (checkOutDate && checkOutDate > today);
+                      return (
+                        <tr
+                          key={record.occupancyId}
+                          className={isCurrent ? 'current-occupancy-row' : undefined}
+                        >
+                          <td>{record.roomNumber || (record.roomId ? `Room ${record.roomId}` : 'N/A')}</td>
+                          <td>
+                            <span
+                              className={`history-status-badge ${isCurrent ? 'currently-checked-in' : 'checked-out'}`}
+                            >
+                              {isCurrent ? 'Currently checked in' : 'Checked out'}
+                            </span>
+                          </td>
+                          <td>{record.checkInDate ? new Date(record.checkInDate).toLocaleDateString() : 'N/A'}</td>
+                          <td>{record.checkOutDate ? new Date(record.checkOutDate).toLocaleDateString() : '—'}</td>
+                          <td>{record.rentFixed != null ? `₹${record.rentFixed.toLocaleString()}` : 'N/A'}</td>
+                          <td>{record.depositReceived != null ? `₹${record.depositReceived.toLocaleString()}` : 'N/A'}</td>
+                          <td>{record.depositRefunded != null ? `₹${record.depositRefunded.toLocaleString()}` : 'N/A'}</td>
+                          <td>{record.charges != null ? `₹${record.charges.toLocaleString()}` : 'N/A'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </>
             )}
           </div>
+          {historyFullscreen && (
+            <div className="history-fullscreen-overlay" role="dialog" aria-modal="true">
+              <div className="history-fullscreen-panel">
+                <div className="history-fullscreen-topbar">
+                  <div>
+                    <h2>Room Check-In / Check-Out History</h2>
+                    <p className="history-note">Current occupancy is highlighted. Scroll horizontally if needed.</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="history-fullscreen-close"
+                    onClick={() => setHistoryFullscreen(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+                <div className="history-fullscreen-body">
+                  {loadingHistory && <p>Loading occupancy history...</p>}
+                  {historyError && <p className="form-error">{historyError}</p>}
+                  {!loadingHistory && !historyError && displayedHistory.length === 0 && (
+                    <p>No occupancy history found for this tenant.</p>
+                  )}
+                  {!loadingHistory && !historyError && displayedHistory.length > 0 && (
+                    <table className="occupancy-history-table">
+                      <thead>
+                        <tr>
+                          <th>Room</th>
+                          <th>Status</th>
+                          <th>Check-in</th>
+                          <th>Check-out</th>
+                          <th>Rent</th>
+                          <th>Deposit Received</th>
+                          <th>Deposit Refunded</th>
+                          <th>Charges</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {displayedHistory.map((record) => {
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0);
+                          const checkOutDate = record.checkOutDate ? new Date(record.checkOutDate) : null;
+                          if (checkOutDate) checkOutDate.setHours(0, 0, 0, 0);
+                          const isCurrent = !record.checkOutDate || !record.checkOutDate.trim() || (checkOutDate && checkOutDate > today);
+                          return (
+                            <tr
+                              key={`fullscreen-${record.occupancyId}`}
+                              className={isCurrent ? 'current-occupancy-row' : undefined}
+                            >
+                              <td>{record.roomNumber || (record.roomId ? `Room ${record.roomId}` : 'N/A')}</td>
+                              <td>
+                                <span
+                                  className={`history-status-badge ${isCurrent ? 'currently-checked-in' : 'checked-out'}`}
+                                >
+                                  {isCurrent ? 'Currently checked in' : 'Checked out'}
+                                </span>
+                              </td>
+                              <td>{record.checkInDate ? new Date(record.checkInDate).toLocaleDateString() : 'N/A'}</td>
+                              <td>{record.checkOutDate ? new Date(record.checkOutDate).toLocaleDateString() : '—'}</td>
+                              <td>{record.rentFixed != null ? `₹${record.rentFixed.toLocaleString()}` : 'N/A'}</td>
+                              <td>{record.depositReceived != null ? `₹${record.depositReceived.toLocaleString()}` : 'N/A'}</td>
+                              <td>{record.depositRefunded != null ? `₹${record.depositRefunded.toLocaleString()}` : 'N/A'}</td>
+                              <td>{record.charges != null ? `₹${record.charges.toLocaleString()}` : 'N/A'}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
           {/* Occupancy Status Badge */}
           {tenant.isCurrentlyOccupied !== undefined && (
             <div className="fullscreen-status-section">
