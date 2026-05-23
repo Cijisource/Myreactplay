@@ -57,6 +57,8 @@ export default function RoomManagement(): JSX.Element {
   const [occupancyFilter, setOccupancyFilter] = useState<'all' | 'occupied' | 'vacant'>('all');
   const [editingRentRoomId, setEditingRentRoomId] = useState<number | null>(null);
   const [editingRentValue, setEditingRentValue] = useState<string>('');
+  const [editingAdvanceOccupancyId, setEditingAdvanceOccupancyId] = useState<number | null>(null);
+  const [editingAdvanceValue, setEditingAdvanceValue] = useState<string>('');
   const [showStatsGrid, setShowStatsGrid] = useState(true);
   const [selectedTenant, setSelectedTenant] = useState<TenantDetails | null>(null);
   const [tenantModalLoading, setTenantModalLoading] = useState(false);
@@ -337,6 +339,48 @@ export default function RoomManagement(): JSX.Element {
   const handleCancelEditRent = () => {
     setEditingRentRoomId(null);
     setEditingRentValue('');
+  };
+
+  const handleEditAdvance = (occupancyId: number, currentAdvance: number) => {
+    if (!isAdmin) return;
+    setEditingAdvanceOccupancyId(occupancyId);
+    setEditingAdvanceValue(String(currentAdvance));
+  };
+
+  const handleSaveAdvance = async (occupancyId: number) => {
+    try {
+      const newAdvance = parseFloat(editingAdvanceValue);
+      if (isNaN(newAdvance) || newAdvance < 0) {
+        setError('Invalid advance amount');
+        return;
+      }
+
+      await apiService.updateOccupancy(occupancyId, { depositReceived: newAdvance });
+
+      setRooms(rooms.map(room => ({
+        ...room,
+        tenantHistory: room.tenantHistory.map(tenant =>
+          tenant.occupancyId === occupancyId
+            ? { ...tenant, advanceCollected: newAdvance }
+            : tenant
+        )
+      })));
+
+      setSuccessMessage('Advance updated successfully!');
+      setEditingAdvanceOccupancyId(null);
+      setEditingAdvanceValue('');
+      setError(null);
+
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update advance');
+      console.error('Error updating advance:', err);
+    }
+  };
+
+  const handleCancelEditAdvance = () => {
+    setEditingAdvanceOccupancyId(null);
+    setEditingAdvanceValue('');
   };
 
   const handleExpandAll = () => {
@@ -728,7 +772,49 @@ export default function RoomManagement(): JSX.Element {
                                     <td className="date">{formatDate(tenant.checkInDate)}</td>
                                     <td className="date">{tenant.checkOutDate ? formatDate(tenant.checkOutDate) : '-'}</td>
                                     <td className="currency">{formatCurrency(tenant.rentFixed)}</td>
-                                    <td className="currency collected">{formatCurrency(tenant.advanceCollected)}</td>
+                                    <td className="currency collected advance-cell">
+                                      {editingAdvanceOccupancyId === tenant.occupancyId ? (
+                                        <div className="advance-edit-group">
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            step="100"
+                                            value={editingAdvanceValue}
+                                            onChange={(e) => setEditingAdvanceValue(e.target.value)}
+                                            className="advance-input"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => handleSaveAdvance(tenant.occupancyId)}
+                                            className="btn-save"
+                                            disabled={!isAdmin}
+                                          >
+                                            Save
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={handleCancelEditAdvance}
+                                            className="btn-cancel"
+                                          >
+                                            Cancel
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <div className="advance-display">
+                                          <span>{formatCurrency(tenant.advanceCollected)}</span>
+                                          {isAdmin && (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleEditAdvance(tenant.occupancyId, tenant.advanceCollected)}
+                                              className="btn-edit advance-edit-btn"
+                                              title="Edit advance amount"
+                                            >
+                                              ✎
+                                            </button>
+                                          )}
+                                        </div>
+                                      )}
+                                    </td>
                                     <td className="currency collected">{formatCurrency(tenant.currentRentReceived)}</td>
                                     <td className="currency pending">{formatCurrency(tenant.currentPendingPayment)}</td>
                                   </tr>
@@ -892,7 +978,49 @@ export default function RoomManagement(): JSX.Element {
                                     <td className="date">{formatDate(tenant.checkInDate)}</td>
                                     <td className="date">{tenant.checkOutDate ? formatDate(tenant.checkOutDate) : '-'}</td>
                                     <td className="currency">{formatCurrency(tenant.rentFixed)}</td>
-                                    <td className="currency collected">{formatCurrency(tenant.advanceCollected)}</td>
+                                    <td className="currency collected advance-cell">
+                                      {editingAdvanceOccupancyId === tenant.occupancyId ? (
+                                        <div className="advance-edit-group">
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            step="100"
+                                            value={editingAdvanceValue}
+                                            onChange={(e) => setEditingAdvanceValue(e.target.value)}
+                                            className="advance-input"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => handleSaveAdvance(tenant.occupancyId)}
+                                            className="btn-save"
+                                            disabled={!isAdmin}
+                                          >
+                                            Save
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={handleCancelEditAdvance}
+                                            className="btn-cancel"
+                                          >
+                                            Cancel
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <div className="advance-display">
+                                          <span>{formatCurrency(tenant.advanceCollected)}</span>
+                                          {isAdmin && (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleEditAdvance(tenant.occupancyId, tenant.advanceCollected)}
+                                              className="btn-edit advance-edit-btn"
+                                              title="Edit advance amount"
+                                            >
+                                              ✎
+                                            </button>
+                                          )}
+                                        </div>
+                                      )}
+                                    </td>
                                     <td className="currency collected">{formatCurrency(tenant.currentRentReceived)}</td>
                                     <td className="currency pending">{formatCurrency(tenant.currentPendingPayment)}</td>
                                   </tr>

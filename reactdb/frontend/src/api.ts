@@ -476,6 +476,7 @@ export const apiService = {
     });
   },
   updateRoom: (roomId: number, data: { rent: number }) => api.put(`/rooms/${roomId}`, data),
+  updateOccupancy: (occupancyId: number, data: { depositReceived: number }) => api.put(`/occupancy/${occupancyId}`, data),
 
   // Service Details APIs
   getServiceDetails: () => api.get('/services/details'),

@@ -2660,6 +2660,48 @@ app.post('/api/occupancy/checkin', async (req: Request, res: Response) => {
   }
 });
 
+// Update occupancy deposit/advance amount (admin only)
+app.put('/api/occupancy/:occupancyId', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
+  try {
+    const { occupancyId } = req.params;
+    const { depositReceived } = req.body;
+
+    const occupancyIdNum = parseInt(occupancyId, 10);
+    if (Number.isNaN(occupancyIdNum)) {
+      return res.status(400).json({ error: 'Invalid occupancy id' });
+    }
+
+    if (depositReceived === undefined || depositReceived === null || parseFloat(depositReceived) < 0) {
+      return res.status(400).json({ error: 'Deposit received amount is required and cannot be negative' });
+    }
+
+    const pool = getPool();
+    const result = await pool
+      .request()
+      .input('occupancyId', sql.Int, occupancyIdNum)
+      .input('depositReceived', sql.Money, parseFloat(depositReceived))
+      .query(`
+        UPDATE Occupancy
+        SET DepositReceived = @depositReceived,
+            UpdatedDate = GETUTCDATE()
+        WHERE Id = @occupancyId
+      `);
+
+    if (result.rowsAffected[0] === 0) {
+      return res.status(404).json({ error: 'Occupancy record not found' });
+    }
+
+    res.json({ message: 'Advance amount updated successfully' });
+  } catch (error) {
+    console.error('Update occupancy advance error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({
+      error: 'Failed to update occupancy advance',
+      details: errorMessage
+    });
+  }
+});
+
 // Checkout tenant from occupancy
 app.post('/api/occupancy/:occupancyId/checkout', async (req: Request, res: Response) => {
   try {
