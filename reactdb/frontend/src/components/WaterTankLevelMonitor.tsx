@@ -102,33 +102,55 @@ const formatPinValue = (pin: string, value?: number | null) => {
 
 // Small SVG speedometer component
 function Speedometer({ value = 0, max = 100, size = 160, label = '' }: { value?: number; max?: number; size?: number; label?: string }) {
+  const safeMax = max > 0 ? max : 1;
+  const safeValue = Number.isFinite(value) ? value : 0;
+  const ratio = Math.max(0, Math.min(1, safeValue / safeMax));
   const cx = size / 2;
-  const cy = size / 2 + 6;
-  const r = size * 0.36;
+  const cy = size / 2 + 4;
+  const r = size * 0.38;
   const startAngle = -120;
   const endAngle = 120;
-  const clamp = (v: number, a = 0, b = 1) => Math.max(a, Math.min(b, v));
-  const ratio = clamp((value ?? 0) / (max || 1));
-  const angle = startAngle + (endAngle - startAngle) * ratio;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const polar = (ang: number) => ({ x: cx + r * Math.cos(toRad(ang)), y: cy + r * Math.sin(toRad(ang)) });
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const polar = (angle: number) => ({ x: cx + r * Math.cos(toRad(angle)), y: cy + r * Math.sin(toRad(angle)) });
   const start = polar(startAngle);
-  const full = polar(endAngle);
-  const filled = polar(angle);
+  const end = polar(endAngle);
+  const current = polar(startAngle + (endAngle - startAngle) * ratio);
   const largeArc = Math.abs(endAngle - startAngle) > 180 ? 1 : 0;
-  const filledLargeArc = Math.abs(angle - startAngle) > 180 ? 1 : 0;
-  const bgPath = `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 1 ${full.x} ${full.y}`;
-  const filledPath = `M ${start.x} ${start.y} A ${r} ${r} 0 ${filledLargeArc} 1 ${filled.x} ${filled.y}`;
-  const needle = polar(angle);
+  const filledLargeArc = Math.abs((startAngle + (endAngle - startAngle) * ratio) - startAngle) > 180 ? 1 : 0;
+  const trackPath = `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 1 ${end.x} ${end.y}`;
+  const fillPath = `M ${start.x} ${start.y} A ${r} ${r} 0 ${filledLargeArc} 1 ${current.x} ${current.y}`;
+  const fillColor = ratio > 0.8 ? '#f97316' : ratio > 0.55 ? '#facc15' : '#22c55e';
+  const ticks = Array.from({ length: 5 }, (_, index) => {
+    const angle = startAngle + ((endAngle - startAngle) / 4) * index;
+    const inner = polar(angle);
+    const outer = { x: cx + (r + 8) * Math.cos(toRad(angle)), y: cy + (r + 8) * Math.sin(toRad(angle)) };
+    const label = Math.round((safeMax / 4) * index);
+    const labelPos = { x: cx + (r + 18) * Math.cos(toRad(angle)), y: cy + (r + 18) * Math.sin(toRad(angle)) + 4 };
+    return { inner, outer, label, labelPos };
+  });
 
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <path d={bgPath} stroke="#eef6ff" strokeWidth={12} fill="none" strokeLinecap="round" />
-      <path d={filledPath} stroke="#2563eb" strokeWidth={12} fill="none" strokeLinecap="round" />
-      <line x1={cx} y1={cy} x2={needle.x} y2={needle.y} stroke="#0b1220" strokeWidth={2} />
-      <circle cx={cx} cy={cy} r={6} fill="#0b1220" />
-      <text x={cx} y={cy + r * 0.9} fontSize={12} textAnchor="middle" fill="#0b1220">{label}</text>
-      <text x={cx} y={cy + r * 0.9 + 14} fontSize={14} textAnchor="middle" fill="#0b1220" fontWeight={700}>{Math.round(value ?? 0)}</text>
+      <circle cx={cx} cy={cy} r={r + 14} fill="#fbfcff" opacity={0.8} />
+      <path d={trackPath} stroke="#dbeafe" strokeWidth={16} fill="none" strokeLinecap="round" />
+      <path d={fillPath} stroke={fillColor} strokeWidth={16} fill="none" strokeLinecap="round" />
+      {ticks.map((tick, index) => (
+        <g key={index}>
+          <line x1={tick.inner.x} y1={tick.inner.y} x2={tick.outer.x} y2={tick.outer.y} stroke="#94a3b8" strokeWidth={2} />
+          <text x={tick.labelPos.x} y={tick.labelPos.y} fontSize={10} textAnchor="middle" fill="#334155" fontWeight={600}>
+            {tick.label}
+          </text>
+        </g>
+      ))}
+      <line x1={cx} y1={cy} x2={current.x} y2={current.y} stroke="#0f172a" strokeWidth={4} strokeLinecap="round" />
+      <circle cx={cx} cy={cy} r={10} fill="#0f172a" />
+      <circle cx={cx} cy={cy} r={5} fill="#ffffff" />
+      <text x={cx} y={cy + r * 0.9} fontSize={12} textAnchor="middle" fill="#475569">
+        {label}
+      </text>
+      <text x={cx} y={cy + r * 0.9 + 16} fontSize={14} textAnchor="middle" fill="#0f172a" fontWeight={700}>
+        {Math.round(safeValue)}
+      </text>
     </svg>
   );
 }
@@ -272,17 +294,32 @@ export default function WaterTankLevelMonitor(): JSX.Element {
               <div className="meter-graph-summary-card"><div className="summary-title">V9 (ft)</div><div className="summary-value">{formatPinValue('V9', latestReading?.v9 ?? null)}</div><div className="summary-meta">{latestReading?.timestamp ?? 'N/A'}</div></div>
             </div>
 
+            <div className="v4-gauge-panel">
+              <div className="v4-gauge-card">
+                <Speedometer
+                  value={latestReading?.v4 ?? 0}
+                  max={100}
+                  size={240}
+                  label="V4 (%)"
+                />
+              </div>
+            </div>
+
             <div className="speedometer-grid">
-              {[{k: 'V1', v: latestReading?.v1}, {k: 'V2', v: latestReading?.v2}, {k: 'V3', v: latestReading?.v3}, {k: 'V4', v: latestReading?.v4}, {k: 'V6', v: latestReading?.v6}, {k: 'V9', v: latestReading?.v9}].map((it) => (
+              {[
+                {k: 'V1', v: latestReading?.v1, max: 100, label: 'V1 (cm)', size: 160},
+                {k: 'V2', v: latestReading?.v2, max: 1000, label: 'Consumed Ltrs', size: 160},
+                {k: 'V3', v: latestReading?.v3, max: 1000, label: 'V3 (L)', size: 160},
+                {k: 'V6', v: latestReading?.v6, max: speedometerMax || chartMaxValue || 100, label: 'V6 (ms)', size: 160},
+                {k: 'V9', v: latestReading?.v9, max: 3.5, label: 'V9 (ft)', size: 160}
+              ].map((it) => (
                 <div key={it.k} className="speedometer-card">
-                  {
-                    Speedometer({
-                      value: it.v ?? 0,
-                      max: it.k === 'V4' ? 100 : it.k === 'V3' ? 1000 : it.k === 'V9' ? 3.5 : (speedometerMax || chartMaxValue || 100),
-                      size: 160,
-                      label: it.k === 'V4' ? '%' : it.k === 'V3' ? 'available ltrs' : it.k,
-                    })
-                  }
+                  <Speedometer
+                    value={it.v ?? 0}
+                    max={it.max}
+                    size={it.size}
+                    label={it.label}
+                  />
                 </div>
               ))}
             </div>

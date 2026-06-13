@@ -197,6 +197,25 @@
   border-left: 4px solid #c0392b;
 }
 
+.v4-gauge-panel {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+
+.v4-gauge-card {
+  background: #ffffff;
+  border: 1px solid #e6eefc;
+  border-radius: 18px;
+  padding: 18px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  max-width: 340px;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.06);
+}
+
 .speedometer-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
