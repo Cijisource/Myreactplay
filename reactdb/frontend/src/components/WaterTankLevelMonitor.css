@@ -1,0 +1,215 @@
+.water-tank-monitor-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: clamp(16px, 3vw, 26px);
+}
+
+.water-tank-monitor-panel {
+  background: white;
+  border-radius: 18px;
+  padding: 26px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+  border-top: 6px solid #2563eb;
+}
+
+.water-tank-monitor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+
+.water-tank-monitor-header h2 {
+  margin: 0;
+  font-size: clamp(22px, 2.2vw, 28px);
+  color: #1f3f72;
+}
+
+.water-tank-monitor-header p {
+  margin: 6px 0 0;
+  color: #475569;
+  font-size: 14px;
+}
+
+.graph-refresh-btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #2563eb 0%, #60a5fa 100%);
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.graph-refresh-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.24);
+}
+
+.meter-graph-loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: #34495e;
+  padding: 18px 0;
+}
+
+.meter-graph-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 18px;
+  margin-bottom: 22px;
+}
+
+.meter-graph-summary-card {
+  background: #f5f9ff;
+  border: 1px solid #dbeafb;
+  border-radius: 16px;
+  padding: 22px;
+}
+
+.summary-title {
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: #2563eb;
+  margin-bottom: 10px;
+  font-weight: 800;
+}
+
+.summary-value {
+  font-size: 32px;
+  font-weight: 800;
+  color: #1f3f72;
+  margin-bottom: 10px;
+}
+
+.summary-meta {
+  font-size: 13px;
+  color: #475569;
+}
+
+.meter-graph-bar-group {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.meter-graph-bar-row {
+  display: grid;
+  grid-template-columns: 70px 1fr 80px;
+  align-items: center;
+  gap: 12px;
+}
+
+.meter-graph-bar-label {
+  font-size: 13px;
+  color: #1f3f72;
+  font-weight: 700;
+}
+
+.meter-graph-bar-track {
+  background: #eef2ff;
+  border-radius: 999px;
+  height: 18px;
+  overflow: hidden;
+}
+
+.meter-graph-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.meter-graph-bar-fill.v4 {
+  background: linear-gradient(135deg, #2563eb 0%, #60a5fa 100%);
+}
+
+.meter-graph-bar-fill.v1 {
+  background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+}
+
+.meter-graph-bar-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1f3f72;
+}
+
+.meter-graph-history {
+  margin-top: 6px;
+}
+
+.history-header {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1f3f72;
+  margin-bottom: 14px;
+}
+
+.meter-graph-history-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+}
+
+.meter-graph-history-item {
+  background: #f8fbff;
+  border: 1px solid #d9e8ff;
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.history-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  margin-bottom: 10px;
+}
+
+.history-values {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  color: #1f2937;
+  margin-bottom: 10px;
+}
+
+.history-ratio {
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.message {
+  padding: 14px 16px;
+  border-radius: 10px;
+  margin-bottom: 18px;
+  font-size: 13px;
+}
+
+.message.error {
+  background: #fde2e2;
+  color: #c0392b;
+  border-left: 4px solid #c0392b;
+}
+
+.speedometer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.speedometer-card {
+  background: #ffffff;
+  border: 1px solid #e6eefc;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

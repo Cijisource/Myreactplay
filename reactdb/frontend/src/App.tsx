@@ -23,11 +23,12 @@ import ServiceAllocationManagement from './components/ServiceAllocationManagemen
 import RollingBanner from './components/RollingBanner';
 import ServiceConsumptionDetails from './components/ServiceConsumptionDetails';
 import MonthlyMeterReading from './components/MonthlyMeterReading';
+import WaterTankLevelMonitor from './components/WaterTankLevelMonitor';
 import TenantElectricityCharges from './components/TenantElectricityCharges';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
-type Page = 'home' | 'diagnostic' | 'payment' | 'rental-collection' | 'tenants' | 'occupancy' | 'room-wise-analysis' | 'room-management' | 'occupancy-links' | 'complaints' | 'services' | 'eb-payments' | 'users' | 'roles' | 'transactions' | 'stock' | 'daily-status' | 'guest-checkin' | 'service-allocation' | 'consumption' | 'meter-reading' | 'electricity-charges';
+type Page = 'home' | 'diagnostic' | 'payment' | 'rental-collection' | 'tenants' | 'occupancy' | 'room-wise-analysis' | 'room-management' | 'occupancy-links' | 'complaints' | 'services' | 'eb-payments' | 'users' | 'roles' | 'transactions' | 'stock' | 'daily-status' | 'guest-checkin' | 'service-allocation' | 'consumption' | 'meter-reading' | 'water-tank-monitor' | 'electricity-charges';
 
 // Role requirements for each screen
 const SCREEN_ROLES: Record<Page, string[]> = {
@@ -52,6 +53,7 @@ const SCREEN_ROLES: Record<Page, string[]> = {
   'service-allocation': ['admin'],
   consumption: ['admin', 'manager', 'utilities_manager'],
   'meter-reading': ['admin', 'manager', 'utilities_manager'],
+  'water-tank-monitor': ['admin', 'manager', 'utilities_manager'],
   'electricity-charges': ['admin', 'manager', 'utilities_manager', 'accountant']
 };
 
@@ -66,6 +68,7 @@ const NAV_ITEMS: Array<{ page: Page; label: string; roles: string[] }> = [
   { page: 'payment', label: 'Payment Tracking', roles: SCREEN_ROLES.payment },
   { page: 'rental-collection', label: 'Rental Collection', roles: SCREEN_ROLES['rental-collection'] },
   { page: 'meter-reading', label: 'EB Meter Reading', roles: SCREEN_ROLES['meter-reading'] },
+  { page: 'water-tank-monitor', label: 'Sintex Tank Monitor', roles: SCREEN_ROLES['water-tank-monitor'] },
   { page: 'electricity-charges', label: 'Electricity Charges', roles: SCREEN_ROLES['electricity-charges'] },
   { page: 'complaints', label: 'Complaints', roles: SCREEN_ROLES.complaints },
   { page: 'services', label: 'Service Details', roles: SCREEN_ROLES.services },
@@ -353,6 +356,14 @@ function AppContent() {
       return (
         <ProtectedRoute requiredRoles={SCREEN_ROLES['meter-reading']}>
           <MonthlyMeterReading />
+        </ProtectedRoute>
+      );
+    }
+
+    if (currentPage === 'water-tank-monitor') {
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES['water-tank-monitor']}>
+          <WaterTankLevelMonitor />
         </ProtectedRoute>
       );
     }
