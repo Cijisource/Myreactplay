@@ -25,10 +25,11 @@ import ServiceConsumptionDetails from './components/ServiceConsumptionDetails';
 import MonthlyMeterReading from './components/MonthlyMeterReading';
 import WaterTankLevelMonitor from './components/WaterTankLevelMonitor';
 import TenantElectricityCharges from './components/TenantElectricityCharges';
+import MiscUploads from './components/MiscUploads';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
-type Page = 'home' | 'diagnostic' | 'payment' | 'rental-collection' | 'tenants' | 'occupancy' | 'room-wise-analysis' | 'room-management' | 'occupancy-links' | 'complaints' | 'services' | 'eb-payments' | 'users' | 'roles' | 'transactions' | 'stock' | 'daily-status' | 'guest-checkin' | 'service-allocation' | 'consumption' | 'meter-reading' | 'water-tank-monitor' | 'electricity-charges';
+type Page = 'home' | 'diagnostic' | 'payment' | 'rental-collection' | 'tenants' | 'occupancy' | 'room-wise-analysis' | 'room-management' | 'occupancy-links' | 'complaints' | 'services' | 'eb-payments' | 'users' | 'roles' | 'transactions' | 'stock' | 'daily-status' | 'guest-checkin' | 'misc-uploads' | 'service-allocation' | 'consumption' | 'meter-reading' | 'water-tank-monitor' | 'electricity-charges';
 
 // Role requirements for each screen
 const SCREEN_ROLES: Record<Page, string[]> = {
@@ -50,6 +51,7 @@ const SCREEN_ROLES: Record<Page, string[]> = {
   stock: ['admin', 'manager', 'inventory_manager'],
   'daily-status': ['admin', 'manager', 'maintenance', 'property_manager'],
   'guest-checkin': ['admin', 'manager', 'maintenance', 'property_manager'],
+  'misc-uploads': ['admin', 'manager', 'maintenance', 'property_manager'],
   'service-allocation': ['admin'],
   consumption: ['admin', 'manager', 'utilities_manager'],
   'meter-reading': ['admin', 'manager', 'utilities_manager'],
@@ -80,6 +82,7 @@ const NAV_ITEMS: Array<{ page: Page; label: string; roles: string[] }> = [
   { page: 'stock', label: 'Stock', roles: SCREEN_ROLES.stock },
   { page: 'daily-status', label: 'Daily Status', roles: SCREEN_ROLES['daily-status'] },
   { page: 'guest-checkin', label: 'Guest Check-In', roles: SCREEN_ROLES['guest-checkin'] },
+  { page: 'misc-uploads', label: 'Misc Uploads', roles: SCREEN_ROLES['misc-uploads'] },
   { page: 'service-allocation', label: 'Service Allocation', roles: SCREEN_ROLES['service-allocation'] },
   { page: 'diagnostic', label: 'Diagnostic', roles: SCREEN_ROLES.diagnostic }
 ];
@@ -332,6 +335,14 @@ function AppContent() {
       return (
         <ProtectedRoute requiredRoles={SCREEN_ROLES['guest-checkin']}>
           <GuestCheckinManagement />
+        </ProtectedRoute>
+      );
+    }
+
+    if (currentPage === 'misc-uploads') {
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES['misc-uploads']}>
+          <MiscUploads />
         </ProtectedRoute>
       );
     }
