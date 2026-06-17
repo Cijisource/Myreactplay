@@ -106,51 +106,84 @@ function Speedometer({ value = 0, max = 100, size = 160, label = '' }: { value?:
   const safeValue = Number.isFinite(value) ? value : 0;
   const ratio = Math.max(0, Math.min(1, safeValue / safeMax));
   const cx = size / 2;
-  const cy = size / 2 + 4;
-  const r = size * 0.38;
-  const startAngle = -120;
-  const endAngle = 120;
+  const cy = size * 0.56;
+  const r = size * 0.36;
+  const startAngle = 200;
+  const endAngle = 340;
   const toRad = (deg: number) => (deg * Math.PI) / 180;
   const polar = (angle: number) => ({ x: cx + r * Math.cos(toRad(angle)), y: cy + r * Math.sin(toRad(angle)) });
-  const start = polar(startAngle);
-  const end = polar(endAngle);
-  const current = polar(startAngle + (endAngle - startAngle) * ratio);
-  const largeArc = Math.abs(endAngle - startAngle) > 180 ? 1 : 0;
-  const filledLargeArc = Math.abs((startAngle + (endAngle - startAngle) * ratio) - startAngle) > 180 ? 1 : 0;
-  const trackPath = `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 1 ${end.x} ${end.y}`;
-  const fillPath = `M ${start.x} ${start.y} A ${r} ${r} 0 ${filledLargeArc} 1 ${current.x} ${current.y}`;
-  const fillColor = ratio > 0.8 ? '#f97316' : ratio > 0.55 ? '#facc15' : '#22c55e';
-  const ticks = Array.from({ length: 5 }, (_, index) => {
-    const angle = startAngle + ((endAngle - startAngle) / 4) * index;
-    const inner = polar(angle);
-    const outer = { x: cx + (r + 8) * Math.cos(toRad(angle)), y: cy + (r + 8) * Math.sin(toRad(angle)) };
-    const label = Math.round((safeMax / 4) * index);
-    const labelPos = { x: cx + (r + 18) * Math.cos(toRad(angle)), y: cy + (r + 18) * Math.sin(toRad(angle)) + 4 };
+  const arcPath = (fromAngle: number, toAngle: number, radius = r) => {
+    const from = { x: cx + radius * Math.cos(toRad(fromAngle)), y: cy + radius * Math.sin(toRad(fromAngle)) };
+    const to = { x: cx + radius * Math.cos(toRad(toAngle)), y: cy + radius * Math.sin(toRad(toAngle)) };
+    const largeArc = Math.abs(toAngle - fromAngle) > 180 ? 1 : 0;
+    return `M ${from.x} ${from.y} A ${radius} ${radius} 0 ${largeArc} 1 ${to.x} ${to.y}`;
+  };
+  const currentAngle = startAngle + (endAngle - startAngle) * ratio;
+  const current = polar(currentAngle);
+  const needleBaseLeft = {
+    x: cx + 7 * Math.cos(toRad(currentAngle + 90)),
+    y: cy + 7 * Math.sin(toRad(currentAngle + 90)),
+  };
+  const needleBaseRight = {
+    x: cx + 7 * Math.cos(toRad(currentAngle - 90)),
+    y: cy + 7 * Math.sin(toRad(currentAngle - 90)),
+  };
+  const displayValue = Number.isInteger(safeValue) ? String(safeValue) : safeValue.toFixed(1);
+  const status = ratio >= 0.8 ? 'High' : ratio >= 0.45 ? 'Normal' : 'Low';
+  const statusColor = ratio >= 0.8 ? '#dc2626' : ratio >= 0.45 ? '#0f766e' : '#2563eb';
+  const segments = [
+    { from: startAngle, to: startAngle + (endAngle - startAngle) * 0.45, color: '#38bdf8' },
+    { from: startAngle + (endAngle - startAngle) * 0.45, to: startAngle + (endAngle - startAngle) * 0.8, color: '#22c55e' },
+    { from: startAngle + (endAngle - startAngle) * 0.8, to: endAngle, color: '#f97316' },
+  ];
+  const ticks = Array.from({ length: 6 }, (_, index) => {
+    const angle = startAngle + ((endAngle - startAngle) / 5) * index;
+    const inner = { x: cx + (r - 13) * Math.cos(toRad(angle)), y: cy + (r - 13) * Math.sin(toRad(angle)) };
+    const outer = { x: cx + (r - 3) * Math.cos(toRad(angle)), y: cy + (r - 3) * Math.sin(toRad(angle)) };
+    const label = Math.round((safeMax / 5) * index);
+    const labelPos = { x: cx + (r + 21) * Math.cos(toRad(angle)), y: cy + (r + 21) * Math.sin(toRad(angle)) + 4 };
     return { inner, outer, label, labelPos };
   });
 
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <circle cx={cx} cy={cy} r={r + 14} fill="#fbfcff" opacity={0.8} />
-      <path d={trackPath} stroke="#dbeafe" strokeWidth={16} fill="none" strokeLinecap="round" />
-      <path d={fillPath} stroke={fillColor} strokeWidth={16} fill="none" strokeLinecap="round" />
+    <svg className="professional-speedometer" width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`${label} ${displayValue}`}>
+      <defs>
+        <filter id={`gauge-shadow-${label.replace(/\W/g, '')}-${size}`} x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="6" stdDeviation="5" floodColor="#0f172a" floodOpacity="0.14" />
+        </filter>
+      </defs>
+      <circle cx={cx} cy={cy} r={r + 28} fill="#f8fbff" stroke="#e2e8f0" strokeWidth={1} />
+      <path d={arcPath(startAngle, endAngle)} stroke="#e5edf7" strokeWidth={18} fill="none" strokeLinecap="round" />
+      {segments.map((segment) => (
+        <path key={`${segment.from}-${segment.to}`} d={arcPath(segment.from, segment.to)} stroke={segment.color} strokeWidth={12} fill="none" strokeLinecap="round" opacity={0.92} />
+      ))}
       {ticks.map((tick, index) => (
         <g key={index}>
-          <line x1={tick.inner.x} y1={tick.inner.y} x2={tick.outer.x} y2={tick.outer.y} stroke="#94a3b8" strokeWidth={2} />
-          <text x={tick.labelPos.x} y={tick.labelPos.y} fontSize={10} textAnchor="middle" fill="#334155" fontWeight={600}>
+          <line x1={tick.inner.x} y1={tick.inner.y} x2={tick.outer.x} y2={tick.outer.y} stroke="#64748b" strokeWidth={index === 0 || index === ticks.length - 1 ? 2.2 : 1.4} strokeLinecap="round" />
+          <text x={tick.labelPos.x} y={tick.labelPos.y} fontSize={size > 180 ? 10 : 8} textAnchor="middle" fill="#64748b" fontWeight={700}>
             {tick.label}
           </text>
         </g>
       ))}
-      <line x1={cx} y1={cy} x2={current.x} y2={current.y} stroke="#0f172a" strokeWidth={4} strokeLinecap="round" />
-      <circle cx={cx} cy={cy} r={10} fill="#0f172a" />
+      <path
+        d={`M ${needleBaseLeft.x} ${needleBaseLeft.y} L ${current.x} ${current.y} L ${needleBaseRight.x} ${needleBaseRight.y} Z`}
+        fill="#0f172a"
+        filter={`url(#gauge-shadow-${label.replace(/\W/g, '')}-${size})`}
+      />
+      <circle cx={cx} cy={cy} r={12} fill="#0f172a" />
       <circle cx={cx} cy={cy} r={5} fill="#ffffff" />
-      <text x={cx} y={cy + r * 0.9} fontSize={12} textAnchor="middle" fill="#475569">
+      <text x={cx} y={size * 0.72} fontSize={size > 180 ? 13 : 10} textAnchor="middle" fill="#64748b" fontWeight={700}>
         {label}
       </text>
-      <text x={cx} y={cy + r * 0.9 + 16} fontSize={14} textAnchor="middle" fill="#0f172a" fontWeight={700}>
-        {Math.round(safeValue)}
+      <text x={cx} y={size * 0.84} fontSize={size > 180 ? 32 : 22} textAnchor="middle" fill="#0f172a" fontWeight={800}>
+        {displayValue}
       </text>
+      <g>
+        <rect x={cx - 31} y={size * 0.88} width={62} height={18} rx={9} fill={statusColor} opacity={0.12} />
+        <text x={cx} y={size * 0.88 + 13} fontSize={10} textAnchor="middle" fill={statusColor} fontWeight={800}>
+          {status}
+        </text>
+      </g>
     </svg>
   );
 }

@@ -200,35 +200,63 @@
 .v4-gauge-panel {
   display: flex;
   justify-content: center;
-  margin-bottom: 18px;
+  margin: 4px 0 22px;
 }
 
 .v4-gauge-card {
-  background: #ffffff;
-  border: 1px solid #e6eefc;
-  border-radius: 18px;
-  padding: 18px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.14), transparent 44%),
+    linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  border: 1px solid #dbe7f5;
+  border-radius: 16px;
+  padding: 18px 22px 14px;
   display: flex;
   justify-content: center;
   align-items: center;
   width: 100%;
-  max-width: 340px;
-  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.06);
+  max-width: 390px;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.08);
 }
 
 .speedometer-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 16px;
-  margin-bottom: 18px;
+  margin-bottom: 22px;
 }
 
 .speedometer-card {
-  background: #ffffff;
-  border: 1px solid #e6eefc;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  border: 1px solid #e2eaf4;
   border-radius: 12px;
-  padding: 12px;
+  padding: 14px 10px 10px;
   display: flex;
   align-items: center;
   justify-content: center;
+  min-height: 184px;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.05);
+}
+
+.professional-speedometer {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+@media (max-width: 640px) {
+  .v4-gauge-card {
+    max-width: 100%;
+    padding: 14px 10px 8px;
+  }
+
+  .speedometer-grid {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+  }
+
+  .speedometer-card {
+    min-height: 164px;
+    padding: 10px 6px 8px;
+  }
 }
