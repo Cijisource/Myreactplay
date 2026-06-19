@@ -1,4 +1,4 @@
-import { BlobServiceClient, ContainerClient } from '@azure/storage-blob';
+import { BlobItem, BlobServiceClient, ContainerClient } from '@azure/storage-blob';
 import https from 'https';
 import http from 'http';
 
@@ -231,7 +231,8 @@ export const uploadAzureBlobToContainer = async (
   containerName: string,
   blobName: string,
   fileBuffer: Buffer,
-  contentType?: string
+  contentType?: string,
+  metadata?: Record<string, string>
 ): Promise<string> => {
   if (!blobServiceClient) {
     throw new Error('Azure Blob Storage client is not initialized');
@@ -242,6 +243,7 @@ export const uploadAzureBlobToContainer = async (
     await targetContainer.createIfNotExists({ access: 'blob' });
     const blobClient = targetContainer.getBlockBlobClient(blobName);
     await blobClient.upload(fileBuffer, fileBuffer.length, {
+      metadata,
       blobHTTPHeaders: {
         blobContentType: contentType || 'application/octet-stream',
       },
@@ -250,6 +252,49 @@ export const uploadAzureBlobToContainer = async (
     return blobClient.url;
   } catch (error) {
     console.error(`Failed to upload blob to Azure container '${containerName}' - '${blobName}':`, error);
+    throw error;
+  }
+};
+
+export interface AzureBlobListItem {
+  name: string;
+  url: string;
+  contentType?: string;
+  size: number;
+  lastModified?: Date;
+  createdOn?: Date;
+  metadata?: Record<string, string>;
+}
+
+export const listAzureBlobsFromContainer = async (containerName: string): Promise<AzureBlobListItem[]> => {
+  if (!blobServiceClient) {
+    throw new Error('Azure Blob Storage client is not initialized');
+  }
+
+  try {
+    const specificContainerClient = blobServiceClient.getContainerClient(containerName);
+    const blobs: AzureBlobListItem[] = [];
+
+    for await (const blob of specificContainerClient.listBlobsFlat({ includeMetadata: true })) {
+      const blobItem = blob as BlobItem;
+      blobs.push({
+        name: blobItem.name,
+        url: specificContainerClient.getBlobClient(blobItem.name).url,
+        contentType: blobItem.properties.contentType,
+        size: blobItem.properties.contentLength || 0,
+        lastModified: blobItem.properties.lastModified,
+        createdOn: blobItem.properties.createdOn,
+        metadata: blobItem.metadata
+      });
+    }
+
+    return blobs.sort((first, second) => {
+      const firstTime = first.lastModified?.getTime() || first.createdOn?.getTime() || 0;
+      const secondTime = second.lastModified?.getTime() || second.createdOn?.getTime() || 0;
+      return secondTime - firstTime;
+    });
+  } catch (error) {
+    console.error(`Failed to list Azure blobs from container '${containerName}':`, error);
     throw error;
   }
 };
@@ -280,6 +325,7 @@ export default {
   downloadAzureBlobFromContainer,
   uploadAzureBlob,
   uploadAzureBlobToContainer,
+  listAzureBlobsFromContainer,
   deleteAzureBlob,
   deleteAzureBlobFromContainer,
   getAzureBlobProperties,

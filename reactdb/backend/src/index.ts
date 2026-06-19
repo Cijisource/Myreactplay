@@ -6,7 +6,7 @@ import jwt from 'jsonwebtoken';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { initializeAzureClient, isAzureConfigured, downloadAzureBlob, downloadAzureBlobFromContainer, downloadFromAzureBlobUrl, getAzureBlobSasUrl, uploadAzureBlob, uploadAzureBlobToContainer, deleteAzureBlob, deleteAzureBlobFromContainer } from './azureService';
+import { initializeAzureClient, isAzureConfigured, downloadAzureBlob, downloadAzureBlobFromContainer, downloadFromAzureBlobUrl, getAzureBlobSasUrl, uploadAzureBlob, uploadAzureBlobToContainer, listAzureBlobsFromContainer, deleteAzureBlob, deleteAzureBlobFromContainer } from './azureService';
 import { calculateProRataCharges, getTenantChargesForMonth, getRoomBillingsSummary, getMonthlyBillingReport, getTenantMonthlyBill, recalculateMonthlyCharges, getRoomMonthlyEbReport } from './services/proRataService';
 import { calculateCheckInProRataRent, calculateCheckOutProRataRent, recordProRataRentCalculation, calculateProRataRentForMonth, calculateOccupancyDaysForMonth } from './services/proRataRentService';
 
@@ -43,6 +43,7 @@ const guestCheckinDir = process.env.GUEST_CHECKIN_DIR ||
 // Azure container name for guest checkin files
 const AZURE_COMPLAINS_CONTAINER = process.env.AZURE_COMPLAINS_CONTAINER || 'complains';
 const AZURE_GUEST_CHECKIN_CONTAINER = process.env.AZURE_GUEST_CHECKIN_CONTAINER || 'guest-checkins';
+const AZURE_MISCELLANEOUS_CONTAINER = process.env.AZURE_MISCELLANEOUS_CONTAINER || 'miscellaneous';
 const AZURE_STORAGE_BASE = process.env.AZURE_STORAGE_BASE_URL ||
   process.env.AZURE_BLOB_URL?.replace(/\/[^/]+$/, '') ||
   'https://complexstore.blob.core.windows.net';
@@ -225,6 +226,37 @@ const uploadPaymentScreenshot = multer({
   }
 });
 
+const miscellaneousUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 500 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowedMimePrefixes = ['image/', 'video/', 'audio/'];
+    const allowedDocumentMimes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'application/zip',
+      'application/x-zip-compressed',
+      'text/plain',
+      'text/csv'
+    ];
+
+    if (
+      allowedMimePrefixes.some(prefix => file.mimetype.startsWith(prefix)) ||
+      allowedDocumentMimes.includes(file.mimetype)
+    ) {
+      cb(null, true);
+      return;
+    }
+
+    cb(new Error('Invalid file type. Upload photos, videos, audio, PDFs, Office documents, text, CSV, or ZIP files.'));
+  }
+});
+
 // Middleware
 app.use(cors({
   origin: '*',
@@ -392,6 +424,14 @@ const normalizeStoredFileName = (value: unknown): string | null => {
   const valueWithoutQuery = trimmedValue.split('?')[0].split('#')[0];
   return path.basename(valueWithoutQuery);
 };
+
+const normalizeAzureMetadataValue = (value: string): string => (
+  value
+    .replace(/[^\x20-\x7E]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 512)
+);
 
 const normalizeGuestCheckinFilesForResponse = <T extends Record<string, any>>(record: T): T => {
   if (!record || typeof record !== 'object') {
@@ -5035,6 +5075,160 @@ app.post('/api/daily-status/upload', uploadDailyStatusMedia.array('files', 4), a
     res.status(500).json({ error: 'Failed to upload media', details: error });
   }
 });
+
+app.get(
+  '/api/misc-uploads',
+  verifyToken,
+  requireRole(['admin', 'manager', 'maintenance', 'property_manager']),
+  async (req: Request, res: Response) => {
+    try {
+      if (!isAzureConfigured()) {
+        return res.status(503).json({
+          error: 'Azure Blob Storage is not configured',
+          container: AZURE_MISCELLANEOUS_CONTAINER
+        });
+      }
+
+      const blobs = await listAzureBlobsFromContainer(AZURE_MISCELLANEOUS_CONTAINER);
+
+      res.json({
+        container: AZURE_MISCELLANEOUS_CONTAINER,
+        files: blobs.map(blob => {
+          const blobNameParts = blob.name.split('/');
+          const category = blobNameParts.length > 1 ? blobNameParts[0] : 'misc';
+          const fileNameWithPrefix = blobNameParts[blobNameParts.length - 1] || blob.name;
+          const originalName = blob.metadata?.originalname || fileNameWithPrefix.replace(/^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z-\d+-/, '');
+          const uploadedAt = blob.lastModified || blob.createdOn || null;
+
+          return {
+            blobName: blob.name,
+            url: blob.url,
+            originalName,
+            mimeType: blob.contentType || 'application/octet-stream',
+            size: blob.size,
+            category: blob.metadata?.category || category,
+            note: blob.metadata?.note || '',
+            uploadedAt: uploadedAt ? uploadedAt.toISOString() : null
+          };
+        })
+      });
+    } catch (error) {
+      console.error('Miscellaneous list error:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      res.status(500).json({
+        error: 'Failed to list miscellaneous files',
+        details: errorMessage
+      });
+    }
+  }
+);
+
+app.delete(
+  '/api/misc-uploads',
+  verifyToken,
+  requireRole(['admin', 'manager', 'maintenance', 'property_manager']),
+  async (req: Request, res: Response) => {
+    try {
+      const blobName = typeof req.query.blobName === 'string' ? req.query.blobName : '';
+
+      if (!blobName.trim()) {
+        return res.status(400).json({ error: 'blobName is required' });
+      }
+
+      if (!isAzureConfigured()) {
+        return res.status(503).json({
+          error: 'Azure Blob Storage is not configured',
+          container: AZURE_MISCELLANEOUS_CONTAINER
+        });
+      }
+
+      await deleteAzureBlobFromContainer(blobName, AZURE_MISCELLANEOUS_CONTAINER);
+
+      res.json({
+        success: true,
+        message: 'Miscellaneous file deleted successfully',
+        container: AZURE_MISCELLANEOUS_CONTAINER,
+        blobName
+      });
+    } catch (error) {
+      console.error('Miscellaneous delete error:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      res.status(500).json({
+        error: 'Failed to delete miscellaneous file',
+        details: errorMessage
+      });
+    }
+  }
+);
+
+app.post(
+  '/api/misc-uploads/upload',
+  verifyToken,
+  requireRole(['admin', 'manager', 'maintenance', 'property_manager']),
+  miscellaneousUpload.single('file'),
+  async (req: Request, res: Response) => {
+    try {
+      const file = req.file;
+
+      if (!file) {
+        return res.status(400).json({ error: 'file is required' });
+      }
+
+      if (!isAzureConfigured()) {
+        return res.status(503).json({
+          error: 'Azure Blob Storage is not configured',
+          container: AZURE_MISCELLANEOUS_CONTAINER
+        });
+      }
+
+      const category = typeof req.body.category === 'string' ? req.body.category : 'misc';
+      const note = typeof req.body.note === 'string' ? req.body.note.trim() : '';
+      const safeCategory = category
+        .toLowerCase()
+        .replace(/[^a-z0-9-]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '') || 'misc';
+      const originalName = path.basename(file.originalname || 'upload');
+      const safeOriginalName = originalName.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const uniquePrefix = `${new Date().toISOString().replace(/[:.]/g, '-')}-${Math.round(Math.random() * 1E9)}`;
+      const blobName = `${safeCategory}/${uniquePrefix}-${safeOriginalName}`;
+      const metadata: Record<string, string> = {
+        originalname: normalizeAzureMetadataValue(originalName),
+        category: normalizeAzureMetadataValue(safeCategory)
+      };
+      const normalizedNote = normalizeAzureMetadataValue(note);
+      if (normalizedNote) {
+        metadata.note = normalizedNote;
+      }
+      const url = await uploadAzureBlobToContainer(
+        AZURE_MISCELLANEOUS_CONTAINER,
+        blobName,
+        file.buffer,
+        file.mimetype,
+        metadata
+      );
+
+      res.json({
+        success: true,
+        container: AZURE_MISCELLANEOUS_CONTAINER,
+        blobName,
+        url,
+        originalName,
+        mimeType: file.mimetype,
+        size: file.size,
+        category: safeCategory,
+        note
+      });
+    } catch (error) {
+      console.error('Miscellaneous upload error:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      res.status(500).json({
+        error: 'Failed to upload miscellaneous file',
+        details: errorMessage
+      });
+    }
+  }
+);
 
 // Delete media file
 app.delete('/api/daily-status/media/:id', async (req: Request, res: Response) => {

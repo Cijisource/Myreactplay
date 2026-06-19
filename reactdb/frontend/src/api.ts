@@ -696,6 +696,20 @@ export const apiService = {
   getRentalSchema: () => api.get('/diagnostic/rental-schema'),
   getRentalSample: () => api.get('/diagnostic/rental-sample'),
 
+  // Miscellaneous Blob Upload APIs
+  uploadMiscellaneousFile: (formData: FormData, onProgress?: (progress: number) => void) => {
+    return xhrRequestWithAuthRetry(
+      'POST',
+      `${API_URL}/misc-uploads/upload`,
+      formData,
+      (responseText) => JSON.parse(responseText),
+      onProgress
+    );
+  },
+  getMiscellaneousFiles: () => api.get('/misc-uploads'),
+  deleteMiscellaneousFile: (blobName: string) =>
+    api.delete(`/misc-uploads?blobName=${encodeURIComponent(blobName)}`),
+
   // Azure Blob Storage APIs
   getTenantMainPhotoFromAzure: (tenantId: number, format: 'url' | 'blob' = 'url') => 
     api.get(`/tenants/${tenantId}/main-photo/azure${format === 'url' ? '?format=url' : ''}`),
