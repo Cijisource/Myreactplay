@@ -19,6 +19,17 @@ interface UploadItem {
   blobName?: string;
 }
 
+interface UploadedMiscFile {
+  blobName: string;
+  url: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  category: string;
+  note?: string;
+  uploadedAt: string | null;
+}
+
 const MAX_UPLOAD_ATTEMPTS = 4;
 const BASE_RETRY_DELAY_MS = 700;
 
@@ -63,6 +74,31 @@ const formatFileSize = (bytes: number): string => {
   return `${size.toFixed(size >= 10 ? 0 : 1)} ${units[unitIndex]}`;
 };
 
+const formatDateKey = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const formatMonthKey = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+};
+
+const formatDisplayDate = (dateKey: string): string => {
+  const date = new Date(`${dateKey}T00:00:00`);
+  return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+};
+
+const formatDisplayTime = (value: string | null): string => {
+  if (!value) return 'Unknown time';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Unknown time';
+  return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+};
+
 const isPreviewable = (file: File): boolean => file.type.startsWith('image/') || file.type.startsWith('video/');
 
 const getCategoryForFile = (file: File): string => {
@@ -74,8 +110,13 @@ const getCategoryForFile = (file: File): string => {
 
 export default function MiscUploads() {
   const [queue, setQueue] = useState<UploadItem[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedMiscFile[]>([]);
   const [note, setNote] = useState('');
   const [parallelism, setParallelism] = useState(3);
+  const [selectedMonth, setSelectedMonth] = useState(formatMonthKey(new Date()));
+  const [uploadedLoading, setUploadedLoading] = useState(false);
+  const [uploadedError, setUploadedError] = useState<string | null>(null);
+  const [deletingBlobName, setDeletingBlobName] = useState<string | null>(null);
   const [captureMode, setCaptureMode] = useState<CaptureMode>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
@@ -90,9 +131,100 @@ export default function MiscUploads() {
 
   const queuedCount = useMemo(() => queue.filter(item => item.status === 'queued' || item.status === 'failed').length, [queue]);
   const uploading = useMemo(() => queue.some(item => item.status === 'uploading'), [queue]);
+  const filesByDate = useMemo(() => {
+    return uploadedFiles.reduce<Record<string, UploadedMiscFile[]>>((groups, file) => {
+      const parsedDate = file.uploadedAt ? new Date(file.uploadedAt) : null;
+      const dateKey = parsedDate && !Number.isNaN(parsedDate.getTime()) ? formatDateKey(parsedDate) : 'unknown';
+      groups[dateKey] = groups[dateKey] || [];
+      groups[dateKey].push(file);
+      return groups;
+    }, {});
+  }, [uploadedFiles]);
+  const calendarDays = useMemo(() => {
+    const [yearText, monthText] = selectedMonth.split('-');
+    const year = Number(yearText);
+    const monthIndex = Number(monthText) - 1;
+    const firstDay = new Date(year, monthIndex, 1);
+    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+    const leadingBlankDays = firstDay.getDay();
+
+    return [
+      ...Array.from({ length: leadingBlankDays }, () => null),
+      ...Array.from({ length: daysInMonth }, (_, index) => {
+        const date = new Date(year, monthIndex, index + 1);
+        return formatDateKey(date);
+      })
+    ];
+  }, [selectedMonth]);
+  const monthFileCount = useMemo(() => {
+    return uploadedFiles.filter(file => {
+      if (!file.uploadedAt) return false;
+      const parsedDate = new Date(file.uploadedAt);
+      return !Number.isNaN(parsedDate.getTime()) && formatMonthKey(parsedDate) === selectedMonth;
+    }).length;
+  }, [selectedMonth, uploadedFiles]);
 
   const updateItem = useCallback((id: string, patch: Partial<UploadItem>) => {
     setQueue(prev => prev.map(item => item.id === id ? { ...item, ...patch } : item));
+  }, []);
+
+  const attachCameraStream = useCallback(async () => {
+    const videoElement = videoRef.current;
+    const stream = streamRef.current;
+
+    if (!videoElement || !stream) {
+      return;
+    }
+
+    if (videoElement.srcObject !== stream) {
+      videoElement.srcObject = stream;
+    }
+
+    try {
+      await videoElement.play();
+    } catch (error) {
+      setCameraError(error instanceof Error ? error.message : 'Unable to show camera preview.');
+    }
+  }, []);
+
+  const loadUploadedFiles = useCallback(async () => {
+    try {
+      setUploadedLoading(true);
+      setUploadedError(null);
+      const response = await apiService.getMiscellaneousFiles();
+      setUploadedFiles(response.data.files || []);
+    } catch (error) {
+      setUploadedError(error instanceof Error ? error.message : 'Failed to load uploaded files');
+    } finally {
+      setUploadedLoading(false);
+    }
+  }, []);
+
+  const deleteUploadedFile = useCallback(async (blobName: string, queueItemId?: string) => {
+    if (!window.confirm('Delete this file from blob storage?')) {
+      return;
+    }
+
+    try {
+      setDeletingBlobName(blobName);
+      setUploadedError(null);
+      await apiService.deleteMiscellaneousFile(blobName);
+      setUploadedFiles(prev => prev.filter(file => file.blobName !== blobName));
+
+      if (queueItemId) {
+        setQueue(prev => {
+          const target = prev.find(item => item.id === queueItemId);
+          if (target?.previewUrl) {
+            URL.revokeObjectURL(target.previewUrl);
+          }
+          return prev.filter(item => item.id !== queueItemId);
+        });
+      }
+    } catch (error) {
+      setUploadedError(error instanceof Error ? error.message : 'Failed to delete uploaded file');
+    } finally {
+      setDeletingBlobName(null);
+    }
   }, []);
 
   const addFiles = useCallback((files: File[], source: 'files' | 'camera') => {
@@ -112,6 +244,10 @@ export default function MiscUploads() {
   const stopCamera = useCallback(() => {
     if (recorderRef.current && recorderRef.current.state !== 'inactive') {
       recorderRef.current.stop();
+    }
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
     }
 
     if (streamRef.current) {
@@ -146,11 +282,6 @@ export default function MiscUploads() {
 
       streamRef.current = stream;
       setCaptureMode(mode);
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
     } catch (error) {
       setCameraError(error instanceof Error ? error.message : 'Unable to start camera.');
     }
@@ -305,11 +436,22 @@ export default function MiscUploads() {
     });
 
     await Promise.all(workers);
-  }, [parallelism, queue, uploadOne]);
+    await loadUploadedFiles();
+  }, [loadUploadedFiles, parallelism, queue, uploadOne]);
 
   useEffect(() => {
     queueRef.current = queue;
   }, [queue]);
+
+  useEffect(() => {
+    loadUploadedFiles();
+  }, [loadUploadedFiles]);
+
+  useEffect(() => {
+    if (captureMode) {
+      void attachCameraStream();
+    }
+  }, [attachCameraStream, captureMode]);
 
   useEffect(() => {
     return () => {
@@ -464,8 +606,13 @@ export default function MiscUploads() {
                           </a>
                         )}
                         {item.status !== 'uploading' && (
-                          <button type="button" className="btn btn-sm btn-secondary" onClick={() => removeItem(item.id)}>
-                            Remove
+                          <button
+                            type="button"
+                            className={`btn btn-sm ${item.blobName ? 'btn-danger' : 'btn-secondary'}`}
+                            onClick={() => item.blobName ? deleteUploadedFile(item.blobName, item.id) : removeItem(item.id)}
+                            disabled={item.blobName === deletingBlobName}
+                          >
+                            {item.blobName ? 'Delete' : 'Remove'}
                           </button>
                         )}
                       </div>
@@ -478,6 +625,114 @@ export default function MiscUploads() {
           )}
         </section>
       </div>
+
+      <section className="misc-panel misc-calendar-panel">
+        <div className="misc-calendar-toolbar">
+          <div>
+            <h3>Uploaded Files</h3>
+            <p>{monthFileCount} file{monthFileCount === 1 ? '' : 's'} in selected month</p>
+          </div>
+          <div className="misc-calendar-controls">
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={event => setSelectedMonth(event.target.value)}
+            />
+            <button type="button" className="btn btn-secondary" onClick={loadUploadedFiles} disabled={uploadedLoading}>
+              {uploadedLoading ? 'Loading...' : 'Refresh'}
+            </button>
+          </div>
+        </div>
+
+        {uploadedError && <div className="misc-error">{uploadedError}</div>}
+
+        <div className="misc-calendar-weekdays">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(dayName => (
+            <span key={dayName}>{dayName}</span>
+          ))}
+        </div>
+
+        <div className="misc-calendar-grid">
+          {calendarDays.map((dateKey, index) => {
+            if (!dateKey) {
+              return <div className="misc-calendar-day misc-calendar-day-empty" key={`empty-${index}`} />;
+            }
+
+            const dayFiles = filesByDate[dateKey] || [];
+            const dayNumber = Number(dateKey.slice(-2));
+
+            return (
+              <div className="misc-calendar-day" key={dateKey} title={formatDisplayDate(dateKey)}>
+                <div className="misc-calendar-date">
+                  <span>{dayNumber}</span>
+                  <small>{dayFiles.length ? `${dayFiles.length} file${dayFiles.length === 1 ? '' : 's'}` : ''}</small>
+                </div>
+
+                {dayFiles.length === 0 ? (
+                  <p className="misc-calendar-empty-day">No uploads</p>
+                ) : (
+                  <div className="misc-calendar-files">
+                    {dayFiles.map(file => (
+                      <article className="misc-calendar-file" key={file.blobName}>
+                        <div>
+                          <a className="misc-file-name" href={file.url} target="_blank" rel="noopener noreferrer">
+                            {file.originalName}
+                          </a>
+                          <p className="misc-file-meta">
+                            {formatDisplayTime(file.uploadedAt)} · {formatFileSize(file.size)} · {file.category}
+                          </p>
+                          {file.note && <p className="misc-calendar-note">{file.note}</p>}
+                        </div>
+                        <div className="misc-calendar-file-actions">
+                          <a className="misc-success-link" href={file.url} target="_blank" rel="noopener noreferrer">
+                            Open
+                          </a>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-danger"
+                            onClick={() => deleteUploadedFile(file.blobName)}
+                            disabled={deletingBlobName === file.blobName}
+                          >
+                            {deletingBlobName === file.blobName ? 'Deleting...' : 'Delete'}
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {uploadedFiles.length > 0 && filesByDate.unknown && (
+          <div className="misc-unknown-date">
+            <h4>Unknown Date</h4>
+            <div className="misc-calendar-files">
+              {filesByDate.unknown.map(file => (
+                <article className="misc-calendar-file" key={file.blobName}>
+                  <div>
+                    <a className="misc-file-name" href={file.url} target="_blank" rel="noopener noreferrer">
+                      {file.originalName}
+                    </a>
+                    <p className="misc-file-meta">
+                      {formatFileSize(file.size)} · {file.mimeType}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-danger"
+                    onClick={() => deleteUploadedFile(file.blobName)}
+                    disabled={deletingBlobName === file.blobName}
+                  >
+                    {deletingBlobName === file.blobName ? 'Deleting...' : 'Delete'}
+                  </button>
+                </article>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

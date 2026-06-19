@@ -706,6 +706,9 @@ export const apiService = {
       onProgress
     );
   },
+  getMiscellaneousFiles: () => api.get('/misc-uploads'),
+  deleteMiscellaneousFile: (blobName: string) =>
+    api.delete(`/misc-uploads?blobName=${encodeURIComponent(blobName)}`),
 
   // Azure Blob Storage APIs
   getTenantMainPhotoFromAzure: (tenantId: number, format: 'url' | 'blob' = 'url') => 
