@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../api';
 import SearchableDropdown from './SearchableDropdown';
+import LoadingSpinner from './LoadingSpinner';
 import './ManagementStyles.css';
 
 interface LastPayment {
@@ -318,7 +319,7 @@ export default function ServiceAllocationManagement() {
       </div>
 
       {loading ? (
-        <div className="loading-spinner"></div>
+        <LoadingSpinner />
       ) : filteredAllocations.length === 0 ? (
         <div className="no-results-message">
           <p>No service allocations found for the selected filters.</p>

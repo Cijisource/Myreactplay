@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { apiService, getComplaintFileUrl } from '../api';
 import SearchableDropdown from './SearchableDropdown';
+import LoadingSpinner from './LoadingSpinner';
 import './ComplaintsManagement.css';
 
 interface Room {
@@ -380,7 +381,7 @@ export const ComplaintsManagement: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="complaints-container"><div className="loading">Loading complaints...</div></div>;
+    return <LoadingSpinner overlay text="Loading complaints" />;
   }
 
   if (error) {

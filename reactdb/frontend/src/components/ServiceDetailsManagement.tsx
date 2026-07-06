@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { apiService } from '../api';
+import LoadingSpinner from './LoadingSpinner';
 import './ServiceDetailsManagement.css';
 
 interface ServiceDetail {
@@ -165,14 +166,7 @@ export default function ServiceDetailsManagement(): JSX.Element {
   };
 
   if (loading) {
-    return (
-      <div className="service-container">
-        <div className="loading-spinner">
-          <div className="spinner"></div>
-          <p>Loading service details...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner overlay text="Loading service details" />;
   }
 
   return (

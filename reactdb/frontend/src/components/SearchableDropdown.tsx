@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import '../styles/SearchableDropdown.css';
+import './LoadingSpinner.css';
 
 interface Option {
   id: string | number;
@@ -182,7 +183,10 @@ export default function SearchableDropdown({
         {isOpen && (
           <div className="dropdown-options">
             {isLoading ? (
-              <div className="dropdown-loading">Loading...</div>
+              <div className="dropdown-loading">
+                <div className="ls-ring" data-size="sm" style={{ display: 'inline-block', marginRight: '0.5rem' }} />
+                Loading...
+              </div>
             ) : filteredOptions.length > 0 ? (
               filteredOptions.map(option => (
                 <div

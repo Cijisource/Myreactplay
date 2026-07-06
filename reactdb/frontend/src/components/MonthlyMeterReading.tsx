@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { apiService } from '../api';
+import LoadingSpinner from './LoadingSpinner';
 import './ManagementStyles.css';
 import './MonthlyMeterReading.css';
 import RoomMonthlyEbReportTable from './RoomMonthlyEbReportTable';
@@ -510,10 +511,7 @@ export default function MonthlyMeterReading(): JSX.Element {
       )}
 
       {loading ? (
-        <div className="loading">
-          <div className="loading-spinner"></div>
-          <p>Loading service allocations...</p>
-        </div>
+        <LoadingSpinner text="Loading service allocations" />
       ) : filteredAllocations.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">📦</div>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { apiService } from '../api';
 import SearchableDropdown from './SearchableDropdown';
+import LoadingSpinner from './LoadingSpinner';
 import './ManagementStyles.css';
 
 interface Transaction {
@@ -653,7 +654,7 @@ export default function TransactionManagement() {
       )}
 
       {loading ? (
-        <div className="loading-spinner"></div>
+        <LoadingSpinner />
       ) : filteredTransactions.length === 0 ? (
         <div className="no-results-message">
           <p>No transactions found.</p>

@@ -9,6 +9,7 @@ import TenantFullScreenView from './TenantFullScreenView';
 import TenantPhotoGalleryModal from './TenantPhotoGalleryModal';
 import CheckoutModal from './CheckoutModal';
 import CheckinModal from './CheckinModal';
+import LoadingSpinner from './LoadingSpinner';
 import './TenantManagement.css';
 
 export interface Tenant {
@@ -635,10 +636,7 @@ export default function TenantManagement() {
 
       {/* Loading State */}
       {loading && (
-        <div className="loading-state">
-          <div className="loading-spinner"></div>
-          <p>Loading tenants...</p>
-        </div>
+        <LoadingSpinner text="Loading tenants" />
       )}
 
       {/* Tenants Grid */}
