@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../api';
 import { calculateCheckInProRataRent, ProRataRentCalculation } from '../utils/proRataCalculations';
+import LoadingSpinner from './LoadingSpinner';
 import './CheckinModal.css';
 import './ManagementStyles.css';
 
@@ -219,7 +220,7 @@ export default function CheckinModal({
         <div className="form-group">
           <label htmlFor="room-select">Select Room *</label>
           {isLoadingRooms ? (
-            <div className="loading-spinner" style={{ marginTop: '0.5rem' }}>Loading rooms...</div>
+            <LoadingSpinner size="sm" text="Loading rooms" />
           ) : vacantRooms.length === 0 ? (
             <div className="form-error">No vacant rooms available</div>
           ) : (

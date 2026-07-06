@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../api';
 import SearchableDropdown from './SearchableDropdown';
+import LoadingSpinner from './LoadingSpinner';
 import './ManagementStyles.css';
 
 interface Role {
@@ -238,7 +239,7 @@ export default function RoleManagement() {
         )}
 
         {loading ? (
-          <div className="loading-spinner"></div>
+          <LoadingSpinner />
         ) : (
           <div className="table-responsive">
             <table className="data-table">
@@ -330,7 +331,7 @@ export default function RoleManagement() {
         )}
 
         {loading ? (
-          <div className="loading-spinner"></div>
+          <LoadingSpinner />
         ) : sortedUsers.length === 0 ? (
           <div className="no-results-message">
             <p>No user roles found.</p>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { apiService, getRentalPaymentProofUrl } from '../api';
 import { useAuth } from './AuthContext';
 import SearchableDropdown from './SearchableDropdown';
+import LoadingSpinner from './LoadingSpinner';
 import './RentalCollectionDetails.css';
 
 interface OccupancyInfo {
@@ -726,10 +727,7 @@ export default function RentalCollectionDetails() {
   if (loading && !occupancyInfo) {
     return (
       <div className="rental-collection-details">
-        <div className="loading-state">
-          <div className="loading-spinner"></div>
-          <p>Loading rental collection details...</p>
-        </div>
+        <LoadingSpinner text="Loading rental collection details" />
       </div>
     );
   }

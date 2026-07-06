@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../api';
+import LoadingSpinner from './LoadingSpinner';
 import './ManagementStyles.css';
 
 interface Stock {
@@ -204,7 +205,7 @@ export default function StockManagement() {
       )}
 
       {loading ? (
-        <div className="loading-spinner"></div>
+        <LoadingSpinner />
       ) : (
         <div className="items-grid">
           {filteredStocks.map((stock) => (

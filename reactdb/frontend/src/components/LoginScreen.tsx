@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import './LoadingSpinner.css';
 import { useAuth } from './AuthContext';
 import RollingBanner from './RollingBanner';
 import MapNavigation from './MapNavigation';
@@ -141,10 +142,10 @@ export default function LoginScreen() {
               disabled={loading || !username.trim() || !password.trim()}
             >
               {loading ? (
-                <>
-                  <span className="spinner"></span>
+                <span className="ls-button-spinner">
+                  <div className="ls-ring" data-size="sm" />
                   Logging in...
-                </>
+                </span>
               ) : (
                 <>
                   <span>🔓</span>

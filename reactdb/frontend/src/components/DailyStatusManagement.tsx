@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import React from 'react';
 import { apiService, getFileUrl } from '../api';
 import { useAuth } from './AuthContext';
+import LoadingSpinner from './LoadingSpinner';
 import './ManagementStyles.css';
 
 interface MediaFile {
@@ -706,7 +707,7 @@ const StatusList = React.memo(({
   isImageFile
 }: any) => {
   if (loading) {
-    return <div className="loading-spinner"></div>;
+    return <LoadingSpinner />;
   }
 
   if (filteredStatuses.length === 0) {
@@ -1596,7 +1597,7 @@ export default function DailyStatusManagement() {
       )}
 
       {loading ? (
-        <div className="loading-spinner"></div>
+        <LoadingSpinner />
       ) : filteredStatuses.length === 0 ? (
         <div className="no-results-message">
           <p>No daily statuses found for the selected filters.</p>

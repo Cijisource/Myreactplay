@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { apiService, getRoomOccupancyData } from '../api';
 import SearchableDropdown from './SearchableDropdown';
+import LoadingSpinner from './LoadingSpinner';
 import './RoomOccupancy.css';
 
 interface OccupancyData {
@@ -642,14 +643,7 @@ export default function RoomOccupancy({ mode = 'occupancy' }: RoomOccupancyProps
   };
 
   if (loading) {
-    return (
-      <div className="occupancy-container">
-        <div className="loading-spinner">
-          <div className="spinner"></div>
-          <p>Loading room occupancy data...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner overlay text="Loading room occupancy data" />;
   }
 
   const occupancyDonutDegrees = Math.round((vacancyYearSummary.occupancyRate / 100) * 360);

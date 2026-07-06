@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { apiService } from '../api';
 import SearchableDropdown from './SearchableDropdown';
+import LoadingSpinner from './LoadingSpinner';
 import './PaymentTracking.css';
 
 interface PaymentRecord {
@@ -322,10 +323,7 @@ export default function PaymentTracking() {
 
       {/* Loading/Error States */}
       {loading && (
-        <div className="loading-state">
-          <div className="loading-spinner"></div>
-          <p>Loading payment records...</p>
-        </div>
+        <LoadingSpinner text="Loading payment records" />
       )}
 
       {error && (

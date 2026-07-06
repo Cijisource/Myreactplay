@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, MouseEvent } from 'react';
 import { useAuth } from './AuthContext';
 import { apiService, getFileUrl } from '../api';
 import { getOccupancyLinks } from '../api';
+import LoadingSpinner from './LoadingSpinner';
 import './RoomManagement.css';
 
 interface Room {
@@ -443,14 +444,7 @@ export default function RoomManagement(): JSX.Element {
   };
 
   if (loading) {
-    return (
-      <div className="room-management-container">
-        <div className="loading-spinner">
-          <div className="spinner"></div>
-          <p>Loading room management data...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner overlay text="Loading room management data" />;
   }
 
   return (

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import LoadingSpinner from './LoadingSpinner';
 import './WaterTankLevelMonitor.css';
 import './WaterTankMain.css';
 
@@ -312,10 +313,7 @@ export default function WaterTankLevelMonitor(): JSX.Element {
         {error && <div className="message error">{error}</div>}
 
         {loading && !latestReading ? (
-          <div className="meter-graph-loading">
-            <div className="loading-spinner"></div>
-            <span>Loading water tank values...</span>
-          </div>
+          <LoadingSpinner text="Loading water tank values" />
         ) : (
           <>
             <div className="meter-graph-summary">

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { apiService } from '../api';
 import SearchableDropdown from './SearchableDropdown';
+import LoadingSpinner from './LoadingSpinner';
 import './TenantPaymentBalance.css';
 
 interface TenantBalance {
@@ -183,11 +184,7 @@ export default function TenantPaymentBalance() {
   };
 
   if (loading) {
-    return (
-      <div className="payment-balance-container">
-        <div className="loading-spinner">Loading payment balances...</div>
-      </div>
-    );
+    return <LoadingSpinner overlay text="Loading payment balances" />;
   }
 
   return (

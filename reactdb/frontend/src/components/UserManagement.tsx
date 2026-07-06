@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../api';
+import LoadingSpinner from './LoadingSpinner';
 import './UserManagement.css';
 
 interface User {
@@ -315,7 +316,7 @@ export default function UserManagement() {
           )}
 
           {loading ? (
-            <div className="loading-spinner"></div>
+            <LoadingSpinner />
           ) : (
             <div className="items-grid">
               {filteredUsers.map((user) => (
@@ -406,7 +407,7 @@ export default function UserManagement() {
           )}
 
           {loading ? (
-            <div className="loading-spinner"></div>
+            <LoadingSpinner />
           ) : (
             <div className="items-grid">
               {filteredRoles.map((role) => (
@@ -440,7 +441,7 @@ export default function UserManagement() {
       {activeTab === 'user-roles' && (
         <div className="tab-content">
           {loading ? (
-            <div className="loading-spinner"></div>
+            <LoadingSpinner />
           ) : (
             <div className="table-responsive">
               <table className="data-table">

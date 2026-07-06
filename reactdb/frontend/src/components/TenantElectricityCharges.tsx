@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../api';
+import LoadingSpinner from './LoadingSpinner';
 import './ManagementStyles.css';
 import './TenantElectricityCharges.css';
 
@@ -623,10 +624,7 @@ export default function TenantElectricityCharges(): JSX.Element {
       </div>
 
       {loading ? (
-        <div className="loading">
-          <div className="loading-spinner"></div>
-          <p className="loading-text">Loading billing data...</p>
-        </div>
+        <LoadingSpinner text="Loading billing data" />
       ) : (
         <div className="charges-content">
           {viewMode === 'report' && renderReportView()}

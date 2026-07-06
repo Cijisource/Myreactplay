@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { apiService } from '../api';
+import LoadingSpinner from './LoadingSpinner';
 import './EBServicePaymentsManagement.css';
 
 interface ServiceDetail {
@@ -304,14 +305,7 @@ export default function EBServicePaymentsManagement(): JSX.Element {
   }, [payments]);
 
   if (loading) {
-    return (
-      <div className="eb-container">
-        <div className="loading-spinner">
-          <div className="spinner"></div>
-          <p>Loading EB service payments...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner overlay text="Loading EB service payments" />;
   }
 
   return (

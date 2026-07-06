@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import LoadingSpinner from './LoadingSpinner';
 import { getOccupancyLinks, getFileUrl } from '../api';
 import SearchableDropdown from './SearchableDropdown';
 import CheckoutModal from './CheckoutModal';
@@ -287,14 +288,7 @@ export default function OccupancyLinks(): JSX.Element {
   };
 
   if (loading) {
-    return (
-      <div className="occupancy-links-container">
-        <div className="loading-spinner">
-          <div className="spinner"></div>
-          <p>Loading room-tenant linkages...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner overlay text="Loading room-tenant linkages" />;
   }
 
   return (

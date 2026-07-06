@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiService, getGuestCheckinFileUrl } from '../api';
 import { useAuth } from './AuthContext';
+import LoadingSpinner from './LoadingSpinner';
 import './ManagementStyles.css';
 
 interface CameraCaptureProps {
@@ -1205,7 +1206,7 @@ export default function GuestCheckinManagement() {
       )}
 
       {loading ? (
-        <div className="loading-spinner"></div>
+        <LoadingSpinner />
       ) : filteredGuestCheckins.length === 0 ? (
         <div className="no-results-message">
           <p>
