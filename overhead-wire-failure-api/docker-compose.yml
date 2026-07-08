@@ -1,0 +1,26 @@
+version: "3.9"
+
+services:
+  wire-failure-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wire-failure-api
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist trained models across container restarts
+      - wire_models:/app/models
+    environment:
+      - MODEL_PATH=/app/models/wire_failure_model.pkl
+      - SCALER_PATH=/app/models/wire_failure_scaler.pkl
+      - VERSION_PATH=/app/models/model_version.txt
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  wire_models:
