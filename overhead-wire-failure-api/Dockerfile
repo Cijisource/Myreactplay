@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application source
 COPY app/ ./app/
 
-# Directory for persisted model artefacts (mounted as volume in production)
+# Directory for persisted model artifacts (mounted as volume in production)
 RUN mkdir -p /app/models
 
 EXPOSE 8000
