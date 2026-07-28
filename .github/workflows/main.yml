@@ -24,26 +24,26 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: |
-            backend/package-lock.json
-            frontend/package-lock.json
+            reactdb/backend/package-lock.json
+            reactdb/frontend/package-lock.json
 
       - name: Install backend dependencies
-        working-directory: backend
+        working-directory: reactdb/backend
         run: npm ci
 
       - name: Build backend
-        working-directory: backend
+        working-directory: reactdb/backend
         run: npm run build
 
       - name: Install frontend dependencies
-        working-directory: frontend
+        working-directory: reactdb/frontend
         run: npm ci
 
       - name: Build frontend
-        working-directory: frontend
+        working-directory: reactdb/frontend
         run: npm run build
 
       - name: Build Docker images
         run: |
-          docker build -t reactdb-backend:test backend
-          docker build -t reactdb-frontend:test frontend
+          docker build -t reactdb-backend:test reactdb/backend
+          docker build -t reactdb-frontend:test reactdb/frontend
