@@ -43,12 +43,12 @@ jobs:
         working-directory: reactdb/frontend
         run: npm run build
 
-      # - name: Build Docker images
-      #   run: |
-      #     docker build -t reactdb-backend:test backend
-      #     docker build -t reactdb-frontend:test frontend
-
-      - name: Build & Push Docker Images
-        run: |
-            chmod +x reactdb/docker_push.sh
-            ./reactdb/docker_push.sh
+       - name: Build Docker images
+         run: |
+           docker build -t 555cijaiz555/rback:v7 backend
+           docker build -t 555cijaiz555/rfront:v7 frontend
+      
+      #- name: Build & Push Docker Images
+      # run: |
+      #     chmod +x reactdb/docker_push.sh
+      #     ./reactdb/docker_push.sh
