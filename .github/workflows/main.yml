@@ -49,4 +49,6 @@ jobs:
       #     docker build -t reactdb-frontend:test frontend
 
       - name: Build & Push Docker Images
-        run: ./docker_push.sh
+        run: |
+            chmod +x reactdb/docker_push.sh
+            ./reactdb/docker_push.sh
