@@ -44,6 +44,7 @@ jobs:
         run: npm run build
 
       - name: Build Docker images
+        working-directory: reactdb
         run: |
           docker build -t reactdb-backend:test backend
           docker build -t reactdb-frontend:test frontend
