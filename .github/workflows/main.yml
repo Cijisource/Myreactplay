@@ -45,8 +45,8 @@ jobs:
 
       - name: Build Docker images
         run: |
-          docker build -t 555cijaiz555/rback:v7
-          docker build -t 555cijaiz555/rfront:v7
+          docker build -t 555cijaiz555/rback:v7 backend
+          docker build -t 555cijaiz555/rfront:v7 frontend
 
       # - name: Build & Push Docker Images
       #   working-directory: reactdb
