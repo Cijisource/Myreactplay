@@ -427,16 +427,86 @@ h2 {
 /* Navigation Items Container */
 .nav-items-container {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: clamp(3px, 0.5vw, 6px);
   padding: clamp(2px, 0.3vw, 4px) 0;
   height: auto;
   box-sizing: border-box;
-  align-items: center;
+  align-items: stretch;
   justify-content: flex-start;
   overflow-x: visible;
   overflow-y: visible;
   width: 100%;
+}
+
+.nav-group {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+}
+
+.nav-group-toggle {
+  width: 100%;
+  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  padding: clamp(6px, 0.8vw, 10px) clamp(10px, 1.1vw, 14px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  font-size: clamp(0.72em, 0.9vw, 0.82em);
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  transition: background 0.2s ease;
+}
+
+.nav-group-toggle:hover {
+  background: rgba(255, 255, 255, 0.13);
+}
+
+.nav-group-toggle.active {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.nav-group-label {
+  text-align: left;
+}
+
+.nav-group-arrow {
+  font-size: 0.9em;
+  transition: transform 0.2s ease;
+}
+
+.nav-group-arrow.open {
+  transform: rotate(180deg);
+}
+
+.nav-submenu {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.25s ease, opacity 0.2s ease;
+}
+
+.nav-submenu.open {
+  max-height: 520px;
+  opacity: 1;
+}
+
+.nav-subitem {
+  width: 100%;
+  text-align: left;
+  justify-content: flex-start;
+  border-radius: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-left: clamp(18px, 2vw, 22px);
+}
+
+.nav-submenu .nav-subitem:last-child {
+  border-bottom: none;
 }
 
 .nav-items-container::-webkit-scrollbar {
@@ -649,6 +719,14 @@ h2 {
     overflow: visible;
   }
 
+  .nav-group {
+    border-radius: 4px;
+  }
+
+  .nav-group-toggle {
+    padding: clamp(8px, 1.1vw, 12px) clamp(12px, 2vw, 18px);
+  }
+
   .nav-item {
     padding: clamp(8px, 1.2vw, 12px) clamp(12px, 2vw, 18px);
     font-size: clamp(0.75em, 1vw, 0.9em);
@@ -663,6 +741,10 @@ h2 {
     text-align: left;
     justify-content: flex-start;
     letter-spacing: 0.3px;
+  }
+
+  .nav-subitem {
+    padding-left: clamp(20px, 3vw, 26px);
   }
 
   .nav-item::before {
@@ -783,6 +865,10 @@ h2 {
     box-sizing: border-box;
   }
 
+  .nav-group-toggle {
+    padding: clamp(8px, 1.2vw, 10px) clamp(12px, 1.8vw, 16px);
+  }
+
   .nav-item {
     padding: clamp(8px, 1.2vw, 10px) clamp(12px, 1.8vw, 16px);
     font-size: clamp(0.75em, 0.95vw, 0.85em);
@@ -795,6 +881,10 @@ h2 {
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     text-align: left;
     letter-spacing: 0.3px;
+  }
+
+  .nav-subitem {
+    padding-left: clamp(18px, 2.4vw, 24px);
   }
 
   .nav-item::before {
@@ -887,6 +977,11 @@ h2 {
     overflow: visible;
   }
 
+  .nav-group-toggle {
+    padding: clamp(6px, 0.9vw, 8px) clamp(10px, 1.6vw, 12px);
+    font-size: clamp(0.72em, 0.9vw, 0.78em);
+  }
+
   .nav-item {
     padding: clamp(6px, 0.9vw, 8px) clamp(10px, 1.6vw, 12px);
     font-size: clamp(0.7em, 0.85vw, 0.75em);
@@ -900,6 +995,10 @@ h2 {
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     text-align: left;
     letter-spacing: 0.3px;
+  }
+
+  .nav-subitem {
+    padding-left: clamp(16px, 2.2vw, 20px);
   }
 
   .nav-item::before {

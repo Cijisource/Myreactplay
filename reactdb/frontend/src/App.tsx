@@ -31,6 +31,18 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 
 type Page = 'home' | 'diagnostic' | 'payment' | 'rental-collection' | 'tenants' | 'occupancy' | 'room-wise-analysis' | 'room-management' | 'occupancy-links' | 'complaints' | 'services' | 'eb-payments' | 'users' | 'roles' | 'transactions' | 'stock' | 'daily-status' | 'guest-checkin' | 'misc-uploads' | 'service-allocation' | 'consumption' | 'meter-reading' | 'water-tank-monitor' | 'electricity-charges';
 
+type NavItem = {
+  page: Page;
+  label: string;
+  roles: string[];
+};
+
+type NavGroup = {
+  key: string;
+  label: string;
+  items: NavItem[];
+};
+
 // Role requirements for each screen
 const SCREEN_ROLES: Record<Page, string[]> = {
   home: [],
@@ -59,37 +71,75 @@ const SCREEN_ROLES: Record<Page, string[]> = {
   'electricity-charges': ['admin', 'manager', 'utilities_manager', 'accountant']
 };
 
-// Navigation menu items with labels and required roles
-const NAV_ITEMS: Array<{ page: Page; label: string; roles: string[] }> = [
-  { page: 'home', label: 'Home', roles: [] },
-  { page: 'occupancy-links', label: 'Occupancy History', roles: SCREEN_ROLES['occupancy-links'] },
-  { page: 'occupancy', label: 'Room Occupancy', roles: SCREEN_ROLES.occupancy },
-  { page: 'room-wise-analysis', label: 'Room Wise Analysis', roles: SCREEN_ROLES['room-wise-analysis'] },
-  { page: 'room-management', label: 'Room Management', roles: SCREEN_ROLES['room-management'] },
-  { page: 'tenants', label: 'Tenant Management', roles: SCREEN_ROLES.tenants },
-  { page: 'payment', label: 'Payment Tracking', roles: SCREEN_ROLES.payment },
-  { page: 'rental-collection', label: 'Rental Collection', roles: SCREEN_ROLES['rental-collection'] },
-  { page: 'meter-reading', label: 'EB Meter Reading', roles: SCREEN_ROLES['meter-reading'] },
-  { page: 'water-tank-monitor', label: 'Sintex Tank Monitor', roles: SCREEN_ROLES['water-tank-monitor'] },
-  { page: 'electricity-charges', label: 'Electricity Charges', roles: SCREEN_ROLES['electricity-charges'] },
-  { page: 'complaints', label: 'Complaints', roles: SCREEN_ROLES.complaints },
-  { page: 'services', label: 'Service Details', roles: SCREEN_ROLES.services },
-  { page: 'consumption', label: 'Service Consumption', roles: SCREEN_ROLES.consumption },
-  { page: 'eb-payments', label: 'EB Payments', roles: SCREEN_ROLES['eb-payments'] },
-  { page: 'users', label: 'Users', roles: SCREEN_ROLES.users },
-  { page: 'roles', label: 'Roles & Access', roles: SCREEN_ROLES.roles },
-  { page: 'transactions', label: 'Transactions', roles: SCREEN_ROLES.transactions },
-  { page: 'stock', label: 'Stock', roles: SCREEN_ROLES.stock },
-  { page: 'daily-status', label: 'Daily Status', roles: SCREEN_ROLES['daily-status'] },
-  { page: 'guest-checkin', label: 'Guest Check-In', roles: SCREEN_ROLES['guest-checkin'] },
-  { page: 'misc-uploads', label: 'Misc Uploads', roles: SCREEN_ROLES['misc-uploads'] },
-  { page: 'service-allocation', label: 'Service Allocation', roles: SCREEN_ROLES['service-allocation'] },
-  { page: 'diagnostic', label: 'Diagnostic', roles: SCREEN_ROLES.diagnostic }
+// Navigation grouped into logical sections with role-aware submenu items.
+const NAV_GROUPS: NavGroup[] = [
+  {
+    key: 'overview',
+    label: 'Overview',
+    items: [
+      { page: 'home', label: 'Home', roles: SCREEN_ROLES.home },
+      { page: 'daily-status', label: 'Daily Status', roles: SCREEN_ROLES['daily-status'] },
+      { page: 'guest-checkin', label: 'Guest Check-In', roles: SCREEN_ROLES['guest-checkin'] },
+      { page: 'misc-uploads', label: 'Misc Uploads', roles: SCREEN_ROLES['misc-uploads'] },
+      { page: 'diagnostic', label: 'Diagnostic', roles: SCREEN_ROLES.diagnostic }
+    ]
+  },
+  {
+    key: 'occupancy',
+    label: 'Occupancy & Tenants',
+    items: [
+      { page: 'occupancy', label: 'Room Occupancy', roles: SCREEN_ROLES.occupancy },
+      { page: 'occupancy-links', label: 'Occupancy History', roles: SCREEN_ROLES['occupancy-links'] },
+      { page: 'room-wise-analysis', label: 'Room Wise Analysis', roles: SCREEN_ROLES['room-wise-analysis'] },
+      { page: 'room-management', label: 'Room Management', roles: SCREEN_ROLES['room-management'] },
+      { page: 'tenants', label: 'Tenant Management', roles: SCREEN_ROLES.tenants }
+    ]
+  },
+  {
+    key: 'billing',
+    label: 'Payments & Billing',
+    items: [
+      { page: 'payment', label: 'Payment Tracking', roles: SCREEN_ROLES.payment },
+      { page: 'rental-collection', label: 'Rental Collection', roles: SCREEN_ROLES['rental-collection'] },
+      { page: 'electricity-charges', label: 'Electricity Charges', roles: SCREEN_ROLES['electricity-charges'] },
+      { page: 'eb-payments', label: 'EB Payments', roles: SCREEN_ROLES['eb-payments'] },
+      { page: 'transactions', label: 'Transactions', roles: SCREEN_ROLES.transactions }
+    ]
+  },
+  {
+    key: 'utilities',
+    label: 'Utilities & Services',
+    items: [
+      { page: 'meter-reading', label: 'EB Meter Reading', roles: SCREEN_ROLES['meter-reading'] },
+      { page: 'water-tank-monitor', label: 'Sintex Tank Monitor', roles: SCREEN_ROLES['water-tank-monitor'] },
+      { page: 'services', label: 'Service Details', roles: SCREEN_ROLES.services },
+      { page: 'service-allocation', label: 'Service Allocation', roles: SCREEN_ROLES['service-allocation'] },
+      { page: 'consumption', label: 'Service Consumption', roles: SCREEN_ROLES.consumption },
+      { page: 'complaints', label: 'Complaints', roles: SCREEN_ROLES.complaints }
+    ]
+  },
+  {
+    key: 'admin',
+    label: 'Administration',
+    items: [
+      { page: 'users', label: 'Users', roles: SCREEN_ROLES.users },
+      { page: 'roles', label: 'Roles & Access', roles: SCREEN_ROLES.roles },
+      { page: 'stock', label: 'Stock', roles: SCREEN_ROLES.stock }
+    ]
+  }
 ];
+
+const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap(group => group.items);
+
+const getGroupKeyForPage = (page: Page): string | null => {
+  const group = NAV_GROUPS.find(navGroup => navGroup.items.some(item => item.page === page));
+  return group?.key ?? null;
+};
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeGroupKey, setActiveGroupKey] = useState<string | null>(() => getGroupKeyForPage('home'));
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [headerHidden, setHeaderHidden] = useState(false);
   const lastScrollPosRef = useRef(0);
@@ -109,6 +159,15 @@ function AppContent() {
   useEffect(() => {
     setMobileMenuOpen(false);
     setUserMenuOpen(false);
+  }, [currentPage]);
+
+  useEffect(() => {
+    const pageGroupKey = getGroupKeyForPage(currentPage);
+    if (!pageGroupKey) {
+      return;
+    }
+
+    setActiveGroupKey(pageGroupKey);
   }, [currentPage]);
 
   // Close dropdowns when clicking outside
@@ -201,6 +260,19 @@ function AppContent() {
   }
 
   console.log('[AppContent] Authenticated, rendering app with currentPage:', currentPage);
+
+  const userRoles = user?.roles?.split(',').map(r => r.trim()).filter(r => r) || [];
+  const hasAccessToItem = (item: NavItem) => item.roles.length === 0 || userRoles.some(r => item.roles.includes(r));
+  const visibleNavGroups = NAV_GROUPS
+    .map(group => ({
+      ...group,
+      items: group.items.filter(hasAccessToItem)
+    }))
+    .filter(group => group.items.length > 0);
+
+  const toggleGroup = (groupKey: string) => {
+    setActiveGroupKey(prev => (prev === groupKey ? prev : groupKey));
+  };
 
   const renderPage = () => {
     if (currentPage === 'diagnostic') {
@@ -422,23 +494,37 @@ function AppContent() {
 
         <div className={`header-nav ${mobileMenuOpen ? 'open' : ''}`}>
           <div className={`nav-items-container`}>
-            {NAV_ITEMS.map(item => {
-              const userRoles = user?.roles?.split(',').map(r => r.trim()).filter(r => r) || [];
-              const hasAccess = item.roles.length === 0 || userRoles.some(r => item.roles.includes(r));
-
-              if (!hasAccess) return null;
+            {visibleNavGroups.map(group => {
+              const groupHasActivePage = group.items.some(item => item.page === currentPage);
+              const isExpanded = activeGroupKey === group.key;
 
               return (
-                <button
-                  key={item.page}
-                  className={`nav-item ${currentPage === item.page ? 'active' : ''}`}
-                  onClick={() => {
-                    setCurrentPage(item.page);
-                    setMobileMenuOpen(false);
-                  }}
-                >
-                  {item.label}
-                </button>
+                <div className={`nav-group ${isExpanded ? 'open' : ''}`} key={group.key}>
+                  <button
+                    className={`nav-group-toggle ${groupHasActivePage ? 'active' : ''}`}
+                    onClick={() => toggleGroup(group.key)}
+                    aria-expanded={isExpanded}
+                    aria-controls={`submenu-${group.key}`}
+                  >
+                    <span className="nav-group-label">{group.label}</span>
+                    <span className={`nav-group-arrow ${isExpanded ? 'open' : ''}`}>▾</span>
+                  </button>
+
+                  <div className={`nav-submenu ${isExpanded ? 'open' : ''}`} id={`submenu-${group.key}`}>
+                    {group.items.map(item => (
+                      <button
+                        key={item.page}
+                        className={`nav-item nav-subitem ${currentPage === item.page ? 'active' : ''}`}
+                        onClick={() => {
+                          setCurrentPage(item.page);
+                          setMobileMenuOpen(false);
+                        }}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               );
             })}
           </div>
