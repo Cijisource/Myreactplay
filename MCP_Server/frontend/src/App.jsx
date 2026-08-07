@@ -1,5 +1,21 @@
 import { useMemo, useState } from "react";
 
+function createApiClient(baseUrl) {
+  return async function request(path, options = {}) {
+    const response = await fetch(`${baseUrl}${path}`, {
+      headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+      ...options
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  };
+}
+
 function createRpcClient(endpoint) {
   let id = 1;
 
@@ -30,7 +46,8 @@ function createRpcClient(endpoint) {
 }
 
 export default function App() {
-  const [endpoint, setEndpoint] = useState("/mcp");
+  const [transport, setTransport] = useState("direct");
+  const [endpoint, setEndpoint] = useState("/api");
   const [browsePath, setBrowsePath] = useState(".");
   const [filePath, setFilePath] = useState("");
   const [status, setStatus] = useState("Ready");
@@ -38,17 +55,37 @@ export default function App() {
   const [entries, setEntries] = useState([]);
   const [fileContent, setFileContent] = useState("");
 
+  const request = useMemo(() => createApiClient(endpoint), [endpoint]);
   const rpc = useMemo(() => createRpcClient(endpoint), [endpoint]);
+
+  function onTransportChange(nextTransport) {
+    setTransport(nextTransport);
+
+    if (nextTransport === "rpc" && endpoint === "/api") {
+      setEndpoint("/mcp");
+    }
+
+    if (nextTransport === "direct" && endpoint === "/mcp") {
+      setEndpoint("/api");
+    }
+  }
 
   async function initSession() {
     try {
-      setStatus("Initializing MCP session...");
-      await rpc("initialize", {
-        clientInfo: { name: "react-folder-console", version: "1.0.0" },
-        capabilities: {}
-      });
+      setStatus("Connecting...");
 
-      const listedTools = await rpc("tools/list");
+      let listedTools;
+      if (transport === "rpc") {
+        await rpc("initialize", {
+          clientInfo: { name: "react-folder-console", version: "1.0.0" },
+          capabilities: {}
+        });
+        listedTools = await rpc("tools/list");
+      } else {
+        await request("/initialize");
+        listedTools = await request("/tools");
+      }
+
       setTools(listedTools.tools || []);
       setStatus("Connected");
     } catch (error) {
@@ -59,13 +96,22 @@ export default function App() {
   async function runListDirectory() {
     try {
       setStatus("Listing directory...");
-      const result = await rpc("tools/call", {
-        name: "list_directory",
-        arguments: { path: browsePath }
-      });
 
-      const raw = result.content?.[0]?.text || "[]";
-      setEntries(JSON.parse(raw));
+      if (transport === "rpc") {
+        const result = await rpc("tools/call", {
+          name: "list_directory",
+          arguments: { path: browsePath }
+        });
+        const raw = result.content?.[0]?.text || "[]";
+        setEntries(JSON.parse(raw));
+      } else {
+        const result = await request("/list-directory", {
+          method: "POST",
+          body: JSON.stringify({ path: browsePath })
+        });
+        setEntries(result.entries || []);
+      }
+
       setStatus("Directory loaded");
     } catch (error) {
       setEntries([]);
@@ -76,12 +122,21 @@ export default function App() {
   async function runReadFile() {
     try {
       setStatus("Reading file...");
-      const result = await rpc("tools/call", {
-        name: "read_text_file",
-        arguments: { path: filePath, maxBytes: 150000 }
-      });
 
-      setFileContent(result.content?.[0]?.text || "");
+      if (transport === "rpc") {
+        const result = await rpc("tools/call", {
+          name: "read_text_file",
+          arguments: { path: filePath, maxBytes: 150000 }
+        });
+        setFileContent(result.content?.[0]?.text || "");
+      } else {
+        const result = await request("/read-text-file", {
+          method: "POST",
+          body: JSON.stringify({ path: filePath, maxBytes: 150000 })
+        });
+        setFileContent(result.content || "");
+      }
+
       setStatus("File loaded");
     } catch (error) {
       setFileContent("");
@@ -100,10 +155,18 @@ export default function App() {
       </section>
 
       <section className="panel">
-        <label>MCP endpoint</label>
+        <label>Transport</label>
+        <div className="row">
+          <select value={transport} onChange={(e) => onTransportChange(e.target.value)}>
+            <option value="direct">Direct API</option>
+            <option value="rpc">RPC</option>
+          </select>
+        </div>
+
+        <label>{transport === "rpc" ? "RPC endpoint" : "API base URL"}</label>
         <div className="row">
           <input value={endpoint} onChange={(e) => setEndpoint(e.target.value)} />
-          <button onClick={initSession}>Initialize</button>
+          <button onClick={initSession}>Connect</button>
         </div>
         <p className="status">{status}</p>
       </section>
