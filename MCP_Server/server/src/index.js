@@ -10,6 +10,44 @@ const allowedRoot = path.resolve(process.env.ALLOWED_ROOT || process.cwd());
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
+app.get("/mcp", (req, res) => {
+  res.json({
+    ok: true,
+    message: "MCP endpoint is available. Send JSON-RPC requests with HTTP POST.",
+    endpoint: "/mcp",
+    method: "POST"
+  });
+});
+
+function getToolDefinitions() {
+  return [
+    {
+      name: "list_directory",
+      description: "List files and folders under ALLOWED_ROOT",
+      inputSchema: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "Relative path under ALLOWED_ROOT" }
+        },
+        additionalProperties: false
+      }
+    },
+    {
+      name: "read_text_file",
+      description: "Read text file content under ALLOWED_ROOT",
+      inputSchema: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "Relative file path under ALLOWED_ROOT" },
+          maxBytes: { type: "number", description: "Maximum number of bytes to read" }
+        },
+        required: ["path"],
+        additionalProperties: false
+      }
+    }
+  ];
+}
+
 function makeRpcResult(id, result) {
   return { jsonrpc: "2.0", id, result };
 }
@@ -55,6 +93,45 @@ async function readTextFile(relativePath, maxBytes = 100_000) {
   return sliced.toString("utf8");
 }
 
+app.get("/api/initialize", (req, res) => {
+  res.json({
+    protocolVersion: "2025-03-26",
+    serverInfo: {
+      name: "local-folder-server",
+      version: "1.0.0"
+    },
+    capabilities: {
+      tools: {}
+    }
+  });
+});
+
+app.get("/api/tools", (req, res) => {
+  res.json({ tools: getToolDefinitions() });
+});
+
+app.post("/api/list-directory", async (req, res) => {
+  try {
+    const { path: relativePath = "." } = req.body || {};
+    const entries = await listDirectory(relativePath);
+    return res.json({ entries });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unexpected error";
+    return res.status(400).json({ error: message });
+  }
+});
+
+app.post("/api/read-text-file", async (req, res) => {
+  try {
+    const { path: relativePath, maxBytes = 100_000 } = req.body || {};
+    const content = await readTextFile(relativePath, maxBytes);
+    return res.json({ content });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unexpected error";
+    return res.status(400).json({ error: message });
+  }
+});
+
 app.post("/mcp", async (req, res) => {
   const { id = null, method, params = {} } = req.body || {};
 
@@ -77,32 +154,7 @@ app.post("/mcp", async (req, res) => {
     if (method === "tools/list") {
       return res.json(
         makeRpcResult(id, {
-          tools: [
-            {
-              name: "list_directory",
-              description: "List files and folders under ALLOWED_ROOT",
-              inputSchema: {
-                type: "object",
-                properties: {
-                  path: { type: "string", description: "Relative path under ALLOWED_ROOT" }
-                },
-                additionalProperties: false
-              }
-            },
-            {
-              name: "read_text_file",
-              description: "Read text file content under ALLOWED_ROOT",
-              inputSchema: {
-                type: "object",
-                properties: {
-                  path: { type: "string", description: "Relative file path under ALLOWED_ROOT" },
-                  maxBytes: { type: "number", description: "Maximum number of bytes to read" }
-                },
-                required: ["path"],
-                additionalProperties: false
-              }
-            }
-          ]
+          tools: getToolDefinitions()
         })
       );
     }

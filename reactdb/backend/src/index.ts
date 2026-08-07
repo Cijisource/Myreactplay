@@ -7,6 +7,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { initializeAzureClient, isAzureConfigured, downloadAzureBlob, downloadAzureBlobFromContainer, downloadFromAzureBlobUrl, getAzureBlobSasUrl, uploadAzureBlob, uploadAzureBlobToContainer, listAzureBlobsFromContainer, deleteAzureBlob, deleteAzureBlobFromContainer } from './azureService';
+import { initializeOracleClient, isOracleConfigured, uploadToOracleObjectStorage, listOracleBlobsFromBucket, deleteOracleBlob } from './oracleService';
 import { calculateProRataCharges, getTenantChargesForMonth, getRoomBillingsSummary, getMonthlyBillingReport, getTenantMonthlyBill, recalculateMonthlyCharges, getRoomMonthlyEbReport } from './services/proRataService';
 import { calculateCheckInProRataRent, calculateCheckOutProRataRent, recordProRataRentCalculation, calculateProRataRentForMonth, calculateOccupancyDaysForMonth } from './services/proRataRentService';
 
@@ -1338,6 +1339,7 @@ app.get('/api/occupancy/links', verifyToken, requireRole(['admin', 'manager', 'a
         rd.Beds as beds,
         o.CheckInDate as checkInDate,
         o.CheckOutDate as checkOutDate,
+        o.UpdatedDate as updatedDate,
         ISNULL(CAST(o.RentFixed AS FLOAT), 0) as rentFixed,
         ISNULL(CAST(o.DepositReceived AS FLOAT), 0) as advanceCollected,
         CASE WHEN o.CheckOutDate IS NULL OR o.CheckOutDate > CAST(GETDATE() AS DATE) THEN 1 ELSE 0 END as isActive,
@@ -1367,9 +1369,22 @@ app.get('/api/occupancy/links', verifyToken, requireRole(['admin', 'manager', 'a
       FROM Occupancy o
       INNER JOIN Tenant t ON o.TenantId = t.Id
       INNER JOIN RoomDetail rd ON o.RoomId = rd.Id
-      ORDER BY o.CheckOutDate ASC, t.Name ASC
+      ORDER BY o.CheckInDate DESC, o.Id DESC
     `);
-    res.json(result.recordset);
+    const transformedRecords = result.recordset.map((record) => {
+      const transformed = transformPhotoUrlsForResponse({
+        ...record,
+        photoUrl: record.tenantPhoto,
+      });
+
+      return {
+        ...transformed,
+        tenantPhoto: transformed.photoUrl || null,
+        azurePhotoUrl: transformed.photoUrl || null,
+      };
+    });
+
+    res.json(transformedRecords);
   } catch (error) {
     console.error('Occupancy links error:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -1679,6 +1694,7 @@ app.get('/api/tenants/:id/occupancy-history', async (req: Request, res: Response
           rd.Number as roomNumber,
           o.CheckInDate as checkInDate,
           o.CheckOutDate as checkOutDate,
+          o.UpdatedDate as updatedDate,
           o.RentFixed as rentFixed,
           o.DepositReceived as depositReceived,
           o.DepositRefunded as depositRefunded,
@@ -1686,8 +1702,7 @@ app.get('/api/tenants/:id/occupancy-history', async (req: Request, res: Response
         FROM Occupancy o
         LEFT JOIN RoomDetail rd ON o.RoomId = rd.Id
         WHERE o.TenantId = @tenantId
-        ORDER BY 
-          CASE WHEN o.CheckOutDate IS NOT NULL AND LTRIM(RTRIM(o.CheckOutDate)) <> '' THEN o.CheckOutDate ELSE o.CheckInDate END DESC
+        ORDER BY o.CheckInDate DESC, o.Id DESC
       `);
     res.json(result.recordset);
   } catch (error) {
@@ -5082,18 +5097,29 @@ app.get(
   requireRole(['admin', 'manager', 'maintenance', 'property_manager']),
   async (req: Request, res: Response) => {
     try {
-      if (!isAzureConfigured()) {
-        return res.status(503).json({
-          error: 'Azure Blob Storage is not configured',
-          container: AZURE_MISCELLANEOUS_CONTAINER
-        });
+      const azureBlobs = isAzureConfigured()
+        ? await listAzureBlobsFromContainer(AZURE_MISCELLANEOUS_CONTAINER)
+        : [];
+
+      let oracleBlobs: Array<{
+        name: string;
+        url: string;
+        contentType?: string;
+        size: number;
+        lastModified?: Date;
+        createdOn?: Date;
+        metadata?: Record<string, string>;
+      }> = [];
+
+      if (isOracleConfigured()) {
+        oracleBlobs = await listOracleBlobsFromBucket();
       }
 
-      const blobs = await listAzureBlobsFromContainer(AZURE_MISCELLANEOUS_CONTAINER);
+      const mergedBlobs = [...azureBlobs, ...oracleBlobs];
 
       res.json({
         container: AZURE_MISCELLANEOUS_CONTAINER,
-        files: blobs.map(blob => {
+        files: mergedBlobs.map(blob => {
           const blobNameParts = blob.name.split('/');
           const category = blobNameParts.length > 1 ? blobNameParts[0] : 'misc';
           const fileNameWithPrefix = blobNameParts[blobNameParts.length - 1] || blob.name;
@@ -5110,6 +5136,10 @@ app.get(
             note: blob.metadata?.note || '',
             uploadedAt: uploadedAt ? uploadedAt.toISOString() : null
           };
+        }).sort((first, second) => {
+          const firstTime = first.uploadedAt ? new Date(first.uploadedAt).getTime() : 0;
+          const secondTime = second.uploadedAt ? new Date(second.uploadedAt).getTime() : 0;
+          return secondTime - firstTime;
         })
       });
     } catch (error) {
@@ -5135,19 +5165,25 @@ app.delete(
         return res.status(400).json({ error: 'blobName is required' });
       }
 
-      if (!isAzureConfigured()) {
-        return res.status(503).json({
-          error: 'Azure Blob Storage is not configured',
-          container: AZURE_MISCELLANEOUS_CONTAINER
-        });
-      }
+      const isOracleBlob = isOracleConfigured() && blobName.includes('/');
 
-      await deleteAzureBlobFromContainer(blobName, AZURE_MISCELLANEOUS_CONTAINER);
+      if (isOracleBlob) {
+        await deleteOracleBlob(blobName);
+      } else {
+        if (!isAzureConfigured()) {
+          return res.status(503).json({
+            error: 'Azure Blob Storage is not configured',
+            container: AZURE_MISCELLANEOUS_CONTAINER
+          });
+        }
+
+        await deleteAzureBlobFromContainer(blobName, AZURE_MISCELLANEOUS_CONTAINER);
+      }
 
       res.json({
         success: true,
         message: 'Miscellaneous file deleted successfully',
-        container: AZURE_MISCELLANEOUS_CONTAINER,
+        container: isOracleBlob ? 'oracle-object-storage' : AZURE_MISCELLANEOUS_CONTAINER,
         blobName
       });
     } catch (error) {
@@ -5183,6 +5219,9 @@ app.post(
 
       const category = typeof req.body.category === 'string' ? req.body.category : 'misc';
       const note = typeof req.body.note === 'string' ? req.body.note.trim() : '';
+      const rawStorageTargets = typeof req.body.storageTargets === 'string' ? req.body.storageTargets : '';
+      const rawUploadToOracle = typeof req.body.uploadToOracle === 'string' ? req.body.uploadToOracle : '';
+      const uploadToOracle = rawStorageTargets.toLowerCase().includes('oracle') || rawUploadToOracle.toLowerCase() === 'true';
       const safeCategory = category
         .toLowerCase()
         .replace(/[^a-z0-9-]/g, '-')
@@ -5200,24 +5239,38 @@ app.post(
       if (normalizedNote) {
         metadata.note = normalizedNote;
       }
-      const url = await uploadAzureBlobToContainer(
-        AZURE_MISCELLANEOUS_CONTAINER,
-        blobName,
-        file.buffer,
-        file.mimetype,
-        metadata
-      );
+
+      let url: string;
+      let containerName = AZURE_MISCELLANEOUS_CONTAINER;
+      let selectedStorage = 'azure';
+
+      if (uploadToOracle && isOracleConfigured()) {
+        selectedStorage = 'oracle';
+        console.log(`Misc upload -> Oracle Object Storage for ${blobName}`);
+        url = await uploadToOracleObjectStorage(blobName, file.buffer, file.mimetype, metadata);
+        containerName = 'oracle-object-storage';
+      } else {
+        console.log(`Misc upload -> Azure Blob Storage for ${blobName}`);
+        url = await uploadAzureBlobToContainer(
+          AZURE_MISCELLANEOUS_CONTAINER,
+          blobName,
+          file.buffer,
+          file.mimetype,
+          metadata
+        );
+      }
 
       res.json({
         success: true,
-        container: AZURE_MISCELLANEOUS_CONTAINER,
+        container: containerName,
         blobName,
         url,
         originalName,
         mimeType: file.mimetype,
         size: file.size,
         category: safeCategory,
-        note
+        note,
+        storageTarget: selectedStorage
       });
     } catch (error) {
       console.error('Miscellaneous upload error:', error);
@@ -6956,6 +7009,11 @@ const startServer = async () => {
     
     // Initialize Azure Blob Storage if configured
     initializeAzureClient();
+    initializeOracleClient();
+
+    app.get('/health', (_req: Request, res: Response) => {
+      res.json({ status: 'ok' });
+    });
     
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`✓ Express server running on port ${PORT}`);

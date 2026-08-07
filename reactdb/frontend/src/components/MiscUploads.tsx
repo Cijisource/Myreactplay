@@ -113,6 +113,7 @@ export default function MiscUploads() {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedMiscFile[]>([]);
   const [note, setNote] = useState('');
   const [parallelism, setParallelism] = useState(3);
+  const [uploadToOracle, setUploadToOracle] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(formatMonthKey(new Date()));
   const [uploadedLoading, setUploadedLoading] = useState(false);
   const [uploadedError, setUploadedError] = useState<string | null>(null);
@@ -180,8 +181,12 @@ export default function MiscUploads() {
       videoElement.srcObject = stream;
     }
 
+    videoElement.muted = true;
+    videoElement.playsInline = true;
+
     try {
       await videoElement.play();
+      setCameraError(null);
     } catch (error) {
       setCameraError(error instanceof Error ? error.message : 'Unable to show camera preview.');
     }
@@ -276,12 +281,17 @@ export default function MiscUploads() {
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' } },
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
         audio: mode === 'video'
       });
 
       streamRef.current = stream;
       setCaptureMode(mode);
+      await attachCameraStream();
     } catch (error) {
       setCameraError(error instanceof Error ? error.message : 'Unable to start camera.');
     }
@@ -389,6 +399,11 @@ export default function MiscUploads() {
         formData.append('category', getCategoryForFile(item.file));
         formData.append('note', note);
 
+        const storageTargets = uploadToOracle ? 'azure,oracle' : 'azure';
+        formData.append('storageTargets', storageTargets);
+        formData.append('targetStorage', storageTargets);
+        formData.append('uploadToOracle', uploadToOracle ? 'true' : 'false');
+
         const response = await apiService.uploadMiscellaneousFile(formData, progress => {
           updateItem(item.id, { progress });
         });
@@ -421,7 +436,7 @@ export default function MiscUploads() {
         await sleep(BASE_RETRY_DELAY_MS * (2 ** (attempt - 1)) + Math.floor(Math.random() * 250));
       }
     }
-  }, [note, updateItem]);
+  }, [note, updateItem, uploadToOracle]);
 
   const uploadQueue = useCallback(async () => {
     const candidates = queue.filter(item => item.status === 'queued' || item.status === 'failed');
@@ -494,6 +509,25 @@ export default function MiscUploads() {
               maxLength={300}
               onChange={event => setNote(event.target.value)}
             />
+          </div>
+
+          <div className="misc-field misc-toggle-field">
+            <label htmlFor="misc-oracle-toggle" className="misc-toggle-label">
+              <span>Upload to Oracle Cloud</span>
+              <span className="misc-toggle">
+                <input
+                  id="misc-oracle-toggle"
+                  type="checkbox"
+                  checked={uploadToOracle}
+                  onChange={event => setUploadToOracle(event.target.checked)}
+                  disabled={uploading}
+                />
+                <span className="misc-slider" />
+              </span>
+            </label>
+            <small className="misc-toggle-hint">
+              {uploadToOracle ? 'Oracle Cloud only' : 'Azure only'}
+            </small>
           </div>
 
           <div className="misc-field">
