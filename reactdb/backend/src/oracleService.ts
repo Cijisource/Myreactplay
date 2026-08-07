@@ -14,12 +14,12 @@ interface OracleConfig {
 }
 
 const getOracleConfig = (): OracleConfig => ({
-  namespace: process.env.ORACLE_OBJECT_STORAGE_NAMESPACE,
-  bucket: process.env.ORACLE_OBJECT_STORAGE_BUCKET || 'miscellaneous',
-  region: process.env.ORACLE_OBJECT_STORAGE_REGION || 'us-ashburn-1',
-  accessKeyId: process.env.ORACLE_OBJECT_STORAGE_ACCESS_KEY,
-  secretAccessKey: process.env.ORACLE_OBJECT_STORAGE_SECRET_KEY,
-  endpoint: process.env.ORACLE_OBJECT_STORAGE_ENDPOINT,
+  namespace: process.env.ORACLE_OBJECT_STORAGE_NAMESPACE || 'axzdzxh66vor',
+  bucket: process.env.ORACLE_OBJECT_STORAGE_BUCKET || 'myphotobuck',
+  region: process.env.ORACLE_OBJECT_STORAGE_REGION || 'ap-hyderabad-1',
+  accessKeyId: process.env.ORACLE_OBJECT_STORAGE_ACCESS_KEY || 'd816521b2f359d152d5f9c722baf7e63f3bbf4f6',
+  secretAccessKey: process.env.ORACLE_OBJECT_STORAGE_SECRET_KEY || 'VHs6Gm2KzlgFcjzhyTC2Zn2RLy/bbS3GAn0wNVWGMGY=',
+  endpoint: process.env.ORACLE_OBJECT_STORAGE_ENDPOINT || 'https://axzdzxh66vor.compat.objectstorage.ap-hyderabad-1.oraclecloud.com',
 });
 
 const hasMalformedOracleAccessKey = (value?: string): boolean => {
