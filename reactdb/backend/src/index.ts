@@ -1370,7 +1370,20 @@ app.get('/api/occupancy/links', verifyToken, requireRole(['admin', 'manager', 'a
       INNER JOIN RoomDetail rd ON o.RoomId = rd.Id
       ORDER BY o.CheckOutDate ASC, t.Name ASC
     `);
-    res.json(result.recordset);
+    const transformedRecords = result.recordset.map((record) => {
+      const transformed = transformPhotoUrlsForResponse({
+        ...record,
+        photoUrl: record.tenantPhoto,
+      });
+
+      return {
+        ...transformed,
+        tenantPhoto: transformed.photoUrl || null,
+        azurePhotoUrl: transformed.photoUrl || null,
+      };
+    });
+
+    res.json(transformedRecords);
   } catch (error) {
     console.error('Occupancy links error:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
