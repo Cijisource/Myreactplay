@@ -1339,6 +1339,7 @@ app.get('/api/occupancy/links', verifyToken, requireRole(['admin', 'manager', 'a
         rd.Beds as beds,
         o.CheckInDate as checkInDate,
         o.CheckOutDate as checkOutDate,
+        o.UpdatedDate as updatedDate,
         ISNULL(CAST(o.RentFixed AS FLOAT), 0) as rentFixed,
         ISNULL(CAST(o.DepositReceived AS FLOAT), 0) as advanceCollected,
         CASE WHEN o.CheckOutDate IS NULL OR o.CheckOutDate > CAST(GETDATE() AS DATE) THEN 1 ELSE 0 END as isActive,
@@ -1368,7 +1369,7 @@ app.get('/api/occupancy/links', verifyToken, requireRole(['admin', 'manager', 'a
       FROM Occupancy o
       INNER JOIN Tenant t ON o.TenantId = t.Id
       INNER JOIN RoomDetail rd ON o.RoomId = rd.Id
-      ORDER BY o.CheckOutDate ASC, t.Name ASC
+      ORDER BY o.CheckInDate DESC, o.Id DESC
     `);
     const transformedRecords = result.recordset.map((record) => {
       const transformed = transformPhotoUrlsForResponse({
@@ -1693,6 +1694,7 @@ app.get('/api/tenants/:id/occupancy-history', async (req: Request, res: Response
           rd.Number as roomNumber,
           o.CheckInDate as checkInDate,
           o.CheckOutDate as checkOutDate,
+          o.UpdatedDate as updatedDate,
           o.RentFixed as rentFixed,
           o.DepositReceived as depositReceived,
           o.DepositRefunded as depositRefunded,
@@ -1700,8 +1702,7 @@ app.get('/api/tenants/:id/occupancy-history', async (req: Request, res: Response
         FROM Occupancy o
         LEFT JOIN RoomDetail rd ON o.RoomId = rd.Id
         WHERE o.TenantId = @tenantId
-        ORDER BY 
-          CASE WHEN o.CheckOutDate IS NOT NULL AND LTRIM(RTRIM(o.CheckOutDate)) <> '' THEN o.CheckOutDate ELSE o.CheckInDate END DESC
+        ORDER BY o.CheckInDate DESC, o.Id DESC
       `);
     res.json(result.recordset);
   } catch (error) {
