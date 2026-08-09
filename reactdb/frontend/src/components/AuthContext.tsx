@@ -213,13 +213,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const hasRole = (role: string): boolean => {
     if (!user || !user.roles) return false;
-    return user.roles.split(',').map(r => r.trim()).includes(role);
+    const normalizedRole = role.trim().toLowerCase();
+    return user.roles
+      .split(',')
+      .map(r => r.trim().toLowerCase())
+      .filter(r => r)
+      .includes(normalizedRole);
   };
 
   const hasAnyRole = (roles: string[]): boolean => {
     if (!user || !user.roles) return false;
-    const userRoles = user.roles.split(',').map(r => r.trim()).filter(r => r);
-    return roles.some(role => userRoles.includes(role));
+    const userRoles = user.roles
+      .split(',')
+      .map(r => r.trim().toLowerCase())
+      .filter(r => r);
+    return roles.some(role => userRoles.includes(role.trim().toLowerCase()));
   };
 
   const value: AuthContextType = {

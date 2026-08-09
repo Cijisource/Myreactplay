@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { apiService } from '../api';
 import LoadingSpinner from './LoadingSpinner';
 import './UserManagement.css';
@@ -25,9 +25,91 @@ interface UserRole {
   roleId: number;
   createdDate: string;
   updatedDate?: string;
+  userName?: string;
+  username?: string;
+  roleName?: string;
   user?: User;
   role?: RoleDetail;
 }
+
+const ROLE_TO_PAGES: Record<string, string[]> = {
+  admin: [
+    'Diagnostic',
+    'Payment Tracking',
+    'Rental Collection',
+    'Tenant Management',
+    'Room Occupancy',
+    'Room Wise Analysis',
+    'Room Management',
+    'Occupancy History',
+    'Complaints',
+    'Service Details',
+    'EB Payments',
+    'Users',
+    'Roles & Access',
+    'Transactions',
+    'Stock',
+    'Daily Status',
+    'Guest Check-In',
+    'Misc Uploads',
+    'Service Allocation',
+    'Service Consumption',
+    'EB Meter Reading',
+    'Sintex Tank Monitor',
+    'Electricity Charges'
+  ],
+  manager: [
+    'Payment Tracking',
+    'Rental Collection',
+    'Tenant Management',
+    'Room Management',
+    'Complaints',
+    'EB Payments',
+    'Transactions',
+    'Stock',
+    'Daily Status',
+    'Guest Check-In',
+    'Misc Uploads',
+    'EB Meter Reading',
+    'Sintex Tank Monitor',
+    'Electricity Charges'
+  ],
+  accountant: [
+    'Payment Tracking',
+    'Rental Collection',
+    'EB Payments',
+    'Transactions',
+    'Electricity Charges'
+  ],
+  property_manager: [
+    'Rental Collection',
+    'Tenant Management',
+    'Room Occupancy',
+    'Room Wise Analysis',
+    'Room Management',
+    'Daily Status',
+    'Guest Check-In',
+    'Misc Uploads'
+  ],
+  maintenance: [
+    'Complaints',
+    'Daily Status',
+    'Guest Check-In',
+    'Misc Uploads'
+  ],
+  utilities_manager: [
+    'Service Consumption',
+    'EB Meter Reading',
+    'Sintex Tank Monitor',
+    'Electricity Charges'
+  ],
+  inventory_manager: ['Stock']
+};
+
+const getAccessiblePagesForRole = (roleName: string): string[] => {
+  const normalizedRoleName = roleName.trim().toLowerCase();
+  return ROLE_TO_PAGES[normalizedRoleName] || [];
+};
 
 export default function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
@@ -43,6 +125,8 @@ export default function UserManagement() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ type: 'user' | 'role'; id: number } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'users' | 'roles' | 'user-roles'>('users');
+  const [assignRoleUserId, setAssignRoleUserId] = useState<number | null>(null);
+  const [selectedAssignRoleId, setSelectedAssignRoleId] = useState<number>(0);
 
   const [userFormData, setUserFormData] = useState({
     userName: '',
@@ -208,6 +292,43 @@ export default function UserManagement() {
     setShowRoleForm(true);
   };
 
+  const handleOpenAssignRole = async (userId: number) => {
+    try {
+      if (roles.length === 0) {
+        await fetchRoles();
+      }
+      setAssignRoleUserId(userId);
+      setSelectedAssignRoleId(0);
+      setError(null);
+    } catch {
+      // fetchRoles already sets an appropriate error message.
+    }
+  };
+
+  const handleAssignRoleToUser = async () => {
+    if (!assignRoleUserId || !selectedAssignRoleId) {
+      setError('Please select a role to assign.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      await apiService.createUserRole({
+        userId: assignRoleUserId,
+        roleId: selectedAssignRoleId
+      });
+      setSuccessMessage('Role assigned successfully!');
+      setAssignRoleUserId(null);
+      setSelectedAssignRoleId(0);
+      await fetchUserRoles();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to assign role');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const filteredUsers = users.filter(user =>
     user.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     user.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -217,6 +338,50 @@ export default function UserManagement() {
     role.roleName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     role.roleType.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const groupedUserRoles = useMemo(() => {
+    const groups = userRoles.reduce((acc, ur) => {
+      const key = ur.userId;
+      const displayName = ur.userName || ur.user?.name || 'N/A';
+      const loginName = ur.username || ur.user?.userName || 'N/A';
+      const role = ur.roleName || ur.role?.roleName || 'N/A';
+
+      if (!acc[key]) {
+        acc[key] = {
+          userName: displayName,
+          username: loginName,
+          roles: new Set<string>()
+        };
+      }
+
+      acc[key].roles.add(role);
+      return acc;
+    }, {} as Record<number, { userName: string; username: string; roles: Set<string> }>);
+
+    return Object.values(groups)
+      .map((group) => ({
+        ...group,
+        roles: Array.from(group.roles).sort((a, b) => a.localeCompare(b))
+      }))
+      .sort((a, b) => a.userName.localeCompare(b.userName));
+  }, [userRoles]);
+
+  const filteredGroupedUserRoles = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    if (!query) {
+      return groupedUserRoles;
+    }
+
+    return groupedUserRoles.filter((group) => {
+      const rolesText = group.roles.join(' ').toLowerCase();
+      return (
+        group.userName.toLowerCase().includes(query) ||
+        group.username.toLowerCase().includes(query) ||
+        rolesText.includes(query)
+      );
+    });
+  }, [groupedUserRoles, searchQuery]);
 
   return (
     <div className="user-management-container users-container">
@@ -331,6 +496,12 @@ export default function UserManagement() {
                         Edit
                       </button>
                       <button
+                        className="btn btn-sm btn-primary"
+                        onClick={() => handleOpenAssignRole(user.id)}
+                      >
+                        Assign Role
+                      </button>
+                      <button
                         className="btn btn-sm btn-danger"
                         onClick={() => setShowDeleteConfirm({ type: 'user', id: user.id })}
                       >
@@ -342,6 +513,44 @@ export default function UserManagement() {
                   <p><strong>Password:</strong> {user.password}</p>
                   <p><strong>Login Duration:</strong> {user.nextLoginDuration || 'N/A'} days</p>
                   <p><strong>Created:</strong> {new Date(user.createdDate).toLocaleDateString()}</p>
+
+                  {assignRoleUserId === user.id && (
+                    <div className="form-container" style={{ marginTop: '10px' }}>
+                      <h3 style={{ marginBottom: '8px' }}>Assign Role</h3>
+                      <select
+                        value={selectedAssignRoleId}
+                        onChange={(e) => setSelectedAssignRoleId(parseInt(e.target.value, 10) || 0)}
+                        style={{ width: '100%', marginBottom: '10px' }}
+                      >
+                        <option value={0}>Select role</option>
+                        {roles.map((role) => (
+                          <option key={role.id} value={role.id}>
+                            {role.roleName}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="form-buttons">
+                        <button
+                          type="button"
+                          className="btn btn-success"
+                          disabled={loading || selectedAssignRoleId === 0}
+                          onClick={handleAssignRoleToUser}
+                        >
+                          {loading ? 'Assigning...' : 'Assign'}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => {
+                            setAssignRoleUserId(null);
+                            setSelectedAssignRoleId(0);
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -430,6 +639,12 @@ export default function UserManagement() {
                     </div>
                   </div>
                   <p><strong>Type:</strong> {role.roleType}</p>
+                  <p>
+                    <strong>Access Pages:</strong>{' '}
+                    {getAccessiblePagesForRole(role.roleName).length > 0
+                      ? getAccessiblePagesForRole(role.roleName).join(', ')
+                      : 'No page access configured'}
+                  </p>
                 </div>
               ))}
             </div>
@@ -440,6 +655,16 @@ export default function UserManagement() {
       {/* USER ROLES TAB */}
       {activeTab === 'user-roles' && (
         <div className="tab-content">
+          <div className="toolbar">
+            <input
+              type="text"
+              placeholder="Search by user, username, or role..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="search-input"
+            />
+          </div>
+
           {loading ? (
             <LoadingSpinner />
           ) : (
@@ -448,18 +673,26 @@ export default function UserManagement() {
                 <thead>
                   <tr>
                     <th>User</th>
-                    <th>Role</th>
-                    <th>Created Date</th>
+                    <th>Username</th>
+                    <th>Assigned Roles</th>
+                    <th>Role Count</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {userRoles.map((ur) => (
-                    <tr key={ur.id}>
-                      <td>{ur.user?.name || 'N/A'}</td>
-                      <td>{ur.role?.roleName || 'N/A'}</td>
-                      <td>{new Date(ur.createdDate).toLocaleDateString()}</td>
+                  {filteredGroupedUserRoles.length === 0 ? (
+                    <tr>
+                      <td colSpan={4}>No role assignments found.</td>
                     </tr>
-                  ))}
+                  ) : (
+                    filteredGroupedUserRoles.map((userRoleGroup) => (
+                      <tr key={`${userRoleGroup.username}-${userRoleGroup.userName}`}>
+                        <td>{userRoleGroup.userName}</td>
+                        <td>{userRoleGroup.username}</td>
+                        <td>{userRoleGroup.roles.join(', ')}</td>
+                        <td>{userRoleGroup.roles.length}</td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>

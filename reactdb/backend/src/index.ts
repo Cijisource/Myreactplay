@@ -546,9 +546,10 @@ app.get('/api/database/status', async (req: Request, res: Response) => {
 app.post('/api/auth/login', async (req: Request, res: Response) => {
   try {
     const { username, password } = req.body;
+    const normalizedUsername = String(username || '').trim();
 
     // Validation
-    if (!username || !password) {
+    if (!normalizedUsername || !password) {
       return res.status(400).json({ 
         error: 'Username and password are required' 
       });
@@ -558,7 +559,7 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
     
     // Query user from database
     const userResult = await pool.request()
-      .input('username', sql.NVarChar(100), username)
+      .input('username', sql.NVarChar(100), normalizedUsername)
       .query(`
         SELECT 
           Id as id,
@@ -568,22 +569,22 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
           NextLoginDuration as nextLoginDuration,
           LastLogin as lastLogin
         FROM [User]
-        WHERE UserName = @username
+        WHERE LOWER(LTRIM(RTRIM(UserName))) = LOWER(LTRIM(RTRIM(@username)))
       `);
 
     if (!userResult.recordset.length) {
-      console.log(`[Login] User not found: ${username}`);
+      console.log(`[Login] User not found: ${normalizedUsername}`);
       return res.status(401).json({ 
         error: 'Invalid username or password' 
       });
     }
 
     const user = userResult.recordset[0];
-    console.log(`[Login] User found: ${username} (ID: ${user.id})`);
+    console.log(`[Login] User found: ${normalizedUsername} (ID: ${user.id})`);
 
     // Check password (in production, should use hashed passwords)
     if (user.password !== password) {
-      console.log(`[Login] Invalid password for user: ${username}`);
+      console.log(`[Login] Invalid password for user: ${normalizedUsername}`);
       return res.status(401).json({ 
         error: 'Invalid username or password' 
       });
@@ -606,7 +607,7 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
       .filter(r => r && r.trim() !== '') // Filter out null/empty values
       .join(',') || 'user';
     
-    console.log(`[Login] User roles for ${username}: ${roles}`);
+    console.log(`[Login] User roles for ${normalizedUsername}: ${roles}`);
 
     // Update LastLogin timestamp and fetch the updated value
     const updateResult = await pool.request()
@@ -662,7 +663,7 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
       }
     });
 
-    console.log(`[Login] Successful login for user: ${username}`);
+    console.log(`[Login] Successful login for user: ${normalizedUsername}`);
     console.log(`[Login] Response user object:`, {
       id: user.id,
       username: user.username,
