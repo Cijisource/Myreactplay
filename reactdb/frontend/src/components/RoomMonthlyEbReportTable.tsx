@@ -52,6 +52,10 @@ export default function RoomMonthlyEbReportTable({ selectedMonth, roomOptions, r
   const [records, setRecords] = useState<RoomMonthlyEbRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [collapsedCategories, setCollapsedCategories] = useState<{ shop: boolean; residential: boolean }>({
+    shop: true,
+    residential: true
+  });
 
   const parsedMonth = useMemo(() => {
     const [year, month] = selectedMonth.split('-').map(Number);
@@ -141,6 +145,13 @@ export default function RoomMonthlyEbReportTable({ selectedMonth, roomOptions, r
       }
     );
   }, [records]);
+
+  const toggleCategory = (category: 'shop' | 'residential') => {
+    setCollapsedCategories((prev) => ({
+      ...prev,
+      [category]: !prev[category]
+    }));
+  };
 
   const renderRecordCard = (record: RoomMonthlyEbRecord, isShop: boolean): JSX.Element => {
     const activeTenants = getActiveTenants(record.tenants);
@@ -252,23 +263,37 @@ export default function RoomMonthlyEbReportTable({ selectedMonth, roomOptions, r
         <div className="eb-report-list">
           {categorizedRecords.shop.length > 0 && (
             <div className="eb-report-category-section">
-              <div className="eb-report-category-header eb-report-category-header-shop">
-                Shop Rooms ({categorizedRecords.shop.length})
-              </div>
-              <div className="eb-report-category-list">
-                {categorizedRecords.shop.map((record) => renderRecordCard(record, true))}
-              </div>
+              <button
+                type="button"
+                className="eb-report-category-header eb-report-category-header-shop"
+                onClick={() => toggleCategory('shop')}
+                aria-expanded={!collapsedCategories.shop}
+              >
+                <span>{collapsedCategories.shop ? '▶' : '▼'} Shop Rooms ({categorizedRecords.shop.length})</span>
+              </button>
+              {!collapsedCategories.shop && (
+                <div className="eb-report-category-list">
+                  {categorizedRecords.shop.map((record) => renderRecordCard(record, true))}
+                </div>
+              )}
             </div>
           )}
 
           {categorizedRecords.residential.length > 0 && (
             <div className="eb-report-category-section">
-              <div className="eb-report-category-header eb-report-category-header-residential">
-                Residential Rooms ({categorizedRecords.residential.length})
-              </div>
-              <div className="eb-report-category-list">
-                {categorizedRecords.residential.map((record) => renderRecordCard(record, false))}
-              </div>
+              <button
+                type="button"
+                className="eb-report-category-header eb-report-category-header-residential"
+                onClick={() => toggleCategory('residential')}
+                aria-expanded={!collapsedCategories.residential}
+              >
+                <span>{collapsedCategories.residential ? '▶' : '▼'} Residential Rooms ({categorizedRecords.residential.length})</span>
+              </button>
+              {!collapsedCategories.residential && (
+                <div className="eb-report-category-list">
+                  {categorizedRecords.residential.map((record) => renderRecordCard(record, false))}
+                </div>
+              )}
             </div>
           )}
         </div>

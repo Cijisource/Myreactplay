@@ -261,7 +261,10 @@ function AppContent() {
 
   console.log('[AppContent] Authenticated, rendering app with currentPage:', currentPage);
 
-  const userRoles = user?.roles?.split(',').map(r => r.trim()).filter(r => r) || [];
+  const userRoles = user?.roles
+    ?.split(',')
+    .map(r => r.trim().toLowerCase())
+    .filter(r => r) || [];
   const hasAccessToItem = (item: NavItem) => item.roles.length === 0 || userRoles.some(r => item.roles.includes(r));
   const visibleNavGroups = NAV_GROUPS
     .map(group => ({

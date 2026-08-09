@@ -72,6 +72,8 @@ export default function MonthlyMeterReading(): JSX.Element {
 
   // Ref for auto-focusing on ending meter reading input
   const endingMeterReadingRef = useRef<HTMLInputElement>(null);
+  const meterReadingFormRef = useRef<HTMLDivElement>(null);
+  const meterReadingTitleRef = useRef<HTMLHeadingElement>(null);
   const hasProcessedScanRef = useRef(false);
 
   // Calculate charges on the fly when readings or unit rate change
@@ -115,6 +117,16 @@ export default function MonthlyMeterReading(): JSX.Element {
       }, 100);
     }
   }, [selectedAllocationId]);
+
+  useEffect(() => {
+    if (showForm) {
+      // Bring the record meter reading section into view and focus it for keyboard users.
+      setTimeout(() => {
+        meterReadingFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        meterReadingTitleRef.current?.focus();
+      }, 100);
+    }
+  }, [showForm]);
 
   useEffect(() => {
     const fetchAllocations = async () => {
@@ -447,6 +459,15 @@ export default function MonthlyMeterReading(): JSX.Element {
     }
   };
 
+  const handleAddReadingClick = () => {
+    if (showForm) {
+      setShowForm(false);
+      return;
+    }
+
+    setShowForm(true);
+  };
+
   return (
     <div className="meter-reading-container">
       <h2 className="section-heading">EB Meter Reading</h2>
@@ -486,7 +507,7 @@ export default function MonthlyMeterReading(): JSX.Element {
 
         <div className="toolbar-group">
           <button 
-            onClick={() => setShowForm(!showForm)}
+            onClick={handleAddReadingClick}
           >
             {showForm ? '✕ Close Form' : '+ Add Reading'}
           </button>
@@ -502,8 +523,8 @@ export default function MonthlyMeterReading(): JSX.Element {
       />
 
       {showForm && (
-        <div className="meter-reading-form">
-          <h2 className="form-section-title">Record Meter Reading</h2>
+        <div className="meter-reading-form" ref={meterReadingFormRef}>
+          <h2 className="form-section-title" ref={meterReadingTitleRef} tabIndex={-1}>Record Meter Reading</h2>
 
           <div className="qr-actions-row">
             <button type="button" className="btn-qr-scan" onClick={handleOpenScanner}>
