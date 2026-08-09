@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { apiService } from '../api';
 import LoadingSpinner from './LoadingSpinner';
+import { Scanner } from '@yudiel/react-qr-scanner';
+import { QRCodeSVG } from 'qrcode.react';
 import './ManagementStyles.css';
 import './MonthlyMeterReading.css';
 import RoomMonthlyEbReportTable from './RoomMonthlyEbReportTable';
@@ -63,9 +65,14 @@ export default function MonthlyMeterReading(): JSX.Element {
   const [calculatedCharges, setCalculatedCharges] = useState<{ consumption: number; charges: number } | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [reportRefreshKey, setReportRefreshKey] = useState(0);
+  const [showQrScanner, setShowQrScanner] = useState(false);
+  const [scannerError, setScannerError] = useState<string | null>(null);
+  const [scanSuccessMessage, setScanSuccessMessage] = useState<string | null>(null);
+  const [qrGeneratorRoomNumber, setQrGeneratorRoomNumber] = useState('');
 
   // Ref for auto-focusing on ending meter reading input
   const endingMeterReadingRef = useRef<HTMLInputElement>(null);
+  const hasProcessedScanRef = useRef(false);
 
   // Calculate charges on the fly when readings or unit rate change
   useEffect(() => {
@@ -174,6 +181,184 @@ export default function MonthlyMeterReading(): JSX.Element {
     }));
   };
 
+  const normalizeRoomNumber = (value: string): string => {
+    return value.toLowerCase().replace(/^room\s*/i, '').replace(/[^a-z0-9]/gi, '');
+  };
+
+  const extractRoomNumberFromQrPayload = (rawPayload: string): string => {
+    const trimmed = rawPayload.trim();
+
+    if (!trimmed) {
+      return '';
+    }
+
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        const parsedPayload = JSON.parse(trimmed) as Record<string, unknown>;
+        const keysToCheck = ['roomNumber', 'room', 'number'];
+
+        for (const key of keysToCheck) {
+          const value = parsedPayload[key];
+          if (typeof value === 'string' && value.trim()) {
+            return value.trim();
+          }
+        }
+      } catch (_error) {
+        // Fall through to plain text parsing.
+      }
+    }
+
+    const roomPrefixMatch = trimmed.match(/room\s*[:=-]?\s*([a-z0-9-]+)/i);
+    if (roomPrefixMatch && roomPrefixMatch[1]) {
+      return roomPrefixMatch[1].trim();
+    }
+
+    return trimmed;
+  };
+
+  const handleOpenScanner = () => {
+    hasProcessedScanRef.current = false;
+    setScannerError(null);
+    setScanSuccessMessage(null);
+    setShowQrScanner(true);
+  };
+
+  const handleCloseScanner = () => {
+    setShowQrScanner(false);
+  };
+
+  const handleQrScanResult = async (rawPayload: string) => {
+    const scannedRoomText = extractRoomNumberFromQrPayload(rawPayload);
+    const normalizedScannedRoom = normalizeRoomNumber(scannedRoomText);
+
+    if (!normalizedScannedRoom) {
+      setScannerError('Unable to read room number from the scanned QR code.');
+      hasProcessedScanRef.current = false;
+      return;
+    }
+
+    const matchedAllocation = allocations.find(
+      (alloc) => normalizeRoomNumber(alloc.room.number) === normalizedScannedRoom
+    );
+
+    if (!matchedAllocation) {
+      setScannerError(`No room matched the scanned code: ${scannedRoomText}`);
+      hasProcessedScanRef.current = false;
+      return;
+    }
+
+    await handleSelectAllocation(matchedAllocation);
+    setScanSuccessMessage(`Room ${matchedAllocation.room.number} selected from QR scan.`);
+    setScannerError(null);
+    setShowQrScanner(false);
+  };
+
+  const handlePrintRoomQr = () => {
+    const roomNumber = qrGeneratorRoomNumber.trim();
+
+    if (!roomNumber) {
+      setError('Please enter a room number before printing QR code.');
+      return;
+    }
+
+    const qrSvgElement = document.querySelector('.qr-generator-preview svg');
+    if (!qrSvgElement) {
+      setError('QR code is not ready to print. Please try again.');
+      return;
+    }
+
+    const serializedSvg = new XMLSerializer().serializeToString(qrSvgElement);
+    const encodedSvg = encodeURIComponent(serializedSvg);
+    const dataUri = `data:image/svg+xml;charset=utf-8,${encodedSvg}`;
+
+    const printWindow = window.open('', '_blank', 'width=520,height=700');
+    if (!printWindow) {
+      setError('Popup blocked. Please allow popups and retry printing.');
+      return;
+    }
+
+    const printHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8" />
+        <title>Room ${roomNumber} QR Label</title>
+        <style>
+          body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #ffffff;
+            color: #0f172a;
+          }
+          .label {
+            width: 380px;
+            margin: 24px auto;
+            border: 2px solid #0f172a;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+          }
+          h1 {
+            margin: 0 0 6px 0;
+            font-size: 28px;
+          }
+          p {
+            margin: 0;
+            font-size: 14px;
+            color: #475569;
+          }
+          .qr {
+            margin: 18px auto 10px auto;
+            width: 220px;
+            height: 220px;
+            border: 1px dashed #94a3b8;
+            border-radius: 8px;
+            display: grid;
+            place-items: center;
+          }
+          .qr img {
+            width: 200px;
+            height: 200px;
+          }
+          .code {
+            margin-top: 6px;
+            font-size: 13px;
+            color: #334155;
+          }
+          @media print {
+            body {
+              margin: 0;
+            }
+            .label {
+              margin-top: 8mm;
+              break-inside: avoid;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="label">
+          <h1>Room ${roomNumber}</h1>
+          <p>Scan this QR to select room in EB meter reading</p>
+          <div class="qr">
+            <img src="${dataUri}" alt="Room ${roomNumber} QR" />
+          </div>
+          <div class="code">ROOM:${roomNumber}</div>
+        </div>
+        <script>
+          window.onload = function () {
+            window.print();
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(printHtml);
+    printWindow.document.close();
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -184,6 +369,7 @@ export default function MonthlyMeterReading(): JSX.Element {
 
   const handleSelectAllocation = async (alloc: ServiceAllocation) => {
     setSelectedAllocationId(alloc.id);
+    setQrGeneratorRoomNumber(alloc.room.number || '');
     const [year, month] = selectedMonth.split('-').map(Number);
     
     // Auto-populate form data
@@ -248,6 +434,7 @@ export default function MonthlyMeterReading(): JSX.Element {
         unitRate: chargePerUnit
       });
       setSelectedAllocationId(null);
+      setQrGeneratorRoomNumber('');
       setShowForm(false);
       setValidationError(null);
       setReportRefreshKey((prev) => prev + 1);
@@ -317,6 +504,43 @@ export default function MonthlyMeterReading(): JSX.Element {
       {showForm && (
         <div className="meter-reading-form">
           <h2 className="form-section-title">Record Meter Reading</h2>
+
+          <div className="qr-actions-row">
+            <button type="button" className="btn-qr-scan" onClick={handleOpenScanner}>
+              Scan Room QR
+            </button>
+            {scanSuccessMessage && <span className="qr-scan-success">{scanSuccessMessage}</span>}
+          </div>
+
+          {showQrScanner && (
+            <div className="qr-scanner-panel">
+              <div className="qr-scanner-header">
+                <h3>Scan Room QR Code</h3>
+                <button type="button" className="btn-qr-close" onClick={handleCloseScanner}>Close</button>
+              </div>
+              <p className="qr-scanner-help">Point the camera at a room QR code to auto-select the room.</p>
+              <div className="qr-scanner-frame">
+                <Scanner
+                  constraints={{ facingMode: 'environment' }}
+                  scanDelay={300}
+                  onScan={(detectedCodes) => {
+                    if (detectedCodes.length > 0 && !hasProcessedScanRef.current) {
+                      hasProcessedScanRef.current = true;
+                      const payload = detectedCodes[0].rawValue;
+                      void handleQrScanResult(payload);
+                    }
+                  }}
+                  onError={() => {
+                    setScannerError('Unable to access camera. Please allow camera permission and retry.');
+                    hasProcessedScanRef.current = false;
+                  }}
+                  allowMultiple={false}
+                />
+              </div>
+              {scannerError && <div className="qr-scanner-error">{scannerError}</div>}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit}>
             {!selectedAllocationId ? (
               <div style={{
@@ -331,6 +555,42 @@ export default function MonthlyMeterReading(): JSX.Element {
               </div>
             ) : (
               <>
+                <div className="qr-generator-panel">
+                  <div className="qr-generator-left">
+                    <h3>Room QR Generator</h3>
+                    <p>Generate or print a QR code for this room. Scanning this code auto-selects the room.</p>
+                    <label htmlFor="qr-room-number-input">Room Number</label>
+                    <input
+                      id="qr-room-number-input"
+                      type="text"
+                      value={qrGeneratorRoomNumber}
+                      onChange={(e) => setQrGeneratorRoomNumber(e.target.value)}
+                      placeholder="Enter room number"
+                    />
+                    <small>Encoded value: ROOM:{qrGeneratorRoomNumber.trim() || 'N/A'}</small>
+                    <button
+                      type="button"
+                      className="btn-qr-print"
+                      onClick={handlePrintRoomQr}
+                      disabled={!qrGeneratorRoomNumber.trim()}
+                    >
+                      Print QR Label
+                    </button>
+                  </div>
+                  <div className="qr-generator-preview">
+                    {qrGeneratorRoomNumber.trim() ? (
+                      <QRCodeSVG
+                        value={`ROOM:${qrGeneratorRoomNumber.trim()}`}
+                        size={180}
+                        level="M"
+                        includeMargin
+                      />
+                    ) : (
+                      <div className="qr-generator-empty">Enter a room number to generate QR.</div>
+                    )}
+                  </div>
+                </div>
+
                 <div className="form-row">
                   <div className="form-group">
                     <label>Reading Date *</label>
@@ -490,6 +750,7 @@ export default function MonthlyMeterReading(): JSX.Element {
                     type="button"
                     onClick={() => {
                       setSelectedAllocationId(null);
+                      setQrGeneratorRoomNumber('');
                       setFormData({
                         serviceAllocId: 0,
                         readingTakenDate: new Date().toISOString().split('T')[0],
