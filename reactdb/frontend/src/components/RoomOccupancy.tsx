@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, type MouseEvent as ReactMouseEvent } from 'react';
 import { apiService, getRoomOccupancyData } from '../api';
 import SearchableDropdown from './SearchableDropdown';
 import LoadingSpinner from './LoadingSpinner';
@@ -138,6 +138,7 @@ export default function RoomOccupancy({ mode = 'occupancy' }: RoomOccupancyProps
   const [showVacancyChart, setShowVacancyChart] = useState(false);
 
   const [showVacancyFullscreen, setShowVacancyFullscreen] = useState(false);
+  const roomsGridRef = useRef<HTMLDivElement | null>(null);
   const [selectedRevenueYear, setSelectedRevenueYear] = useState<number>(new Date().getFullYear());
   const [selectedRevenueRoom, setSelectedRevenueRoom] = useState<string>('');
   const [yearlyRevenueRecords, setYearlyRevenueRecords] = useState<MonthlyPaymentRecord[]>([]);
@@ -630,6 +631,47 @@ export default function RoomOccupancy({ mode = 'occupancy' }: RoomOccupancyProps
     });
   };
 
+  const handleRoomCardClick = (event: ReactMouseEvent<HTMLDivElement>, roomId: number) => {
+    const target = event.target as HTMLElement;
+    if (
+      target.closest('.room-details-popup') ||
+      target.closest('.toggle-room-info-btn') ||
+      target.closest('.popup-close-btn') ||
+      target.closest('a')
+    ) {
+      return;
+    }
+
+    toggleRoomExpanded(roomId);
+  };
+
+  useEffect(() => {
+    if (expandedRooms.size === 0) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (roomsGridRef.current?.contains(target)) return;
+      setExpandedRooms(new Set());
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setExpandedRooms(new Set());
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [expandedRooms.size]);
+
   const polarToCartesian = (centerX: number, centerY: number, radius: number, angleDeg: number) => {
     const angleRad = ((angleDeg - 90) * Math.PI) / 180;
     return { x: centerX + radius * Math.cos(angleRad), y: centerY + radius * Math.sin(angleRad) };
@@ -964,50 +1006,69 @@ export default function RoomOccupancy({ mode = 'occupancy' }: RoomOccupancyProps
           </div>
 
           <div className="section-header"><h2>Rooms</h2></div>
-          <div className="rooms-grid">
+          <div className="rooms-grid" ref={roomsGridRef}>
             {sortedFilteredRooms.length > 0 ? (
               sortedFilteredRooms.map((room) => (
-                <div key={room.roomId} className={`room-card ${room.isOccupied ? 'occupied' : 'vacant'}`}>
+                <div
+                  key={room.roomId}
+                  className={`room-card ${room.isOccupied ? 'occupied' : 'vacant'} ${expandedRooms.has(room.roomId) ? 'expanded' : ''}`}
+                  onClick={(event) => handleRoomCardClick(event, room.roomId)}
+                >
                   <div className="room-header">
-                    <div>
-                      <h3>
-                        Room {room.roomNumber}
-                        {!room.isOccupied && <span className="room-aging-inline"> • Aging: {calculateVacancyAging(room.lastCheckOutDate)}</span>}
+                    <div className="room-header-main">
+                      <h3 className="room-number-title">
+                        <span className="room-number-only">{room.roomNumber}</span>
                       </h3>
-                      <p className="room-rent">{formatCurrency(room.roomRent || 0)}/month • {room.beds} bed{room.beds > 1 ? 's' : ''}</p>
                     </div>
-                    <div className={`occupancy-badge ${room.isOccupied ? 'occupied' : 'vacant'}`}>{room.isOccupied ? '🟢 Occupied' : '🔴 Vacant'}</div>
-                    <button className="toggle-room-info-btn" onClick={() => toggleRoomExpanded(room.roomId)}>
-                      {expandedRooms.has(room.roomId) ? '−' : '+'}
+                    <button
+                      className={`toggle-room-info-btn ${expandedRooms.has(room.roomId) ? 'open' : ''}`}
+                      onClick={() => toggleRoomExpanded(room.roomId)}
+                      aria-label={expandedRooms.has(room.roomId) ? 'Hide room details' : 'Show room details'}
+                    >
+                      {expandedRooms.has(room.roomId) ? '×' : '⌂'}
                     </button>
                   </div>
 
                   {expandedRooms.has(room.roomId) && (
-                    room.isOccupied && room.tenantName ? (
-                      <div className="room-tenant-info">
-                        <div className="tenant-section">
-                          <h4>Tenant Information</h4>
-                          <p className="tenant-name">👤 {room.tenantName}</p>
-                          <p className="tenant-contact">📱 <a href={`tel:${room.tenantPhone}`}>{room.tenantPhone}</a></p>
-                          <p className="check-in">📅 Check-in: {formatDate(room.checkInDate)}</p>
-                          <p className="aging-info">⏱️ Occupancy Aging: {calculateOccupancyAging(room.checkInDate)}</p>
-                          {room.checkOutDate && <p className="check-out">📅 Check-out: {formatDate(room.checkOutDate)}</p>}
-                          <p className={`occupancy-status ${getOccupancyStatus(room.checkOutDate).toLowerCase().replace(/ /g, '-')}`}>Status: {getOccupancyStatus(room.checkOutDate)}</p>
-                        </div>
-                        <div className="payment-section">
-                          <h4>Payment Status</h4>
-                          <div className="payment-row"><span>Received:</span><span className="amount received">{formatCurrency(room.currentRentReceived || 0)}</span></div>
-                          <div className="payment-row"><span>Pending:</span><span className="amount pending">{formatCurrency((room.roomRent || 0) - (room.currentRentReceived || 0))}</span></div>
-                          {room.lastPaymentDate && <p className="last-payment">Last Payment: {formatDate(room.lastPaymentDate)}</p>}
-                        </div>
+                    <div className="room-details-popup" role="dialog" aria-label={`Room ${room.roomNumber} details`}>
+                      <button className="popup-close-btn" onClick={() => toggleRoomExpanded(room.roomId)} aria-label="Close details">×</button>
+                      <div className="popup-room-meta">
+                        <strong>Room {room.roomNumber}</strong>
+                        <span>{formatCurrency(room.roomRent || 0)}/month</span>
+                        <span>{room.beds} bed{room.beds > 1 ? 's' : ''}</span>
+                        <span className={`popup-room-state ${room.isOccupied ? 'occupied' : 'vacant'}`}>
+                          {room.isOccupied ? 'Occupied' : 'Vacant'}
+                        </span>
+                        {!room.isOccupied && (
+                          <span className="popup-vacancy-aging">Vacancy: {calculateVacancyAging(room.lastCheckOutDate)}</span>
+                        )}
                       </div>
-                    ) : (
-                      <div className="room-vacant-info">
-                        <p className="vacant-message">No tenant assigned</p>
-                        <p className="vacant-action">Ready for new occupant</p>
-                        <p className="vacancy-aging">⏱️ Vacancy Aging: {calculateVacancyAging(room.lastCheckOutDate)}</p>
-                      </div>
-                    )
+                      {room.isOccupied && room.tenantName ? (
+                        <div className="room-tenant-info compact-popup-grid">
+                          <div className="tenant-section">
+                            <h4>Tenant</h4>
+                            <p className="tenant-name">👤 {room.tenantName}</p>
+                            <p className="tenant-contact">📱 <a href={`tel:${room.tenantPhone}`}>{room.tenantPhone}</a></p>
+                            <p className="check-in">📅 {formatDate(room.checkInDate)}</p>
+                            <p className="aging-info">⏱️ {calculateOccupancyAging(room.checkInDate)}</p>
+                            {room.checkOutDate && <p className="check-out">Check-out: {formatDate(room.checkOutDate)}</p>}
+                            <p className={`occupancy-status ${getOccupancyStatus(room.checkOutDate).toLowerCase().replace(/ /g, '-')}`}>{getOccupancyStatus(room.checkOutDate)}</p>
+                          </div>
+                          <div className="payment-section">
+                            <h4>Payment</h4>
+                            <div className="payment-row"><span>Received:</span><span className="amount received">{formatCurrency(room.currentRentReceived || 0)}</span></div>
+                            <div className="payment-row"><span>Pending:</span><span className="amount pending">{formatCurrency((room.roomRent || 0) - (room.currentRentReceived || 0))}</span></div>
+                            {room.lastPaymentDate && <p className="last-payment">Last: {formatDate(room.lastPaymentDate)}</p>}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="room-vacant-info compact-vacant-popup">
+                          <p className="vacant-message">No tenant assigned</p>
+                          <p className="vacant-action">Ready for new occupant</p>
+                          <p className="vacancy-aging">⏱️ {calculateVacancyAging(room.lastCheckOutDate)}</p>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               ))
