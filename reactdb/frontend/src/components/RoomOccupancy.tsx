@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, type MouseEvent as ReactMouseEvent } from 'react';
+import { Fragment, useState, useEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { apiService, getRoomOccupancyData } from '../api';
 import SearchableDropdown from './SearchableDropdown';
 import LoadingSpinner from './LoadingSpinner';
@@ -624,10 +624,8 @@ export default function RoomOccupancy({ mode = 'occupancy' }: RoomOccupancyProps
 
   const toggleRoomExpanded = (roomId: number) => {
     setExpandedRooms((prev) => {
-      const next = new Set(prev);
-      if (next.has(roomId)) next.delete(roomId);
-      else next.add(roomId);
-      return next;
+      if (prev.has(roomId)) return new Set();
+      return new Set([roomId]);
     });
   };
 
@@ -643,6 +641,13 @@ export default function RoomOccupancy({ mode = 'occupancy' }: RoomOccupancyProps
     }
 
     toggleRoomExpanded(roomId);
+  };
+
+  const handleRoomCardKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>, roomId: number) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      toggleRoomExpanded(roomId);
+    }
   };
 
   useEffect(() => {
@@ -1009,29 +1014,32 @@ export default function RoomOccupancy({ mode = 'occupancy' }: RoomOccupancyProps
           <div className="rooms-grid" ref={roomsGridRef}>
             {sortedFilteredRooms.length > 0 ? (
               sortedFilteredRooms.map((room) => (
+                <Fragment key={room.roomId}>
                 <div
-                  key={room.roomId}
-                  className={`room-card ${room.isOccupied ? 'occupied' : 'vacant'} ${expandedRooms.has(room.roomId) ? 'expanded' : ''}`}
+                  className={`occupancy-room-card ${room.isOccupied ? 'occupied' : 'vacant'} ${expandedRooms.has(room.roomId) ? 'expanded' : ''}`}
                   onClick={(event) => handleRoomCardClick(event, room.roomId)}
+                  onKeyDown={(event) => handleRoomCardKeyDown(event, room.roomId)}
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={expandedRooms.has(room.roomId)}
+                  aria-label={`Room ${room.roomNumber}, ${room.isOccupied ? 'occupied' : 'vacant'}. Click for details.`}
                 >
-                  <div className="room-header">
-                    <div className="room-header-main">
-                      <h3 className="room-number-title">
-                        <span className="room-number-only">{room.roomNumber}</span>
-                      </h3>
-                    </div>
-                    <button
-                      className={`toggle-room-info-btn ${expandedRooms.has(room.roomId) ? 'open' : ''}`}
-                      onClick={() => toggleRoomExpanded(room.roomId)}
-                      aria-label={expandedRooms.has(room.roomId) ? 'Hide room details' : 'Show room details'}
-                    >
-                      {expandedRooms.has(room.roomId) ? '×' : '⌂'}
-                    </button>
+                  <div className="occupancy-room-circle">
+                    <span className="room-status-dot" aria-hidden="true" />
+                    <span className="room-number-only">{room.roomNumber}</span>
+                    <span className="room-status-label">{room.isOccupied ? 'Occupied' : 'Vacant'}</span>
                   </div>
+                </div>
 
                   {expandedRooms.has(room.roomId) && (
-                    <div className="room-details-popup" role="dialog" aria-label={`Room ${room.roomNumber} details`}>
-                      <button className="popup-close-btn" onClick={() => toggleRoomExpanded(room.roomId)} aria-label="Close details">×</button>
+                  <div className="room-grid-popup-item">
+                    <div
+                      className="room-details-popup"
+                      role="dialog"
+                      aria-label={`Room ${room.roomNumber} details`}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <button className="popup-close-btn" onClick={() => setExpandedRooms(new Set())} aria-label="Close details">×</button>
                       <div className="popup-room-meta">
                         <strong>Room {room.roomNumber}</strong>
                         <span>{formatCurrency(room.roomRent || 0)}/month</span>
@@ -1069,8 +1077,9 @@ export default function RoomOccupancy({ mode = 'occupancy' }: RoomOccupancyProps
                         </div>
                       )}
                     </div>
+                  </div>
                   )}
-                </div>
+                </Fragment>
               ))
             ) : (
               <div className="no-results">

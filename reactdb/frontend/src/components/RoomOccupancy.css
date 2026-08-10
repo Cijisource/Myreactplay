@@ -280,98 +280,139 @@
 /* Rooms Grid */
 .rooms-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 0.7rem;
+  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+  gap: 1rem;
   margin-bottom: 1.5rem;
-}
-
-.room-card {
-  background: white;
-  border-radius: 10px;
+  padding: 1.25rem;
+  background: #ffffff;
+  border-radius: 0 0 12px 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
   overflow: visible;
-  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+}
+
+.occupancy-room-card {
+  width: 78px;
+  height: 78px;
+  overflow: visible;
+  justify-self: center;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
-  border-left: 4px solid #e2e8f0;
   position: relative;
+  cursor: pointer;
+  outline: none;
+  z-index: 1;
 }
 
-.room-card.occupied {
-  border-left: 5px solid #16a34a;
-  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.14);
+.occupancy-room-card.expanded {
+  z-index: 50;
 }
 
-.room-card.vacant {
-  border-left: 5px solid #dc2626;
-  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.14);
-}
-
-.room-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.12);
-}
-
-.room-header {
-  padding: 0.42rem 0.54rem;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.34rem;
-}
-
-.room-header h3 {
-  color: #1a202c;
-  font-size: 0.86rem;
-  line-height: 1.2;
-  margin: 0;
-}
-
-.room-header-main {
-  min-width: 0;
-}
-
-.room-number-title {
+.occupancy-room-circle {
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0.2rem;
-  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.1rem;
+  border: 3px solid #e2e8f0;
+  background: #ffffff;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+  position: relative;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.occupancy-room-card.occupied .occupancy-room-circle {
+  border-color: #16a34a;
+  background: linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%);
+}
+
+.occupancy-room-card.vacant .occupancy-room-circle {
+  border-color: #dc2626;
+  background: linear-gradient(180deg, #fff7ed 0%, #fee2e2 100%);
+}
+
+.occupancy-room-card:hover .occupancy-room-circle,
+.occupancy-room-card:focus-visible .occupancy-room-circle,
+.occupancy-room-card.expanded .occupancy-room-circle {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 26px rgba(15, 23, 42, 0.18);
+}
+
+.occupancy-room-card:focus-visible .occupancy-room-circle {
+  outline: 3px solid rgba(59, 130, 246, 0.35);
+  outline-offset: 3px;
+}
+
+.room-status-dot {
+  position: absolute;
+  top: 7px;
+  right: 10px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+}
+
+.occupancy-room-card.occupied .room-status-dot {
+  background: #16a34a;
+}
+
+.occupancy-room-card.vacant .room-status-dot {
+  background: #dc2626;
 }
 
 .room-number-only {
+  color: #0f172a;
+  font-size: 1.05rem;
   font-weight: 700;
-}
-
-.room-aging-inline {
-  font-size: 0.74rem;
-  font-weight: 600;
-  color: #b45309;
-}
-
-.room-rent {
-  color: #718096;
-  margin: 0;
-  font-size: 0.82rem;
-}
-
-.room-rent-compact {
-  margin-top: 0.12rem;
-  font-size: 0.74rem;
-  line-height: 1.15;
-  white-space: nowrap;
+  line-height: 1;
+  max-width: 60px;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-status-label {
+  color: #475569;
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.room-grid-popup-item {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  padding: 0.15rem 0 0.35rem;
 }
 
 .room-details-popup {
   position: relative;
-  margin: 0.38rem 0.38rem 0.45rem;
-  width: auto;
-  max-width: none;
+  z-index: 60;
+  width: 292px;
+  max-width: min(292px, calc(100vw - 2rem));
   background: #ffffff;
   border: 1px solid #dbe4f0;
   border-radius: 10px;
   box-shadow: 0 18px 30px rgba(15, 23, 42, 0.2);
   padding: 0.7rem;
+  cursor: default;
+}
+
+.room-details-popup::before {
+  content: '';
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  background: #ffffff;
+  border-left: 1px solid #dbe4f0;
+  border-top: 1px solid #dbe4f0;
+  transform: translateX(-50%) rotate(45deg);
 }
 
 .popup-room-meta {
@@ -719,7 +760,7 @@
   }
 
   .rooms-grid {
-    grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
   }
 }
 
@@ -762,22 +803,12 @@
   }
 
   .rooms-grid {
-    grid-template-columns: 1fr;
-    gap: 0.85rem;
-  }
-
-  .room-header {
-    grid-template-columns: 1fr auto;
-    gap: 0.5rem;
-    padding: 0.4rem 0.5rem;
-  }
-
-  .room-rent-compact {
-    white-space: normal;
+    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+    gap: 0.8rem;
+    padding: 1rem;
   }
 
   .room-details-popup {
-    margin: 0.32rem 0.32rem 0.4rem;
     padding: 0.6rem;
   }
 
@@ -785,10 +816,10 @@
     padding-right: 1.45rem;
   }
 
-   .toggle-room-info-btn {
-    grid-column: 2;
-    grid-row: 1;
-    justify-self: end;
+  .occupancy-room-card,
+  .occupancy-room-circle {
+    width: 70px;
+    height: 70px;
   }
 
   .room-tenant-info {
@@ -847,20 +878,7 @@
     font-size: clamp(1rem, 2vw, 1.25rem);
   }
 
-  .room-header {
-    padding: 0.36rem 0.45rem;
-  }
-
-  .room-header h3 {
-    font-size: clamp(0.96rem, 2.5vw, 1.1rem);
-  }
-
-  .room-rent {
-    font-size: clamp(0.72rem, 1.5vw, 0.78rem);
-  }
-
   .room-details-popup {
-    margin: 0.28rem 0.28rem 0.36rem;
     padding: 0.55rem;
   }
 
@@ -868,11 +886,25 @@
     padding: clamp(0.75rem, 2vw, 1rem);
   }
 
-  .toggle-room-info-btn {
-    width: 24px;
-    height: 24px;
-    min-width: 24px;
-    font-size: 0.8rem;
+  .rooms-grid {
+    grid-template-columns: repeat(auto-fill, minmax(66px, 1fr));
+    gap: 0.7rem;
+    padding: 0.8rem;
+  }
+
+  .occupancy-room-card,
+  .occupancy-room-circle {
+    width: 66px;
+    height: 66px;
+  }
+
+  .room-number-only {
+    font-size: 0.95rem;
+    max-width: 50px;
+  }
+
+  .room-status-label {
+    font-size: 0.56rem;
   }
 
   .filter-btn {
