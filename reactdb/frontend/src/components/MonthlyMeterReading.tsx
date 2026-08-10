@@ -138,6 +138,7 @@ export default function MonthlyMeterReading(): JSX.Element {
 
   const stopOcrCamera = useCallback(() => {
     if (ocrVideoRef.current) {
+      ocrVideoRef.current.pause();
       ocrVideoRef.current.srcObject = null;
     }
 
@@ -153,6 +154,25 @@ export default function MonthlyMeterReading(): JSX.Element {
   useEffect(() => () => {
     stopOcrCamera();
   }, [stopOcrCamera]);
+
+  useEffect(() => {
+    if (!ocrCameraActive || !ocrStreamRef.current || !ocrVideoRef.current) {
+      return;
+    }
+
+    const videoElement = ocrVideoRef.current;
+    if (videoElement.srcObject !== ocrStreamRef.current) {
+      videoElement.srcObject = ocrStreamRef.current;
+    }
+
+    videoElement.muted = true;
+    videoElement.playsInline = true;
+
+    void videoElement.play().catch((err) => {
+      console.error('Unable to start OCR camera preview:', err);
+      setOcrCameraError(err instanceof Error ? err.message : 'Unable to show the camera preview.');
+    });
+  }, [ocrCameraActive]);
 
   useEffect(() => {
     const fetchAllocations = async () => {
@@ -435,13 +455,6 @@ export default function MonthlyMeterReading(): JSX.Element {
 
       ocrStreamRef.current = stream;
       setOcrCameraActive(true);
-
-      if (ocrVideoRef.current) {
-        ocrVideoRef.current.srcObject = stream;
-        ocrVideoRef.current.muted = true;
-        ocrVideoRef.current.playsInline = true;
-        await ocrVideoRef.current.play();
-      }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Unable to start the camera.';
       setOcrCameraError(errorMsg);
