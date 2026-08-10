@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { apiService } from '../api';
 import LoadingSpinner from './LoadingSpinner';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { QRCodeSVG } from 'qrcode.react';
+import { createWorker } from 'tesseract.js';
 import './ManagementStyles.css';
 import './MonthlyMeterReading.css';
 import RoomMonthlyEbReportTable from './RoomMonthlyEbReportTable';
@@ -69,12 +70,19 @@ export default function MonthlyMeterReading(): JSX.Element {
   const [scannerError, setScannerError] = useState<string | null>(null);
   const [scanSuccessMessage, setScanSuccessMessage] = useState<string | null>(null);
   const [qrGeneratorRoomNumber, setQrGeneratorRoomNumber] = useState('');
+  const [ocrCameraActive, setOcrCameraActive] = useState(false);
+  const [ocrCameraError, setOcrCameraError] = useState<string | null>(null);
+  const [ocrBusy, setOcrBusy] = useState(false);
+  const [ocrPreviewUrl, setOcrPreviewUrl] = useState<string | null>(null);
+  const [ocrExtractedText, setOcrExtractedText] = useState<string | null>(null);
 
   // Ref for auto-focusing on ending meter reading input
   const endingMeterReadingRef = useRef<HTMLInputElement>(null);
   const meterReadingFormRef = useRef<HTMLDivElement>(null);
   const meterReadingTitleRef = useRef<HTMLHeadingElement>(null);
   const hasProcessedScanRef = useRef(false);
+  const ocrVideoRef = useRef<HTMLVideoElement>(null);
+  const ocrStreamRef = useRef<MediaStream | null>(null);
 
   // Calculate charges on the fly when readings or unit rate change
   useEffect(() => {
@@ -127,6 +135,24 @@ export default function MonthlyMeterReading(): JSX.Element {
       }, 100);
     }
   }, [showForm]);
+
+  const stopOcrCamera = useCallback(() => {
+    if (ocrVideoRef.current) {
+      ocrVideoRef.current.srcObject = null;
+    }
+
+    if (ocrStreamRef.current) {
+      ocrStreamRef.current.getTracks().forEach(track => track.stop());
+      ocrStreamRef.current = null;
+    }
+
+    setOcrCameraActive(false);
+    setOcrBusy(false);
+  }, []);
+
+  useEffect(() => () => {
+    stopOcrCamera();
+  }, [stopOcrCamera]);
 
   useEffect(() => {
     const fetchAllocations = async () => {
@@ -370,6 +396,107 @@ export default function MonthlyMeterReading(): JSX.Element {
     printWindow.document.write(printHtml);
     printWindow.document.close();
   };
+
+  const parseMeterReadingText = useCallback((rawText: string): string | null => {
+    const normalizedText = rawText.replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
+    const candidates = Array.from(normalizedText.matchAll(/\d{3,10}/g))
+      .map(match => match[0])
+      .map(value => Number(value))
+      .filter(value => Number.isFinite(value) && value > 99 && value < 10000000);
+
+    if (!candidates.length) {
+      return null;
+    }
+
+    const currentYear = new Date().getFullYear();
+    const filteredCandidates = candidates.filter(value => !(value >= 1900 && value <= currentYear + 1));
+    const rankedCandidates = filteredCandidates.length > 0 ? filteredCandidates : candidates;
+    const bestCandidate = rankedCandidates.sort((a, b) => b - a)[0];
+
+    return String(bestCandidate);
+  }, []);
+
+  const startOcrCamera = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setOcrCameraError('Camera access is not supported on this browser.');
+      return;
+    }
+
+    try {
+      setOcrCameraError(null);
+      setOcrExtractedText(null);
+      setOcrPreviewUrl(null);
+      stopOcrCamera();
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false
+      });
+
+      ocrStreamRef.current = stream;
+      setOcrCameraActive(true);
+
+      if (ocrVideoRef.current) {
+        ocrVideoRef.current.srcObject = stream;
+        ocrVideoRef.current.muted = true;
+        ocrVideoRef.current.playsInline = true;
+        await ocrVideoRef.current.play();
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Unable to start the camera.';
+      setOcrCameraError(errorMsg);
+      stopOcrCamera();
+    }
+  }, [stopOcrCamera]);
+
+  const captureMeterReadingFromCamera = useCallback(async () => {
+    const videoElement = ocrVideoRef.current;
+    if (!videoElement) {
+      setOcrCameraError('Camera preview is not ready.');
+      return;
+    }
+
+    try {
+      setOcrBusy(true);
+      setOcrCameraError(null);
+      setOcrExtractedText(null);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = videoElement.videoWidth || 1280;
+      canvas.height = videoElement.videoHeight || 720;
+      const context = canvas.getContext('2d');
+
+      if (!context) {
+        throw new Error('Unable to create a photo from the camera preview.');
+      }
+
+      context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+      const photoDataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      setOcrPreviewUrl(photoDataUrl);
+
+      const worker = await createWorker('eng');
+      try {
+        const { data } = await worker.recognize(photoDataUrl);
+        const parsedValue = parseMeterReadingText(data.text);
+        setOcrExtractedText(data.text);
+
+        if (parsedValue) {
+          setFormData(prev => ({ ...prev, endingMeterReading: parsedValue }));
+          setSuccessMessage(`✓ Meter reading detected from camera: ${parsedValue}`);
+          setTimeout(() => setSuccessMessage(null), 4000);
+        } else {
+          setOcrCameraError('No clear meter number was detected. Please try again with better lighting.');
+        }
+      } finally {
+        await worker.terminate();
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'OCR failed. Please try again.';
+      setOcrCameraError(errorMsg);
+    } finally {
+      setOcrBusy(false);
+    }
+  }, [parseMeterReadingText]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -657,6 +784,31 @@ export default function MonthlyMeterReading(): JSX.Element {
                       placeholder="This month's reading"
                       required
                     />
+                    <div className="ocr-camera-actions">
+                      <button type="button" className="btn-ocr-start" onClick={() => {
+                        if (ocrCameraActive) {
+                          stopOcrCamera();
+                        } else {
+                          void startOcrCamera();
+                        }
+                      }}>
+                        {ocrCameraActive ? 'Close Camera' : 'Use Camera OCR'}
+                      </button>
+                      {ocrCameraActive && (
+                        <button type="button" className="btn-ocr-capture" onClick={() => void captureMeterReadingFromCamera()} disabled={ocrBusy}>
+                          {ocrBusy ? 'Reading...' : 'Capture & Read'}
+                        </button>
+                      )}
+                    </div>
+                    {ocrCameraActive && (
+                      <div className="ocr-camera-panel">
+                        <video ref={ocrVideoRef} className="ocr-camera-preview" autoPlay muted playsInline />
+                        <p className="ocr-camera-help">Point the camera at the EB meter and capture a clear photo.</p>
+                        {ocrPreviewUrl && <img src={ocrPreviewUrl} alt="OCR capture preview" className="ocr-camera-preview-image" />}
+                        {ocrCameraError && <p className="ocr-camera-error">{ocrCameraError}</p>}
+                        {ocrExtractedText && <p className="ocr-camera-text">OCR text: {ocrExtractedText}</p>}
+                      </div>
+                    )}
                     {validationError && (
                       <p style={{
                         fontSize: '11px',

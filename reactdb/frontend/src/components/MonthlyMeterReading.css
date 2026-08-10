@@ -81,6 +81,79 @@
   transform: translateY(0);
 }
 
+.ocr-camera-panel {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: #f8fbff;
+}
+
+.ocr-camera-preview {
+  width: 100%;
+  max-width: 320px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #0f172a;
+}
+
+.ocr-camera-preview-image {
+  width: 100%;
+  max-width: 320px;
+  margin-top: 10px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+}
+
+.ocr-camera-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.ocr-camera-actions button {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.ocr-camera-actions .btn-ocr-start {
+  background: #2563eb;
+  color: white;
+}
+
+.ocr-camera-actions .btn-ocr-capture {
+  background: #0f766e;
+  color: white;
+}
+
+.ocr-camera-actions button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.ocr-camera-error {
+  margin: 8px 0 0;
+  color: #b91c1c;
+  font-size: 12px;
+}
+
+.ocr-camera-help {
+  margin: 4px 0 0;
+  color: #475569;
+  font-size: 12px;
+}
+
+.ocr-camera-text {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #0f766e;
+  word-break: break-word;
+}
+
 /* Allocations Grid */
 .allocations-grid {
   display: grid;
