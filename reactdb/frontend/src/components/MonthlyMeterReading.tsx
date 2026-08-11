@@ -484,11 +484,41 @@ export default function MonthlyMeterReading(): JSX.Element {
       }
 
       context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-      const photoDataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      const focusBoxWidth = Math.floor(canvas.width * 0.64);
+      const focusBoxHeight = Math.floor(canvas.height * 0.32);
+      const focusBoxX = Math.max(0, Math.floor((canvas.width - focusBoxWidth) / 2));
+      const focusBoxY = Math.max(0, Math.floor((canvas.height - focusBoxHeight) / 2));
+
+      const croppedCanvas = document.createElement('canvas');
+      croppedCanvas.width = Math.max(1, Math.floor(focusBoxWidth * 1.8));
+      croppedCanvas.height = Math.max(1, Math.floor(focusBoxHeight * 1.8));
+
+      const croppedContext = croppedCanvas.getContext('2d');
+      if (!croppedContext) {
+        throw new Error('Unable to focus on the meter reading area.');
+      }
+
+      croppedContext.drawImage(
+        canvas,
+        focusBoxX,
+        focusBoxY,
+        focusBoxWidth,
+        focusBoxHeight,
+        0,
+        0,
+        croppedCanvas.width,
+        croppedCanvas.height
+      );
+
+      const photoDataUrl = croppedCanvas.toDataURL('image/jpeg', 0.95);
       setOcrPreviewUrl(photoDataUrl);
 
       const worker = await createWorker('eng');
       try {
+        await worker.setParameters({
+          tessedit_char_whitelist: '0123456789',
+          preserve_interword_spaces: '0'
+        });
         const { data } = await worker.recognize(photoDataUrl);
         const parsedValue = parseMeterReadingText(data.text);
         setOcrExtractedText(data.text);
@@ -815,8 +845,13 @@ export default function MonthlyMeterReading(): JSX.Element {
                     </div>
                     {ocrCameraActive && (
                       <div className="ocr-camera-panel">
-                        <video ref={ocrVideoRef} className="ocr-camera-preview" autoPlay muted playsInline />
-                        <p className="ocr-camera-help">Point the camera at the EB meter and capture a clear photo.</p>
+                        <div className="ocr-camera-preview-wrap">
+                          <video ref={ocrVideoRef} className="ocr-camera-preview" autoPlay muted playsInline />
+                          <div className="ocr-focus-overlay" aria-hidden="true">
+                            <div className="ocr-focus-box" />
+                          </div>
+                        </div>
+                        <p className="ocr-camera-help">Place only the meter digits inside the box for best results.</p>
                         {ocrPreviewUrl && <img src={ocrPreviewUrl} alt="OCR capture preview" className="ocr-camera-preview-image" />}
                         {ocrCameraError && <p className="ocr-camera-error">{ocrCameraError}</p>}
                         {ocrExtractedText && <p className="ocr-camera-text">OCR text: {ocrExtractedText}</p>}

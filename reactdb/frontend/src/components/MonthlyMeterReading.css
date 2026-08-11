@@ -89,12 +89,60 @@
   background: #f8fbff;
 }
 
+.ocr-camera-preview-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  aspect-ratio: 16 / 9;
+}
+
 .ocr-camera-preview {
   width: 100%;
-  max-width: 320px;
+  height: 100%;
   border-radius: 10px;
   border: 1px solid #cbd5e1;
   background: #0f172a;
+  display: block;
+  object-fit: cover;
+}
+
+.ocr-focus-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: 10px;
+  background: linear-gradient(rgba(15, 23, 42, 0.14), rgba(15, 23, 42, 0.14));
+}
+
+.ocr-focus-box {
+  position: absolute;
+  left: 18%;
+  top: 34%;
+  width: 64%;
+  height: 32%;
+  border: 2px solid #f8fafc;
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.2), 0 0 0 9999px rgba(15, 23, 42, 0.06);
+}
+
+.ocr-focus-box::before,
+.ocr-focus-box::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(248, 250, 252, 0.92);
+}
+
+.ocr-focus-box::before {
+  width: 52px;
+  height: 2px;
+}
+
+.ocr-focus-box::after {
+  width: 2px;
+  height: 52px;
 }
 
 .ocr-camera-preview-image {
