@@ -5211,18 +5211,25 @@ app.post(
         return res.status(400).json({ error: 'file is required' });
       }
 
-      if (!isAzureConfigured()) {
+      const category = typeof req.body.category === 'string' ? req.body.category : 'misc';
+      const note = typeof req.body.note === 'string' ? req.body.note.trim() : '';
+      const rawStorageTargets = typeof req.body.storageTargets === 'string' ? req.body.storageTargets : '';
+      const rawUploadToOracle = typeof req.body.uploadToOracle === 'string' ? req.body.uploadToOracle : '';
+      const uploadToOracle = rawStorageTargets.toLowerCase().includes('oracle') || rawUploadToOracle.toLowerCase() === 'true';
+
+      if (!uploadToOracle && !isAzureConfigured()) {
         return res.status(503).json({
           error: 'Azure Blob Storage is not configured',
           container: AZURE_MISCELLANEOUS_CONTAINER
         });
       }
 
-      const category = typeof req.body.category === 'string' ? req.body.category : 'misc';
-      const note = typeof req.body.note === 'string' ? req.body.note.trim() : '';
-      const rawStorageTargets = typeof req.body.storageTargets === 'string' ? req.body.storageTargets : '';
-      const rawUploadToOracle = typeof req.body.uploadToOracle === 'string' ? req.body.uploadToOracle : '';
-      const uploadToOracle = rawStorageTargets.toLowerCase().includes('oracle') || rawUploadToOracle.toLowerCase() === 'true';
+      if (uploadToOracle && !isOracleConfigured()) {
+        return res.status(503).json({
+          error: 'Oracle Object Storage is not configured',
+          container: 'oracle-object-storage'
+        });
+      }
       const safeCategory = category
         .toLowerCase()
         .replace(/[^a-z0-9-]/g, '-')
@@ -5230,8 +5237,14 @@ app.post(
         .replace(/^-|-$/g, '') || 'misc';
       const originalName = path.basename(file.originalname || 'upload');
       const safeOriginalName = originalName.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const requestedCustomFileName = typeof req.body.customFileName === 'string' ? req.body.customFileName.trim() : '';
+      const sanitizedCustomFileName = requestedCustomFileName
+        ? requestedCustomFileName.replace(/[^a-zA-Z0-9._-]/g, '_')
+        : '';
       const uniquePrefix = `${new Date().toISOString().replace(/[:.]/g, '-')}-${Math.round(Math.random() * 1E9)}`;
-      const blobName = `${safeCategory}/${uniquePrefix}-${safeOriginalName}`;
+      const blobName = sanitizedCustomFileName
+        ? `${safeCategory}/${sanitizedCustomFileName}`
+        : `${safeCategory}/${uniquePrefix}-${safeOriginalName}`;
       const metadata: Record<string, string> = {
         originalname: normalizeAzureMetadataValue(originalName),
         category: normalizeAzureMetadataValue(safeCategory)
@@ -5250,7 +5263,7 @@ app.post(
         console.log(`Misc upload -> Oracle Object Storage for ${blobName}`);
         url = await uploadToOracleObjectStorage(blobName, file.buffer, file.mimetype, metadata);
         containerName = 'oracle-object-storage';
-      } else {
+      } else if (isAzureConfigured()) {
         console.log(`Misc upload -> Azure Blob Storage for ${blobName}`);
         url = await uploadAzureBlobToContainer(
           AZURE_MISCELLANEOUS_CONTAINER,
@@ -5259,6 +5272,11 @@ app.post(
           file.mimetype,
           metadata
         );
+      } else {
+        return res.status(503).json({
+          error: 'No configured storage target available for this upload',
+          details: 'Azure and Oracle storage are both unavailable.'
+        });
       }
 
       res.json({

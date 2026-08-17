@@ -3,7 +3,6 @@ import { apiService } from '../api';
 import LoadingSpinner from './LoadingSpinner';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { QRCodeSVG } from 'qrcode.react';
-import { createWorker } from 'tesseract.js';
 import './ManagementStyles.css';
 import './MonthlyMeterReading.css';
 import RoomMonthlyEbReportTable from './RoomMonthlyEbReportTable';
@@ -66,6 +65,8 @@ export default function MonthlyMeterReading(): JSX.Element {
   const [calculatedCharges, setCalculatedCharges] = useState<{ consumption: number; charges: number } | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [reportRefreshKey, setReportRefreshKey] = useState(0);
+  const [lastCapturedPhotos, setLastCapturedPhotos] = useState<Record<string, string>>({});
+  const [expandedPhotoUrl, setExpandedPhotoUrl] = useState<string | null>(null);
   const [showQrScanner, setShowQrScanner] = useState(false);
   const [scannerError, setScannerError] = useState<string | null>(null);
   const [scanSuccessMessage, setScanSuccessMessage] = useState<string | null>(null);
@@ -174,6 +175,39 @@ export default function MonthlyMeterReading(): JSX.Element {
     });
   }, [ocrCameraActive]);
 
+  const loadLastCapturedPhotos = useCallback(async () => {
+    try {
+      const response = await apiService.getMiscellaneousFiles();
+      const files = response.data?.files || [];
+      const groupedPhotos: Record<string, string> = {};
+
+      files
+        .filter((file: any) => {
+          const category = String(file.category || '').toLowerCase();
+          const blobName = String(file.blobName || file.url || '').toLowerCase();
+          return category === 'ebmeter-readings' || blobName.includes('ebmeter-readings/');
+        })
+        .forEach((file: any) => {
+          const blobName = file.blobName || file.url || '';
+          const fileName = blobName.split('/').pop() || blobName;
+          const roomMatch = fileName.match(/room([a-z0-9]+)[_-]\d{4}-\d{2}-\d{2}/i);
+
+          if (!roomMatch) {
+            return;
+          }
+
+          const roomKey = getRoomPhotoKey(roomMatch[1]);
+          if (!groupedPhotos[roomKey]) {
+            groupedPhotos[roomKey] = file.url || blobName;
+          }
+        });
+
+      setLastCapturedPhotos(groupedPhotos);
+    } catch (error) {
+      console.error('[Meter Reading Photos] Failed to load captured images:', error);
+    }
+  }, []);
+
   useEffect(() => {
     const fetchAllocations = async () => {
       try {
@@ -190,8 +224,9 @@ export default function MonthlyMeterReading(): JSX.Element {
       }
     };
 
-    fetchAllocations();
-  }, []);
+    void fetchAllocations();
+    void loadLastCapturedPhotos();
+  }, [loadLastCapturedPhotos]);
 
   useEffect(() => {
     // Initialize all cards as collapsed by default
@@ -285,6 +320,61 @@ export default function MonthlyMeterReading(): JSX.Element {
     setShowQrScanner(false);
   };
 
+  const getRoomPhotoKey = (roomNumber: string): string => normalizeRoomNumber(roomNumber);
+
+  const buildQrScanFileName = (roomNumber: string): string => {
+    const safeRoomNumber = roomNumber.trim().replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'unknown';
+    const dateStamp = new Date().toISOString().slice(0, 10);
+    return `room${safeRoomNumber}_${dateStamp}.png`;
+  };
+
+  const captureAndUploadQrScanImage = async (roomNumber: string): Promise<void> => {
+    try {
+      const scannerVideo = document.querySelector('.qr-scanner-frame video') as HTMLVideoElement | null;
+      if (!scannerVideo || scannerVideo.videoWidth === 0 || scannerVideo.videoHeight === 0) {
+        return;
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = scannerVideo.videoWidth;
+      canvas.height = scannerVideo.videoHeight;
+
+      const context = canvas.getContext('2d');
+      if (!context) {
+        return;
+      }
+
+      context.drawImage(scannerVideo, 0, 0, canvas.width, canvas.height);
+
+      const fileName = buildQrScanFileName(roomNumber);
+      const dataUrl = canvas.toDataURL('image/png');
+      const [meta, base64Data] = dataUrl.split(',');
+      const mimeType = meta.match(/^data:(.*?);base64$/)?.[1] || 'image/png';
+      const binaryString = atob(base64Data || '');
+      const fileBytes = new Uint8Array(binaryString.length);
+
+      for (let i = 0; i < binaryString.length; i += 1) {
+        fileBytes[i] = binaryString.charCodeAt(i);
+      }
+
+      const file = new File([fileBytes], fileName, { type: mimeType });
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('category', 'ebmeter-readings');
+      formData.append('customFileName', fileName);
+      formData.append('note', `QR scan for room ${roomNumber}`);
+      formData.append('storageTargets', 'oracle');
+      formData.append('targetStorage', 'oracle');
+      formData.append('uploadToOracle', 'true');
+
+      const response = await apiService.uploadMiscellaneousFile(formData);
+      await loadLastCapturedPhotos();
+      console.log('[QR Scan Upload] Uploaded image to Oracle:', response.data?.url || response.data?.blobName || fileName);
+    } catch (error) {
+      console.error('[QR Scan Upload] Failed to upload QR scan image:', error);
+    }
+  };
+
   const handleQrScanResult = async (rawPayload: string) => {
     const scannedRoomText = extractRoomNumberFromQrPayload(rawPayload);
     const normalizedScannedRoom = normalizeRoomNumber(scannedRoomText);
@@ -306,6 +396,7 @@ export default function MonthlyMeterReading(): JSX.Element {
     }
 
     await handleSelectAllocation(matchedAllocation);
+    await captureAndUploadQrScanImage(matchedAllocation.room.number);
     setScanSuccessMessage(`Room ${matchedAllocation.room.number} selected from QR scan.`);
     setScannerError(null);
     setShowQrScanner(false);
@@ -417,25 +508,6 @@ export default function MonthlyMeterReading(): JSX.Element {
     printWindow.document.close();
   };
 
-  const parseMeterReadingText = useCallback((rawText: string): string | null => {
-    const normalizedText = rawText.replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
-    const candidates = Array.from(normalizedText.matchAll(/\d{3,10}/g))
-      .map(match => match[0])
-      .map(value => Number(value))
-      .filter(value => Number.isFinite(value) && value > 99 && value < 10000000);
-
-    if (!candidates.length) {
-      return null;
-    }
-
-    const currentYear = new Date().getFullYear();
-    const filteredCandidates = candidates.filter(value => !(value >= 1900 && value <= currentYear + 1));
-    const rankedCandidates = filteredCandidates.length > 0 ? filteredCandidates : candidates;
-    const bestCandidate = rankedCandidates.sort((a, b) => b - a)[0];
-
-    return String(bestCandidate);
-  }, []);
-
   const startOcrCamera = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
       setOcrCameraError('Camera access is not supported on this browser.');
@@ -484,62 +556,45 @@ export default function MonthlyMeterReading(): JSX.Element {
       }
 
       context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-      const focusBoxWidth = Math.floor(canvas.width * 0.64);
-      const focusBoxHeight = Math.floor(canvas.height * 0.32);
-      const focusBoxX = Math.max(0, Math.floor((canvas.width - focusBoxWidth) / 2));
-      const focusBoxY = Math.max(0, Math.floor((canvas.height - focusBoxHeight) / 2));
-
-      const croppedCanvas = document.createElement('canvas');
-      croppedCanvas.width = Math.max(1, Math.floor(focusBoxWidth * 1.8));
-      croppedCanvas.height = Math.max(1, Math.floor(focusBoxHeight * 1.8));
-
-      const croppedContext = croppedCanvas.getContext('2d');
-      if (!croppedContext) {
-        throw new Error('Unable to focus on the meter reading area.');
-      }
-
-      croppedContext.drawImage(
-        canvas,
-        focusBoxX,
-        focusBoxY,
-        focusBoxWidth,
-        focusBoxHeight,
-        0,
-        0,
-        croppedCanvas.width,
-        croppedCanvas.height
-      );
-
-      const photoDataUrl = croppedCanvas.toDataURL('image/jpeg', 0.95);
+      const photoDataUrl = canvas.toDataURL('image/png');
       setOcrPreviewUrl(photoDataUrl);
 
-      const worker = await createWorker('eng');
-      try {
-        await worker.setParameters({
-          tessedit_char_whitelist: '0123456789',
-          preserve_interword_spaces: '0'
-        });
-        const { data } = await worker.recognize(photoDataUrl);
-        const parsedValue = parseMeterReadingText(data.text);
-        setOcrExtractedText(data.text);
+      const roomNumber = (qrGeneratorRoomNumber || allocations.find((alloc) => alloc.id === selectedAllocationId)?.room.number || 'unknown').trim();
+      const safeRoomNumber = roomNumber.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'unknown';
+      const dateStamp = new Date().toISOString().slice(0, 10);
+      const fileName = `room${safeRoomNumber}_${dateStamp}.png`;
 
-        if (parsedValue) {
-          setFormData(prev => ({ ...prev, endingMeterReading: parsedValue }));
-          setSuccessMessage(`✓ Meter reading detected from camera: ${parsedValue}`);
-          setTimeout(() => setSuccessMessage(null), 4000);
-        } else {
-          setOcrCameraError('No clear meter number was detected. Please try again with better lighting.');
-        }
-      } finally {
-        await worker.terminate();
+      const [meta, base64Data] = photoDataUrl.split(',');
+      const mimeType = meta.match(/^data:(.*?);base64$/)?.[1] || 'image/png';
+      const binaryString = atob(base64Data || '');
+      const fileBytes = new Uint8Array(binaryString.length);
+
+      for (let i = 0; i < binaryString.length; i += 1) {
+        fileBytes[i] = binaryString.charCodeAt(i);
       }
+
+      const file = new File([fileBytes], fileName, { type: mimeType });
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('category', 'ebmeter-readings');
+      formData.append('customFileName', fileName);
+      formData.append('note', `Meter reading photo for room ${roomNumber}`);
+      formData.append('storageTargets', 'oracle');
+      formData.append('targetStorage', 'oracle');
+      formData.append('uploadToOracle', 'true');
+
+      const response = await apiService.uploadMiscellaneousFile(formData);
+      await loadLastCapturedPhotos();
+      console.log('[Meter Reading Capture] Uploaded image to Oracle:', response.data?.url || response.data?.blobName || fileName);
+      setSuccessMessage(`✓ Meter reading photo captured and uploaded to Oracle Cloud: ${fileName}`);
+      setTimeout(() => setSuccessMessage(null), 6000);
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'OCR failed. Please try again.';
+      const errorMsg = err instanceof Error ? err.message : 'Image upload failed. Please try again.';
       setOcrCameraError(errorMsg);
     } finally {
       setOcrBusy(false);
     }
-  }, [parseMeterReadingText]);
+  }, [allocations, qrGeneratorRoomNumber, selectedAllocationId]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -692,6 +747,15 @@ export default function MonthlyMeterReading(): JSX.Element {
         refreshKey={reportRefreshKey}
       />
 
+      {expandedPhotoUrl && (
+        <div className="meter-photo-modal-backdrop" onClick={() => setExpandedPhotoUrl(null)}>
+          <div className="meter-photo-modal" onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="meter-photo-modal-close" onClick={() => setExpandedPhotoUrl(null)}>Close</button>
+            <img src={expandedPhotoUrl} alt="Captured meter reading" className="meter-photo-modal-image" />
+          </div>
+        </div>
+      )}
+
       {showForm && (
         <div className="meter-reading-form" ref={meterReadingFormRef}>
           <h2 className="form-section-title" ref={meterReadingTitleRef} tabIndex={-1}>Record Meter Reading</h2>
@@ -835,11 +899,11 @@ export default function MonthlyMeterReading(): JSX.Element {
                           void startOcrCamera();
                         }
                       }}>
-                        {ocrCameraActive ? 'Close Camera' : 'Use Camera OCR'}
+                        {ocrCameraActive ? 'Close Camera' : 'Capture Reading Photo'}
                       </button>
                       {ocrCameraActive && (
                         <button type="button" className="btn-ocr-capture" onClick={() => void captureMeterReadingFromCamera()} disabled={ocrBusy}>
-                          {ocrBusy ? 'Reading...' : 'Capture & Read'}
+                          {ocrBusy ? 'Uploading...' : 'Capture & Upload'}
                         </button>
                       )}
                     </div>
@@ -1001,114 +1065,6 @@ export default function MonthlyMeterReading(): JSX.Element {
         </div>
       ) : (
         <div className="categories-container">
-          {/* Shops Category */}
-          {groupedAllocations['shops'] && groupedAllocations['shops'].length > 0 && (
-            <div className="category-section">
-              <div className="category-header" onClick={() => toggleCategory('shops')}>
-                <span className="category-toggle-icon">{collapsedCategories['shops'] ? '▶' : '▼'}</span>
-                <h2 className="category-title">🏪 Shops ({groupedAllocations['shops'].length})</h2>
-              </div>
-              
-              {!collapsedCategories['shops'] && (
-                <div className="allocations-grid">
-                  {groupedAllocations['shops'].map(alloc => (
-                    <div key={alloc.id} onClick={() => handleSelectAllocation(alloc)} className={`allocation-card ${selectedAllocationId === alloc.id ? 'selected' : ''} shop-category ${collapsedCards[alloc.id] ? 'collapsed' : ''}`}>
-                      <div className="card-collapsed-header">
-                        <div className="collapsed-room-info">
-                          <h3>Room {alloc.room.number}</h3>
-                          <span className="shop-badge">🏪 SHOP</span>
-                        </div>
-                        <button className="collapse-btn" onClick={(e) => toggleCard(alloc.id, e)} title="Expand/Collapse">{collapsedCards[alloc.id] ? '▼ Expand' : '▲ Collapse'}</button>
-                      </div>
-
-                      {alloc.lastReadingDate && (
-                        <div className="collapsed-reading-info">
-                          <div className="reading-item">
-                            <label>Last Reading:</label>
-                            <span>{new Date(alloc.lastReadingDate).toLocaleDateString()}</span>
-                          </div>
-                          {alloc.lastEndingReading && (
-                            <div className="reading-item">
-                              <label>Last Value:</label>
-                              <span className="reading-value">{String(alloc.lastEndingReading).trim()}</span>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {!collapsedCards[alloc.id] && (
-                        <>
-                          <div className="card-header">
-                            <div className="room-info-container">
-                              <h3>Room {alloc.room.number}</h3>
-                              <span className="shop-badge">🏪 SHOP</span>
-                            </div>
-                            <span className="service-badge">{alloc.service.serviceCategory}</span>
-                          </div>
-
-                          <div className="card-body">
-                            <div className="info-row">
-                              <label>Service:</label>
-                              <span>{alloc.service.consumerName}</span>
-                            </div>
-
-                            <div className="info-row">
-                              <label>Meter No:</label>
-                              <span>{alloc.service.meterNo}</span>
-                            </div>
-
-                            <div className="info-row">
-                              <label>Consumer No:</label>
-                              <span>{alloc.service.consumerNo}</span>
-                            </div>
-
-                            <div className="info-row">
-                              <label>Load:</label>
-                              <span>{alloc.service.load}</span>
-                            </div>
-
-                            <div className="info-row">
-                              <label>Room Rent:</label>
-                              <span>₹{alloc.room.rent.toLocaleString()}</span>
-                            </div>
-
-                            <div className="info-row">
-                              <label>Category:</label>
-                              <span>🏪 Shop/Commercial</span>
-                            </div>
-
-                            {alloc.lastReadingDate && (
-                              <>
-                                <div className="info-row" style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #ecf0f1' }}>
-                                  <label>Last Reading Date:</label>
-                                  <span>{new Date(alloc.lastReadingDate).toLocaleDateString()}</span>
-                                </div>
-                                {alloc.lastEndingReading && (
-                                  <div className="info-row">
-                                    <label>Last Ending Reading:</label>
-                                    <span style={{ fontWeight: '700', color: '#2c3e50' }}>{String(alloc.lastEndingReading).trim()}</span>
-                                  </div>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </>
-                      )}
-
-                      <div className="card-footer">
-                        {selectedAllocationId === alloc.id ? (
-                          <span className="selected-badge">✓ Selected</span>
-                        ) : (
-                          <span style={{ color: '#3498db', fontWeight: '600', fontSize: '12px' }}>Click to Select</span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
           {/* Residential Category */}
           {groupedAllocations['residential'] && groupedAllocations['residential'].length > 0 && (
             <div className="category-section">
@@ -1155,6 +1111,21 @@ export default function MonthlyMeterReading(): JSX.Element {
                           </div>
 
                           <div className="card-body">
+                            {lastCapturedPhotos[getRoomPhotoKey(alloc.room.number)] && (
+                              <div className="meter-photo-thumb-wrap">
+                                <span className="meter-photo-label">Last capture</span>
+                                <img
+                                  src={lastCapturedPhotos[getRoomPhotoKey(alloc.room.number)]}
+                                  alt={`Last captured meter image for room ${alloc.room.number}`}
+                                  className="meter-photo-thumb"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    setExpandedPhotoUrl(lastCapturedPhotos[getRoomPhotoKey(alloc.room.number)]);
+                                  }}
+                                />
+                              </div>
+                            )}
+
                             <div className="info-row">
                               <label>Service:</label>
                               <span>{alloc.service.consumerName}</span>
@@ -1183,6 +1154,129 @@ export default function MonthlyMeterReading(): JSX.Element {
                             <div className="info-row">
                               <label>Category:</label>
                               <span>Residential ({alloc.room.beds} bed{alloc.room.beds !== 1 ? 's' : ''})</span>
+                            </div>
+
+                            {alloc.lastReadingDate && (
+                              <>
+                                <div className="info-row" style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #ecf0f1' }}>
+                                  <label>Last Reading Date:</label>
+                                  <span>{new Date(alloc.lastReadingDate).toLocaleDateString()}</span>
+                                </div>
+                                {alloc.lastEndingReading && (
+                                  <div className="info-row">
+                                    <label>Last Ending Reading:</label>
+                                    <span style={{ fontWeight: '700', color: '#2c3e50' }}>{String(alloc.lastEndingReading).trim()}</span>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </>
+                      )}
+
+                      <div className="card-footer">
+                        {selectedAllocationId === alloc.id ? (
+                          <span className="selected-badge">✓ Selected</span>
+                        ) : (
+                          <span style={{ color: '#3498db', fontWeight: '600', fontSize: '12px' }}>Click to Select</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Shops Category */}
+          {groupedAllocations['shops'] && groupedAllocations['shops'].length > 0 && (
+            <div className="category-section">
+              <div className="category-header" onClick={() => toggleCategory('shops')}>
+                <span className="category-toggle-icon">{collapsedCategories['shops'] ? '▶' : '▼'}</span>
+                <h2 className="category-title">🏪 Shops ({groupedAllocations['shops'].length})</h2>
+              </div>
+              
+              {!collapsedCategories['shops'] && (
+                <div className="allocations-grid">
+                  {groupedAllocations['shops'].map(alloc => (
+                    <div key={alloc.id} onClick={() => handleSelectAllocation(alloc)} className={`allocation-card ${selectedAllocationId === alloc.id ? 'selected' : ''} shop-category ${collapsedCards[alloc.id] ? 'collapsed' : ''}`}>
+                      <div className="card-collapsed-header">
+                        <div className="collapsed-room-info">
+                          <h3>Room {alloc.room.number}</h3>
+                          <span className="shop-badge">🏪 SHOP</span>
+                        </div>
+                        <button className="collapse-btn" onClick={(e) => toggleCard(alloc.id, e)} title="Expand/Collapse">{collapsedCards[alloc.id] ? '▼ Expand' : '▲ Collapse'}</button>
+                      </div>
+
+                      {alloc.lastReadingDate && (
+                        <div className="collapsed-reading-info">
+                          <div className="reading-item">
+                            <label>Last Reading:</label>
+                            <span>{new Date(alloc.lastReadingDate).toLocaleDateString()}</span>
+                          </div>
+                          {alloc.lastEndingReading && (
+                            <div className="reading-item">
+                              <label>Last Value:</label>
+                              <span className="reading-value">{String(alloc.lastEndingReading).trim()}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {!collapsedCards[alloc.id] && (
+                        <>
+                          <div className="card-header">
+                            <div className="room-info-container">
+                              <h3>Room {alloc.room.number}</h3>
+                              <span className="shop-badge">🏪 SHOP</span>
+                            </div>
+                            <span className="service-badge">{alloc.service.serviceCategory}</span>
+                          </div>
+
+                          <div className="card-body">
+                            {lastCapturedPhotos[getRoomPhotoKey(alloc.room.number)] && (
+                              <div className="meter-photo-thumb-wrap">
+                                <span className="meter-photo-label">Last capture</span>
+                                <img
+                                  src={lastCapturedPhotos[getRoomPhotoKey(alloc.room.number)]}
+                                  alt={`Last captured meter image for room ${alloc.room.number}`}
+                                  className="meter-photo-thumb"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    setExpandedPhotoUrl(lastCapturedPhotos[getRoomPhotoKey(alloc.room.number)]);
+                                  }}
+                                />
+                              </div>
+                            )}
+
+                            <div className="info-row">
+                              <label>Service:</label>
+                              <span>{alloc.service.consumerName}</span>
+                            </div>
+
+                            <div className="info-row">
+                              <label>Meter No:</label>
+                              <span>{alloc.service.meterNo}</span>
+                            </div>
+
+                            <div className="info-row">
+                              <label>Consumer No:</label>
+                              <span>{alloc.service.consumerNo}</span>
+                            </div>
+
+                            <div className="info-row">
+                              <label>Load:</label>
+                              <span>{alloc.service.load}</span>
+                            </div>
+
+                            <div className="info-row">
+                              <label>Room Rent:</label>
+                              <span>₹{alloc.room.rent.toLocaleString()}</span>
+                            </div>
+
+                            <div className="info-row">
+                              <label>Category:</label>
+                              <span>🏪 Shop/Commercial</span>
                             </div>
 
                             {alloc.lastReadingDate && (
