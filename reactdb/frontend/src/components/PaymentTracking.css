@@ -257,6 +257,16 @@
   box-shadow: 0 0 0 4px rgba(116, 42, 42, 0.1);
 }
 
+.status-badge.merged {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.status-badge.merged.active {
+  border-color: #1d4ed8;
+  box-shadow: 0 0 0 4px rgba(29, 78, 216, 0.1);
+}
+
 .status-label {
   font-size: 0.95rem;
 }
@@ -488,6 +498,11 @@
 .badge-pending {
   background: #fed7d7;
   color: #742a2a;
+}
+
+.badge-merged {
+  background: #dbeafe;
+  color: #1d4ed8;
 }
 
 /* Responsive Design */

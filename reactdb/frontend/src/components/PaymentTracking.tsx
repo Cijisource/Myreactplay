@@ -23,6 +23,8 @@ interface PaymentRecord {
   paymentStatus: 'paid' | 'pending' | 'partial';
 }
 
+type PaymentStatusFilter = 'paid' | 'pending' | 'partial' | 'merged' | null;
+
 interface MonthYearOption {
   month: number;
   year: number;
@@ -64,6 +66,10 @@ const getDaysInMonth = (month: number, year: number): number => {
   return new Date(year, month, 0).getDate();
 };
 
+const compareRoomNumbers = (left: string, right: string): number => {
+  return String(left || '').localeCompare(String(right || ''), undefined, { numeric: true, sensitivity: 'base' });
+};
+
 // Helper function to format balance tooltip
 const getBalanceTooltip = (payment: PaymentRecord): string => {
   const daysInMonth = getDaysInMonth(payment.month, payment.year);
@@ -78,7 +84,7 @@ export default function PaymentTracking() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>('');
-  const [selectedStatusFilter, setSelectedStatusFilter] = useState<'paid' | 'pending' | 'partial' | null>(null);
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<PaymentStatusFilter>(null);
   const [selectedRoom, setSelectedRoom] = useState<string>('');
 
   // Generate available month-year options (current month and last 12 months)
@@ -125,6 +131,11 @@ export default function PaymentTracking() {
     }));
   }, [payments]);
 
+  const getEffectiveStatus = (payment: Pick<PaymentRecord, 'rentFixed' | 'paymentStatus'>): 'paid' | 'pending' | 'partial' | 'merged' => {
+    if (payment.rentFixed === 0) return 'merged';
+    return payment.paymentStatus;
+  };
+
   // Calculate summary statistics based on filtered payments (checkout >= today)
   const summary = useMemo(() => {
     const today = new Date();
@@ -147,9 +158,10 @@ export default function PaymentTracking() {
       totalRent: activePayments.reduce((sum, p) => sum + p.rentFixed, 0),
       totalReceived: activePayments.reduce((sum, p) => sum + p.rentReceived + p.charges, 0),
       totalPending: activePayments.reduce((sum, p) => sum + Math.max(0, p.rentBalance), 0),
-      paidCount: activePayments.filter((p) => p.paymentStatus === 'paid').length,
-      partialCount: activePayments.filter((p) => p.paymentStatus === 'partial').length,
-      pendingCount: activePayments.filter((p) => p.paymentStatus === 'pending').length,
+      paidCount: activePayments.filter((p) => getEffectiveStatus(p) === 'paid').length,
+      partialCount: activePayments.filter((p) => getEffectiveStatus(p) === 'partial').length,
+      pendingCount: activePayments.filter((p) => getEffectiveStatus(p) === 'pending').length,
+      mergedCount: activePayments.filter((p) => getEffectiveStatus(p) === 'merged').length,
     };
   }, [payments]);
 
@@ -172,7 +184,7 @@ export default function PaymentTracking() {
 
     // Apply status filter if selected
     if (selectedStatusFilter) {
-      filtered = filtered.filter((p) => p.paymentStatus === selectedStatusFilter);
+      filtered = filtered.filter((p) => getEffectiveStatus(p) === selectedStatusFilter);
     }
 
     // Apply room filter if selected
@@ -180,7 +192,7 @@ export default function PaymentTracking() {
       filtered = filtered.filter((p) => p.roomNumber === selectedRoom);
     }
 
-    return filtered;
+    return [...filtered].sort((a, b) => compareRoomNumbers(a.roomNumber, b.roomNumber));
   }, [payments, selectedStatusFilter, selectedRoom]);
 
   // Fetch payment data for selected month
@@ -217,6 +229,8 @@ export default function PaymentTracking() {
         return 'badge-pending';
       case 'partial':
         return 'badge-partial';
+      case 'merged':
+        return 'badge-merged';
       default:
         return 'badge-pending';
     }
@@ -318,6 +332,15 @@ export default function PaymentTracking() {
             <span className="status-label">Pending</span>
             <span className="status-count">{summary.pendingCount}</span>
           </div>
+          <div 
+            className={`status-badge merged ${selectedStatusFilter === 'merged' ? 'active' : ''}`}
+            onClick={() => setSelectedStatusFilter(selectedStatusFilter === 'merged' ? null : 'merged')}
+            role="button"
+            tabIndex={0}
+          >
+            <span className="status-label">Merged</span>
+            <span className="status-count">{summary.mergedCount}</span>
+          </div>
         </div>
       )}
 
@@ -350,59 +373,60 @@ export default function PaymentTracking() {
               </tr>
             </thead>
             <tbody>
-              {filteredPayments.map((payment) => (
-                <tr 
-                  key={`${payment.occupancyId}-${payment.month}-${payment.year}`}
-                  className="payment-row"
-                >
-                  <td 
-                    className="tenant-name"
-                    data-label="Tenant"
-                    title={`Check-in: ${formatDate(payment.checkInDate)}\nCheck-out: ${payment.checkOutDate ? formatDate(payment.checkOutDate) : 'Active'}`}
+              {filteredPayments.map((payment) => {
+                const status = getEffectiveStatus(payment);
+
+                return (
+                  <tr 
+                    key={`${payment.occupancyId}-${payment.month}-${payment.year}`}
+                    className="payment-row"
                   >
-                    {payment.tenantName}
-                  </td>
-                  <td data-label="Room">
-                    {payment.roomNumber}
-                  </td>
-                  <td className="amount" data-label="Rent Fixed">
-                    ₹{payment.rentFixed.toLocaleString()}
-                  </td>
-                  <td className="amount" data-label="Charges">
-                    {payment.charges > 0 ? `₹${payment.charges.toLocaleString()}` : '-'}
-                  </td>
-                  <td className="amount success" data-label="Rent Received">
-                    ₹{payment.rentReceived.toLocaleString()}
-                  </td>
-                  <td className="amount maroon" data-label="Total Receivable">
-                    ₹{(payment.proRataRent + payment.charges).toLocaleString()}
-                  </td>
-                  <td
-                    className={`amount ${
-                      payment.rentBalance > 0 ? 'pending' : 'success'
-                    }`}
-                    data-label="Balance"
-                    title={getBalanceTooltip(payment)}
-                  >
-                    ₹{payment.rentBalance.toLocaleString()}
-                  </td>
-                  <td data-label="Payment Date">
-                    {payment.rentReceivedOn
-                      ? formatDate(payment.rentReceivedOn)
-                      : '-'}
-                  </td>
-                  <td data-label="Status">
-                    <span
-                      className={`badge ${getStatusBadgeClass(
-                        payment.paymentStatus
-                      )}`}
+                    <td 
+                      className="tenant-name"
+                      data-label="Tenant"
+                      title={`Check-in: ${formatDate(payment.checkInDate)}\nCheck-out: ${payment.checkOutDate ? formatDate(payment.checkOutDate) : 'Active'}`}
                     >
-                      {payment.paymentStatus.charAt(0).toUpperCase() +
-                        payment.paymentStatus.slice(1)}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+                      {payment.tenantName}
+                    </td>
+                    <td data-label="Room">
+                      {payment.roomNumber}
+                    </td>
+                    <td className="amount" data-label="Rent Fixed">
+                      ₹{payment.rentFixed.toLocaleString()}
+                    </td>
+                    <td className="amount" data-label="Charges">
+                      {payment.charges > 0 ? `₹${payment.charges.toLocaleString()}` : '-'}
+                    </td>
+                    <td className="amount success" data-label="Rent Received">
+                      ₹{payment.rentReceived.toLocaleString()}
+                    </td>
+                    <td className="amount maroon" data-label="Total Receivable">
+                      ₹{(payment.proRataRent + payment.charges).toLocaleString()}
+                    </td>
+                    <td
+                      className={`amount ${
+                        payment.rentBalance > 0 ? 'pending' : 'success'
+                      }`}
+                      data-label="Balance"
+                      title={getBalanceTooltip(payment)}
+                    >
+                      ₹{payment.rentBalance.toLocaleString()}
+                    </td>
+                    <td data-label="Payment Date">
+                      {payment.rentReceivedOn
+                        ? formatDate(payment.rentReceivedOn)
+                        : '-'}
+                    </td>
+                    <td data-label="Status">
+                      <span
+                        className={`badge ${getStatusBadgeClass(status)}`}
+                      >
+                        {status.charAt(0).toUpperCase() + status.slice(1)}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -88,6 +88,16 @@ export default function RoomMonthlyEbReportTable({ selectedMonth, roomOptions, r
   };
 
   useEffect(() => {
+    setSelectedRoomId(0);
+  }, [parsedMonth.year, parsedMonth.month]);
+
+  useEffect(() => {
+    if (selectedRoomId !== 0 && !roomOptions.some((room) => room.id === selectedRoomId)) {
+      setSelectedRoomId(0);
+    }
+  }, [roomOptions, selectedRoomId]);
+
+  useEffect(() => {
     fetchReport();
   }, [parsedMonth.year, parsedMonth.month, selectedRoomId, refreshKey]);
 
@@ -181,12 +191,30 @@ export default function RoomMonthlyEbReportTable({ selectedMonth, roomOptions, r
         </div>
 
         <div className="eb-report-metrics">
-          <span>Reading Date: {new Date(record.readingTakenDate).toLocaleDateString()}</span>
-          <span>Start: {record.startingReading}</span>
-          <span>End: {String(record.endingReading).trim()}</span>
-          <span>Units: {record.unitsConsumed}</span>
-          <span>Rate: ₹{Number(record.unitRate || 0).toFixed(2)}/unit</span>
-          <span>Total: ₹{Number(record.totalAmount || 0).toFixed(2)}</span>
+          <span className="eb-report-metric">
+            <span className="eb-report-metric-label">Reading Date:</span>
+            <strong className="eb-report-metric-value">{new Date(record.readingTakenDate).toLocaleDateString()}</strong>
+          </span>
+          <span className="eb-report-metric">
+            <span className="eb-report-metric-label">Start:</span>
+            <strong className="eb-report-metric-value">{record.startingReading}</strong>
+          </span>
+          <span className="eb-report-metric">
+            <span className="eb-report-metric-label">End:</span>
+            <strong className="eb-report-metric-value">{String(record.endingReading).trim()}</strong>
+          </span>
+          <span className="eb-report-metric">
+            <span className="eb-report-metric-label">Units:</span>
+            <strong className="eb-report-metric-value">{record.unitsConsumed}</strong>
+          </span>
+          <span className="eb-report-metric">
+            <span className="eb-report-metric-label">Rate:</span>
+            <strong className="eb-report-metric-value">₹{Number(record.unitRate || 0).toFixed(2)}/unit</strong>
+          </span>
+          <span className="eb-report-metric">
+            <span className="eb-report-metric-label">Total:</span>
+            <strong className="eb-report-metric-value">₹{Number(record.totalAmount || 0).toFixed(2)}</strong>
+          </span>
         </div>
 
         <div className="eb-report-tenant-title">Tenant Split</div>

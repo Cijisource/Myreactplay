@@ -510,6 +510,41 @@
 }
 
 /* Form Section */
+.meter-summary-panel {
+  box-shadow: 0 6px 20px rgba(220, 38, 38, 0.08);
+}
+
+.meter-summary-grid {
+  margin-top: 8px;
+}
+
+.meter-summary-item {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(220, 38, 38, 0.15);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.meter-summary-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #991b1b;
+  margin-bottom: 6px;
+}
+
+.meter-summary-value {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #dc2626;
+  line-height: 1.3;
+}
+
+.meter-summary-formula {
+  font-size: 12px;
+}
+
 .meter-reading-form {
   background: white;
   border-radius: 12px;

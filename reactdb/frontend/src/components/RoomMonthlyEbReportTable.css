@@ -190,6 +190,29 @@
   color: #1e293b;
 }
 
+.eb-report-metric {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  line-height: 1.4;
+}
+
+.eb-report-metric-label {
+  font-weight: 600;
+  color: #334155;
+}
+
+.eb-report-metric-value {
+  color: #dc2626;
+  font-size: 1.02rem;
+  font-weight: 800;
+}
+
+.eb-report-metric-plain {
+  color: #1e293b;
+}
+
 .eb-report-tenant-title {
   font-size: 0.9rem;
   font-weight: 600;
