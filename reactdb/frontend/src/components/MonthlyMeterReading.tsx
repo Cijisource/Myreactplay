@@ -952,77 +952,62 @@ export default function MonthlyMeterReading(): JSX.Element {
 
                 {/* Real-time Charge Calculation Display */}
                 {calculatedCharges && (
-                  <div style={{
-                    background: 'linear-gradient(135deg, #f0f9ff 0%, #f9f5ff 100%)',
-                    border: '2px solid #4f46e5',
+                  <div className="meter-summary-panel" style={{
+                    background: 'linear-gradient(135deg, #fff5f5 0%, #fef2f2 100%)',
+                    border: '2px solid #dc2626',
                     borderRadius: '8px',
                     padding: '16px',
                     marginBottom: '20px'
                   }}>
-                    <h3 style={{
+                    <h3 className="meter-summary-title" style={{
                       fontSize: '14px',
                       fontWeight: 700,
-                      color: '#1e40af',
+                      color: '#b91c1c',
                       margin: '0 0 12px 0',
                       textTransform: 'uppercase',
                       letterSpacing: '0.5px'
-                    }}>⚡ Real-Time Charge Calculation</h3>
-                    <div style={{
+                    }}>⚡ EB Reading Summary</h3>
+                    <div className="meter-summary-grid" style={{
                       display: 'grid',
-                      gridTemplateColumns: '1fr 1fr',
-                      gap: '16px'
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                      gap: '12px'
                     }}>
-                      <div style={{
-                        background: 'white',
-                        padding: '12px',
-                        borderRadius: '6px',
-                        borderLeft: '4px solid #3b82f6'
-                      }}>
-                        <div style={{
-                          fontSize: '11px',
-                          fontWeight: 600,
-                          color: '#64748b',
-                          textTransform: 'uppercase',
-                          marginBottom: '4px',
-                          letterSpacing: '0.3px'
-                        }}>Unit Consumption</div>
-                        <div style={{
-                          fontSize: '20px',
-                          fontWeight: 700,
-                          color: '#1e40af'
-                        }}>{calculatedCharges.consumption} units</div>
+                      <div className="meter-summary-item">
+                        <div className="meter-summary-label">Reading Date</div>
+                        <div className="meter-summary-value">{formData.readingTakenDate ? new Date(formData.readingTakenDate).toLocaleDateString('en-IN') : '-'}</div>
                       </div>
-                      <div style={{
-                        background: 'white',
-                        padding: '12px',
-                        borderRadius: '6px',
-                        borderLeft: '4px solid #10b981'
-                      }}>
-                        <div style={{
-                          fontSize: '11px',
-                          fontWeight: 600,
-                          color: '#64748b',
-                          textTransform: 'uppercase',
-                          marginBottom: '4px',
-                          letterSpacing: '0.3px'
-                        }}>Calculated Charges</div>
-                        <div style={{
-                          fontSize: '20px',
-                          fontWeight: 700,
-                          color: '#047857'
-                        }}>₹{calculatedCharges.charges.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                      <div className="meter-summary-item">
+                        <div className="meter-summary-label">Start</div>
+                        <div className="meter-summary-value">{formData.startingMeterReading || 0}</div>
+                      </div>
+                      <div className="meter-summary-item">
+                        <div className="meter-summary-label">End</div>
+                        <div className="meter-summary-value">{formData.endingMeterReading || 0}</div>
+                      </div>
+                      <div className="meter-summary-item">
+                        <div className="meter-summary-label">Units</div>
+                        <div className="meter-summary-value">{calculatedCharges.consumption}</div>
+                      </div>
+                      <div className="meter-summary-item">
+                        <div className="meter-summary-label">Rate</div>
+                        <div className="meter-summary-value">₹{Number(formData.unitRate || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                      </div>
+                      <div className="meter-summary-item">
+                        <div className="meter-summary-label">Total</div>
+                        <div className="meter-summary-value">₹{calculatedCharges.charges.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                       </div>
                     </div>
-                    <div style={{
+                    <div className="meter-summary-formula" style={{
                       marginTop: '12px',
                       padding: '8px',
-                      background: 'rgba(79, 70, 229, 0.05)',
+                      background: 'rgba(220, 38, 38, 0.06)',
                       borderRadius: '4px',
                       fontSize: '12px',
-                      color: '#4f46e5',
-                      textAlign: 'center'
+                      color: '#991b1b',
+                      textAlign: 'center',
+                      fontWeight: 700
                     }}>
-                      {calculatedCharges.consumption} units × ₹{formData.unitRate} per unit = ₹{calculatedCharges.charges.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {calculatedCharges.consumption} units × ₹{Number(formData.unitRate || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} = ₹{calculatedCharges.charges.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
                   </div>
                 )}

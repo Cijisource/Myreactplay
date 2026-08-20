@@ -168,7 +168,7 @@ export default function RentalCollectionDetails() {
       const recordsWithEbCharges = await Promise.all(
         records.map(async (record) => {
           try {
-            const chargesRes = await apiService.getPreviousMonthCharges(record.occupancyId);
+            const chargesRes = await apiService.getPreviousMonthCharges(record.occupancyId, currentMonthYear);
             const previousMonthCharges = chargesRes.data || chargesRes;
             return {
               ...record,
@@ -294,7 +294,7 @@ export default function RentalCollectionDetails() {
     if (selectedOccupancyId) {
       fetchRentalDetails();
     }
-  }, [selectedOccupancyId]);
+  }, [selectedOccupancyId, currentMonthYear]);
 
   const fetchRentalDetails = async () => {
     if (!selectedOccupancyId) return;
@@ -306,7 +306,7 @@ export default function RentalCollectionDetails() {
       const [summaryRes, recordsRes, chargesRes] = await Promise.all([
         apiService.getRentalSummaryByOccupancy(selectedOccupancyId),
         apiService.getRentalCollectionByOccupancy(selectedOccupancyId),
-        apiService.getPreviousMonthCharges(selectedOccupancyId)
+        apiService.getPreviousMonthCharges(selectedOccupancyId, currentMonthYear)
       ]);
       
       setOccupancyInfo(summaryRes.data || summaryRes);
@@ -831,11 +831,11 @@ export default function RentalCollectionDetails() {
               </div>
               <div className="current-month-summary-item highlight-charges">
                 <span>Total Charges</span>
-                <strong>{formatCurrency(filteredCurrentMonthPayments.reduce((sum, item) => sum + (item.charges || 0), 0))}</strong>
+                <strong>{formatCurrency(filteredCurrentMonthPayments.reduce((sum, item) => sum + (Number(item.charges || 0)), 0))}</strong>
               </div>
               <div className="current-month-summary-item highlight-eb">
                 <span>Total EB Charges (Previous Month)</span>
-                <strong>{formatCurrency(filteredCurrentMonthPayments.reduce((sum, item) => sum + (item.ebCharges || 0), 0))}</strong>
+                <strong>{formatCurrency(filteredCurrentMonthPayments.reduce((sum, item) => sum + (Number(item.ebCharges || 0)), 0))}</strong>
               </div>
             </div>
 
@@ -843,8 +843,8 @@ export default function RentalCollectionDetails() {
               <table className="payment-table current-month-table compact-grid">
                 <thead>
                   <tr>
-                    <th>Room</th>
                     <th>Tenant</th>
+                    <th>Room</th>
                     <th>Pro-Rata Rent</th>
                     <th>EB Charges</th>
                     <th>Balance</th>
@@ -861,18 +861,19 @@ export default function RentalCollectionDetails() {
                     const isReviewExpanded = expandedReviewRows[item.occupancyId] || false;
                     const isSavingReview = savingReviewRows[item.occupancyId] || false;
                     const savedReviewDate = formatReviewSavedDate(item.reviewVerifiedOn);
+                    const effectiveEbCharges = Number(item.ebCharges || 0);
                     // Check if this is a shop (room numbers like S1, S2, SHOP-1 etc or any number > 100 can be marked as shop)
                     const isShop = /^[Ss]/.test(item.roomNumber) || /[Ss]hop/i.test(item.roomNumber);
 
                     return (
                       <tr key={item.occupancyId} className={isShop ? 'shop-row' : ''}>
+                        <td><strong>{item.tenantName}</strong></td>
                         <td className={isShop ? 'shop-cell' : ''}><strong>{item.roomNumber}</strong></td>
-                        <td>{item.tenantName}</td>
                         <td className="amount">{formatCurrency(item.proRataRent)}</td>
                         <td className="amount eb-charges" title={`Units consumed: ${item.totalUnitsConsumed ?? 0}`}>
-                          {formatCurrency(item.ebCharges || 0)}
+                          {formatCurrency(effectiveEbCharges)}
                         </td>
-                        <td className="amount balance">{formatCurrency(item.proRataRent + (item.ebCharges || 0))}</td>
+                        <td className="amount balance">{formatCurrency(item.proRataRent + effectiveEbCharges)}</td>
                         <td>
                           <span className={`payment-status-badge ${item.paymentStatus}`}>
                             {item.paymentStatus}

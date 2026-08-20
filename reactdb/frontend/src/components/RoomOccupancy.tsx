@@ -132,7 +132,7 @@ export default function RoomOccupancy({ mode = 'occupancy' }: RoomOccupancyProps
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRoom, setSelectedRoom] = useState('');
   const [expandedRooms, setExpandedRooms] = useState<Set<number>>(new Set());
-  const [showStatsGrid, setShowStatsGrid] = useState(true);
+  const [showStatsGrid, setShowStatsGrid] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showRevenueChart, setShowRevenueChart] = useState(false);
   const [showVacancyChart, setShowVacancyChart] = useState(false);
@@ -697,7 +697,7 @@ export default function RoomOccupancy({ mode = 'occupancy' }: RoomOccupancyProps
 
   return (
     <div className="occupancy-container">
-      <h2 className="section-heading">{isAnalysisMode ? 'Room Wise Analysis' : 'Room Occupancy'}</h2>
+      <h2 className="section-heading">{isAnalysisMode ? 'Room Wise Analysis' : 'Room Occupancy Status'}</h2>
 
       {error && (
         <div className="error-card">

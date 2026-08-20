@@ -423,7 +423,12 @@ export const apiService = {
   ) => api.put(`/rental/reviews/${occupancyId}`, data),
   getRentalCollectionByOccupancy: (occupancyId: number) => api.get(`/rental/occupancy/${occupancyId}`),
   getRentalSummaryByOccupancy: (occupancyId: number) => api.get(`/rental/occupancy/${occupancyId}/summary`),
-  getPreviousMonthCharges: (occupancyId: number) => api.get(`/rental/occupancy/${occupancyId}/previous-month-charges`),
+  getPreviousMonthCharges: (occupancyId: number, monthYear?: string) => {
+    const url = monthYear
+      ? `/rental/occupancy/${occupancyId}/previous-month-charges?monthYear=${encodeURIComponent(monthYear)}`
+      : `/rental/occupancy/${occupancyId}/previous-month-charges`;
+    return api.get(url);
+  },
   getPaymentBalance: () => api.get('/rental/payment-balance'),
   updateRentalPayment: (occupancyId: number, data: { collectedAmount: number; month: string }) => 
     api.put(`/rental/payment/${occupancyId}`, data),

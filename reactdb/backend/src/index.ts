@@ -5640,22 +5640,23 @@ app.get('/api/service-consumption/previous-month-reading/:serviceAllocId/:month/
     
     const result = await pool
       .request()
-      .input('serviceAllocId', sql.Int, parseInt(serviceAllocId))
-      .input('prevYear', sql.Int, prevYear)
-      .input('prevMonth', sql.Int, prevMonth)
+      .input('ServiceAllocId', sql.Int, parseInt(serviceAllocId))
+      .input('CurrentMonth', sql.Int, parseInt(month))
+      .input('CurrentYear', sql.Int, parseInt(year))
       .query(`
-        SELECT TOP 1
-          scd.EndingMeterReading as endingMeterReading,
-          scd.ReadingTakenDate as readingTakenDate
-        FROM ServiceConsumptionDetails scd
-        WHERE scd.ServiceAllocId = @serviceAllocId
-          AND YEAR(scd.ReadingTakenDate) = @prevYear
-          AND MONTH(scd.ReadingTakenDate) = @prevMonth
-        ORDER BY scd.ReadingTakenDate DESC
+        EXEC [dbo].[sp_GetPreviousMonthEndingReading]
+          @ServiceAllocId = @ServiceAllocId,
+          @CurrentMonth = @CurrentMonth,
+          @CurrentYear = @CurrentYear
       `);
     
+    const normalizedRows = (result.recordset || []).map((row: any) => ({
+      endingMeterReading: row.EndingMeterReading ?? row.endingMeterReading ?? null,
+      readingTakenDate: row.ReadingTakenDate ?? row.readingTakenDate ?? null,
+    }));
+    
     if (!res.headersSent) {
-      res.json(result.recordset);
+      res.json(normalizedRows);
     }
   } catch (error) {
     console.error('Get previous month reading error:', error);
@@ -6297,6 +6298,7 @@ app.get('/api/rental/occupancy/:occupancyId/summary', async (req: Request, res: 
 app.get('/api/rental/occupancy/:occupancyId/previous-month-charges', async (req: Request, res: Response) => {
   try {
     const { occupancyId } = req.params;
+    const monthYearParam = typeof req.query.monthYear === 'string' ? req.query.monthYear : null;
     const pool = getPool();
     
     // Get occupancy and tenant details
@@ -6322,22 +6324,22 @@ app.get('/api/rental/occupancy/:occupancyId/previous-month-charges', async (req:
     const occupancy = occupancyResult.recordset[0];
     const tenantId = occupancy.tenantId;
     
-    // Calculate previous month
-    const now = new Date();
-    let previousMonth = now.getMonth(); // 0-11
-    let previousYear = now.getFullYear();
-    
-    if (previousMonth === 0) {
-      previousMonth = 12;
-      previousYear--;
-    }
+    // Calculate the previous month relative to the selected month or current month.
+    // Example: selected 2026-08 => previous month is 2026-07.
+    const anchorDate = monthYearParam && /^\d{4}-\d{2}$/.test(monthYearParam)
+      ? new Date(`${monthYearParam}-01T00:00:00`)
+      : new Date();
+
+    const previousDate = new Date(anchorDate.getFullYear(), anchorDate.getMonth() - 1, 1);
+    const billingYear = previousDate.getFullYear();
+    const billingMonth = previousDate.getMonth() + 1;
     
     // Query electricity charges for the tenant in the previous month
     const chargesResult = await pool
       .request()
       .input('tenantId', sql.Int, tenantId)
-      .input('billingYear', sql.Int, previousYear)
-      .input('billingMonth', sql.Int, previousMonth)
+      .input('billingYear', sql.Int, billingYear)
+      .input('billingMonth', sql.Int, billingMonth)
       .query(`
         SELECT 
           ISNULL(SUM(CAST(tsc.TotalCharge AS FLOAT)), 0) as totalCharges,
@@ -6356,9 +6358,9 @@ app.get('/api/rental/occupancy/:occupancyId/previous-month-charges', async (req:
     res.json({
       occupancyId: parseInt(occupancyId),
       tenantId: tenantId,
-      previousMonth: previousMonth,
-      previousYear: previousYear,
-      billingPeriod: `${previousMonth}/${previousYear}`,
+      previousMonth: billingMonth,
+      previousYear: billingYear,
+      billingPeriod: `${billingMonth}/${billingYear}`,
       totalCharges: Math.round(charges.totalCharges * 100) / 100,
       totalUnitsConsumed: charges.totalUnitsConsumed || 0,
       serviceCount: charges.serviceCount || 0,
