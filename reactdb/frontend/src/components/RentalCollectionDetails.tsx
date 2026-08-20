@@ -742,6 +742,315 @@ export default function RentalCollectionDetails() {
         </div>
       )}
 
+      {/* Occupancy Selector */}
+      <div className="selector-card">
+        <div className="selector-wrapper">
+          <label className="selector-label">Select Tenant & Room</label>
+          <SearchableDropdown
+            value={selectedOccupancyId?.toString() || ''}
+            onChange={(option) => setSelectedOccupancyId(parseInt(option.id.toString()))}
+            options={occupancyOptions.map(opt => ({
+              id: opt.id.toString(),
+              label: opt.label,
+              optionClassName: paidOccupancyIds.has(opt.id) ? 'paid-occupancy-option' : '',
+              optionBadgeText: paidOccupancyIds.has(opt.id) ? 'Paid' : undefined,
+              optionBadgeVariant: paidOccupancyIds.has(opt.id) ? 'success' : undefined
+            }))}
+            placeholder="Search by tenant name or room number..."
+          />
+        </div>
+      </div>
+
+      {occupancyInfo && (
+        <>
+          {/* Occupancy Information Card */}
+          <div className="occupancy-info-card">
+            <div className="info-header">
+              <h2>{occupancyInfo.tenantName}</h2>
+              <span className="room-badge">Room {occupancyInfo.roomNumber}</span>
+            </div>
+
+            <div className="info-grid">
+              <div className="info-item">
+                <label>Check-In Date</label>
+                <p>{new Date(occupancyInfo.checkInDate).toLocaleDateString()}</p>
+              </div>
+              <div className="info-item">
+                <label>Check-Out Date</label>
+                <p>{occupancyInfo.checkOutDate ? new Date(occupancyInfo.checkOutDate).toLocaleDateString() : 'Active'}</p>
+              </div>
+              <div className="info-item">
+                <label>Monthly Rent</label>
+                <p className="amount">{formatCurrency(occupancyInfo.rentFixed)}</p>
+              </div>
+              <div className="info-item">
+                <label>Last Payment Date</label>
+                <p>{occupancyInfo.lastPaymentDate ? new Date(occupancyInfo.lastPaymentDate).toLocaleDateString() : 'No payments'}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Financial Summary Cards */}
+          <div className="summary-cards-grid">
+            <div className="summary-card">
+              <div className="card-label">Total Received (Rent + Charges)</div>
+              <div className="card-value received">{formatCurrency(getTotalReceived(occupancyInfo.totalRentReceived, occupancyInfo.totalCharges))}</div>
+              <div className="card-subtext">{occupancyInfo.paymentRecordsCount} payment(s)</div>
+            </div>
+
+            <div className="summary-card">
+              <div className="card-label">Total Charges</div>
+              <div className="card-value charges">{formatCurrency(occupancyInfo.totalCharges)}</div>
+            </div>
+
+            <div className="summary-card">
+              <div className="card-label">Outstanding Balance (Est.)</div>
+              <div className="card-value balance">
+                {formatCurrency(Math.max(0, occupancyInfo.proRataRent - (occupancyInfo.totalRentReceived + occupancyInfo.totalCharges)))}
+              </div>
+            </div>
+          </div>
+
+          {/* Add Payment Button */}
+          <div className="action-section">
+            <button
+              className="btn btn-primary btn-large"
+              onClick={() => setShowForm(!showForm)}
+              disabled={loading}
+            >
+              {showForm ? '✕ Cancel' : '+ Add Payment'}
+            </button>
+          </div>
+
+          {/* Payment Form */}
+          {showForm && (
+            <div className="payment-form-card">
+              <h3>Record Payment</h3>
+              <form onSubmit={handleSubmit} className="payment-form">
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="rentReceivedOn">Payment Date</label>
+                    <input
+                      type="date"
+                      id="rentReceivedOn"
+                      name="rentReceivedOn"
+                      value={formData.rentReceivedOn}
+                      onChange={handleInputChange}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="rentReceived">Rent Received (₹)</label>
+                    <input
+                      type="number"
+                      id="rentReceived"
+                      name="rentReceived"
+                      value={formData.rentReceived}
+                      onChange={handleInputChange}
+                      placeholder="0.00"
+                      step="0.01"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="charges">Charges/Adjustments (₹)</label>
+                    <input
+                      type="number"
+                      id="charges"
+                      name="charges"
+                      value={formData.charges}
+                      onChange={handleInputChange}
+                      placeholder="0.00"
+                      step="0.01"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="modeOfPayment">Payment Mode</label>
+                    <select
+                      id="modeOfPayment"
+                      name="modeOfPayment"
+                      value={formData.modeOfPayment}
+                      onChange={handleInputChange}
+                    >
+                      <option value="cash">Cash</option>
+                      <option value="cheque">Cheque</option>
+                      <option value="upi">UPI</option>
+                      <option value="bank">Bank Transfer</option>
+                      <option value="other">Other</option>
+                      <option value="checkout">CheckOut</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-group full-width">
+                  <label htmlFor="screenshot">Payment Proof (Screenshot)</label>
+                  <div className="file-input-wrapper">
+                    <input
+                      type="file"
+                      id="screenshot"
+                      name="screenshot"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                    />
+                    <div className="file-label">
+                      {formData.screenshot ? (
+                        <>
+                          <span className="upload-icon">✓</span>
+                          <span className="file-name">{formData.screenshot.name}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="upload-icon">📷</span>
+                          <span>Click to upload or drag and drop</span>
+                          <span className="file-hint">PNG, JPG, GIF up to 50MB</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {previewUrl && (
+                    <div className="preview-container">
+                      <p className="preview-label">Preview</p>
+                      <img src={previewUrl} alt="Payment proof preview" className="preview-image" />
+                    </div>
+                  )}
+                </div>
+
+                {uploadProgress > 0 && uploadProgress < 100 && (
+                  <div className="progress-section">
+                    <div className="progress-bar">
+                      <div className="progress-fill" style={{ width: `${uploadProgress}%` }}></div>
+                    </div>
+                    <p className="progress-text">Uploading... {uploadProgress}%</p>
+                  </div>
+                )}
+
+                <div className="form-actions">
+                  <button
+                    type="submit"
+                    className="btn btn-success"
+                    disabled={loading || uploadProgress > 0}
+                  >
+                    {loading ? 'Saving...' : 'Save Payment'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      setShowForm(false);
+                      setFormData({
+                        rentReceived: '',
+                        charges: '',
+                        modeOfPayment: 'cash',
+                        rentReceivedOn: new Date().toISOString().split('T')[0],
+                        screenshot: null
+                      });
+                      setPreviewUrl(null);
+                    }}
+                    disabled={loading}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+        </>
+      )}
+
+      {selectedOccupancyId && (
+        <div className="payment-history-section">
+          <h3>Payment History & Details Breakdown</h3>
+
+          {rentalRecords.length > 0 ? (
+            <div className="payment-records-container">
+              {rentalRecords.map((record) => (
+                <div key={record.id} className="payment-record-card">
+                  <div className="payment-record-header">
+                    <div className="payment-date">
+                      <span className="label">Payment Date</span>
+                      <span className="value">
+                        {new Date(record.rentReceivedOn).toLocaleDateString('en-IN', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric'
+                        })}
+                      </span>
+                    </div>
+                    <div className="payment-mode">
+                      <span className="label">Mode</span>
+                      {record.modeOfPayment ? (
+                        <span className="badge-mode">{record.modeOfPayment}</span>
+                      ) : (
+                        <span className="badge-mode gray">—</span>
+                      )}
+                    </div>
+                    <button
+                      className="payment-record-edit-btn"
+                      title="Edit payment record"
+                      onClick={() => handleEditClick(record)}
+                    >
+                      ✏️ Edit
+                    </button>
+                  </div>
+
+                  <div className="payment-record-details">
+                    <div className="detail-item">
+                      <span className="label">Fixed Rent</span>
+                      <span className="value">{formatCurrency(record.rentFixed)}</span>
+                    </div>
+                    <div className="detail-item">
+                      <span className="label">Charges</span>
+                      <span className="value">{formatCurrency(record.charges)}</span>
+                    </div>
+                    <div className="detail-item">
+                      <span className="label">Received</span>
+                      <span className="value received">{formatCurrency(getTotalReceived(record.rentReceived, record.charges))}</span>
+                    </div>
+                    <div className="detail-item">
+                      <span className="label">Balance</span>
+                      <span className="value balance">{formatCurrency(getDisplayBalance(record))}</span>
+                    </div>
+                  </div>
+
+                  {record.screenshotUrl && (
+                    <div className="payment-screenshot">
+                      <div className="screenshot-label">Payment Proof</div>
+                      <button
+                        type="button"
+                        className="screenshot-link"
+                        onClick={() =>
+                          openProofPreview(
+                            getProofUrl(record.screenshotUrl, record.rentReceivedOn, record.folder),
+                            `Payment proof screenshot for ${record.tenantName}`
+                          )
+                        }
+                        title="Preview payment proof"
+                      >
+                        <img
+                          src={getProofUrl(record.screenshotUrl, record.rentReceivedOn, record.folder)}
+                          alt="Payment proof screenshot"
+                          className="screenshot-thumbnail"
+                        />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">
+              <p>No payment records yet. {showForm ? '' : 'Click "Add Payment" to record the first payment.'}</p>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="current-month-status-card">
         <div className="current-month-header">
           <div>
@@ -1006,314 +1315,6 @@ export default function RentalCollectionDetails() {
           </>
         )}
       </div>
-
-      {/* Occupancy Selector */}
-      <div className="selector-card">
-        <div className="selector-wrapper">
-          <label className="selector-label">Select Tenant & Room</label>
-          <SearchableDropdown
-            value={selectedOccupancyId?.toString() || ''}
-            onChange={(option) => setSelectedOccupancyId(parseInt(option.id.toString()))}
-            options={occupancyOptions.map(opt => ({
-              id: opt.id.toString(),
-              label: opt.label,
-              optionClassName: paidOccupancyIds.has(opt.id) ? 'paid-occupancy-option' : '',
-              optionBadgeText: paidOccupancyIds.has(opt.id) ? 'Paid' : undefined,
-              optionBadgeVariant: paidOccupancyIds.has(opt.id) ? 'success' : undefined
-            }))}
-            placeholder="Search by tenant name or room number..."
-          />
-        </div>
-      </div>
-
-      {occupancyInfo && (
-        <>
-          {/* Occupancy Information Card */}
-          <div className="occupancy-info-card">
-            <div className="info-header">
-              <h2>{occupancyInfo.tenantName}</h2>
-              <span className="room-badge">Room {occupancyInfo.roomNumber}</span>
-            </div>
-            
-            <div className="info-grid">
-              <div className="info-item">
-                <label>Check-In Date</label>
-                <p>{new Date(occupancyInfo.checkInDate).toLocaleDateString()}</p>
-              </div>
-              <div className="info-item">
-                <label>Check-Out Date</label>
-                <p>{occupancyInfo.checkOutDate ? new Date(occupancyInfo.checkOutDate).toLocaleDateString() : 'Active'}</p>
-              </div>
-              <div className="info-item">
-                <label>Monthly Rent</label>
-                <p className="amount">{formatCurrency(occupancyInfo.rentFixed)}</p>
-              </div>
-              <div className="info-item">
-                <label>Last Payment Date</label>
-                <p>{occupancyInfo.lastPaymentDate ? new Date(occupancyInfo.lastPaymentDate).toLocaleDateString() : 'No payments'}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Financial Summary Cards */}
-          <div className="summary-cards-grid">
-            <div className="summary-card">
-              <div className="card-label">Total Received (Rent + Charges)</div>
-              <div className="card-value received">{formatCurrency(getTotalReceived(occupancyInfo.totalRentReceived, occupancyInfo.totalCharges))}</div>
-              <div className="card-subtext">{occupancyInfo.paymentRecordsCount} payment(s)</div>
-            </div>
-            
-            <div className="summary-card">
-              <div className="card-label">Total Charges</div>
-              <div className="card-value charges">{formatCurrency(occupancyInfo.totalCharges)}</div>
-            </div>
-            
-            <div className="summary-card">
-              <div className="card-label">Outstanding Balance (Est.)</div>
-              <div className="card-value balance">
-                {formatCurrency(Math.max(0, occupancyInfo.proRataRent - (occupancyInfo.totalRentReceived + occupancyInfo.totalCharges)))}
-              </div>
-            </div>
-          </div>
-
-          {/* Add Payment Button */}
-          <div className="action-section">
-            <button
-              className="btn btn-primary btn-large"
-              onClick={() => setShowForm(!showForm)}
-              disabled={loading}
-            >
-              {showForm ? '✕ Cancel' : '+ Add Payment'}
-            </button>
-          </div>
-
-          {/* Payment Form */}
-          {showForm && (
-            <div className="payment-form-card">
-              <h3>Record Payment</h3>
-              <form onSubmit={handleSubmit} className="payment-form">
-                <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="rentReceivedOn">Payment Date</label>
-                    <input
-                      type="date"
-                      id="rentReceivedOn"
-                      name="rentReceivedOn"
-                      value={formData.rentReceivedOn}
-                      onChange={handleInputChange}
-                      required
-                    />
-                  </div>
-                  
-                  <div className="form-group">
-                    <label htmlFor="rentReceived">Rent Received (₹)</label>
-                    <input
-                      type="number"
-                      id="rentReceived"
-                      name="rentReceived"
-                      value={formData.rentReceived}
-                      onChange={handleInputChange}
-                      placeholder="0.00"
-                      step="0.01"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="charges">Charges/Adjustments (₹)</label>
-                    <input
-                      type="number"
-                      id="charges"
-                      name="charges"
-                      value={formData.charges}
-                      onChange={handleInputChange}
-                      placeholder="0.00"
-                      step="0.01"
-                    />
-                  </div>
-                  
-                  <div className="form-group">
-                    <label htmlFor="modeOfPayment">Payment Mode</label>
-                    <select
-                      id="modeOfPayment"
-                      name="modeOfPayment"
-                      value={formData.modeOfPayment}
-                      onChange={handleInputChange}
-                    >
-                      <option value="cash">Cash</option>
-                      <option value="cheque">Cheque</option>
-                      <option value="upi">UPI</option>
-                      <option value="bank">Bank Transfer</option>
-                      <option value="other">Other</option>
-                      <option value="checkout">CheckOut</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="form-group full-width">
-                  <label htmlFor="screenshot">Payment Proof (Screenshot)</label>
-                  <div className="file-input-wrapper">
-                    <input
-                      type="file"
-                      id="screenshot"
-                      name="screenshot"
-                      accept="image/*"
-                      onChange={handleFileChange}
-                    />
-                    <div className="file-label">
-                      {formData.screenshot ? (
-                        <>
-                          <span className="upload-icon">✓</span>
-                          <span className="file-name">{formData.screenshot.name}</span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="upload-icon">📷</span>
-                          <span>Click to upload or drag and drop</span>
-                          <span className="file-hint">PNG, JPG, GIF up to 50MB</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  {previewUrl && (
-                    <div className="preview-container">
-                      <p className="preview-label">Preview</p>
-                      <img src={previewUrl} alt="Payment proof preview" className="preview-image" />
-                    </div>
-                  )}
-                </div>
-
-                {uploadProgress > 0 && uploadProgress < 100 && (
-                  <div className="progress-section">
-                    <div className="progress-bar">
-                      <div className="progress-fill" style={{ width: `${uploadProgress}%` }}></div>
-                    </div>
-                    <p className="progress-text">Uploading... {uploadProgress}%</p>
-                  </div>
-                )}
-
-                <div className="form-actions">
-                  <button
-                    type="submit"
-                    className="btn btn-success"
-                    disabled={loading || uploadProgress > 0}
-                  >
-                    {loading ? 'Saving...' : 'Save Payment'}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => {
-                      setShowForm(false);
-                      setFormData({
-                        rentReceived: '',
-                        charges: '',
-                        modeOfPayment: 'cash',
-                        rentReceivedOn: new Date().toISOString().split('T')[0],
-                        screenshot: null
-                      });
-                      setPreviewUrl(null);
-                    }}
-                    disabled={loading}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          {/* Payment History Table */}
-          <div className="payment-history-section">
-            <h3>Payment History & Details Breakdown</h3>
-            
-            {rentalRecords.length > 0 ? (
-              <div className="payment-records-container">
-                {rentalRecords.map((record) => (
-                  <div key={record.id} className="payment-record-card">
-                    <div className="payment-record-header">
-                      <div className="payment-date">
-                        <span className="label">Payment Date</span>
-                        <span className="value">
-                          {new Date(record.rentReceivedOn).toLocaleDateString('en-IN', {
-                            day: '2-digit',
-                            month: 'short',
-                            year: 'numeric'
-                          })}
-                        </span>
-                      </div>
-                      <div className="payment-mode">
-                        <span className="label">Mode</span>
-                        {record.modeOfPayment ? (
-                          <span className="badge-mode">{record.modeOfPayment}</span>
-                        ) : (
-                          <span className="badge-mode gray">—</span>
-                        )}
-                      </div>
-                      <button 
-                        className="payment-record-edit-btn"
-                        title="Edit payment record"
-                        onClick={() => handleEditClick(record)}
-                      >
-                        ✏️ Edit
-                      </button>
-                    </div>
-
-                    <div className="payment-record-details">
-                      <div className="detail-item">
-                        <span className="label">Fixed Rent</span>
-                        <span className="value">{formatCurrency(record.rentFixed)}</span>
-                      </div>
-                      <div className="detail-item">
-                        <span className="label">Charges</span>
-                        <span className="value">{formatCurrency(record.charges)}</span>
-                      </div>
-                      <div className="detail-item">
-                        <span className="label">Received</span>
-                        <span className="value received">{formatCurrency(getTotalReceived(record.rentReceived, record.charges))}</span>
-                      </div>
-                      <div className="detail-item">
-                        <span className="label">Balance</span>
-                        <span className="value balance">{formatCurrency(getDisplayBalance(record))}</span>
-                      </div>
-                    </div>
-
-                    {record.screenshotUrl && (
-                      <div className="payment-screenshot">
-                        <div className="screenshot-label">Payment Proof</div>
-                        <button
-                          type="button"
-                          className="screenshot-link"
-                          onClick={() =>
-                            openProofPreview(
-                              getProofUrl(record.screenshotUrl, record.rentReceivedOn, record.folder),
-                              `Payment proof screenshot for ${record.tenantName}`
-                            )
-                          }
-                          title="Preview payment proof"
-                        >
-                          <img
-                            src={getProofUrl(record.screenshotUrl, record.rentReceivedOn, record.folder)}
-                            alt="Payment proof screenshot"
-                            className="screenshot-thumbnail"
-                          />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="empty-state">
-                <p>No payment records yet. {showForm ? '' : 'Click "Add Payment" to record the first payment.'}</p>
-              </div>
-            )}
-          </div>
-        </>
-      )}
 
       {!selectedOccupancyId && !loading && (
         <div className="empty-state">
