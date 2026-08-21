@@ -61,6 +61,28 @@ const formatDate = (dateString: string | null | undefined): string => {
   }
 };
 
+const parseDateOnly = (dateString: string | null | undefined): Date | null => {
+  if (!dateString) return null;
+
+  try {
+    const dateOnly = dateString.split('T')[0];
+    const match = dateOnly.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
+
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+
+    if (month < 1 || month > 12 || day < 1 || day > 31) {
+      return null;
+    }
+
+    return new Date(year, month - 1, day);
+  } catch {
+    return null;
+  }
+};
+
 // Helper function to get days in month
 const getDaysInMonth = (month: number, year: number): number => {
   return new Date(year, month, 0).getDate();
@@ -86,6 +108,12 @@ export default function PaymentTracking() {
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<PaymentStatusFilter>(null);
   const [selectedRoom, setSelectedRoom] = useState<string>('');
+  const [checkInDateFrom, setCheckInDateFrom] = useState<string>('');
+  const [checkInDateTo, setCheckInDateTo] = useState<string>('');
+  const [checkOutDateFrom, setCheckOutDateFrom] = useState<string>('');
+  const [checkOutDateTo, setCheckOutDateTo] = useState<string>('');
+
+  const hasActiveDateFilter = Boolean(checkInDateFrom || checkInDateTo || checkOutDateFrom || checkOutDateTo);
 
   // Generate available month-year options (current month and last 12 months)
   const monthYearOptions = useMemo(() => {
@@ -165,12 +193,18 @@ export default function PaymentTracking() {
     };
   }, [payments]);
 
-  // Filter payments based on selected status and checkout date >= today
+  // Filter payments based on selected status and date filters.
+  // When a date filter is active, the hard-coded checkout >= today restriction is skipped,
+  // so the selected range can actually match records.
   const filteredPayments = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     let filtered = payments.filter((p) => {
+      if (hasActiveDateFilter) {
+        return true;
+      }
+
       // If no checkOutDate, include the record
       if (!p.checkOutDate) return true;
       
@@ -192,23 +226,85 @@ export default function PaymentTracking() {
       filtered = filtered.filter((p) => p.roomNumber === selectedRoom);
     }
 
-    return [...filtered].sort((a, b) => compareRoomNumbers(a.roomNumber, b.roomNumber));
-  }, [payments, selectedStatusFilter, selectedRoom]);
-
-  // Fetch payment data for selected month
-  useEffect(() => {
-    if (!selectedMonth) {
-      setPayments([]);
-      return;
+    if (checkInDateFrom) {
+      const fromDate = parseDateOnly(checkInDateFrom);
+      filtered = filtered.filter((p) => {
+        const recordDate = parseDateOnly(p.checkInDate);
+        if (!recordDate || !fromDate) return false;
+        return recordDate.getTime() >= fromDate.getTime();
+      });
     }
+
+    if (checkInDateTo) {
+      const toDate = parseDateOnly(checkInDateTo);
+      filtered = filtered.filter((p) => {
+        const recordDate = parseDateOnly(p.checkInDate);
+        if (!recordDate || !toDate) return false;
+        return recordDate.getTime() <= toDate.getTime();
+      });
+    }
+
+    if (checkOutDateFrom || checkOutDateTo) {
+      filtered = filtered.filter((p) => {
+        if (!p.checkOutDate) return false;
+        const recordDate = parseDateOnly(p.checkOutDate);
+        if (!recordDate) return false;
+
+        if (checkOutDateFrom) {
+          const fromDate = parseDateOnly(checkOutDateFrom);
+          if (!fromDate || recordDate.getTime() < fromDate.getTime()) return false;
+        }
+
+        if (checkOutDateTo) {
+          const toDate = parseDateOnly(checkOutDateTo);
+          if (!toDate || recordDate.getTime() > toDate.getTime()) return false;
+        }
+
+        return true;
+      });
+    }
+
+    return [...filtered].sort((a, b) => compareRoomNumbers(a.roomNumber, b.roomNumber));
+  }, [payments, selectedStatusFilter, selectedRoom, checkInDateFrom, checkInDateTo, checkOutDateFrom, checkOutDateTo, hasActiveDateFilter]);
+
+  // Fetch payment data for the selected month, or load the recent month range when no
+  // month/date filters are active so the screen starts with all data available.
+  useEffect(() => {
+    const shouldLoadAllData = !selectedMonth && !hasActiveDateFilter;
 
     const fetchPayments = async () => {
       setLoading(true);
       setError(null);
       try {
-        const response = await apiService.getPaymentsByMonth(selectedMonth);
-        console.log('Fetched payments:', response.data);
-        setPayments(response.data);
+        let paymentData: PaymentRecord[] = [];
+
+        if (shouldLoadAllData) {
+          const monthResponses = await Promise.all(
+            monthYearOptions.map(async (opt) => {
+              const monthValue = `${opt.year}-${String(opt.month).padStart(2, '0')}`;
+              const response = await apiService.getPaymentsByMonth(monthValue);
+              return Array.isArray(response.data) ? response.data : [];
+            })
+          );
+
+          paymentData = monthResponses.flat();
+        } else if (selectedMonth) {
+          const response = await apiService.getPaymentsByMonth(selectedMonth);
+          paymentData = Array.isArray(response.data) ? response.data : [];
+        } else if (hasActiveDateFilter) {
+          const monthResponses = await Promise.all(
+            monthYearOptions.map(async (opt) => {
+              const monthValue = `${opt.year}-${String(opt.month).padStart(2, '0')}`;
+              const response = await apiService.getPaymentsByMonth(monthValue);
+              return Array.isArray(response.data) ? response.data : [];
+            })
+          );
+
+          paymentData = monthResponses.flat();
+        }
+
+        console.log('Fetched payments:', paymentData);
+        setPayments(paymentData);
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Failed to fetch payment data';
         setError(errorMsg);
@@ -218,8 +314,12 @@ export default function PaymentTracking() {
       }
     };
 
-    fetchPayments();
-  }, [selectedMonth]);
+    if (shouldLoadAllData || selectedMonth || hasActiveDateFilter) {
+      fetchPayments();
+    } else {
+      setPayments([]);
+    }
+  }, [selectedMonth, hasActiveDateFilter, monthYearOptions]);
 
   const getStatusBadgeClass = (status: string): string => {
     switch (status) {
@@ -276,8 +376,82 @@ export default function PaymentTracking() {
         )}
       </div>
 
+      <div className="payment-date-filters">
+        <div className="date-filter-group">
+          <div className="date-filter-header">
+            <h3>Check-In Date</h3>
+            {(checkInDateFrom || checkInDateTo) && (
+              <button
+                type="button"
+                className="date-filter-clear"
+                onClick={() => {
+                  setCheckInDateFrom('');
+                  setCheckInDateTo('');
+                }}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          <div className="date-filter-row">
+            <label>
+              <span>From</span>
+              <input
+                type="date"
+                value={checkInDateFrom}
+                onChange={(e) => setCheckInDateFrom(e.target.value)}
+              />
+            </label>
+            <label>
+              <span>To</span>
+              <input
+                type="date"
+                value={checkInDateTo}
+                onChange={(e) => setCheckInDateTo(e.target.value)}
+              />
+            </label>
+          </div>
+        </div>
+
+        <div className="date-filter-group">
+          <div className="date-filter-header">
+            <h3>Check-Out Date</h3>
+            {(checkOutDateFrom || checkOutDateTo) && (
+              <button
+                type="button"
+                className="date-filter-clear"
+                onClick={() => {
+                  setCheckOutDateFrom('');
+                  setCheckOutDateTo('');
+                }}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          <div className="date-filter-row">
+            <label>
+              <span>From</span>
+              <input
+                type="date"
+                value={checkOutDateFrom}
+                onChange={(e) => setCheckOutDateFrom(e.target.value)}
+              />
+            </label>
+            <label>
+              <span>To</span>
+              <input
+                type="date"
+                value={checkOutDateTo}
+                onChange={(e) => setCheckOutDateTo(e.target.value)}
+              />
+            </label>
+          </div>
+        </div>
+      </div>
+
       {/* Summary Cards */}
-      {selectedMonth && (
+      {(selectedMonth || (!selectedMonth && !hasActiveDateFilter) || payments.length > 0) && (
         <div className="summary-cards">
           <div className="summary-card">
             <div className="summary-label">Total Tenants</div>
@@ -303,7 +477,7 @@ export default function PaymentTracking() {
       )}
 
       {/* Status Summary */}
-      {selectedMonth && (
+      {(selectedMonth || (!selectedMonth && !hasActiveDateFilter) || payments.length > 0) && (
         <div className="status-summary">
           <div 
             className={`status-badge paid ${selectedStatusFilter === 'paid' ? 'active' : ''}`}
@@ -356,13 +530,15 @@ export default function PaymentTracking() {
       )}
 
       {/* Payment Table */}
-      {selectedMonth && !loading && filteredPayments.length > 0 && (
+      {!loading && filteredPayments.length > 0 && (
         <div className="payment-table-wrapper">
           <table className="payment-table">
             <thead>
               <tr>
                 <th>Tenant Name</th>
                 <th>Room Number</th>
+                <th>Check-In</th>
+                <th>Check-Out</th>
                 <th>Rent Fixed</th>
                 <th>Charges</th>
                 <th>Rent Received</th>
@@ -390,6 +566,12 @@ export default function PaymentTracking() {
                     </td>
                     <td data-label="Room">
                       {payment.roomNumber}
+                    </td>
+                    <td data-label="Check-In">
+                      {formatDate(payment.checkInDate)}
+                    </td>
+                    <td data-label="Check-Out">
+                      {payment.checkOutDate ? formatDate(payment.checkOutDate) : 'Active'}
                     </td>
                     <td className="amount" data-label="Rent Fixed">
                       ₹{payment.rentFixed.toLocaleString()}
@@ -433,22 +615,28 @@ export default function PaymentTracking() {
       )}
 
       {/* Empty State */}
-      {/* Empty State - No Records for Month */}
-      {selectedMonth && !loading && payments.length === 0 && !error && (
+      {!loading && payments.length === 0 && !error && (
         <div className="empty-state">
-          <p>No payment records found for the selected month</p>
+          <p>No payment records found for the current selection</p>
         </div>
       )}
 
       {/* Empty State - Filter Applied but No Matches */}
-      {selectedMonth && !loading && payments.length > 0 && filteredPayments.length === 0 && !error && (
+      {!loading && payments.length > 0 && filteredPayments.length === 0 && !error && (
         <div className="empty-state">
-          <p>No {selectedStatusFilter} payment records found</p>
+          <p>No {selectedStatusFilter || 'matching'} payment records found</p>
           <button 
             className="btn btn-secondary"
-            onClick={() => setSelectedStatusFilter(null)}
+            onClick={() => {
+              setSelectedStatusFilter(null);
+              setSelectedRoom('');
+              setCheckInDateFrom('');
+              setCheckInDateTo('');
+              setCheckOutDateFrom('');
+              setCheckOutDateTo('');
+            }}
           >
-            Clear Filter
+            Clear Filters
           </button>
         </div>
       )}
