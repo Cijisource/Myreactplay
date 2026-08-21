@@ -68,6 +68,73 @@
   transform: translateY(0);
 }
 
+.payment-date-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+  margin: 0 0 2rem;
+}
+
+.date-filter-group {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  padding: 1rem 1.25rem;
+}
+
+.date-filter-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+
+.date-filter-group h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #475569;
+}
+
+.date-filter-clear {
+  border: none;
+  background: #e2e8f0;
+  color: #334155;
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.date-filter-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.date-filter-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-weight: 600;
+  color: #334155;
+  font-size: 0.8rem;
+}
+
+.date-filter-row input {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0.6rem 0.7rem;
+  font-size: 0.9rem;
+  background: #fff;
+  color: #0f172a;
+}
+
 .month-selector label {
   display: block;
   margin-bottom: 0.75rem;
@@ -396,16 +463,18 @@
   border-right: none;
 }
 
-/* 8 columns: Name | Room | Rent Fixed | Total Receivable | Received | Charges | Balance | Date | Status */
-.payment-table th:nth-child(1) { width: 18%; }
+/* 11 columns: Name | Room | Check-In | Check-Out | Rent Fixed | Charges | Received | Total Receivable | Balance | Payment Date | Status */
+.payment-table th:nth-child(1) { width: 16%; }
 .payment-table th:nth-child(2) { width: 7%; text-align: center; }
-.payment-table th:nth-child(3) { width: 10%; text-align: right; }
-.payment-table th:nth-child(4) { width: 11%; text-align: right; }
+.payment-table th:nth-child(3) { width: 9%; text-align: left; }
+.payment-table th:nth-child(4) { width: 9%; text-align: left; }
 .payment-table th:nth-child(5) { width: 10%; text-align: right; }
 .payment-table th:nth-child(6) { width: 9%; text-align: right; }
 .payment-table th:nth-child(7) { width: 10%; text-align: right; }
-.payment-table th:nth-child(8) { width: 11%; text-align: left; }
-.payment-table th:nth-child(9) { width: 9%; text-align: center; }
+.payment-table th:nth-child(8) { width: 9%; text-align: right; }
+.payment-table th:nth-child(9) { width: 9%; text-align: right; }
+.payment-table th:nth-child(10) { width: 10%; text-align: left; }
+.payment-table th:nth-child(11) { width: 8%; text-align: center; }
 
 .payment-table tbody tr {
   border-bottom: 1px solid #f1f5f9;
@@ -436,15 +505,17 @@
   border-right: none;
 }
 
-.payment-table td:nth-child(1) { width: 18%; text-align: left; }
+.payment-table td:nth-child(1) { width: 16%; text-align: left; }
 .payment-table td:nth-child(2) { width: 7%; text-align: center; }
-.payment-table td:nth-child(3) { width: 10%; text-align: right; }
-.payment-table td:nth-child(4) { width: 11%; text-align: right; }
+.payment-table td:nth-child(3) { width: 9%; text-align: left; }
+.payment-table td:nth-child(4) { width: 9%; text-align: left; }
 .payment-table td:nth-child(5) { width: 10%; text-align: right; }
 .payment-table td:nth-child(6) { width: 9%; text-align: right; }
 .payment-table td:nth-child(7) { width: 10%; text-align: right; }
-.payment-table td:nth-child(8) { width: 11%; text-align: left; }
-.payment-table td:nth-child(9) { width: 9%; text-align: center; }
+.payment-table td:nth-child(8) { width: 9%; text-align: right; }
+.payment-table td:nth-child(9) { width: 9%; text-align: right; }
+.payment-table td:nth-child(10) { width: 10%; text-align: left; }
+.payment-table td:nth-child(11) { width: 8%; text-align: center; }
 
 .payment-table .tenant-name {
   font-weight: 600;

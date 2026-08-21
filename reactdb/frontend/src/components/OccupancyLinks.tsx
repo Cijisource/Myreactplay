@@ -44,7 +44,7 @@ export default function OccupancyLinks(): JSX.Element {
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const [searchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'tenant' | 'room' | 'checkIn'>('checkIn');
-  const [showStatsGrid, setShowStatsGrid] = useState(true);
+  const [showStatsGrid, setShowStatsGrid] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<string>('');
   const [selectedTenant, setSelectedTenant] = useState<string>('');
@@ -319,43 +319,44 @@ export default function OccupancyLinks(): JSX.Element {
       
       <div className={`collapsible-content ${showStatsGrid ? 'open' : 'closed'}`}>
         <div className="stats-grid">
-        <div className="stat-card total">
-          <div className="stat-icon">🔗</div>
-          <div className="stat-content">
-            <h3>Total Linkages</h3>
-            <p className="stat-value">{stats.totalOccupancies}</p>
+          <div className="stat-card total">
+            <div className="stat-icon">🔗</div>
+            <div className="stat-content">
+              <h3>Total Linkages</h3>
+              <p className="stat-value">{stats.totalOccupancies}</p>
+            </div>
           </div>
-        </div>
 
-        <div className="stat-card active">
-          <div className="stat-icon">✓</div>
-          <div className="stat-content">
-            <h3>Active</h3>
-            <p className="stat-value">{stats.activeOccupancies}</p>
+          <div className="stat-card active">
+            <div className="stat-icon">✓</div>
+            <div className="stat-content">
+              <h3>Active</h3>
+              <p className="stat-value">{stats.activeOccupancies}</p>
+            </div>
           </div>
-        </div>
 
-        <div className="stat-card inactive">
-          <div className="stat-icon">⊗</div>
-          <div className="stat-content">
-            <h3>Inactive</h3>
-            <p className="stat-value">{stats.inactiveOccupancies}</p>
+          <div className="stat-card inactive">
+            <div className="stat-icon">⊗</div>
+            <div className="stat-content">
+              <h3>Inactive</h3>
+              <p className="stat-value">{stats.inactiveOccupancies}</p>
+            </div>
           </div>
-        </div>
 
-        <div className="stat-card collected">
-          <div className="stat-icon">💵</div>
-          <div className="stat-content">
-            <h3>Rents Collected</h3>
-            <p className="stat-value">{formatCurrency(stats.totalRentsCollected)}</p>
+          <div className="stat-card collected">
+            <div className="stat-icon">💵</div>
+            <div className="stat-content">
+              <h3>Rents Collected</h3>
+              <p className="stat-value">{formatCurrency(stats.totalRentsCollected)}</p>
+            </div>
           </div>
-        </div>
 
-        <div className="stat-card pending">
-          <div className="stat-icon">⏳</div>
-          <div className="stat-content">
-            <h3>Pending</h3>
-            <p className="stat-value">{formatCurrency(stats.totalPendingPayments)}</p>
+          <div className="stat-card pending">
+            <div className="stat-icon">⏳</div>
+            <div className="stat-content">
+              <h3>Pending</h3>
+              <p className="stat-value">{formatCurrency(stats.totalPendingPayments)}</p>
+            </div>
           </div>
         </div>
       </div>
@@ -729,7 +730,6 @@ export default function OccupancyLinks(): JSX.Element {
           initialTab={galleryInitialTab}
         />
       )}
-    </div>
     </div>
   );
 }

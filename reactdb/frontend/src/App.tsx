@@ -78,17 +78,14 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Overview',
     items: [
       { page: 'home', label: 'Home', roles: SCREEN_ROLES.home },
-      { page: 'daily-status', label: 'Daily Status', roles: SCREEN_ROLES['daily-status'] },
-      { page: 'guest-checkin', label: 'Guest Check-In', roles: SCREEN_ROLES['guest-checkin'] },
-      { page: 'misc-uploads', label: 'Misc Uploads', roles: SCREEN_ROLES['misc-uploads'] },
-      { page: 'diagnostic', label: 'Diagnostic', roles: SCREEN_ROLES.diagnostic }
+      { page: 'guest-checkin', label: 'Guest Check-In', roles: SCREEN_ROLES['guest-checkin'] }
     ]
   },
   {
     key: 'occupancy',
     label: 'Occupancy & Tenants',
     items: [
-      { page: 'occupancy', label: 'Room Occupancy', roles: SCREEN_ROLES.occupancy },
+      { page: 'occupancy', label: 'Room Vacancy Status', roles: SCREEN_ROLES.occupancy },
       { page: 'occupancy-links', label: 'Occupancy History', roles: SCREEN_ROLES['occupancy-links'] },
       { page: 'room-wise-analysis', label: 'Room Wise Analysis', roles: SCREEN_ROLES['room-wise-analysis'] },
       { page: 'room-management', label: 'Room Management', roles: SCREEN_ROLES['room-management'] },
@@ -115,6 +112,7 @@ const NAV_GROUPS: NavGroup[] = [
       { page: 'services', label: 'Service Details', roles: SCREEN_ROLES.services },
       { page: 'service-allocation', label: 'Service Allocation', roles: SCREEN_ROLES['service-allocation'] },
       { page: 'consumption', label: 'Service Consumption', roles: SCREEN_ROLES.consumption },
+      { page: 'misc-uploads', label: 'Misc Uploads', roles: SCREEN_ROLES['misc-uploads'] },
       { page: 'complaints', label: 'Complaints', roles: SCREEN_ROLES.complaints }
     ]
   },
@@ -124,7 +122,9 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { page: 'users', label: 'Users', roles: SCREEN_ROLES.users },
       { page: 'roles', label: 'Roles & Access', roles: SCREEN_ROLES.roles },
-      { page: 'stock', label: 'Stock', roles: SCREEN_ROLES.stock }
+      { page: 'stock', label: 'Stock', roles: SCREEN_ROLES.stock },
+      { page: 'daily-status', label: 'Daily Status', roles: SCREEN_ROLES['daily-status'] },
+      { page: 'diagnostic', label: 'Diagnostic', roles: SCREEN_ROLES.diagnostic }
     ]
   }
 ];
