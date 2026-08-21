@@ -92,6 +92,21 @@ const compareRoomNumbers = (left: string, right: string): number => {
   return String(left || '').localeCompare(String(right || ''), undefined, { numeric: true, sensitivity: 'base' });
 };
 
+const getPaymentDateTimestamp = (payment: PaymentRecord): number => {
+  if (payment.rentReceivedOn) {
+    const paymentDate = new Date(payment.rentReceivedOn).getTime();
+    if (Number.isFinite(paymentDate)) {
+      return paymentDate;
+    }
+  }
+
+  return new Date(payment.year, payment.month - 1, 1).getTime();
+};
+
+const sortPaymentsByPaymentDateDesc = (left: PaymentRecord, right: PaymentRecord): number => {
+  return getPaymentDateTimestamp(right) - getPaymentDateTimestamp(left);
+};
+
 // Helper function to format balance tooltip
 const getBalanceTooltip = (payment: PaymentRecord): string => {
   const daysInMonth = getDaysInMonth(payment.month, payment.year);
@@ -264,7 +279,13 @@ export default function PaymentTracking() {
       });
     }
 
-    return [...filtered].sort((a, b) => compareRoomNumbers(a.roomNumber, b.roomNumber));
+    return [...filtered].sort((a, b) => {
+      const paymentDateDiff = sortPaymentsByPaymentDateDesc(a, b);
+      if (paymentDateDiff !== 0) {
+        return paymentDateDiff;
+      }
+      return compareRoomNumbers(a.roomNumber, b.roomNumber);
+    });
   }, [payments, selectedStatusFilter, selectedRoom, checkInDateFrom, checkInDateTo, checkOutDateFrom, checkOutDateTo, hasActiveDateFilter]);
 
   // Fetch payment data for the selected month, or load the recent month range when no
@@ -287,7 +308,9 @@ export default function PaymentTracking() {
             })
           );
 
-          paymentData = monthResponses.flat();
+          paymentData = [...monthResponses.flat()]
+            .sort(sortPaymentsByPaymentDateDesc)
+            .slice(0, 30);
         } else if (selectedMonth) {
           const response = await apiService.getPaymentsByMonth(selectedMonth);
           paymentData = Array.isArray(response.data) ? response.data : [];
