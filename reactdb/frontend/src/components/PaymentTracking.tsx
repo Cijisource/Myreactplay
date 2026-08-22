@@ -103,6 +103,30 @@ const getPaymentDateTimestamp = (payment: PaymentRecord): number => {
   return new Date(payment.year, payment.month - 1, 1).getTime();
 };
 
+const getPreviousMonthValue = (monthValue?: string): string => {
+  if (!monthValue) {
+    return '';
+  }
+
+  const [yearText, monthText] = monthValue.split('-');
+  const year = Number(yearText);
+  const month = Number(monthText);
+
+  if (!year || !month) {
+    return '';
+  }
+
+  let previousYear = year;
+  let previousMonth = month - 1;
+
+  if (previousMonth === 0) {
+    previousMonth = 12;
+    previousYear -= 1;
+  }
+
+  return `${previousYear}-${String(previousMonth).padStart(2, '0')}`;
+};
+
 const sortPaymentsByPaymentDateDesc = (left: PaymentRecord, right: PaymentRecord): number => {
   return getPaymentDateTimestamp(right) - getPaymentDateTimestamp(left);
 };
@@ -127,6 +151,21 @@ export default function PaymentTracking() {
   const [checkInDateTo, setCheckInDateTo] = useState<string>('');
   const [checkOutDateFrom, setCheckOutDateFrom] = useState<string>('');
   const [checkOutDateTo, setCheckOutDateTo] = useState<string>('');
+  const [ebDetailsPopup, setEbDetailsPopup] = useState<{
+    open: boolean;
+    roomNumber: string;
+    monthLabel: string;
+    loading: boolean;
+    error: string | null;
+    records: any[];
+  }>({
+    open: false,
+    roomNumber: '',
+    monthLabel: '',
+    loading: false,
+    error: null,
+    records: []
+  });
 
   const hasActiveDateFilter = Boolean(checkInDateFrom || checkInDateTo || checkOutDateFrom || checkOutDateTo);
 
@@ -357,6 +396,77 @@ export default function PaymentTracking() {
       default:
         return 'badge-pending';
     }
+  };
+
+  const openEbDetails = async (roomNumber: string, monthValue?: string) => {
+    const latestMonthValue = monthYearOptions.length
+      ? `${monthYearOptions[0].year}-${String(monthYearOptions[0].month).padStart(2, '0')}`
+      : '';
+    const selectedMonthValue = monthValue || selectedMonth || latestMonthValue;
+    const previousMonthValue = getPreviousMonthValue(selectedMonthValue);
+
+    if (!previousMonthValue) {
+      return;
+    }
+
+    const [yearText, monthText] = previousMonthValue.split('-');
+    const year = Number(yearText);
+    const month = Number(monthText);
+    if (!year || !month) {
+      return;
+    }
+
+    const monthLabel = new Date(year, month - 1, 1).toLocaleDateString('en-US', {
+      month: 'long',
+      year: 'numeric'
+    });
+
+    setEbDetailsPopup({
+      open: true,
+      roomNumber,
+      monthLabel,
+      loading: true,
+      error: null,
+      records: []
+    });
+
+    try {
+      const response = await apiService.getRoomMonthlyEbReport(year, month);
+      const allRecords = Array.isArray(response.data?.data) ? response.data.data : [];
+      const roomRecords = allRecords.filter((record: any) => {
+        const sameRoom = String(record.roomNumber ?? '').trim() === String(roomNumber ?? '').trim();
+        return sameRoom && (Number(record.totalAmount || 0) > 0 || record.unitsConsumed || record.startingReading || record.endingReading);
+      });
+
+      setEbDetailsPopup({
+        open: true,
+        roomNumber,
+        monthLabel,
+        loading: false,
+        error: roomRecords.length ? null : 'No EB readings found for this room in the previous month.',
+        records: roomRecords
+      });
+    } catch (err) {
+      setEbDetailsPopup({
+        open: true,
+        roomNumber,
+        monthLabel,
+        loading: false,
+        error: err instanceof Error ? err.message : 'Failed to load previous month EB details.',
+        records: []
+      });
+    }
+  };
+
+  const closeEbDetails = () => {
+    setEbDetailsPopup({
+      open: false,
+      roomNumber: '',
+      monthLabel: '',
+      loading: false,
+      error: null,
+      records: []
+    });
   };
 
   return (
@@ -599,8 +709,21 @@ export default function PaymentTracking() {
                     <td className="amount" data-label="Rent Fixed">
                       ₹{payment.rentFixed.toLocaleString()}
                     </td>
-                    <td className="amount" data-label="Charges">
-                      {payment.charges > 0 ? `₹${payment.charges.toLocaleString()}` : '-'}
+                    <td className="amount eb-charge-cell" data-label="Charges">
+                      <div className="eb-charge-content">
+                        <span>{payment.charges > 0 ? `₹${payment.charges.toLocaleString()}` : '-'}</span>
+                        {payment.charges > 0 && (
+                          <button
+                            type="button"
+                            className="eb-charge-icon"
+                            onClick={() => openEbDetails(payment.roomNumber, `${payment.year}-${String(payment.month).padStart(2, '0')}`)}
+                            title={`EB details for Room ${payment.roomNumber}`}
+                            aria-label={`Show EB details for Room ${payment.roomNumber}`}
+                          >
+                            ⚡
+                          </button>
+                        )}
+                      </div>
                     </td>
                     <td className="amount success" data-label="Rent Received">
                       ₹{payment.rentReceived.toLocaleString()}
@@ -661,6 +784,55 @@ export default function PaymentTracking() {
           >
             Clear Filters
           </button>
+        </div>
+      )}
+
+      {ebDetailsPopup.open && (
+        <div className="eb-details-overlay" onClick={closeEbDetails}>
+          <div className="eb-details-popup" onClick={(event) => event.stopPropagation()}>
+            <div className="eb-details-header">
+              <div>
+                <h3>EB Details</h3>
+                <p>Room {ebDetailsPopup.roomNumber} • {ebDetailsPopup.monthLabel}</p>
+              </div>
+              <button type="button" className="eb-details-close" onClick={closeEbDetails} aria-label="Close EB details">
+                ✕
+              </button>
+            </div>
+
+            {ebDetailsPopup.loading ? (
+              <div className="eb-details-loading">Loading EB details...</div>
+            ) : ebDetailsPopup.error ? (
+              <div className="eb-details-empty">{ebDetailsPopup.error}</div>
+            ) : (
+              <div className="eb-details-table-wrap">
+                <table className="eb-details-table">
+                  <thead>
+                    <tr>
+                      <th>Service</th>
+                      <th>Meter</th>
+                      <th>Start</th>
+                      <th>End</th>
+                      <th>Units</th>
+                      <th>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ebDetailsPopup.records.map((record: any, index: number) => (
+                      <tr key={`${record.serviceConsumptionId || index}-${record.serviceName || 'eb'}`}>
+                        <td className="eb-table-service">{record.serviceName || 'EB Service'}</td>
+                        <td>{record.meterNo || '-'}</td>
+                        <td>{record.startingReading ?? '-'}</td>
+                        <td>{record.endingReading ?? '-'}</td>
+                        <td className="eb-table-units">{record.unitsConsumed ?? 0}</td>
+                        <td className="eb-table-amount">₹{Number(record.totalAmount || 0).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
