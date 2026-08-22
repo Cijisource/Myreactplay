@@ -319,13 +319,27 @@ export default function PaymentTracking() {
     }
 
     return [...filtered].sort((a, b) => {
+      if (selectedMonth) {
+        const roomDiff = compareRoomNumbers(a.roomNumber, b.roomNumber);
+        if (roomDiff !== 0) {
+          return roomDiff;
+        }
+
+        const tenantNameDiff = String(a.tenantName || '').localeCompare(String(b.tenantName || ''));
+        if (tenantNameDiff !== 0) {
+          return tenantNameDiff;
+        }
+
+        return sortPaymentsByPaymentDateDesc(a, b);
+      }
+
       const paymentDateDiff = sortPaymentsByPaymentDateDesc(a, b);
       if (paymentDateDiff !== 0) {
         return paymentDateDiff;
       }
       return compareRoomNumbers(a.roomNumber, b.roomNumber);
     });
-  }, [payments, selectedStatusFilter, selectedRoom, checkInDateFrom, checkInDateTo, checkOutDateFrom, checkOutDateTo, hasActiveDateFilter]);
+  }, [payments, selectedMonth, selectedStatusFilter, selectedRoom, checkInDateFrom, checkInDateTo, checkOutDateFrom, checkOutDateTo, hasActiveDateFilter]);
 
   // Fetch payment data for the selected month, or load the recent month range when no
   // month/date filters are active so the screen starts with all data available.
