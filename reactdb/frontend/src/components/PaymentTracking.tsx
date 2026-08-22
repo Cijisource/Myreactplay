@@ -712,15 +712,17 @@ export default function PaymentTracking() {
                     <td className="amount eb-charge-cell" data-label="Charges">
                       <div className="eb-charge-content">
                         <span>{payment.charges > 0 ? `₹${payment.charges.toLocaleString()}` : '-'}</span>
-                        <button
-                          type="button"
-                          className="eb-charge-icon"
-                          onClick={() => openEbDetails(payment.roomNumber, `${payment.year}-${String(payment.month).padStart(2, '0')}`)}
-                          title={`EB details for Room ${payment.roomNumber}`}
-                          aria-label={`Show EB details for Room ${payment.roomNumber}`}
-                        >
-                          ⚡
-                        </button>
+                        {payment.charges > 0 && (
+                          <button
+                            type="button"
+                            className="eb-charge-icon"
+                            onClick={() => openEbDetails(payment.roomNumber, `${payment.year}-${String(payment.month).padStart(2, '0')}`)}
+                            title={`EB details for Room ${payment.roomNumber}`}
+                            aria-label={`Show EB details for Room ${payment.roomNumber}`}
+                          >
+                            ⚡
+                          </button>
+                        )}
                       </div>
                     </td>
                     <td className="amount success" data-label="Rent Received">
