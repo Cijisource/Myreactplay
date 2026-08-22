@@ -206,6 +206,41 @@ export default function RoomManagement(): JSX.Element {
     }).format(value || 0);
   };
 
+  const getMonthLabel = (dateValue: string | null | undefined): string => {
+    if (!dateValue) return 'N/A';
+    const parsedDate = new Date(dateValue);
+    if (Number.isNaN(parsedDate.getTime())) return 'N/A';
+    return parsedDate.toLocaleDateString('en-US', {
+      month: 'short',
+      year: 'numeric'
+    });
+  };
+
+  const buildEbHistoryRows = (records: any[] = []): any[] => {
+    return [...records]
+      .filter((record) => record && record.readingTakenDate)
+      .sort((left, right) => new Date(right.readingTakenDate).getTime() - new Date(left.readingTakenDate).getTime())
+      .slice(0, 6)
+      .map((record) => {
+        const startReading = Number(record.startingMeterReading ?? 0);
+        const endReading = Number(record.endingMeterReading ?? 0);
+        const unitRate = Number(record.unitRate ?? record.chargePerUnit ?? 0);
+        const consumedUnits = Number.isFinite(endReading - startReading) ? endReading - startReading : 0;
+        const charge = Number((consumedUnits * unitRate).toFixed(2));
+
+        return {
+          ...record,
+          meterName: record.consumerName || record.meterNo || 'EB Service',
+          monthLabel: getMonthLabel(record.readingTakenDate),
+          startReading,
+          endReading,
+          consumedUnits,
+          unitRate,
+          charge
+        };
+      });
+  };
+
   const formatDate = (dateStr: string | undefined): string => {
     if (!dateStr) return 'N/A';
     return new Date(dateStr).toLocaleDateString('en-US', {
@@ -309,17 +344,22 @@ export default function RoomManagement(): JSX.Element {
       }));
 
       const now = new Date();
+      const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+      const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
       const [summaryResponse, rentalResponse, ebResponse] = await Promise.all([
         apiService.getRentalSummaryByOccupancy(occupancyId),
         apiService.getRentalCollectionByOccupancy(occupancyId),
-        apiService.getRoomMonthlyEbReport(now.getFullYear(), now.getMonth() + 1, roomId)
+        apiService.getServiceConsumption({
+          roomId,
+          startDate: sixMonthsAgo.toISOString().split('T')[0],
+          endDate: lastDayOfMonth.toISOString().split('T')[0]
+        })
       ]);
 
-      const ebRecords = Array.isArray(ebResponse.data?.data)
-        ? ebResponse.data.data
-        : Array.isArray(ebResponse.data)
-          ? ebResponse.data
-          : [];
+      const ebRecords = Array.isArray(ebResponse.data)
+        ? ebResponse.data
+        : [];
 
       setTenantDetailData(prev => ({
         ...prev,
@@ -588,21 +628,48 @@ export default function RoomManagement(): JSX.Element {
               <p className="tenant-detail-error">{detailData.error}</p>
             ) : (
               <>
-                {detailData.ebRecords.length > 0 ? (
-                  <div className="tenant-detail-list">
-                    {detailData.ebRecords
-                      .filter((record: any) => Number(record.roomId) === Number(room.id))
-                      .map((record: any) => (
-                        <div key={`${record.serviceConsumptionId}-${record.serviceName}`} className="tenant-detail-list-item eb-item">
-                          <span>{record.serviceName || 'EB Service'} • {record.meterNo || 'Meter'}</span>
-                          <strong>{record.startingReading} → {record.endingReading}</strong>
-                          <small>{record.unitsConsumed || 0} units • {formatCurrency(Number(record.totalAmount || 0))}</small>
-                        </div>
-                      ))}
-                  </div>
-                ) : (
-                  <p className="tenant-detail-empty">No EB meter readings for this room yet.</p>
-                )}
+                {(() => {
+                  const ebHistoryRows = buildEbHistoryRows(detailData.ebRecords.filter((record: any) => Number(record.roomId) === Number(room.id)));
+
+                  return ebHistoryRows.length > 0 ? (
+                    <div className="rental-table-wrap">
+                      <table className="rental-table">
+                        <thead>
+                          <tr>
+                            <th>Month</th>
+                            <th>Service</th>
+                            <th>Start</th>
+                            <th>End</th>
+                            <th>Units</th>
+                            <th>Rate</th>
+                            <th>Charge</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {ebHistoryRows.map((row: any, index: number) => {
+                            const isLatest = index === 0;
+                            return (
+                              <tr
+                                key={`${row.id || row.serviceAllocId || row.readingTakenDate}-${row.readingTakenDate}`}
+                                className={isLatest ? 'eb-history-row latest' : 'eb-history-row'}
+                              >
+                                <td className="eb-history-month">{row.monthLabel}</td>
+                                <td className="eb-history-service">{row.meterName}</td>
+                                <td>{row.startReading}</td>
+                                <td>{row.endReading}</td>
+                                <td className="eb-history-units">{row.consumedUnits}</td>
+                                <td className="eb-history-rate">{formatCurrency(Number(row.unitRate || 0))}/unit</td>
+                                <td className="eb-history-amount">{formatCurrency(Number(row.charge || 0))}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="tenant-detail-empty">No EB meter readings for this room in the last 6 months.</p>
+                  );
+                })()}
               </>
             )}
           </div>

@@ -529,6 +529,42 @@
   font-family: 'SF Mono', 'Fira Mono', 'Courier New', monospace;
 }
 
+.eb-charge-cell {
+  min-width: 150px;
+}
+
+.eb-charge-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.eb-charge-icon {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #dbeafe 0%, #93c5fd 100%);
+  color: #1d4ed8;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+}
+
+.eb-charge-icon:hover {
+  transform: translateY(-1px) scale(1.04);
+  box-shadow: 0 6px 14px rgba(59, 130, 246, 0.25);
+}
+
+.eb-charge-icon:active {
+  transform: translateY(0);
+}
+
 .payment-table .amount.success {
   color: #16a34a;
 }
@@ -541,6 +577,112 @@
 .payment-table .amount.maroon {
   color: #800000;
   font-weight: 600;
+}
+
+.eb-details-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 1rem;
+}
+
+.eb-details-popup {
+  width: min(440px, 92vw);
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.2);
+  border: 1px solid #dbeafe;
+  overflow: hidden;
+}
+
+.eb-details-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border-bottom: 1px solid #bfdbfe;
+}
+
+.eb-details-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: #1e3a8a;
+}
+
+.eb-details-header p {
+  margin: 0.2rem 0 0;
+  color: #475569;
+  font-size: 0.8rem;
+}
+
+.eb-details-close {
+  border: none;
+  background: #dbeafe;
+  color: #1d4ed8;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.eb-details-loading,
+.eb-details-empty {
+  padding: 1.2rem;
+  color: #475569;
+  font-size: 0.9rem;
+}
+
+.eb-details-table-wrap {
+  padding: 0.8rem;
+  max-height: 420px;
+  overflow: auto;
+}
+
+.eb-details-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  background: white;
+}
+
+.eb-details-table th,
+.eb-details-table td {
+  padding: 0.6rem 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.eb-details-table th {
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 700;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.eb-table-service {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.eb-table-units {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.eb-table-amount {
+  color: #dc2626;
+  font-weight: 700;
 }
 
 /* Badges */

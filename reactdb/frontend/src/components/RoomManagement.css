@@ -953,6 +953,36 @@
   background: #f8fbff;
 }
 
+.eb-history-row.latest {
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.08), rgba(29, 78, 216, 0.02));
+}
+
+.eb-history-row.latest td {
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
+.eb-history-month {
+  font-weight: 800;
+  color: #1d4ed8;
+}
+
+.eb-history-service {
+  font-weight: 700;
+  color: #1e3a8a;
+}
+
+.eb-history-units,
+.eb-history-amount {
+  color: #dc2626;
+  font-weight: 800;
+}
+
+.eb-history-rate {
+  color: #b91c1c;
+  font-weight: 700;
+}
+
 .rental-amount {
   font-weight: 700;
   color: #0f172a;
