@@ -329,7 +329,8 @@
   overflow-x: auto;
 }
 
-.occupancy-history-table {
+.occupancy-history-table,
+.payment-history-table {
   width: 100%;
   border-collapse: collapse;
   min-width: 760px;
@@ -339,19 +340,23 @@
 }
 
 .occupancy-history-table th,
-.occupancy-history-table td {
+.occupancy-history-table td,
+.payment-history-table th,
+.payment-history-table td {
   padding: 0.8rem 0.9rem;
   text-align: left;
   border-bottom: 1px solid #e2e8f0;
 }
 
-.occupancy-history-table th {
+.occupancy-history-table th,
+.payment-history-table th {
   background: #f8fafc;
   font-weight: 700;
   color: #334155;
 }
 
-.occupancy-history-table tbody tr:hover {
+.occupancy-history-table tbody tr:hover,
+.payment-history-table tbody tr:hover {
   background: #f8fbff;
 }
 

@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { apiService } from '../api';
 import SearchableDropdown from './SearchableDropdown';
 import LoadingSpinner from './LoadingSpinner';
+import TenantFullScreenView from './TenantFullScreenView';
+import { TenantWithOccupancy } from './TenantManagement';
 import './PaymentTracking.css';
 
 interface PaymentRecord {
@@ -151,6 +153,7 @@ export default function PaymentTracking() {
   const [checkInDateTo, setCheckInDateTo] = useState<string>('');
   const [checkOutDateFrom, setCheckOutDateFrom] = useState<string>('');
   const [checkOutDateTo, setCheckOutDateTo] = useState<string>('');
+  const [fullScreenTenant, setFullScreenTenant] = useState<TenantWithOccupancy | null>(null);
   const [ebDetailsPopup, setEbDetailsPopup] = useState<{
     open: boolean;
     roomNumber: string;
@@ -422,6 +425,15 @@ export default function PaymentTracking() {
         return 'badge-merged';
       default:
         return 'badge-pending';
+    }
+  };
+
+  const handleOpenTenantDetails = async (tenantId: number) => {
+    try {
+      const response = await apiService.getTenantById(tenantId);
+      setFullScreenTenant(response.data as TenantWithOccupancy);
+    } catch (error) {
+      console.error('Failed to load tenant details for payment tracking:', error);
     }
   };
 
@@ -730,11 +742,20 @@ export default function PaymentTracking() {
                     className="payment-row"
                   >
                     <td 
-                      className="tenant-name"
+                      className="tenant-name-cell"
                       data-label="Tenant"
                       title={`Check-in: ${formatDate(payment.checkInDate)}\nCheck-out: ${payment.checkOutDate ? formatDate(payment.checkOutDate) : 'Active'}`}
                     >
-                      {payment.tenantName}
+                      <span className="tenant-name-text">{payment.tenantName}</span>
+                      <button
+                        type="button"
+                        className="tenant-view-btn"
+                        onClick={() => handleOpenTenantDetails(payment.tenantId)}
+                        title={`View tenant details for ${payment.tenantName}`}
+                        aria-label={`View tenant details for ${payment.tenantName}`}
+                      >
+                        👁
+                      </button>
                     </td>
                     <td data-label="Room">
                       {payment.roomNumber}
@@ -824,6 +845,13 @@ export default function PaymentTracking() {
             Clear Filters
           </button>
         </div>
+      )}
+
+      {fullScreenTenant && (
+        <TenantFullScreenView
+          tenant={fullScreenTenant}
+          onClose={() => setFullScreenTenant(null)}
+        />
       )}
 
       {ebDetailsPopup.open && (
