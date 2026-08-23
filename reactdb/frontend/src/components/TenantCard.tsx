@@ -29,6 +29,13 @@ export default function TenantCard({
     onView(tenant);
   };
 
+  const handleOpenTenantDetails = (e?: React.MouseEvent<HTMLElement>) => {
+    if (e && (e.target as HTMLElement).closest('button')) {
+      return;
+    }
+    onView(tenant);
+  };
+
   const [expandRoomDetails, setExpandRoomDetails] = useState(false);
 
   // Check if payment is missing or not from current month
@@ -132,12 +139,28 @@ export default function TenantCard({
               className="tenant-image"
               loading="lazy"
               onError={handleImageError}
+              onClick={handleOpenTenantDetails}
+              style={{ cursor: 'pointer' }}
+              title="View tenant details"
             />
             {renderActionIcons()}
           </>
         ) : (
           <>
-            <div className="tenant-avatar">
+            <div
+              className="tenant-avatar"
+              onClick={handleOpenTenantDetails}
+              style={{ cursor: 'pointer' }}
+              title="View tenant details"
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onView(tenant);
+                }
+              }}
+            >
               {tenant.name.charAt(0).toUpperCase()}
             </div>
             {renderActionIcons()}
