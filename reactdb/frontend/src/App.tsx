@@ -78,16 +78,18 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Overview',
     items: [
       { page: 'home', label: 'Home', roles: SCREEN_ROLES.home },
-      { page: 'guest-checkin', label: 'Guest Check-In', roles: SCREEN_ROLES['guest-checkin'] }
+      { page: 'occupancy', label: 'Room Vacancy Status', roles: SCREEN_ROLES.occupancy },
+      { page: 'room-wise-analysis', label: 'Room Wise Analysis', roles: SCREEN_ROLES['room-wise-analysis'] },
+      { page: 'daily-status', label: 'Daily Status', roles: SCREEN_ROLES['daily-status'] },
+      { page: 'water-tank-monitor', label: 'Sintex Tank Monitor', roles: SCREEN_ROLES['water-tank-monitor'] }
     ]
   },
   {
     key: 'occupancy',
     label: 'Occupancy & Tenants',
     items: [
-      { page: 'occupancy', label: 'Room Vacancy Status', roles: SCREEN_ROLES.occupancy },
+      { page: 'guest-checkin', label: 'Guest Check-In', roles: SCREEN_ROLES['guest-checkin'] },
       { page: 'occupancy-links', label: 'Occupancy History', roles: SCREEN_ROLES['occupancy-links'] },
-      { page: 'room-wise-analysis', label: 'Room Wise Analysis', roles: SCREEN_ROLES['room-wise-analysis'] },
       { page: 'room-management', label: 'Room Management', roles: SCREEN_ROLES['room-management'] },
       { page: 'tenants', label: 'Tenant Management', roles: SCREEN_ROLES.tenants }
     ]
@@ -108,7 +110,6 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Utilities & Services',
     items: [
       { page: 'meter-reading', label: 'EB Meter Reading', roles: SCREEN_ROLES['meter-reading'] },
-      { page: 'water-tank-monitor', label: 'Sintex Tank Monitor', roles: SCREEN_ROLES['water-tank-monitor'] },
       { page: 'services', label: 'Service Details', roles: SCREEN_ROLES.services },
       { page: 'service-allocation', label: 'Service Allocation', roles: SCREEN_ROLES['service-allocation'] },
       { page: 'consumption', label: 'Service Consumption', roles: SCREEN_ROLES.consumption },
@@ -123,7 +124,6 @@ const NAV_GROUPS: NavGroup[] = [
       { page: 'users', label: 'Users', roles: SCREEN_ROLES.users },
       { page: 'roles', label: 'Roles & Access', roles: SCREEN_ROLES.roles },
       { page: 'stock', label: 'Stock', roles: SCREEN_ROLES.stock },
-      { page: 'daily-status', label: 'Daily Status', roles: SCREEN_ROLES['daily-status'] },
       { page: 'diagnostic', label: 'Diagnostic', roles: SCREEN_ROLES.diagnostic }
     ]
   }

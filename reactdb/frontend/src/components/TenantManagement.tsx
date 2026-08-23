@@ -48,6 +48,8 @@ export interface TenantWithOccupancy extends Tenant {
   checkInDate?: string;
   checkOutDate?: string | null;
   rentFixed?: number;
+  roomRent?: number;
+  depositReceived?: number;
   isCurrentlyOccupied?: boolean;
   currentPendingPayment?: number;
   currentRentReceived?: number;
@@ -339,7 +341,10 @@ export default function TenantManagement() {
   };
 
   const handleFormSubmit = async (
-    formData: Omit<TenantWithOccupancy, 'id'>
+    formData: Omit<TenantWithOccupancy, 'id'> & {
+      roomRent?: number;
+      depositReceived?: number;
+    }
   ) => {
     try {
       const tenantName = formData.name.trim();
