@@ -341,30 +341,42 @@ export default function PaymentTracking() {
     });
   }, [payments, selectedMonth, selectedStatusFilter, selectedRoom, checkInDateFrom, checkInDateTo, checkOutDateFrom, checkOutDateTo, hasActiveDateFilter]);
 
-  // Fetch payment data for the selected month, or load the recent month range when no
-  // month/date filters are active so the screen starts with all data available.
-  useEffect(() => {
-    const shouldLoadAllData = !selectedMonth && !hasActiveDateFilter;
+  const loadLatestPayments = async () => {
+    setLoading(true);
+    setError(null);
 
+    try {
+      const monthResponses = await Promise.all(
+        monthYearOptions.map(async (opt) => {
+          const monthValue = `${opt.year}-${String(opt.month).padStart(2, '0')}`;
+          const response = await apiService.getPaymentsByMonth(monthValue);
+          return Array.isArray(response.data) ? response.data : [];
+        })
+      );
+
+      const paymentData = [...monthResponses.flat()]
+        .sort(sortPaymentsByPaymentDateDesc)
+        .slice(0, 15); // Fetch latest 15 records to ensure we have enough after filtering
+
+      setPayments(paymentData);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to fetch latest payment data';
+      setError(errorMsg);
+      setPayments([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch payment data for the selected month or active date filters.
+  useEffect(() => {
     const fetchPayments = async () => {
       setLoading(true);
       setError(null);
       try {
         let paymentData: PaymentRecord[] = [];
 
-        if (shouldLoadAllData) {
-          const monthResponses = await Promise.all(
-            monthYearOptions.map(async (opt) => {
-              const monthValue = `${opt.year}-${String(opt.month).padStart(2, '0')}`;
-              const response = await apiService.getPaymentsByMonth(monthValue);
-              return Array.isArray(response.data) ? response.data : [];
-            })
-          );
-
-          paymentData = [...monthResponses.flat()]
-            .sort(sortPaymentsByPaymentDateDesc)
-            .slice(0, 30);
-        } else if (selectedMonth) {
+        if (selectedMonth) {
           const response = await apiService.getPaymentsByMonth(selectedMonth);
           paymentData = Array.isArray(response.data) ? response.data : [];
         } else if (hasActiveDateFilter) {
@@ -377,6 +389,9 @@ export default function PaymentTracking() {
           );
 
           paymentData = monthResponses.flat();
+        } else {
+          setPayments([]);
+          return;
         }
 
         console.log('Fetched payments:', paymentData);
@@ -390,10 +405,8 @@ export default function PaymentTracking() {
       }
     };
 
-    if (shouldLoadAllData || selectedMonth || hasActiveDateFilter) {
+    if (selectedMonth || hasActiveDateFilter) {
       fetchPayments();
-    } else {
-      setPayments([]);
     }
   }, [selectedMonth, hasActiveDateFilter, monthYearOptions]);
 
@@ -500,6 +513,18 @@ export default function PaymentTracking() {
             placeholder="Search month and year..."
           />
         </div>
+
+        {!selectedMonth && !hasActiveDateFilter && (
+          <button
+            type="button"
+            className="load-latest-payments-btn"
+            onClick={loadLatestPayments}
+            title="Load latest 5 payment records"
+            aria-label="Load latest 5 payment records"
+          >
+            💰
+          </button>
+        )}
         
         {selectedMonth && roomOptions.length > 0 && (
           <div className="room-filter">
