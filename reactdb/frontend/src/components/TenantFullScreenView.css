@@ -1,51 +1,310 @@
-.occupancy-history-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 1.5rem 0;
-  background: #fff;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-  border-radius: 8px;
+.fullscreen-container {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.72);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.fullscreen-container .fullscreen-content {
+  width: min(1200px, 100%);
+  height: min(1100px, calc(100vh - 3rem));
+  max-height: calc(100vh - 3rem);
+  background: #f8fafc;
+  border-radius: 24px;
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.4);
+  border: 1px solid rgba(148, 163, 184, 0.25);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
-.occupancy-history-table th, .occupancy-history-table td {
-  padding: 0.75rem 1rem;
-  text-align: left;
-  border-bottom: 1px solid #e0e0e0;
+
+.fullscreen-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.5rem 1.75rem 1rem;
+  background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%);
+  color: #fff;
 }
-.occupancy-history-table th {
-  background: #f5f7fa;
-  font-weight: 600;
-  color: #333;
+
+.fullscreen-title-section {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
 }
-.occupancy-history-table tr:last-child td {
-  border-bottom: none;
+
+.fullscreen-main-photo {
+  width: 76px;
+  height: 76px;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 3px solid rgba(255, 255, 255, 0.35);
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.08);
 }
-.occupancy-history-table tbody tr:hover {
-  background: #f0f4ff;
-  transition: background 0.2s;
+
+.fullscreen-main-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
-.occupancy-history-table tbody tr.current-occupancy-row {
-  background: #ecf9ec;
+
+.fullscreen-header-copy {
+  min-width: 0;
 }
-.history-status-badge {
+
+.fullscreen-kicker {
+  display: inline-block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  opacity: 0.82;
+  margin-bottom: 0.35rem;
+}
+
+.fullscreen-header-copy h1 {
+  margin: 0;
+  font-size: clamp(1.6rem, 2vw, 2.2rem);
+  line-height: 1.2;
+}
+
+.fullscreen-header-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.detail-pill {
   display: inline-flex;
   align-items: center;
-  padding: 0.25rem 0.6rem;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 999px;
-  font-size: 0.85rem;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.82rem;
   font-weight: 600;
 }
-.history-status-badge.currently-checked-in {
-  background: #d9f0d9;
-  color: #1e6820;
+
+.fullscreen-close-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease, transform 0.2s ease;
 }
-.history-status-badge.checked-out {
-  background: #f2f2f2;
-  color: #555;
+
+.fullscreen-close-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  transform: translateY(-1px);
 }
-.occupancy-history-table td {
-  color: #444;
+
+.fullscreen-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem 0;
+  flex-wrap: wrap;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.fullscreen-tab {
+  border: 1px solid #dfe7f5;
+  background: #f8fafc;
+  color: #334155;
+  font-weight: 700;
+  padding: 0.8rem 1.1rem;
+  border-radius: 12px 12px 0 0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.fullscreen-tab.active {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+  box-shadow: inset 0 -2px 0 #1d4ed8;
+}
+
+.fullscreen-container .fullscreen-body {
+  padding: 1.5rem;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  background: #f8fafc;
+  flex: 1 1 auto;
+  min-height: 0;
+  scrollbar-gutter: stable;
+}
+
+.fullscreen-container .fullscreen-body::-webkit-scrollbar {
+  width: 10px;
+}
+
+.fullscreen-container .fullscreen-body::-webkit-scrollbar-track {
+  background: #e2e8f0;
+}
+
+.fullscreen-container .fullscreen-body::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 999px;
+}
+
+.fullscreen-container .fullscreen-body::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+.tab-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+
+.fullscreen-section {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 1.25rem;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.03);
+}
+
+.fullscreen-section h3 {
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+  color: #0f172a;
+}
+
+.fullscreen-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.fullscreen-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.fullscreen-field.full-width {
+  grid-column: 1 / -1;
+}
+
+.fullscreen-field label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.fullscreen-field p {
+  margin: 0;
   font-size: 0.98rem;
+  color: #0f172a;
+  overflow-wrap: anywhere;
+}
+
+.overview-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.overview-stat-card {
+  background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%);
+  border: 1px solid #dbeafe;
+  border-radius: 18px;
+  padding: 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.overview-stat-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 700;
+  color: #475569;
+}
+
+.overview-stat-card strong {
+  font-size: 1.05rem;
+  color: #0f172a;
+}
+
+.payment-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.summary-tile {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.summary-tile span {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.summary-tile strong {
+  color: #0f172a;
+  font-size: 1.1rem;
+}
+
+.summary-received { background: #f0fdf4; border-color: #bbf7d0; }
+.summary-pending { background: #fff7ed; border-color: #fed7aa; }
+.summary-deposit { background: #eff6ff; border-color: #bfdbfe; }
+.summary-date { background: #f8fafc; border-color: #e2e8f0; }
+
+.occupancy-status-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 100px;
+  padding: 0.42rem 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.occupancy-status-badge.occupied {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.occupancy-status-badge.vacant {
+  background: #e2e8f0;
+  color: #334155;
 }
 
 .history-section {
@@ -60,77 +319,154 @@
   margin-bottom: 1rem;
 }
 
-.history-fullscreen-btn,
-.history-fullscreen-close {
-  background: #2563eb;
-  color: #fff;
-  border: none;
-  border-radius: 999px;
-  padding: 0.75rem 1rem;
-  cursor: pointer;
-  font-weight: 700;
-  transition: transform 0.2s ease, background-color 0.2s ease;
+.history-note {
+  color: #64748b;
+  font-size: 0.9rem;
+  margin: 0.3rem 0 0;
 }
 
-.history-fullscreen-btn:hover,
-.history-fullscreen-close:hover {
-  background: #1d4ed8;
-  transform: translateY(-1px);
+.table-wrapper {
+  overflow-x: auto;
 }
 
-.history-fullscreen-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(18, 27, 46, 0.94);
-  z-index: 10010;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 2rem;
+.occupancy-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+  background: #fff;
+  border-radius: 12px;
   overflow: hidden;
 }
 
-.history-fullscreen-panel {
-  background: #ffffff;
-  width: min(1200px, 100%);
-  max-height: 100%;
-  border-radius: 18px;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
+.occupancy-history-table th,
+.occupancy-history-table td {
+  padding: 0.8rem 0.9rem;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
 }
 
-.history-fullscreen-topbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.5rem 1.75rem;
+.occupancy-history-table th {
   background: #f8fafc;
-  border-bottom: 1px solid #e5e7eb;
+  font-weight: 700;
+  color: #334155;
+}
+
+.occupancy-history-table tbody tr:hover {
+  background: #f8fbff;
+}
+
+.occupancy-history-table tbody tr.current-occupancy-row {
+  background: #f0fdf4;
+}
+
+.history-status-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.history-status-badge.currently-checked-in {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.history-status-badge.checked-out {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.payment-received {
+  color: #166534;
+  font-weight: 700;
+}
+
+.payment-pending {
+  color: #c2410c;
+  font-weight: 700;
+}
+
+.payment-cleared {
+  color: #166534;
+  font-weight: 700;
+}
+
+.fullscreen-photos-grid,
+.fullscreen-proofs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 1rem;
 }
 
-.history-fullscreen-topbar h2 {
+.fullscreen-photos-grid img,
+.fullscreen-proofs-grid img {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  cursor: pointer;
+}
+
+.proof-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  cursor: pointer;
+  color: #0f172a;
+}
+
+.proof-item span {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.empty-media-state {
   margin: 0;
-  font-size: 1.5rem;
-  color: #111827;
+  color: #64748b;
 }
 
-.history-fullscreen-body {
-  padding: 1.5rem 1.75rem 2rem;
-  overflow: auto;
-  flex: 1;
-}
+@media (max-width: 820px) {
+  .fullscreen-container {
+    padding: 0.75rem;
+  }
 
-.history-fullscreen-body .occupancy-history-table {
-  margin: 0;
-}
+  .fullscreen-content {
+    max-height: calc(100vh - 1.5rem);
+    border-radius: 18px;
+  }
 
-.history-fullscreen-body .occupancy-history-table th,
-.history-fullscreen-body .occupancy-history-table td {
-  white-space: nowrap;
+  .fullscreen-header {
+    padding: 1rem;
+  }
+
+  .fullscreen-title-section {
+    flex-wrap: wrap;
+  }
+
+  .overview-grid,
+  .fullscreen-grid,
+  .overview-stat-grid,
+  .payment-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .fullscreen-body {
+    padding: 1rem;
+  }
+
+  .fullscreen-tabs {
+    padding: 0.75rem 0.75rem 0;
+    gap: 0.5rem;
+  }
+
+  .fullscreen-tab {
+    flex: 1 1 calc(50% - 0.5rem);
+    min-width: 120px;
+    border-radius: 10px;
+  }
 }
