@@ -1568,7 +1568,8 @@ app.get('/api/tenants/with-occupancy', async (req: Request, res: Response) => {
         rd.Id as roomId,
         o.CheckInDate as checkInDate,
         o.CheckOutDate as checkOutDate,
-        ISNULL(o.RentFixed, rd.Rent) as rentFixed,
+        ISNULL(CAST(o.RentFixed AS FLOAT), CAST(rd.Rent AS FLOAT)) as rentFixed,
+        ISNULL(CAST(o.DepositReceived AS FLOAT), 0) as depositReceived,
         CASE WHEN o.Id IS NOT NULL THEN 1 ELSE 0 END as isCurrentlyOccupied,
         ISNULL(CAST(COALESCE(
           (SELECT TOP 1 CAST(RentBalance AS FLOAT) 
@@ -1648,10 +1649,12 @@ app.get('/api/tenants/:id', async (req: Request, res: Response) => {
           t.Proof9Url as proof9Url,
           t.Proof10Url as proof10Url,
           o.Id as occupancyId,
+          rd.Id as roomId,
           rd.Number as roomNumber,
           o.CheckInDate,
           o.CheckOutDate,
-          o.RentFixed
+          ISNULL(CAST(o.RentFixed AS FLOAT), CAST(rd.Rent AS FLOAT)) as rentFixed,
+          ISNULL(CAST(o.DepositReceived AS FLOAT), 0) as depositReceived
         FROM Tenant t
         LEFT JOIN Occupancy o ON t.Id = o.TenantId AND o.CheckOutDate IS NULL
         LEFT JOIN RoomDetail rd ON o.RoomId = rd.Id
@@ -1789,6 +1792,7 @@ app.post('/api/tenants', async (req: Request, res: Response) => {
   try {
     const { 
       name, phone, address, city, roomId, checkInDate, checkOutDate,
+      roomRent, depositReceived,
       photoUrl, photo2Url, photo3Url, photo4Url, photo5Url, photo6Url, photo7Url, photo8Url, photo9Url, photo10Url,
       proof1Url, proof2Url, proof3Url, proof4Url, proof5Url, proof6Url, proof7Url, proof8Url, proof9Url, proof10Url
     } = req.body;
@@ -1816,6 +1820,20 @@ app.post('/api/tenants', async (req: Request, res: Response) => {
 
     if (checkOutDate && typeof checkOutDate !== 'string') {
       return res.status(400).json({ error: 'Invalid checkOutDate format' });
+    }
+
+    const parsedRoomRent = roomRent !== undefined && roomRent !== null && roomRent !== ''
+      ? Number(roomRent)
+      : null;
+    if (parsedRoomRent !== null && (!Number.isFinite(parsedRoomRent) || parsedRoomRent < 0)) {
+      return res.status(400).json({ error: 'Room rent must be a valid non-negative number' });
+    }
+
+    const parsedDepositReceived = depositReceived !== undefined && depositReceived !== null && depositReceived !== ''
+      ? Number(depositReceived)
+      : null;
+    if (parsedDepositReceived !== null && (!Number.isFinite(parsedDepositReceived) || parsedDepositReceived < 0)) {
+      return res.status(400).json({ error: 'Advance amount must be a valid non-negative number' });
     }
 
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
@@ -1885,11 +1903,10 @@ app.post('/api/tenants', async (req: Request, res: Response) => {
     // Create occupancy if room and check-in date are provided
     if (creatingOccupancy) {
       try {
-        // Get the room rent value for RentFixed
         const roomResult = await pool
           .request()
           .input('roomId', sql.Int, roomId)
-          .query(`SELECT Rent FROM RoomDetail WHERE Id = @roomId`);
+          .query(`SELECT Id, Rent FROM RoomDetail WHERE Id = @roomId`);
         
         if (roomResult.recordset.length === 0) {
           return res.status(400).json({ 
@@ -1898,19 +1915,33 @@ app.post('/api/tenants', async (req: Request, res: Response) => {
           });
         }
 
-        const roomRent = roomResult.recordset[0].Rent;
+        const roomBaseRent = Number(roomResult.recordset[0].Rent || 0);
+        const effectiveRoomRent = parsedRoomRent !== null ? parsedRoomRent : roomBaseRent;
+        const effectiveDepositReceived = parsedDepositReceived !== null ? parsedDepositReceived : 0;
 
-        // Create occupancy record
+        if (parsedRoomRent !== null && parsedRoomRent !== roomBaseRent) {
+          await pool
+            .request()
+            .input('roomId', sql.Int, roomId)
+            .input('rent', sql.Money, parsedRoomRent)
+            .query(`
+              UPDATE RoomDetail
+              SET Rent = @rent
+              WHERE Id = @roomId
+            `);
+        }
+
         const occupancyResult = await pool
           .request()
           .input('tenantId', sql.Int, tenantId)
           .input('roomId', sql.Int, roomId)
           .input('checkInDate', sql.NChar(10), checkInDate)
           .input('checkOutDate', sql.NChar(10), checkOutDate || null)
-          .input('rentFixed', sql.Money, roomRent || 0)
+          .input('rentFixed', sql.Money, effectiveRoomRent)
+          .input('depositReceived', sql.Money, effectiveDepositReceived)
           .query(`
-            INSERT INTO Occupancy (TenantId, RoomId, CheckInDate, CheckOutDate, CreatedDate, UpdatedDate, RentFixed)
-            VALUES (@tenantId, @roomId, @checkInDate, @checkOutDate, GETUTCDATE(), GETUTCDATE(), @rentFixed);
+            INSERT INTO Occupancy (TenantId, RoomId, CheckInDate, CheckOutDate, CreatedDate, UpdatedDate, RentFixed, DepositReceived)
+            VALUES (@tenantId, @roomId, @checkInDate, @checkOutDate, GETUTCDATE(), GETUTCDATE(), @rentFixed, @depositReceived);
             SELECT SCOPE_IDENTITY() as occupancyId;
           `);
         
@@ -2122,7 +2153,8 @@ app.put('/api/tenants/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
     const { 
       roomIds, checkInDate, checkOutDate,
-      name, phone, address, city, 
+      name, phone, address, city,
+      roomRent, depositReceived,
       photoUrl, photo2Url, photo3Url, photo4Url, photo5Url, photo6Url, photo7Url, photo8Url, photo9Url, photo10Url,
       proof1Url, proof2Url, proof3Url, proof4Url, proof5Url, proof6Url, proof7Url, proof8Url, proof9Url, proof10Url
     } = req.body;
@@ -2160,6 +2192,20 @@ app.put('/api/tenants/:id', async (req: Request, res: Response) => {
     const requestedRoomIds = Array.isArray(roomIds)
       ? Array.from(new Set(roomIds.map((value: any) => parseInt(value, 10)).filter((value: number) => Number.isInteger(value) && value > 0)))
       : [];
+
+    const parsedRoomRentOverride = roomRent !== undefined && roomRent !== null && roomRent !== ''
+      ? Number(roomRent)
+      : null;
+    if (parsedRoomRentOverride !== null && (!Number.isFinite(parsedRoomRentOverride) || parsedRoomRentOverride < 0)) {
+      return res.status(400).json({ error: 'Room rent must be a valid non-negative number' });
+    }
+
+    const parsedDepositOverride = depositReceived !== undefined && depositReceived !== null && depositReceived !== ''
+      ? Number(depositReceived)
+      : null;
+    if (parsedDepositOverride !== null && (!Number.isFinite(parsedDepositOverride) || parsedDepositOverride < 0)) {
+      return res.status(400).json({ error: 'Advance amount must be a valid non-negative number' });
+    }
 
     if (requestedRoomIds.length > 0) {
       if (!checkInDate || typeof checkInDate !== 'string') {
@@ -2396,6 +2442,49 @@ app.put('/api/tenants/:id', async (req: Request, res: Response) => {
     if (result.rowsAffected[0] === 0) {
       return res.status(404).json({ error: 'Tenant not found' });
     }
+
+    if (parsedRoomRentOverride !== null || parsedDepositOverride !== null) {
+      const activeOccupancyResult = await pool
+        .request()
+        .input('tenantId', sql.Int, tenantId)
+        .query(`
+          SELECT Id, RoomId, RentFixed, DepositReceived
+          FROM Occupancy
+          WHERE TenantId = @tenantId
+            AND (CheckOutDate IS NULL OR CAST(CheckOutDate AS DATE) > CAST(GETDATE() AS DATE))
+        `);
+
+      for (const activeOccupancy of activeOccupancyResult.recordset) {
+        const roomIdToUpdate = Number(activeOccupancy.RoomId);
+        const nextRent = parsedRoomRentOverride !== null ? parsedRoomRentOverride : Number(activeOccupancy.RentFixed || 0);
+        const nextDeposit = parsedDepositOverride !== null ? parsedDepositOverride : Number(activeOccupancy.DepositReceived || 0);
+
+        if (parsedRoomRentOverride !== null) {
+          await pool
+            .request()
+            .input('roomId', sql.Int, roomIdToUpdate)
+            .input('rent', sql.Money, parsedRoomRentOverride)
+            .query(`
+              UPDATE RoomDetail
+              SET Rent = @rent
+              WHERE Id = @roomId
+            `);
+        }
+
+        await pool
+          .request()
+          .input('occupancyId', sql.Int, activeOccupancy.Id)
+          .input('rentFixed', sql.Money, nextRent)
+          .input('depositReceived', sql.Money, nextDeposit)
+          .query(`
+            UPDATE Occupancy
+            SET RentFixed = @rentFixed,
+                DepositReceived = @depositReceived,
+                UpdatedDate = GETUTCDATE()
+            WHERE Id = @occupancyId
+          `);
+      }
+    }
     
     let createdOccupancies = 0;
 
@@ -2445,16 +2534,32 @@ app.put('/api/tenants/:id', async (req: Request, res: Response) => {
         `);
 
       for (const row of roomAssignmentRows.recordset) {
+        const effectiveRoomRent = parsedRoomRentOverride !== null ? parsedRoomRentOverride : Number(row.roomRent || 0);
+        const effectiveDepositReceived = parsedDepositOverride !== null ? parsedDepositOverride : 0;
+
+        if (parsedRoomRentOverride !== null) {
+          await pool
+            .request()
+            .input('roomId', sql.Int, row.roomId)
+            .input('rent', sql.Money, parsedRoomRentOverride)
+            .query(`
+              UPDATE RoomDetail
+              SET Rent = @rent
+              WHERE Id = @roomId
+            `);
+        }
+
         await pool
           .request()
           .input('tenantId', sql.Int, tenantId)
           .input('roomId', sql.Int, row.roomId)
           .input('checkInDate', sql.NChar(10), checkInDate)
           .input('checkOutDate', sql.NChar(10), checkOutDate || null)
-          .input('rentFixed', sql.Decimal(10, 2), row.roomRent || 0)
+          .input('rentFixed', sql.Decimal(10, 2), effectiveRoomRent)
+          .input('depositReceived', sql.Money, effectiveDepositReceived)
           .query(`
-            INSERT INTO Occupancy (TenantId, RoomId, CheckInDate, CheckOutDate, CreatedDate, UpdatedDate, RentFixed)
-            VALUES (@tenantId, @roomId, @checkInDate, @checkOutDate, GETUTCDATE(), GETUTCDATE(), @rentFixed)
+            INSERT INTO Occupancy (TenantId, RoomId, CheckInDate, CheckOutDate, CreatedDate, UpdatedDate, RentFixed, DepositReceived)
+            VALUES (@tenantId, @roomId, @checkInDate, @checkOutDate, GETUTCDATE(), GETUTCDATE(), @rentFixed, @depositReceived)
           `);
 
         createdOccupancies += 1;
@@ -2722,43 +2827,94 @@ app.post('/api/occupancy/checkin', async (req: Request, res: Response) => {
   }
 });
 
-// Update occupancy deposit/advance amount (admin only)
+// Update occupancy rent and/or advance amount (admin only)
 app.put('/api/occupancy/:occupancyId', verifyToken, requireRole(['admin']), async (req: Request, res: Response) => {
   try {
     const { occupancyId } = req.params;
-    const { depositReceived } = req.body;
+    const { roomId, rentFixed, roomRent, depositReceived, advanceAmount } = req.body;
+    const incomingRentValue = rentFixed ?? roomRent ?? null;
+    const incomingDepositValue = depositReceived ?? advanceAmount ?? null;
 
     const occupancyIdNum = parseInt(occupancyId, 10);
     if (Number.isNaN(occupancyIdNum)) {
       return res.status(400).json({ error: 'Invalid occupancy id' });
     }
 
-    if (depositReceived === undefined || depositReceived === null || parseFloat(depositReceived) < 0) {
-      return res.status(400).json({ error: 'Deposit received amount is required and cannot be negative' });
+    const pool = getPool();
+
+    const rentValue = incomingRentValue !== undefined && incomingRentValue !== null && incomingRentValue !== ''
+      ? Number(incomingRentValue)
+      : null;
+    if (rentValue !== null && (!Number.isFinite(rentValue) || rentValue < 0)) {
+      return res.status(400).json({ error: 'Rent amount must be a valid non-negative number' });
     }
 
-    const pool = getPool();
+    const depositValue = incomingDepositValue !== undefined && incomingDepositValue !== null && incomingDepositValue !== ''
+      ? Number(incomingDepositValue)
+      : null;
+    if (depositValue !== null && (!Number.isFinite(depositValue) || depositValue < 0)) {
+      return res.status(400).json({ error: 'Advance amount must be a valid non-negative number' });
+    }
+
+    if (rentValue === null && depositValue === null) {
+      return res.status(400).json({ error: 'At least one of rentFixed or depositReceived must be provided' });
+    }
+
+    const occupancyCheck = await pool
+      .request()
+      .input('occupancyId', sql.Int, occupancyIdNum)
+      .query(`
+        SELECT Id, RoomId, RentFixed, DepositReceived
+        FROM Occupancy
+        WHERE Id = @occupancyId
+      `);
+
+    if (occupancyCheck.recordset.length === 0) {
+      return res.status(404).json({ error: 'Occupancy record not found' });
+    }
+
+    const occupancy = occupancyCheck.recordset[0];
+    const effectiveRoomId = roomId !== undefined && roomId !== null && roomId !== '' ? Number(roomId) : Number(occupancy.RoomId);
+    const effectiveRent = rentValue !== null ? rentValue : Number(occupancy.RentFixed || 0);
+    const effectiveDeposit = depositValue !== null ? depositValue : Number(occupancy.DepositReceived || 0);
+
+    const shouldUpdateRoomRent = rentValue !== null && Number.isFinite(effectiveRoomId) && effectiveRoomId > 0;
+
     const result = await pool
       .request()
       .input('occupancyId', sql.Int, occupancyIdNum)
-      .input('depositReceived', sql.Money, parseFloat(depositReceived))
+      .input('rentFixed', sql.Money, effectiveRent)
+      .input('depositReceived', sql.Money, effectiveDeposit)
       .query(`
         UPDATE Occupancy
-        SET DepositReceived = @depositReceived,
+        SET RentFixed = @rentFixed,
+            DepositReceived = @depositReceived,
             UpdatedDate = GETUTCDATE()
         WHERE Id = @occupancyId
       `);
+
+    if (shouldUpdateRoomRent) {
+      await pool
+        .request()
+        .input('roomId', sql.Int, effectiveRoomId)
+        .input('rent', sql.Money, effectiveRent)
+        .query(`
+          UPDATE RoomDetail
+          SET Rent = @rent
+          WHERE Id = @roomId
+        `);
+    }
 
     if (result.rowsAffected[0] === 0) {
       return res.status(404).json({ error: 'Occupancy record not found' });
     }
 
-    res.json({ message: 'Advance amount updated successfully' });
+    res.json({ message: 'Occupancy rent and advance updated successfully' });
   } catch (error) {
-    console.error('Update occupancy advance error:', error);
+    console.error('Update occupancy rent/advance error:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     res.status(500).json({
-      error: 'Failed to update occupancy advance',
+      error: 'Failed to update occupancy rent and advance',
       details: errorMessage
     });
   }

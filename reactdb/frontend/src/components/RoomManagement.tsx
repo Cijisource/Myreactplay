@@ -67,6 +67,10 @@ export default function RoomManagement(): JSX.Element {
   const [tenantModalError, setTenantModalError] = useState<string | null>(null);
   const [tenantDetailTabs, setTenantDetailTabs] = useState<Record<number, 'overview' | 'rental' | 'deposit' | 'eb'>>({});
   const [tenantDetailData, setTenantDetailData] = useState<Record<number, TenantDetailTabState>>({});
+  const [editingRoomValues, setEditingRoomValues] = useState<Record<number, { rent: string; advance: string }>>({});
+  const [savingRoomDetails, setSavingRoomDetails] = useState<Record<number, boolean>>({});
+  const [roomDetailError, setRoomDetailError] = useState<string | null>(null);
+  const [roomDetailSuccess, setRoomDetailSuccess] = useState<string | null>(null);
 
   // Fetch rooms and occupancy data
   useEffect(() => {
@@ -250,6 +254,26 @@ export default function RoomManagement(): JSX.Element {
     });
   };
 
+  const getTenantEntryLabel = (tenant: any): string => {
+    const tenantName = tenant?.tenantName || 'Tenant';
+    const checkIn = tenant?.checkInDate ? formatDate(tenant.checkInDate) : 'N/A';
+    const checkOut = tenant?.checkOutDate ? formatDate(tenant.checkOutDate) : 'Open';
+    const status = tenant?.isActive ? 'Active' : 'Ended';
+    return `${tenantName} (${status}) | In: ${checkIn} | Out: ${checkOut}`;
+  };
+
+  const getRoomEntryLabel = (room: RoomWithHistory): string => {
+    const activeTenant = room.tenantHistory.find((tenant) => tenant.isActive);
+
+    if (!activeTenant) {
+      return `Room #${room.roomNumber} — Vacant`;
+    }
+
+    const checkIn = activeTenant.checkInDate ? formatDate(activeTenant.checkInDate) : 'N/A';
+    const checkOut = activeTenant.checkOutDate ? formatDate(activeTenant.checkOutDate) : 'Open';
+    return `Room #${room.roomNumber} — ${activeTenant.tenantName || 'Tenant'} | In: ${checkIn} | Out: ${checkOut}`;
+  };
+
   const getRoomCategory = (beds: number): string => {
     if (beds === 0) return 'Shop';
     return `${beds} bed${beds > 1 ? 's' : ''}`;
@@ -305,6 +329,89 @@ export default function RoomManagement(): JSX.Element {
 
   const handleTenantSelect = (occupancyId: number | '') => {
     setSelectedTenantOccupancyId(occupancyId);
+  };
+
+  const startEditingRoomValues = (room: RoomWithHistory) => {
+    const targetTenant = room.tenantHistory.find((tenant) => tenant.occupancyId === selectedTenantOccupancyId)
+      ?? room.tenantHistory.find((tenant) => tenant.isActive)
+      ?? room.tenantHistory[0];
+
+    setEditingRoomValues(prev => ({
+      ...prev,
+      [room.id]: {
+        rent: String(room.roomRent || 0),
+        advance: String(targetTenant?.advanceCollected ?? 0)
+      }
+    }));
+  };
+
+  const updateEditingRoomValue = (roomId: number, field: 'rent' | 'advance', value: string) => {
+    setEditingRoomValues(prev => ({
+      ...prev,
+      [roomId]: {
+        rent: prev[roomId]?.rent ?? String(rooms.find(room => room.id === roomId)?.roomRent ?? 0),
+        advance: prev[roomId]?.advance ?? '0',
+        [field]: value
+      }
+    }));
+  };
+
+  const saveRoomDetailEdit = async (room: RoomWithHistory) => {
+    const targetTenant = room.tenantHistory.find((tenant) => tenant.occupancyId === selectedTenantOccupancyId)
+      ?? room.tenantHistory.find((tenant) => tenant.isActive)
+      ?? room.tenantHistory[0];
+
+    const roomRentValue = Number(editingRoomValues[room.id]?.rent ?? room.roomRent);
+    const advanceValue = Number(editingRoomValues[room.id]?.advance ?? targetTenant?.advanceCollected ?? 0);
+
+    if (!Number.isFinite(roomRentValue) || roomRentValue < 0) {
+      setRoomDetailError('Room rent must be a valid non-negative number');
+      return;
+    }
+
+    if (!Number.isFinite(advanceValue) || advanceValue < 0) {
+      setRoomDetailError('Advance must be a valid non-negative number');
+      return;
+    }
+
+    setSavingRoomDetails(prev => ({ ...prev, [room.id]: true }));
+    setRoomDetailError(null);
+    setRoomDetailSuccess(null);
+
+    try {
+      if (targetTenant) {
+        await apiService.updateOccupancy(targetTenant.occupancyId, {
+          roomId: room.id,
+          rentFixed: roomRentValue,
+          roomRent: roomRentValue,
+          depositReceived: advanceValue,
+          advanceAmount: advanceValue
+        });
+      }
+
+      await apiService.updateRoom(room.id, { rent: roomRentValue });
+
+      setRooms(prev => prev.map(item => item.id === room.id
+        ? {
+            ...item,
+            roomRent: roomRentValue,
+            tenantHistory: item.tenantHistory.map(tenant => tenant.occupancyId === targetTenant?.occupancyId
+              ? { ...tenant, rentFixed: roomRentValue, advanceCollected: advanceValue }
+              : tenant)
+          }
+        : item));
+
+      setRoomDetailSuccess('Room rent and advance updated successfully');
+      setEditingRoomValues(prev => {
+        const next = { ...prev };
+        delete next[room.id];
+        return next;
+      });
+    } catch (err) {
+      setRoomDetailError(err instanceof Error ? err.message : 'Failed to update room details');
+    } finally {
+      setSavingRoomDetails(prev => ({ ...prev, [room.id]: false }));
+    }
   };
 
   const closeTenantModal = () => {
@@ -781,7 +888,7 @@ export default function RoomManagement(): JSX.Element {
           ) : (
             filteredRooms.map(room => (
               <option key={room.id} value={room.id}>
-                Room #{room.roomNumber} ({room.tenantHistory.length})
+                {getRoomEntryLabel(room)}
               </option>
             ))
           )}
@@ -869,7 +976,7 @@ export default function RoomManagement(): JSX.Element {
                     .sort((a, b) => new Date(b.checkInDate).getTime() - new Date(a.checkInDate).getTime())
                     .map((tenant) => (
                       <option key={tenant.occupancyId} value={tenant.occupancyId}>
-                        {tenant.tenantName || 'Tenant'} {tenant.isActive ? '(Active)' : '(Ended)'}
+                        {getTenantEntryLabel(tenant)}
                       </option>
                     ))
                 )}
@@ -879,7 +986,33 @@ export default function RoomManagement(): JSX.Element {
             <div className="selected-room-metrics">
               <div className="selected-room-stat">
                 <span>Rent</span>
-                <strong>{formatCurrency(selectedRoom.roomRent)}</strong>
+                {editingRoomValues[selectedRoom.id] ? (
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={editingRoomValues[selectedRoom.id].rent}
+                    onChange={(e) => updateEditingRoomValue(selectedRoom.id, 'rent', e.target.value)}
+                    className="inline-edit-input"
+                  />
+                ) : (
+                  <strong>{formatCurrency(selectedRoom.roomRent)}</strong>
+                )}
+              </div>
+              <div className="selected-room-stat">
+                <span>Advance</span>
+                {editingRoomValues[selectedRoom.id] ? (
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={editingRoomValues[selectedRoom.id].advance}
+                    onChange={(e) => updateEditingRoomValue(selectedRoom.id, 'advance', e.target.value)}
+                    className="inline-edit-input"
+                  />
+                ) : (
+                  <strong>{formatCurrency(selectedRoom.tenantHistory.find(t => t.isActive)?.advanceCollected ?? selectedRoom.tenantHistory[0]?.advanceCollected ?? 0)}</strong>
+                )}
               </div>
               <div className="selected-room-stat">
                 <span>Tenants</span>
@@ -889,6 +1022,51 @@ export default function RoomManagement(): JSX.Element {
                 <span>Vacancy</span>
                 <strong>{getVacancyStatus(selectedRoom.tenantHistory).isVacant ? 'Vacant' : 'Occupied'}</strong>
               </div>
+            </div>
+
+            {roomDetailError && (
+              <div className="error-card small-error-card">
+                <span>❌</span>
+                <div>
+                  <strong>Error</strong>
+                  <p>{roomDetailError}</p>
+                </div>
+              </div>
+            )}
+
+            {roomDetailSuccess && (
+              <div className="success-card small-success-card">
+                <span>✅</span>
+                <div>
+                  <strong>Success</strong>
+                  <p>{roomDetailSuccess}</p>
+                </div>
+              </div>
+            )}
+
+            <div className="room-edit-actions">
+              {editingRoomValues[selectedRoom.id] ? (
+                <>
+                  <button type="button" className="primary-btn" onClick={() => saveRoomDetailEdit(selectedRoom)} disabled={savingRoomDetails[selectedRoom.id]}>
+                    {savingRoomDetails[selectedRoom.id] ? 'Saving...' : 'Save'}
+                  </button>
+                  <button type="button" className="secondary-btn" onClick={() => {
+                    setEditingRoomValues(prev => {
+                      const next = { ...prev };
+                      delete next[selectedRoom.id];
+                      return next;
+                    });
+                    setRoomDetailError(null);
+                    setRoomDetailSuccess(null);
+                  }}>
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <button type="button" className="primary-btn" onClick={() => startEditingRoomValues(selectedRoom)}>
+                  Edit Rent & Advance
+                </button>
+              )}
             </div>
 
             {selectedRoomTenant ? (

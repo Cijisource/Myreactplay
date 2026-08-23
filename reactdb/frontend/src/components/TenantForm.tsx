@@ -40,6 +40,8 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
     city: tenant?.city || '',
     roomId: '',
     roomIds: [] as string[],
+    roomRent: '',
+    advanceAmount: '',
     checkInDate: '',
     checkOutDate: tenant?.checkOutDate ?? (!tenant ? getDefaultCheckoutDate() : ''),
   });
@@ -122,6 +124,8 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
       city: tenant?.city || '',
       roomId: tenant?.roomId ? String(tenant.roomId) : '',
       roomIds: tenant?.roomId ? [String(tenant.roomId)] : [],
+      roomRent: tenant?.rentFixed ? String(tenant.rentFixed) : '',
+      advanceAmount: tenant?.depositReceived ? String(tenant.depositReceived) : '',
       checkInDate: tenant?.checkInDate || '',
       checkOutDate: tenant?.checkOutDate ?? (tenant ? '' : getDefaultCheckoutDate()),
     });
@@ -339,6 +343,10 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
 
       if (name === 'roomId' && value) {
         const today = new Date().toISOString().split('T')[0];
+        const selectedRoom = vacantRooms.find((room) => String(room.id) === value);
+        if (selectedRoom) {
+          nextData.roomRent = String(selectedRoom.rent || 0);
+        }
         nextData.checkInDate = today;
 
         if (!tenant?.id) {
@@ -363,6 +371,9 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
       const nextData = {
         ...prev,
         roomIds: selectedRoomIds,
+        roomRent: selectedRoomIds.length > 0
+          ? (prev.roomRent || String(vacantRooms.find((room) => String(room.id) === selectedRoomIds[0])?.rent || 0))
+          : '',
         checkInDate: selectedRoomIds.length > 0
           ? (prev.checkInDate || today)
           : '',
@@ -853,13 +864,18 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
       }
 
       // Create submit data with all 10 photo and proof URLs
-      const submitData: Omit<TenantWithOccupancy, 'id'> = {
+      const submitData: Omit<TenantWithOccupancy, 'id'> & {
+        roomRent?: number;
+        depositReceived?: number;
+      } = {
         name: formData.name.trim(),
         phone: formData.phone.trim(),
         address: formData.address.trim(),
         city: formData.city.trim(),
         roomId: !tenant?.id && formData.roomId ? parseInt(formData.roomId) : undefined,
         roomIds: tenant?.id ? formData.roomIds.map((roomId) => parseInt(roomId, 10)).filter((roomId) => Number.isInteger(roomId) && roomId > 0) : undefined,
+        roomRent: formData.roomRent && !Number.isNaN(Number(formData.roomRent)) ? Number(formData.roomRent) : undefined,
+        depositReceived: formData.advanceAmount && !Number.isNaN(Number(formData.advanceAmount)) ? Number(formData.advanceAmount) : 0,
         checkInDate: formData.checkInDate || undefined,
         checkOutDate: formData.checkOutDate ? formData.checkOutDate : undefined,
         photoUrl: photoUrls[0],
@@ -1116,19 +1132,53 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
               </div>
 
               {((tenant?.id && formData.roomIds.length > 0) || (!tenant?.id && formData.roomId)) && (
-                <div className="form-group">
-                  <label htmlFor="checkInDate">Check-in Date {!tenant?.id && '*'}</label>
-                  <input
-                    id="checkInDate"
-                    type="date"
-                    name="checkInDate"
-                    value={formData.checkInDate}
-                    onChange={handleInputChange}
-                    disabled={loading}
-                    required={!tenant?.id}
-                  />
-                  {tenant?.id && <p className="field-hint">Required when assigning selected room(s) to this tenant.</p>}
-                </div>
+                <>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label htmlFor="roomRent">Room Rent</label>
+                      <input
+                        id="roomRent"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        name="roomRent"
+                        value={formData.roomRent}
+                        onChange={handleInputChange}
+                        disabled={loading}
+                        placeholder="0.00"
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label htmlFor="advanceAmount">Advance / Deposit</label>
+                      <input
+                        id="advanceAmount"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        name="advanceAmount"
+                        value={formData.advanceAmount}
+                        onChange={handleInputChange}
+                        disabled={loading}
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="checkInDate">Check-in Date {!tenant?.id && '*'}</label>
+                    <input
+                      id="checkInDate"
+                      type="date"
+                      name="checkInDate"
+                      value={formData.checkInDate}
+                      onChange={handleInputChange}
+                      disabled={loading}
+                      required={!tenant?.id}
+                    />
+                    {tenant?.id && <p className="field-hint">Required when assigning selected room(s) to this tenant.</p>}
+                  </div>
+                </>
               )}
 
               <div className="form-group">
