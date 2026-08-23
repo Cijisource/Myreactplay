@@ -541,10 +541,44 @@
 .payment-table td:nth-child(10) { width: 10%; text-align: left; }
 .payment-table td:nth-child(11) { width: 8%; text-align: center; }
 
-.payment-table .tenant-name {
+.payment-table .tenant-name-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  min-width: 180px;
+}
+
+.payment-table .tenant-name-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 600;
-  cursor: help;
   color: #1e293b;
+}
+
+.tenant-view-btn {
+  width: 26px;
+  height: 26px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0;
+  flex-shrink: 0;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.tenant-view-btn:hover {
+  background: #dbeafe;
+  transform: translateY(-1px);
 }
 
 .payment-table .amount {

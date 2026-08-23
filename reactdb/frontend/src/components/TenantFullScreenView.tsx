@@ -15,6 +15,22 @@ interface OccupancyHistoryRecord {
   charges: number | null;
 }
 
+interface RentalPaymentRecord {
+  id: number;
+  occupancyId: number;
+  tenantId?: number;
+  tenantName?: string;
+  roomNumber?: string;
+  rentFixed?: number | null;
+  rentReceivedOn: string;
+  rentReceived: number;
+  charges: number;
+  rentBalance?: number | null;
+  modeOfPayment?: string | null;
+  screenshotUrl?: string | null;
+  folder?: string | null;
+}
+
 type TenantDetailTab = 'overview' | 'occupancy' | 'payments' | 'media';
 
 interface TenantFullScreenViewProps {
@@ -34,8 +50,40 @@ export default function TenantFullScreenView({
   const [occupancyHistory, setOccupancyHistory] = useState<OccupancyHistoryRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  const [paymentHistory, setPaymentHistory] = useState<RentalPaymentRecord[]>([]);
+  const [loadingPayments, setLoadingPayments] = useState(false);
+  const [paymentHistoryError, setPaymentHistoryError] = useState<string | null>(null);
   const [azurePhotoUrl, setAzurePhotoUrl] = useState<string | null>(tenant.azurePhotoUrl || null);
   const [activeTab, setActiveTab] = useState<TenantDetailTab>('overview');
+
+  const isCurrentOccupancyRecord = (record: OccupancyHistoryRecord) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkOutDate = record.checkOutDate ? new Date(record.checkOutDate) : null;
+    if (checkOutDate) {
+      checkOutDate.setHours(0, 0, 0, 0);
+    }
+
+    return !record.checkOutDate || !record.checkOutDate.trim() || (checkOutDate && checkOutDate > today);
+  };
+
+  const sortOccupancyRecords = (records: OccupancyHistoryRecord[]) =>
+    [...records].sort((left, right) => {
+      const leftCurrent = isCurrentOccupancyRecord(left) ? 0 : 1;
+      const rightCurrent = isCurrentOccupancyRecord(right) ? 0 : 1;
+
+      if (leftCurrent !== rightCurrent) {
+        return leftCurrent - rightCurrent;
+      }
+
+      const leftDate = new Date(left.checkInDate || 0).getTime();
+      const rightDate = new Date(right.checkInDate || 0).getTime();
+      if (leftDate !== rightDate) {
+        return rightDate - leftDate;
+      }
+
+      return (right.occupancyId || 0) - (left.occupancyId || 0);
+    });
 
   useEffect(() => {
     const fetchOccupancyHistory = async () => {
@@ -53,6 +101,60 @@ export default function TenantFullScreenView({
     fetchOccupancyHistory();
   }, [tenant.id]);
 
+  useEffect(() => {
+    const fetchPaymentHistory = async () => {
+      const occupancyIds = new Set<number>();
+
+      occupancyHistory.forEach((record) => {
+        if (record.occupancyId) {
+          occupancyIds.add(record.occupancyId);
+        }
+      });
+
+      if (tenant.isCurrentlyOccupied && tenant.occupancyId) {
+        occupancyIds.add(tenant.occupancyId);
+      }
+
+      if (!occupancyIds.size) {
+        setPaymentHistory([]);
+        return;
+      }
+
+      setLoadingPayments(true);
+      setPaymentHistoryError(null);
+
+      try {
+        const paymentResponses = await Promise.all(
+          [...occupancyIds].map(async (occupancyId) => {
+            try {
+              const response = await apiService.getRentalCollectionByOccupancy(occupancyId);
+              return Array.isArray(response.data) ? response.data : [];
+            } catch (error) {
+              console.error('Failed to load tenant payment history for occupancy', occupancyId, error);
+              return [];
+            }
+          })
+        );
+
+        const combinedPayments = paymentResponses
+          .flat()
+          .sort((left, right) => {
+            const leftDate = new Date(left.rentReceivedOn || 0).getTime();
+            const rightDate = new Date(right.rentReceivedOn || 0).getTime();
+            return rightDate - leftDate;
+          });
+
+        setPaymentHistory(combinedPayments);
+      } catch (error) {
+        setPaymentHistoryError('Failed to load payment history');
+      } finally {
+        setLoadingPayments(false);
+      }
+    };
+
+    fetchPaymentHistory();
+  }, [tenant.id, tenant.occupancyId, tenant.isCurrentlyOccupied, occupancyHistory]);
+
   const currentOccupancyFallback = tenant.isCurrentlyOccupied
     ? {
         occupancyId: tenant.occupancyId ?? 0,
@@ -67,11 +169,13 @@ export default function TenantFullScreenView({
       }
     : null;
 
-  const displayedHistory = occupancyHistory.length > 0
-    ? occupancyHistory
-    : currentOccupancyFallback
-      ? [currentOccupancyFallback]
-      : [];
+  const displayedHistory = sortOccupancyRecords(
+    occupancyHistory.length > 0
+      ? occupancyHistory
+      : currentOccupancyFallback
+        ? [currentOccupancyFallback]
+        : []
+  );
 
   const mainPhotoUrl = azurePhotoUrl || (tenant.photoUrl ? getFileUrl(tenant.photoUrl) : null);
 
@@ -291,11 +395,7 @@ export default function TenantFullScreenView({
                       </thead>
                       <tbody>
                         {displayedHistory.map((record) => {
-                          const today = new Date();
-                          today.setHours(0, 0, 0, 0);
-                          const checkOutDate = record.checkOutDate ? new Date(record.checkOutDate) : null;
-                          if (checkOutDate) checkOutDate.setHours(0, 0, 0, 0);
-                          const isCurrent = !record.checkOutDate || !record.checkOutDate.trim() || (checkOutDate && checkOutDate > today);
+                          const isCurrent = isCurrentOccupancyRecord(record);
 
                           return (
                             <tr key={record.occupancyId} className={isCurrent ? 'current-occupancy-row' : undefined}>
@@ -368,6 +468,50 @@ export default function TenantFullScreenView({
                     <p>{formatDate(tenant.lastPaymentDate)}</p>
                   </div>
                 </div>
+              </div>
+
+              <div className="fullscreen-section">
+                <h3>Payment history</h3>
+                {loadingPayments && <p>Loading payment history...</p>}
+                {paymentHistoryError && <p className="form-error">{paymentHistoryError}</p>}
+                {!loadingPayments && !paymentHistoryError && paymentHistory.length === 0 && (
+                  <p>No payment history found for this tenant.</p>
+                )}
+                {!loadingPayments && !paymentHistoryError && paymentHistory.length > 0 && (
+                  <div className="table-wrapper">
+                    <table className="payment-history-table">
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Room</th>
+                          <th>Mode</th>
+                          <th>Amount</th>
+                          <th>Charges</th>
+                          <th>Balance</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paymentHistory
+                          .slice()
+                          .sort((left, right) => {
+                            const leftDate = new Date(left.rentReceivedOn || 0).getTime();
+                            const rightDate = new Date(right.rentReceivedOn || 0).getTime();
+                            return rightDate - leftDate;
+                          })
+                          .map((record) => (
+                            <tr key={`${record.id}-${record.occupancyId}`}>
+                              <td>{formatDate(record.rentReceivedOn)}</td>
+                              <td>{record.roomNumber || 'N/A'}</td>
+                              <td>{record.modeOfPayment || '—'}</td>
+                              <td>{formatCurrency(record.rentReceived)}</td>
+                              <td>{formatCurrency(record.charges)}</td>
+                              <td>{formatCurrency(record.rentBalance ?? 0)}</td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
           )}
