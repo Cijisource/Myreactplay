@@ -6366,6 +6366,51 @@ app.post('/api/rental/upload-payment', uploadPaymentScreenshot.single('screensho
   }
 });
 
+app.delete('/api/rental/record/:recordId', async (req: Request, res: Response) => {
+  try {
+    const { recordId } = req.params;
+    const parsedRecordId = parseInt(recordId, 10);
+
+    if (!Number.isFinite(parsedRecordId) || parsedRecordId <= 0) {
+      return res.status(400).json({ error: 'Valid payment record ID is required' });
+    }
+
+    const pool = getPool();
+    const existingRecord = await pool
+      .request()
+      .input('recordId', sql.Int, parsedRecordId)
+      .query(`
+        SELECT Id
+        FROM RentalCollection
+        WHERE Id = @recordId
+      `);
+
+    if (existingRecord.recordset.length === 0) {
+      return res.status(404).json({ error: 'Payment record not found' });
+    }
+
+    await pool
+      .request()
+      .input('recordId', sql.Int, parsedRecordId)
+      .query(`
+        DELETE FROM RentalCollection
+        WHERE Id = @recordId
+      `);
+
+    res.json({
+      message: 'Payment record deleted successfully',
+      deletedId: parsedRecordId
+    });
+  } catch (error) {
+    console.error('Delete rental collection record error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({
+      error: 'Failed to delete rental payment record',
+      details: errorMessage
+    });
+  }
+});
+
 // Get rental collection summary for a specific occupancy
 app.get('/api/rental/occupancy/:occupancyId/summary', async (req: Request, res: Response) => {
   try {

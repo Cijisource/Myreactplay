@@ -434,6 +434,7 @@ export const apiService = {
     api.put(`/rental/payment/${occupancyId}`, data),
   updateRentalRecord: (recordId: number, data: any) => 
     api.put(`/rental/record/${recordId}`, data),
+  deleteRentalRecord: (recordId: number) => api.delete(`/rental/record/${recordId}`),
   uploadPaymentScreenshot: (formData: FormData, onProgress?: (progress: number) => void) => {
     console.log('[Payment Upload] Starting payment screenshot upload');
     return xhrRequestWithAuthRetry(

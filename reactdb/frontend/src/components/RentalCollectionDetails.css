@@ -1094,9 +1094,15 @@
   gap: 1rem;
 }
 
-.payment-record-edit-btn {
-  background: #667eea;
-  color: white;
+.payment-record-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.payment-record-edit-btn,
+.payment-record-delete-btn {
   border: none;
   padding: 0.5rem 0.8rem;
   border-radius: 6px;
@@ -1112,6 +1118,11 @@
   flex-shrink: 0;
 }
 
+.payment-record-edit-btn {
+  background: #667eea;
+  color: white;
+}
+
 .payment-record-edit-btn:hover {
   background: #5568d3;
   transform: translateY(-2px);
@@ -1119,6 +1130,21 @@
 }
 
 .payment-record-edit-btn:active {
+  transform: translateY(0);
+}
+
+.payment-record-delete-btn {
+  background: #e53e3e;
+  color: white;
+}
+
+.payment-record-delete-btn:hover {
+  background: #c53030;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(229, 62, 62, 0.35);
+}
+
+.payment-record-delete-btn:active {
   transform: translateY(0);
 }
 

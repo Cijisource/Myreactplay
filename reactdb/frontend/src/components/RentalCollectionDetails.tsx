@@ -463,6 +463,40 @@ export default function RentalCollectionDetails() {
     });
   };
 
+  const handleDeleteRecord = async (record: RentalRecord) => {
+    const paymentDate = new Date(record.rentReceivedOn).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+
+    const shouldDelete = window.confirm(
+      `Are you sure you want to delete the payment for ${record.tenantName} on ${paymentDate}?`
+    );
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      await apiService.deleteRentalRecord(record.id);
+      await fetchRentalDetails();
+      await fetchCurrentMonthPayments();
+      await fetchOccupancies();
+      alert('Payment deleted successfully');
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to delete payment';
+      setError(errorMsg);
+      alert(errorMsg);
+      console.error('Error deleting payment record:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleCancelEdit = () => {
     setEditingRecord(null);
     setEditFormData({});
@@ -990,13 +1024,22 @@ export default function RentalCollectionDetails() {
                         <span className="badge-mode gray">—</span>
                       )}
                     </div>
-                    <button
-                      className="payment-record-edit-btn"
-                      title="Edit payment record"
-                      onClick={() => handleEditClick(record)}
-                    >
-                      ✏️ Edit
-                    </button>
+                    <div className="payment-record-actions">
+                      <button
+                        className="payment-record-edit-btn"
+                        title="Edit payment record"
+                        onClick={() => handleEditClick(record)}
+                      >
+                        ✏️ Edit
+                      </button>
+                      <button
+                        className="payment-record-delete-btn"
+                        title="Delete payment record"
+                        onClick={() => handleDeleteRecord(record)}
+                      >
+                        🗑️ Delete
+                      </button>
+                    </div>
                   </div>
 
                   <div className="payment-record-details">
