@@ -186,6 +186,14 @@ export default function RoleManagement() {
     return userAName.localeCompare(userBName);
   });
 
+  const userRolesByRole = userRoles.reduce((groups: Record<number, UserRole[]>, userRole) => {
+    if (!groups[userRole.roleId]) {
+      groups[userRole.roleId] = [];
+    }
+    groups[userRole.roleId].push(userRole);
+    return groups;
+  }, {});
+
   return (
     <div className="management-container roles-container">
       <h2 className="section-heading">Roles & Access</h2>
@@ -247,6 +255,7 @@ export default function RoleManagement() {
                 <tr>
                   <th>Role Name</th>
                   <th>Role Type</th>
+                  <th>Assigned Users</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -255,6 +264,29 @@ export default function RoleManagement() {
                   <tr key={role.id}>
                     <td>{role.roleName}</td>
                     <td>{role.roleType}</td>
+                    <td>
+                      {(userRolesByRole[role.id] ?? []).length === 0 ? (
+                        <span className="text-muted">No users assigned</span>
+                      ) : (
+                        <div className="roles-badges">
+                          {userRolesByRole[role.id].map((userRole) => (
+                            <div key={userRole.id} className="role-badge">
+                              <span className="role-name">
+                                {userRole.userName} ({userRole.username})
+                              </span>
+                              <button
+                                className="btn-remove"
+                                onClick={() => setShowDeleteConfirm(userRole.id)}
+                                title={`Remove ${userRole.userName} from ${role.roleName}`}
+                                aria-label={`Remove ${userRole.userName} from ${role.roleName}`}
+                              >
+                                x
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </td>
                     <td className="actions">
                       <button className="btn btn-sm btn-info" onClick={() => handleEditRole(role)}>
                         Edit

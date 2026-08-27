@@ -77,9 +77,10 @@ const ROLE_TO_PAGES: Record<string, string[]> = {
   accountant: [
     'Payment Tracking',
     'Rental Collection',
-    'EB Payments',
-    'Transactions',
-    'Electricity Charges'
+    'Tenant Management',
+    'Room Management',
+    'Occupancy History',
+    'Transactions'
   ],
   property_manager: [
     'Rental Collection',
@@ -98,10 +99,11 @@ const ROLE_TO_PAGES: Record<string, string[]> = {
     'Misc Uploads'
   ],
   utilities_manager: [
-    'Service Consumption',
+    'Room Occupancy',
+    'Complaints',
+    'Daily Status',
     'EB Meter Reading',
-    'Sintex Tank Monitor',
-    'Electricity Charges'
+    'Sintex Tank Monitor'
   ],
   inventory_manager: ['Stock']
 };

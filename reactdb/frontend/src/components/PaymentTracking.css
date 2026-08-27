@@ -547,6 +547,7 @@
   justify-content: flex-start;
   gap: 0.5rem;
   min-width: 180px;
+  position: relative;
 }
 
 .payment-table .tenant-name-text {
@@ -579,6 +580,89 @@
 .tenant-view-btn:hover {
   background: #dbeafe;
   transform: translateY(-1px);
+}
+
+.tenant-quick-popup {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(320px, 72vw);
+  background: #ffffff;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.16);
+  padding: 0.75rem;
+  z-index: 50;
+}
+
+.tenant-quick-popup::before {
+  content: '';
+  position: absolute;
+  top: -7px;
+  right: 10px;
+  width: 12px;
+  height: 12px;
+  background: #ffffff;
+  border-top: 1px solid #dbeafe;
+  border-left: 1px solid #dbeafe;
+  transform: rotate(45deg);
+}
+
+.tenant-quick-popup-close {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.35rem;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0.1rem;
+  line-height: 1;
+}
+
+.tenant-quick-popup-loading,
+.tenant-quick-popup-error {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #475569;
+  padding-right: 1rem;
+}
+
+.tenant-quick-popup-error {
+  color: #b91c1c;
+}
+
+.tenant-quick-popup-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.38rem;
+  padding-right: 1rem;
+}
+
+.tenant-quick-row {
+  display: grid;
+  grid-template-columns: 62px 1fr;
+  align-items: start;
+  gap: 0.35rem;
+}
+
+.tenant-quick-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.tenant-quick-value {
+  font-size: 0.82rem;
+  color: #0f172a;
+  overflow-wrap: anywhere;
+}
+
+.tenant-quick-address-row .tenant-quick-value {
+  line-height: 1.35;
 }
 
 .payment-table .amount {
