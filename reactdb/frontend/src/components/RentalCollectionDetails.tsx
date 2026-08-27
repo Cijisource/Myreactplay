@@ -79,6 +79,7 @@ interface OccupancyOption {
 }
 
 interface FormData {
+  rentFixed: string;
   rentReceived: string;
   charges: string;
   modeOfPayment: string;
@@ -113,6 +114,7 @@ export default function RentalCollectionDetails() {
   const [editPreviewUrl, setEditPreviewUrl] = useState<string | null>(null);
   
   const [formData, setFormData] = useState<FormData>({
+    rentFixed: '',
     rentReceived: '',
     charges: '',
     modeOfPayment: 'cash',
@@ -318,6 +320,7 @@ export default function RentalCollectionDetails() {
       
       setFormData(prev => ({
         ...prev,
+        rentFixed: summaryRes.data?.rentFixed != null ? String(summaryRes.data.rentFixed) : prev.rentFixed,
         charges: chargesAmount > 0 ? chargesAmount.toString() : ''
       }));
     } catch (err) {
@@ -387,6 +390,7 @@ export default function RentalCollectionDetails() {
 
       const formDataToSend = new FormData();
       formDataToSend.append('occupancyId', selectedOccupancyId.toString());
+      formDataToSend.append('rentFixed', formData.rentFixed || String(occupancyInfo?.rentFixed || 0));
       formDataToSend.append('rentReceived', formData.rentReceived);
       formDataToSend.append('charges', formData.charges || '0');
       formDataToSend.append('modeOfPayment', selectedPaymentMode);
@@ -421,6 +425,7 @@ export default function RentalCollectionDetails() {
 
       // Reset form and refresh data
       setFormData({
+        rentFixed: occupancyInfo?.rentFixed != null ? String(occupancyInfo.rentFixed) : '',
         rentReceived: '',
         charges: '',
         modeOfPayment: 'cash',
@@ -456,6 +461,7 @@ export default function RentalCollectionDetails() {
   const handleEditClick = (record: RentalRecord) => {
     setEditingRecord(record);
     setEditFormData({
+      rentFixed: record.rentFixed,
       rentReceived: record.rentReceived,
       charges: record.charges,
       modeOfPayment: record.modeOfPayment || 'cash',
@@ -549,6 +555,7 @@ export default function RentalCollectionDetails() {
       // Create FormData for update
       const updateData = new FormData();
       updateData.append('occupancyId', editingRecord.occupancyId.toString());
+      updateData.append('rentFixed', editFormData.rentFixed?.toString() || String(editingRecord.rentFixed || 0));
       updateData.append('rentReceived', editFormData.rentReceived?.toString() || '0');
       updateData.append('charges', editFormData.charges?.toString() || '0');
       updateData.append('modeOfPayment', selectedPaymentMode);
@@ -863,6 +870,21 @@ export default function RentalCollectionDetails() {
               <form onSubmit={handleSubmit} className="payment-form">
                 <div className="form-row">
                   <div className="form-group">
+                    <label htmlFor="rentFixed">Fixed Rent (₹)</label>
+                    <input
+                      type="number"
+                      id="rentFixed"
+                      name="rentFixed"
+                      value={formData.rentFixed}
+                      onChange={handleInputChange}
+                      placeholder="0.00"
+                      min="0"
+                      step="0.01"
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
                     <label htmlFor="rentReceivedOn">Payment Date</label>
                     <input
                       type="date"
@@ -978,6 +1000,7 @@ export default function RentalCollectionDetails() {
                     onClick={() => {
                       setShowForm(false);
                       setFormData({
+                        rentFixed: occupancyInfo?.rentFixed != null ? String(occupancyInfo.rentFixed) : '',
                         rentReceived: '',
                         charges: '',
                         modeOfPayment: 'cash',
@@ -1411,6 +1434,19 @@ export default function RentalCollectionDetails() {
             <p className="modal-subtitle">Occupancy: {editingRecord.tenantName} - Room {editingRecord.roomNumber}</p>
             
             <div className="edit-form-container">
+              <div className="edit-form-group">
+                <label htmlFor="editRentFixed">Fixed Rent (₹)</label>
+                <input
+                  type="number"
+                  id="editRentFixed"
+                  value={editFormData.rentFixed || ''}
+                  onChange={(e) => handleEditFormChange('rentFixed', parseFloat(e.target.value))}
+                  placeholder="Enter fixed rent"
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+
               <div className="edit-form-group">
                 <label htmlFor="editRentReceived">Rent Received (₹)</label>
                 <input

@@ -57,7 +57,16 @@ export interface TenantWithOccupancy extends Tenant {
   azurePhotoUrl?: string | null;
 }
 
-export default function TenantManagement() {
+interface TenantSelectionRequest {
+  tenantId: number;
+  requestId: number;
+}
+
+interface TenantManagementProps {
+  tenantSelectionRequest?: TenantSelectionRequest | null;
+}
+
+export default function TenantManagement({ tenantSelectionRequest = null }: TenantManagementProps) {
   const [filteredTenants, setFilteredTenants] = useState<TenantWithOccupancy[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +92,7 @@ export default function TenantManagement() {
   const [selectedRoom, setSelectedRoom] = useState<string>('');
   const [showFilters, setShowFilters] = useState(false);
   const [allUniqueTenants, setAllUniqueTenants] = useState<TenantWithOccupancy[]>([]); // Store all tenants
+  const [lastHandledSelectionRequestId, setLastHandledSelectionRequestId] = useState<number | null>(null);
 
   // Scroll to edit form when editing is triggered
   useEffect(() => {
@@ -430,6 +440,34 @@ export default function TenantManagement() {
       setFullscreenProofIndex(null);
     }
   };
+
+  useEffect(() => {
+    if (!tenantSelectionRequest?.tenantId || !tenantSelectionRequest.requestId) {
+      return;
+    }
+
+    if (lastHandledSelectionRequestId === tenantSelectionRequest.requestId) {
+      return;
+    }
+
+    if (!allUniqueTenants.length) {
+      return;
+    }
+
+    const selectedTenant = allUniqueTenants.find((tenant) => tenant.id === tenantSelectionRequest.tenantId);
+    if (!selectedTenant) {
+      setLastHandledSelectionRequestId(tenantSelectionRequest.requestId);
+      return;
+    }
+
+    setShowFilters(true);
+    setSearchField('name');
+    setSearchQuery(selectedTenant.name || '');
+    setSelectedRoom('');
+    setOccupancyFilter('all');
+    handleViewTenant(selectedTenant);
+    setLastHandledSelectionRequestId(tenantSelectionRequest.requestId);
+  }, [tenantSelectionRequest, allUniqueTenants, lastHandledSelectionRequestId]);
 
   const handleCheckoutSuccess = async () => {
     // Refresh tenants list after successful checkout

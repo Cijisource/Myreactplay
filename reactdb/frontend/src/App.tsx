@@ -29,6 +29,11 @@ import MiscUploads from './components/MiscUploads';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
+interface TenantSelectionRequest {
+  tenantId: number;
+  requestId: number;
+}
+
 type Page = 'home' | 'diagnostic' | 'payment' | 'rental-collection' | 'tenants' | 'occupancy' | 'room-wise-analysis' | 'room-management' | 'occupancy-links' | 'complaints' | 'services' | 'eb-payments' | 'users' | 'roles' | 'transactions' | 'stock' | 'daily-status' | 'guest-checkin' | 'misc-uploads' | 'service-allocation' | 'consumption' | 'meter-reading' | 'water-tank-monitor' | 'electricity-charges';
 
 type NavItem = {
@@ -49,26 +54,26 @@ const SCREEN_ROLES: Record<Page, string[]> = {
   diagnostic: ['admin'],
   payment: ['admin', 'manager', 'accountant'],
   'rental-collection': ['admin', 'manager', 'accountant', 'property_manager'],
-  tenants: ['admin', 'manager', 'property_manager'],
-  occupancy: ['admin', 'manager', 'property_manager'],
+  tenants: ['admin', 'manager', 'property_manager', 'accountant'],
+  occupancy: ['admin', 'manager', 'property_manager', 'utilities_manager'],
   'room-wise-analysis': ['admin', 'property_manager'],
-  'room-management': ['admin', 'manager', 'property_manager'],
-  'occupancy-links': ['admin'],
-  complaints: ['admin', 'manager', 'maintenance'],
+  'room-management': ['admin', 'manager', 'property_manager', 'accountant'],
+  'occupancy-links': ['admin', 'accountant'],
+  complaints: ['admin', 'manager', 'maintenance', 'utilities_manager'],
   services: ['admin'],
-  'eb-payments': ['admin', 'manager', 'accountant'],
+  'eb-payments': ['admin', 'manager'],
   users: ['admin'],
   roles: ['admin'],
   transactions: ['admin', 'manager', 'accountant'],
   stock: ['admin', 'manager', 'inventory_manager'],
-  'daily-status': ['admin', 'manager', 'maintenance', 'property_manager'],
+  'daily-status': ['admin', 'manager', 'maintenance', 'property_manager', 'utilities_manager'],
   'guest-checkin': ['admin', 'manager', 'maintenance', 'property_manager'],
   'misc-uploads': ['admin', 'manager', 'maintenance', 'property_manager'],
   'service-allocation': ['admin'],
-  consumption: ['admin', 'manager', 'utilities_manager'],
+  consumption: ['admin', 'manager'],
   'meter-reading': ['admin', 'manager', 'utilities_manager'],
   'water-tank-monitor': ['admin', 'manager', 'utilities_manager'],
-  'electricity-charges': ['admin', 'manager', 'utilities_manager', 'accountant']
+  'electricity-charges': ['admin', 'manager']
 };
 
 // Navigation grouped into logical sections with role-aware submenu items.
@@ -138,6 +143,7 @@ const getGroupKeyForPage = (page: Page): string | null => {
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
+  const [tenantSelectionRequest, setTenantSelectionRequest] = useState<TenantSelectionRequest | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeGroupKey, setActiveGroupKey] = useState<string | null>(() => getGroupKeyForPage('home'));
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -289,7 +295,15 @@ function AppContent() {
     if (currentPage === 'payment') {
       return (
         <ProtectedRoute requiredRoles={SCREEN_ROLES.payment}>
-          <PaymentTracking />
+          <PaymentTracking
+            onViewTenantDetails={(tenantId) => {
+              setTenantSelectionRequest({
+                tenantId,
+                requestId: Date.now(),
+              });
+              setCurrentPage('tenants');
+            }}
+          />
         </ProtectedRoute>
       );
     }
@@ -305,7 +319,7 @@ function AppContent() {
     if (currentPage === 'tenants') {
       return (
         <ProtectedRoute requiredRoles={SCREEN_ROLES.tenants}>
-          <TenantManagement />
+          <TenantManagement tenantSelectionRequest={tenantSelectionRequest} />
         </ProtectedRoute>
       );
     }
