@@ -1,6 +1,6 @@
 import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import { initializeDatabase, closeDatabase, getPool } from './database';
+import { initializeDatabase, closeDatabase, getDatabaseConnectionInfo, getPool } from './database';
 import sql from 'mssql';
 import jwt from 'jsonwebtoken';
 import multer from 'multer';
@@ -530,7 +530,11 @@ app.get('/api/database/status', async (req: Request, res: Response) => {
   try {
     const pool = getPool();
     const result = await pool.request().query('SELECT 1 as connected');
-    res.json({ status: 'connected', message: 'Database connection successful' });
+    res.json({
+      status: 'connected',
+      message: 'Database connection successful',
+      connection: getDatabaseConnectionInfo(),
+    });
   } catch (error) {
     console.error('Database query error:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -538,6 +542,49 @@ app.get('/api/database/status', async (req: Request, res: Response) => {
       status: 'error', 
       message: 'Database query failed',
       details: errorMessage
+    });
+  }
+});
+
+app.get('/api/diagnostic/table-updates', async (req: Request, res: Response) => {
+  try {
+    const pool = getPool();
+    const result = await pool.request().query(`
+      SELECT
+        t.name [tableName],
+        COALESCE((
+          SELECT SUM(partitionStats.rows)
+          FROM sys.partitions partitionStats
+          WHERE partitionStats.object_id = t.object_id
+            AND partitionStats.index_id IN (0, 1)
+        ), 0) [rowCount],
+        COALESCE((
+          SELECT SUM(indexStats.user_updates)
+          FROM sys.dm_db_index_usage_stats indexStats
+          WHERE indexStats.database_id = DB_ID()
+            AND indexStats.object_id = t.object_id
+        ), 0) [rowsUpdated],
+        (
+          SELECT MAX(indexStats.last_user_update)
+          FROM sys.dm_db_index_usage_stats indexStats
+          WHERE indexStats.database_id = DB_ID()
+            AND indexStats.object_id = t.object_id
+        ) [lastUpdated]
+      FROM sys.tables t
+      WHERE t.is_ms_shipped = 0
+      ORDER BY [lastUpdated] DESC, t.name ASC
+    `);
+
+    res.json({
+      tables: result.recordset,
+      metadataNote: 'Rows updated is cumulative SQL Server index update activity since the relevant usage statistics were last reset.',
+    });
+  } catch (error) {
+    console.error('Get table update diagnostics error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({
+      error: 'Failed to retrieve table update diagnostics',
+      details: errorMessage,
     });
   }
 });
