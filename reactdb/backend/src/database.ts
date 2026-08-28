@@ -47,6 +47,16 @@ export function getPool(): sql.ConnectionPool {
   return pool;
 }
 
+export function getDatabaseConnectionInfo() {
+  return {
+    server: config.server,
+    port: config.port,
+    database: config.database,
+    user: config.user,
+    connectionString: `Server=${config.server},${config.port};Database=${config.database};User Id=${config.user};Password=********;Encrypt=true;`,
+  };
+}
+
 export async function closeDatabase(): Promise<void> {
   if (pool) {
     await pool.close();

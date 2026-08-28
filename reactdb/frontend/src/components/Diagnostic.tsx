@@ -7,24 +7,36 @@ export default function Diagnostic() {
   const [backendStatus, setBackendStatus] = useState<string>('loading');
   const [dbStatus, setDbStatus] = useState<string>('loading');
   const [tables, setTables] = useState<any[]>([]);
+  const [connection, setConnection] = useState<any | null>(null);
+  const [tableUpdates, setTableUpdates] = useState<any[]>([]);
+  const [tableUpdatesNote, setTableUpdatesNote] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [schemaRes, sampleRes, _healthRes, _dbRes, tablesRes] = await Promise.all([
+        const [schemaRes, sampleRes, _healthRes, dbRes, tablesRes] = await Promise.all([
           apiService.getRentalSchema(),
           apiService.getRentalSample(),
           apiService.getHealth(),
           apiService.getDatabaseStatus(),
           apiService.getTables()
         ]);
+        const tableUpdatesRes = await apiService.getTableUpdates().catch((requestError: any) => {
+          if (requestError?.response?.status === 404) {
+            return { data: { tables: [], metadataNote: 'Table update diagnostics are unavailable until the backend is restarted with the latest version.' } };
+          }
+          throw requestError;
+        });
         setSchema(schemaRes.data);
         setSample(sampleRes.data);
         setBackendStatus('connected');
         setDbStatus('connected');
         setTables(tablesRes.data);
+        setConnection(dbRes.data.connection);
+        setTableUpdates(tableUpdatesRes.data.tables || []);
+        setTableUpdatesNote(tableUpdatesRes.data.metadataNote || '');
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Error fetching diagnostic data';
         setError(msg);
@@ -157,6 +169,47 @@ export default function Diagnostic() {
           </div>
         </div>
       </div>
+
+      {connection && (
+        <div style={{ marginBottom: '30px' }}>
+          <h2>Connected Database</h2>
+          <div style={{ background: '#f9f9f9', padding: '15px', borderRadius: '8px', border: '1px solid #ddd' }}>
+            <p style={{ margin: '0 0 8px' }}><strong>Connection string:</strong></p>
+            <code style={{ display: 'block', overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              {connection.connectionString}
+            </code>
+          </div>
+        </div>
+      )}
+
+      {tableUpdates.length > 0 && (
+        <div style={{ marginBottom: '30px' }}>
+          <h2>Last Updated Tables</h2>
+          {tableUpdatesNote && <p style={{ color: '#4a5568', fontSize: '0.9rem' }}>{tableUpdatesNote}</p>}
+          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <table style={{ width: '100%', minWidth: '620px', borderCollapse: 'collapse', background: 'white', border: '1px solid #ddd' }}>
+              <thead style={{ background: '#f0f0f0' }}>
+                <tr>
+                  <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>Table</th>
+                  <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>Rows</th>
+                  <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>Rows updated</th>
+                  <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>Last updated</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tableUpdates.map((table) => (
+                  <tr key={table.tableName}>
+                    <td style={{ padding: '10px', border: '1px solid #ddd' }}><strong>{table.tableName}</strong></td>
+                    <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>{Number(table.rowCount).toLocaleString()}</td>
+                    <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>{Number(table.rowsUpdated).toLocaleString()}</td>
+                    <td style={{ padding: '10px', border: '1px solid #ddd' }}>{table.lastUpdated ? new Date(table.lastUpdated).toLocaleString() : 'No update recorded'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {tables.length > 0 && (
         <div style={{ marginBottom: '30px' }}>

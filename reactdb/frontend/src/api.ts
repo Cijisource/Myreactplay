@@ -701,6 +701,7 @@ export const apiService = {
   // Diagnostic APIs
   getRentalSchema: () => api.get('/diagnostic/rental-schema'),
   getRentalSample: () => api.get('/diagnostic/rental-sample'),
+  getTableUpdates: () => api.get('/diagnostic/table-updates'),
 
   // Miscellaneous Blob Upload APIs
   uploadMiscellaneousFile: (formData: FormData, onProgress?: (progress: number) => void) => {
