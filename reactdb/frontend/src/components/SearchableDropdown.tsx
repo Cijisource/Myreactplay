@@ -133,17 +133,11 @@ export default function SearchableDropdown({
     setSearchTerm('');
   };
 
-  const handleOptionSelect = (option: Option, e?: React.PointerEvent<HTMLDivElement> | React.MouseEvent<HTMLDivElement>) => {
+  const handleOptionSelect = (option: Option, e: React.PointerEvent<HTMLDivElement>) => {
     if (e) {
       e.stopPropagation();
       e.preventDefault();
     }
-    handleSelect(option);
-  };
-
-  const handleOptionTouchStart = (option: Option, e: React.TouchEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
     handleSelect(option);
   };
 
@@ -192,8 +186,7 @@ export default function SearchableDropdown({
                 <div
                   key={option.id}
                   className={`dropdown-option ${value === option.id ? 'selected' : ''} ${option.optionClassName || ''}`}
-                  onClick={(e) => handleOptionSelect(option, e)}
-                  onTouchStart={(e) => handleOptionTouchStart(option, e)}
+                  onPointerDown={(e) => handleOptionSelect(option, e)}
                   role="option"
                   aria-selected={value === option.id}
                 >

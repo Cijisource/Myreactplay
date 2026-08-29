@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../api';
 import SearchableDropdown from './SearchableDropdown';
 import LoadingSpinner from './LoadingSpinner';
@@ -144,6 +144,8 @@ const getBalanceTooltip = (payment: PaymentRecord): string => {
 
 export default function PaymentTracking() {
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const paymentTableRef = useRef<HTMLDivElement>(null);
+  const paymentTableScrollbarRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>('');
@@ -519,6 +521,24 @@ export default function PaymentTracking() {
     });
   };
 
+  const syncTableScrollbar = () => {
+    const table = paymentTableRef.current;
+    const scrollbar = paymentTableScrollbarRef.current;
+
+    if (table && scrollbar && scrollbar.scrollLeft !== table.scrollLeft) {
+      scrollbar.scrollLeft = table.scrollLeft;
+    }
+  };
+
+  const syncTableScroll = () => {
+    const table = paymentTableRef.current;
+    const scrollbar = paymentTableScrollbarRef.current;
+
+    if (table && scrollbar && table.scrollLeft !== scrollbar.scrollLeft) {
+      table.scrollLeft = scrollbar.scrollLeft;
+    }
+  };
+
   return (
     <div className="payment-tracking-container">
       {/* Month/Year Selection and Room Filter */}
@@ -725,8 +745,9 @@ export default function PaymentTracking() {
 
       {/* Payment Table */}
       {!loading && filteredPayments.length > 0 && (
-        <div className="payment-table-wrapper">
-          <table className="payment-table">
+        <>
+          <div ref={paymentTableRef} className="payment-table-wrapper" onScroll={syncTableScrollbar}>
+            <table className="payment-table">
             <thead>
               <tr>
                 <th title="Tenant Name">Tenant</th>
@@ -826,8 +847,17 @@ export default function PaymentTracking() {
                 );
               })}
             </tbody>
-          </table>
-        </div>
+            </table>
+          </div>
+          <div
+            ref={paymentTableScrollbarRef}
+            className="payment-table-scrollbar"
+            onScroll={syncTableScroll}
+            aria-label="Scroll payment table horizontally"
+          >
+            <div className="payment-table-scrollbar-content" />
+          </div>
+        </>
       )}
 
       {/* Empty State */}
