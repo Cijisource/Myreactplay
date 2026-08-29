@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext';
 import MonthlyMeterReading from './MonthlyMeterReading';
 import ServiceDetailsManagement from './ServiceDetailsManagement';
 import ServiceAllocationManagement from './ServiceAllocationManagement';
+import EBServicePaymentsManagement from './EBServicePaymentsManagement';
 import '../components/ManagementStyles.css';
 
 interface ConsumptionDetail {
@@ -69,7 +70,7 @@ interface CategoryGroup {
 export default function ServiceConsumptionDetails() {
   const { hasAnyRole } = useAuth();
   const canAccessConsumption = hasAnyRole(['admin', 'manager']);
-  const [activeTab, setActiveTab] = useState<'consumption' | 'meter-reading' | 'service-details' | 'service-allocation'>(
+  const [activeTab, setActiveTab] = useState<'consumption' | 'meter-reading' | 'service-details' | 'service-allocation' | 'eb-payments'>(
     canAccessConsumption ? 'consumption' : 'meter-reading'
   );
   const [consumptionDetails, setConsumptionDetails] = useState<ConsumptionDetail[]>([]);
@@ -395,6 +396,11 @@ export default function ServiceConsumptionDetails() {
           EB Meter Reading
         </button>
       )}
+      {hasAnyRole(['admin', 'manager']) && (
+        <button type="button" className={`service-consumption-tab ${activeTab === 'eb-payments' ? 'active' : ''}`} onClick={() => setActiveTab('eb-payments')} role="tab" aria-selected={activeTab === 'eb-payments'}>
+          EB Payments
+        </button>
+      )}
       {hasAnyRole(['admin']) && (
         <button type="button" className={`service-consumption-tab ${activeTab === 'service-details' ? 'active' : ''}`} onClick={() => setActiveTab('service-details')} role="tab" aria-selected={activeTab === 'service-details'}>
           Service Details
@@ -418,6 +424,10 @@ export default function ServiceConsumptionDetails() {
 
   if (activeTab === 'service-allocation') {
     return <div className="management-section"><h2 className="section-heading">Service Consumption</h2>{renderTabs()}<ServiceAllocationManagement /></div>;
+  }
+
+  if (activeTab === 'eb-payments') {
+    return <div className="management-section"><h2 className="section-heading">Service Consumption</h2>{renderTabs()}<EBServicePaymentsManagement /></div>;
   }
 
   if (loading) {

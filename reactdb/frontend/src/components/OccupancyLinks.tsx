@@ -5,7 +5,7 @@ import SearchableDropdown from './SearchableDropdown';
 import CheckoutModal from './CheckoutModal';
 import TenantFullScreenView from './TenantFullScreenView';
 import TenantPhotoGalleryModal from './TenantPhotoGalleryModal';
-import { TenantWithOccupancy } from './TenantManagement';
+import type { TenantWithOccupancy } from './TenantManagement';
 import './OccupancyLinks.css';
 
 interface OccupancyLink {
@@ -37,7 +37,11 @@ interface Stats {
   totalPendingPayments: number;
 }
 
-export default function OccupancyLinks(): JSX.Element {
+interface OccupancyLinksProps {
+  showHeading?: boolean;
+}
+
+export default function OccupancyLinks({ showHeading = true }: OccupancyLinksProps): JSX.Element {
   const [occupancies, setOccupancies] = useState<OccupancyLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -293,7 +297,7 @@ export default function OccupancyLinks(): JSX.Element {
 
   return (
     <div className="occupancy-links-container">
-      <h2 className="section-heading">Occupancy History</h2>
+      {showHeading && <h2 className="section-heading">Occupancy History</h2>}
       {/* Error Message */}
       {error && (
         <div className="error-card">

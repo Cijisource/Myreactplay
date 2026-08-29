@@ -28,6 +28,8 @@ interface TransactionManagementProps {
   incomeOnly?: boolean;
 }
 
+type TransactionTab = 'transactions' | 'yearly-expenses' | 'monthly-expenses';
+
 interface ExpensePieSlice {
   label: string;
   value: number;
@@ -52,7 +54,9 @@ export default function TransactionManagement({ incomeOnly = false }: Transactio
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'date-desc' | 'amount-desc' | 'amount-asc'>('date-desc');
   const [viewMode, setViewMode] = useState<'list' | 'category'>('category');
+  const [activeTab, setActiveTab] = useState<TransactionTab>('transactions');
   const [selectedExpenseYear, setSelectedExpenseYear] = useState<string>('all');
+  const [selectedMonthlyExpenseYear, setSelectedMonthlyExpenseYear] = useState<string>(String(new Date().getFullYear()));
 
   const isExpenseType = (transactionType?: string): boolean => {
     const normalized = String(transactionType || '').trim().toLowerCase();
@@ -291,6 +295,54 @@ export default function TransactionManagement({ incomeOnly = false }: Transactio
     return yearlyExpenseReport.filter((row) => String(row.year) === selectedExpenseYear);
   }, [yearlyExpenseReport, selectedExpenseYear]);
 
+  const monthlyExpenseReport = useMemo(() => {
+    const selectedYear = Number(selectedMonthlyExpenseYear);
+    if (Number.isNaN(selectedYear)) return [];
+
+    return Array.from({ length: 12 }, (_, monthIndex) => {
+      const monthlyTransactions = expenseTransactions.filter((transaction) => {
+        const transactionDate = new Date(transaction.transactionDate);
+        return transactionDate.getFullYear() === selectedYear && transactionDate.getMonth() === monthIndex;
+      });
+      const totalExpense = monthlyTransactions.reduce((sum, transaction) => sum + (Number(transaction.amount) || 0), 0);
+
+      return {
+        monthIndex,
+        month: new Date(selectedYear, monthIndex, 1).toLocaleDateString('en-IN', { month: 'long' }),
+        transactionCount: monthlyTransactions.length,
+        totalExpense
+      };
+    });
+  }, [expenseTransactions, selectedMonthlyExpenseYear]);
+
+  const monthlyExpensePieSlices = useMemo((): ExpensePieSlice[] => {
+    const source = monthlyExpenseReport
+      .filter((row) => row.totalExpense > 0)
+      .map((row) => ({ label: row.month, value: row.totalExpense }));
+    const total = source.reduce((sum, item) => sum + item.value, 0);
+    let angle = -90;
+
+    return source.map((item, index) => {
+      const percentage = (item.value / total) * 100;
+      const sweep = (percentage / 100) * 360;
+      const slice: ExpensePieSlice = {
+        label: item.label,
+        value: item.value,
+        color: EXPENSE_PIE_COLORS[index % EXPENSE_PIE_COLORS.length],
+        percentage,
+        startAngle: angle,
+        endAngle: angle + sweep
+      };
+      angle += sweep;
+      return slice;
+    });
+  }, [monthlyExpenseReport]);
+
+  const monthlyExpenseTotal = useMemo(
+    () => monthlyExpenseReport.reduce((sum, row) => sum + row.totalExpense, 0),
+    [monthlyExpenseReport]
+  );
+
   const expensePieSlices = useMemo((): ExpensePieSlice[] => {
     const source = filteredYearlyExpenseReport
       .filter((row) => row.totalExpense > 0)
@@ -395,7 +447,39 @@ export default function TransactionManagement({ incomeOnly = false }: Transactio
       {error && <div className="error-message">{error}</div>}
       {successMessage && <div className="success-message">{successMessage}</div>}
 
-      {!incomeOnly && <div className="category-section">
+      {!incomeOnly && (
+        <div className="transaction-tabs" role="tablist" aria-label="Transaction views">
+          <button
+            type="button"
+            className={`transaction-tab ${activeTab === 'transactions' ? 'active' : ''}`}
+            onClick={() => setActiveTab('transactions')}
+            role="tab"
+            aria-selected={activeTab === 'transactions'}
+          >
+            Transactions
+          </button>
+          <button
+            type="button"
+            className={`transaction-tab ${activeTab === 'yearly-expenses' ? 'active' : ''}`}
+            onClick={() => setActiveTab('yearly-expenses')}
+            role="tab"
+            aria-selected={activeTab === 'yearly-expenses'}
+          >
+            Year-Wise Expenses
+          </button>
+          <button
+            type="button"
+            className={`transaction-tab ${activeTab === 'monthly-expenses' ? 'active' : ''}`}
+            onClick={() => setActiveTab('monthly-expenses')}
+            role="tab"
+            aria-selected={activeTab === 'monthly-expenses'}
+          >
+            Month-Wise Expenses
+          </button>
+        </div>
+      )}
+
+      {!incomeOnly && activeTab === 'yearly-expenses' && <div className="category-section expense-report-page">
         <div className="category-header">
           <h3 className="category-title">Year-Wise Expense Report</h3>
           <div className="category-stats">
@@ -532,6 +616,78 @@ export default function TransactionManagement({ incomeOnly = false }: Transactio
         )}
       </div>}
 
+      {!incomeOnly && activeTab === 'monthly-expenses' && (
+        <div className="category-section expense-report-page">
+          <div className="category-header">
+            <h3 className="category-title">Month-Wise Expense Report</h3>
+            <div className="category-stats">
+              <select
+                className="sort-select"
+                value={selectedMonthlyExpenseYear}
+                onChange={(event) => setSelectedMonthlyExpenseYear(event.target.value)}
+                aria-label="Select expense report year"
+              >
+                {expenseYearOptions.map((year) => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+              <span className="stat-badge">Calendar year</span>
+            </div>
+          </div>
+          {monthlyExpensePieSlices.length === 0 ? (
+            <div className="no-results-message">
+              <p>No expense transactions available for {selectedMonthlyExpenseYear}.</p>
+            </div>
+          ) : (
+            <div className="expense-report-content">
+              <div className="expense-pie-section">
+                <div className="expense-pie-wrap">
+                  <svg viewBox="0 0 240 240" className="expense-pie-svg">
+                    {monthlyExpensePieSlices.map((slice) => (
+                      <path key={slice.label} d={describePieArc(120, 120, 98, slice.startAngle, slice.endAngle)} fill={slice.color} stroke="#ffffff" strokeWidth="1.5" />
+                    ))}
+                    <circle cx="120" cy="120" r="52" fill="#ffffff" />
+                    <text x="120" y="112" textAnchor="middle" className="expense-pie-total-label">Total</text>
+                    <text x="120" y="133" textAnchor="middle" className="expense-pie-total-value">₹{formatAmount(monthlyExpenseTotal, 0)}</text>
+                  </svg>
+                </div>
+                <div className="expense-pie-legend">
+                  {monthlyExpensePieSlices.map((slice) => (
+                    <div key={slice.label} className="expense-pie-legend-item">
+                      <span className="expense-pie-color-dot" style={{ backgroundColor: slice.color }} />
+                      <span className="expense-pie-label">{slice.label}</span>
+                      <span className="expense-pie-value">₹{formatAmount(slice.value)}</span>
+                      <span className="expense-pie-share">{slice.percentage.toFixed(1)}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="table-responsive">
+                <table className="data-table expense-report-table">
+                  <thead>
+                    <tr>
+                      <th>Month</th>
+                      <th className="text-right">Expense Count</th>
+                      <th className="text-right">Total Expense (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {monthlyExpenseReport.map((row) => (
+                      <tr key={row.monthIndex}>
+                        <td>{row.month}</td>
+                        <td className="text-right">{row.transactionCount}</td>
+                        <td className="text-right">{formatAmount(row.totalExpense)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {(incomeOnly || activeTab === 'transactions') && <>
       <div className="toolbar">
         <input
           type="text"
@@ -799,6 +955,7 @@ export default function TransactionManagement({ incomeOnly = false }: Transactio
           </div>
         </div>
       )}
+      </>}
     </div>
   );
 }

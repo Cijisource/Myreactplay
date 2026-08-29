@@ -10,6 +10,8 @@ import TenantPhotoGalleryModal from './TenantPhotoGalleryModal';
 import CheckoutModal from './CheckoutModal';
 import CheckinModal from './CheckinModal';
 import LoadingSpinner from './LoadingSpinner';
+import OccupancyLinks from './OccupancyLinks';
+import { useAuth } from './AuthContext';
 import './TenantManagement.css';
 
 export interface Tenant {
@@ -66,7 +68,11 @@ interface TenantManagementProps {
   tenantSelectionRequest?: TenantSelectionRequest | null;
 }
 
+type TenantManagementTab = 'tenants' | 'occupancy-history';
+
 export default function TenantManagement({ tenantSelectionRequest = null }: TenantManagementProps) {
+  const { hasAnyRole } = useAuth();
+  const [activeTab, setActiveTab] = useState<TenantManagementTab>('tenants');
   const [filteredTenants, setFilteredTenants] = useState<TenantWithOccupancy[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -552,9 +558,46 @@ export default function TenantManagement({ tenantSelectionRequest = null }: Tena
     };
   }, [allUniqueTenants]);
 
+  const canAccessOccupancyHistory = hasAnyRole(['admin', 'accountant']);
+  const renderTabs = () => (
+    <div className="tenant-management-tabs" role="tablist" aria-label="Tenant management views">
+      <button
+        type="button"
+        className={`tenant-management-tab ${activeTab === 'tenants' ? 'active' : ''}`}
+        onClick={() => setActiveTab('tenants')}
+        role="tab"
+        aria-selected={activeTab === 'tenants'}
+      >
+        Tenants
+      </button>
+      {canAccessOccupancyHistory && (
+        <button
+          type="button"
+          className={`tenant-management-tab ${activeTab === 'occupancy-history' ? 'active' : ''}`}
+          onClick={() => setActiveTab('occupancy-history')}
+          role="tab"
+          aria-selected={activeTab === 'occupancy-history'}
+        >
+          Occupancy History
+        </button>
+      )}
+    </div>
+  );
+
+  if (activeTab === 'occupancy-history' && canAccessOccupancyHistory) {
+    return (
+      <div className="tenant-management-container">
+        <h2 className="section-heading">Tenant Management</h2>
+        {renderTabs()}
+        <OccupancyLinks showHeading={false} />
+      </div>
+    );
+  }
+
   return (
     <div className="tenant-management-container">
       <h2 className="section-heading">Tenant Management</h2>
+      {renderTabs()}
       {/* Header with Stats and Create Button */}
       <TenantHeader
         totalTenants={stats.totalTenants}
