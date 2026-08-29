@@ -19,10 +19,11 @@ import ServiceConsumptionDetails from './components/ServiceConsumptionDetails';
 import WaterTankLevelMonitor from './components/WaterTankLevelMonitor';
 import TenantElectricityCharges from './components/TenantElectricityCharges';
 import MiscUploads from './components/MiscUploads';
+import DailyStatusManagement from './components/DailyStatusManagement';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
-type Page = 'home' | 'diagnostic' | 'rental-collection' | 'tenants' | 'occupancy' | 'room-management' | 'complaints' | 'users' | 'roles' | 'transactions' | 'stock' | 'guest-checkin' | 'misc-uploads' | 'consumption' | 'water-tank-monitor' | 'electricity-charges';
+type Page = 'home' | 'diagnostic' | 'rental-collection' | 'tenants' | 'occupancy' | 'daily-status' | 'room-management' | 'complaints' | 'users' | 'roles' | 'transactions' | 'stock' | 'guest-checkin' | 'misc-uploads' | 'consumption' | 'water-tank-monitor' | 'electricity-charges';
 
 type NavItem = {
   page: Page;
@@ -42,7 +43,8 @@ const SCREEN_ROLES: Record<Page, string[]> = {
   diagnostic: ['admin'],
   'rental-collection': ['admin', 'manager', 'accountant', 'property_manager'],
   tenants: ['admin', 'manager', 'property_manager', 'accountant'],
-  occupancy: ['admin', 'manager', 'maintenance', 'property_manager', 'utilities_manager'],
+  occupancy: ['admin', 'manager', 'property_manager', 'utilities_manager'],
+  'daily-status': ['admin', 'manager', 'maintenance', 'property_manager', 'utilities_manager'],
   'room-management': ['admin', 'manager', 'property_manager', 'accountant'],
   complaints: ['admin', 'manager', 'maintenance', 'utilities_manager'],
   users: ['admin'],
@@ -63,7 +65,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Overview',
     items: [
       { page: 'home', label: 'Home', roles: SCREEN_ROLES.home },
-      { page: 'occupancy', label: 'Room Vacancy Status', roles: SCREEN_ROLES.occupancy },
+      { page: 'daily-status', label: 'Daily Status', roles: SCREEN_ROLES['daily-status'] },
       { page: 'water-tank-monitor', label: 'Sintex Tank Monitor', roles: SCREEN_ROLES['water-tank-monitor'] }
     ]
   },
@@ -81,7 +83,6 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Payments & Billing',
     items: [
       { page: 'rental-collection', label: 'Rental Collection', roles: SCREEN_ROLES['rental-collection'] },
-      { page: 'electricity-charges', label: 'Electricity Charges', roles: SCREEN_ROLES['electricity-charges'] },
       { page: 'transactions', label: 'Transactions', roles: SCREEN_ROLES.transactions }
     ]
   },
@@ -283,6 +284,14 @@ function AppContent() {
       return (
         <ProtectedRoute requiredRoles={SCREEN_ROLES.occupancy}>
           <RoomOccupancy />
+        </ProtectedRoute>
+      );
+    }
+
+    if (currentPage === 'daily-status') {
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES['daily-status']}>
+          <DailyStatusManagement />
         </ProtectedRoute>
       );
     }

@@ -2,7 +2,6 @@ import { Fragment, useState, useEffect, useMemo, useRef, type KeyboardEvent as R
 import { apiService, getRoomOccupancyData } from '../api';
 import SearchableDropdown from './SearchableDropdown';
 import LoadingSpinner from './LoadingSpinner';
-import DailyStatusManagement from './DailyStatusManagement';
 import { useAuth } from './AuthContext';
 import './RoomOccupancy.css';
 
@@ -57,6 +56,7 @@ interface RevenuePieSlice {
 
 interface RoomOccupancyProps {
   mode?: 'occupancy' | 'analysis';
+  hideHeaderAndTabs?: boolean;
 }
 
 const REVENUE_PIE_COLORS = [
@@ -120,15 +120,16 @@ const getEffectiveDaysInYear = (
   ).reduce((sum, days) => sum + days, 0);
 };
 
-export default function RoomOccupancy({ mode = 'occupancy' }: RoomOccupancyProps): JSX.Element {
+export default function RoomOccupancy({ mode = 'occupancy', hideHeaderAndTabs = false }: RoomOccupancyProps): JSX.Element {
   const { hasAnyRole } = useAuth();
   const canAccessOccupancy = hasAnyRole(['admin', 'manager', 'property_manager', 'utilities_manager']);
   const canAccessAnalysis = hasAnyRole(['admin', 'property_manager']);
-  const canAccessDailyStatus = hasAnyRole(['admin', 'manager', 'maintenance', 'property_manager', 'utilities_manager']);
-  const [activeTab, setActiveTab] = useState<'occupancy' | 'analysis' | 'daily-status'>(
-    mode === 'analysis' ? 'analysis' : canAccessOccupancy ? 'occupancy' : 'daily-status'
-  );
+  const [activeTab, setActiveTab] = useState<'occupancy' | 'analysis'>(mode === 'analysis' ? 'analysis' : 'occupancy');
   const isAnalysisMode = activeTab === 'analysis';
+
+  useEffect(() => {
+    setActiveTab(mode === 'analysis' ? 'analysis' : 'occupancy');
+  }, [mode]);
   const today = new Date();
   const currentYear = today.getFullYear();
   const currentMonth = today.getMonth() + 1;
@@ -698,29 +699,26 @@ export default function RoomOccupancy({ mode = 'occupancy' }: RoomOccupancyProps
     return `M ${centerX} ${centerY} L ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArcFlag} 0 ${end.x} ${end.y} Z`;
   };
 
-  const renderTabs = () => (
-    <div className="room-occupancy-tabs" role="tablist" aria-label="Room vacancy views">
-      {canAccessOccupancy && (
-        <button type="button" className={`room-occupancy-tab ${activeTab === 'occupancy' ? 'active' : ''}`} onClick={() => setActiveTab('occupancy')} role="tab" aria-selected={activeTab === 'occupancy'}>
-          Room Vacancy Status
-        </button>
-      )}
-      {canAccessAnalysis && (
-        <button type="button" className={`room-occupancy-tab ${activeTab === 'analysis' ? 'active' : ''}`} onClick={() => setActiveTab('analysis')} role="tab" aria-selected={activeTab === 'analysis'}>
-          Room Wise Analysis
-        </button>
-      )}
-      {canAccessDailyStatus && (
-        <button type="button" className={`room-occupancy-tab ${activeTab === 'daily-status' ? 'active' : ''}`} onClick={() => setActiveTab('daily-status')} role="tab" aria-selected={activeTab === 'daily-status'}>
-          Daily Status
-        </button>
-      )}
-    </div>
-  );
+  const renderTabs = () => {
+    if (hideHeaderAndTabs) {
+      return null;
+    }
 
-  if (activeTab === 'daily-status') {
-    return <div className="occupancy-container"><h2 className="section-heading">Room Vacancy Status</h2>{renderTabs()}<DailyStatusManagement /></div>;
-  }
+    return (
+      <div className="room-occupancy-tabs" role="tablist" aria-label="Room vacancy views">
+        {canAccessOccupancy && (
+          <button type="button" className={`room-occupancy-tab ${activeTab === 'occupancy' ? 'active' : ''}`} onClick={() => setActiveTab('occupancy')} role="tab" aria-selected={activeTab === 'occupancy'}>
+            Room Vacancy Status
+          </button>
+        )}
+        {canAccessAnalysis && (
+          <button type="button" className={`room-occupancy-tab ${activeTab === 'analysis' ? 'active' : ''}`} onClick={() => setActiveTab('analysis')} role="tab" aria-selected={activeTab === 'analysis'}>
+            Room Wise Analysis
+          </button>
+        )}
+      </div>
+    );
+  };
 
   if (loading) {
     return <div className="occupancy-container"><h2 className="section-heading">Room Vacancy Status</h2>{renderTabs()}<LoadingSpinner overlay text="Loading room occupancy data" /></div>;
@@ -730,7 +728,7 @@ export default function RoomOccupancy({ mode = 'occupancy' }: RoomOccupancyProps
 
   return (
     <div className="occupancy-container">
-      <h2 className="section-heading">{isAnalysisMode ? 'Room Wise Analysis' : 'Room Occupancy Status'}</h2>
+      {!hideHeaderAndTabs && <h2 className="section-heading">{isAnalysisMode ? 'Room Wise Analysis' : 'Room Occupancy Status'}</h2>}
       {renderTabs()}
 
       {error && (
