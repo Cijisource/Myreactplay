@@ -455,6 +455,99 @@
   transform: translateY(0);
 }
 
+/* Compact controls for the embedded Occupancy History tab. */
+.occupancy-links-container .section-header {
+  margin: 0.75rem 0 0;
+}
+
+.occupancy-links-container .section-header h2 {
+  font-size: 1.05rem;
+}
+
+.occupancy-links-container .stats-grid {
+  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+  gap: 0.75rem;
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.75rem;
+}
+
+.occupancy-links-container .stat-card {
+  gap: 0.65rem;
+  padding: 0.85rem;
+}
+
+.occupancy-links-container .stat-icon {
+  font-size: 1.5rem;
+}
+
+.occupancy-links-container .stat-content h3 {
+  font-size: 0.72rem;
+  margin-bottom: 0.2rem;
+}
+
+.occupancy-links-container .stat-value {
+  font-size: 1.3rem;
+}
+
+.occupancy-links-container .filters-section {
+  gap: 0.75rem;
+  padding: 0.75rem;
+}
+
+.occupancy-links-container .filter-controls {
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.occupancy-links-container .filter-buttons {
+  gap: 0.5rem;
+}
+
+.occupancy-links-container .filter-btn,
+.occupancy-links-container .sort-select,
+.occupancy-links-container .date-input {
+  font-size: 0.85rem;
+  padding: 0.5rem 0.7rem;
+}
+
+.occupancy-links-container .filter-btn {
+  border-width: 1px;
+}
+
+.occupancy-links-container .sort-controls {
+  gap: 0.5rem;
+}
+
+.occupancy-links-container .sort-controls label,
+.occupancy-links-container .dropdown-container label,
+.occupancy-links-container .date-range-container label {
+  font-size: 0.82rem;
+}
+
+.occupancy-links-container .sort-select {
+  min-width: 155px;
+}
+
+.occupancy-links-container .filter-dropdowns,
+.occupancy-links-container .filter-date-ranges {
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.occupancy-links-container .dropdown-container,
+.occupancy-links-container .date-range-container {
+  gap: 0.35rem;
+}
+
+.occupancy-links-container .dropdown-container {
+  min-width: 170px;
+}
+
+.occupancy-links-container .date-range-container {
+  min-width: 260px;
+}
+
 /* Table Wrapper */
 .table-wrapper {
   background: white;

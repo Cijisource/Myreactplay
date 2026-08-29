@@ -7,9 +7,7 @@ import Diagnostic from './components/Diagnostic';
 import TenantManagement from './components/TenantManagement';
 import RoomOccupancy from './components/RoomOccupancy';
 import RoomManagement from './components/RoomManagement';
-import OccupancyLinks from './components/OccupancyLinks';
 import ComplaintsManagement from './components/ComplaintsManagement';
-import EBServicePaymentsManagement from './components/EBServicePaymentsManagement';
 import LoginScreen from './components/LoginScreen';
 import UserManagement from './components/UserManagement';
 import RoleManagement from './components/RoleManagement';
@@ -24,7 +22,7 @@ import MiscUploads from './components/MiscUploads';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
-type Page = 'home' | 'diagnostic' | 'rental-collection' | 'tenants' | 'occupancy' | 'room-management' | 'occupancy-links' | 'complaints' | 'eb-payments' | 'users' | 'roles' | 'transactions' | 'stock' | 'guest-checkin' | 'misc-uploads' | 'consumption' | 'water-tank-monitor' | 'electricity-charges';
+type Page = 'home' | 'diagnostic' | 'rental-collection' | 'tenants' | 'occupancy' | 'room-management' | 'complaints' | 'users' | 'roles' | 'transactions' | 'stock' | 'guest-checkin' | 'misc-uploads' | 'consumption' | 'water-tank-monitor' | 'electricity-charges';
 
 type NavItem = {
   page: Page;
@@ -46,9 +44,7 @@ const SCREEN_ROLES: Record<Page, string[]> = {
   tenants: ['admin', 'manager', 'property_manager', 'accountant'],
   occupancy: ['admin', 'manager', 'maintenance', 'property_manager', 'utilities_manager'],
   'room-management': ['admin', 'manager', 'property_manager', 'accountant'],
-  'occupancy-links': ['admin', 'accountant'],
   complaints: ['admin', 'manager', 'maintenance', 'utilities_manager'],
-  'eb-payments': ['admin', 'manager'],
   users: ['admin'],
   roles: ['admin'],
   transactions: ['admin', 'manager', 'accountant'],
@@ -76,7 +72,6 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Occupancy & Tenants',
     items: [
       { page: 'guest-checkin', label: 'Guest Check-In', roles: SCREEN_ROLES['guest-checkin'] },
-      { page: 'occupancy-links', label: 'Occupancy History', roles: SCREEN_ROLES['occupancy-links'] },
       { page: 'room-management', label: 'Room Management', roles: SCREEN_ROLES['room-management'] },
       { page: 'tenants', label: 'Tenant Management', roles: SCREEN_ROLES.tenants }
     ]
@@ -87,7 +82,6 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { page: 'rental-collection', label: 'Rental Collection', roles: SCREEN_ROLES['rental-collection'] },
       { page: 'electricity-charges', label: 'Electricity Charges', roles: SCREEN_ROLES['electricity-charges'] },
-      { page: 'eb-payments', label: 'EB Payments', roles: SCREEN_ROLES['eb-payments'] },
       { page: 'transactions', label: 'Transactions', roles: SCREEN_ROLES.transactions }
     ]
   },
@@ -301,26 +295,10 @@ function AppContent() {
       );
     }
 
-    if (currentPage === 'occupancy-links') {
-      return (
-        <ProtectedRoute requiredRoles={SCREEN_ROLES['occupancy-links']}>
-          <OccupancyLinks />
-        </ProtectedRoute>
-      );
-    }
-
     if (currentPage === 'complaints') {
       return (
         <ProtectedRoute requiredRoles={SCREEN_ROLES.complaints}>
           <ComplaintsManagement />
-        </ProtectedRoute>
-      );
-    }
-
-    if (currentPage === 'eb-payments') {
-      return (
-        <ProtectedRoute requiredRoles={SCREEN_ROLES['eb-payments']}>
-          <EBServicePaymentsManagement />
         </ProtectedRoute>
       );
     }
