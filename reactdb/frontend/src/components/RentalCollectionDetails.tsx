@@ -3,6 +3,7 @@ import { apiService, getRentalPaymentProofUrl } from '../api';
 import { useAuth } from './AuthContext';
 import SearchableDropdown from './SearchableDropdown';
 import LoadingSpinner from './LoadingSpinner';
+import TransactionManagement from './TransactionManagement';
 import './RentalCollectionDetails.css';
 
 interface OccupancyInfo {
@@ -29,8 +30,6 @@ interface MonthlyPaymentStatus {
   rentReceivedOn: string | null;
   rentReceived: number;
   charges: number;
-  ebCharges?: number;
-  totalUnitsConsumed?: number;
   month: number;
   year: number;
   checkInDate: string;
@@ -127,6 +126,7 @@ export default function RentalCollectionDetails() {
   const [tenantReviews, setTenantReviews] = useState<Record<number, TenantReviewState>>({});
   const [expandedReviewRows, setExpandedReviewRows] = useState<Record<number, boolean>>({});
   const [savingReviewRows, setSavingReviewRows] = useState<Record<number, boolean>>({});
+  const [showIncomeTransactions, setShowIncomeTransactions] = useState(false);
 
   const currentMonthYear = selectedMonthFilter;
   const paidOccupancyIds = new Set(
@@ -161,32 +161,14 @@ export default function RentalCollectionDetails() {
       setCurrentMonthLoading(true);
       setCurrentMonthError(null);
       const response = await apiService.getPaymentsByMonth(currentMonthYear);
-      let records = ((response.data || response || []) as MonthlyPaymentStatus[]).sort(
+      const records = ((response.data || response || []) as MonthlyPaymentStatus[]).sort(
         (a: MonthlyPaymentStatus, b: MonthlyPaymentStatus) =>
           compareRoomNumbers(a.roomNumber, b.roomNumber)
       );
-      
-      // Fetch EB charges for each occupancy (previous month)
-      const recordsWithEbCharges = await Promise.all(
-        records.map(async (record) => {
-          try {
-            const chargesRes = await apiService.getPreviousMonthCharges(record.occupancyId, currentMonthYear);
-            const previousMonthCharges = chargesRes.data || chargesRes;
-            return {
-              ...record,
-              ebCharges: previousMonthCharges?.totalCharges || 0,
-              totalUnitsConsumed: previousMonthCharges?.totalUnitsConsumed || 0
-            };
-          } catch (err) {
-            console.error(`Error fetching EB charges for occupancy ${record.occupancyId}:`, err);
-            return { ...record, ebCharges: 0, totalUnitsConsumed: 0 };
-          }
-        })
-      );
-      
-      setCurrentMonthPayments(recordsWithEbCharges);
+
+      setCurrentMonthPayments(records);
       setTenantReviews(
-        recordsWithEbCharges.reduce<Record<number, TenantReviewState>>((accumulator, record) => {
+        records.reduce<Record<number, TenantReviewState>>((accumulator, record) => {
           accumulator[record.occupancyId] = {
             decision: record.reviewDecision || null,
             comment: record.reviewComment || ''
@@ -1209,8 +1191,8 @@ export default function RentalCollectionDetails() {
                 <strong>{formatCurrency(filteredCurrentMonthPayments.reduce((sum, item) => sum + (Number(item.charges || 0)), 0))}</strong>
               </div>
               <div className="current-month-summary-item highlight-eb">
-                <span>Total EB Charges (Previous Month)</span>
-                <strong>{formatCurrency(filteredCurrentMonthPayments.reduce((sum, item) => sum + (Number(item.ebCharges || 0)), 0))}</strong>
+                <span>Total EB Charges</span>
+                <strong>{formatCurrency(filteredCurrentMonthPayments.reduce((sum, item) => sum + (Number(item.charges || 0)), 0))}</strong>
               </div>
             </div>
 
@@ -1220,6 +1202,7 @@ export default function RentalCollectionDetails() {
                   <tr>
                     <th>Tenant</th>
                     <th>Room</th>
+                    <th>Check-Out</th>
                     <th>Pro-Rata Rent</th>
                     <th>EB Charges</th>
                     <th>Balance</th>
@@ -1236,7 +1219,7 @@ export default function RentalCollectionDetails() {
                     const isReviewExpanded = expandedReviewRows[item.occupancyId] || false;
                     const isSavingReview = savingReviewRows[item.occupancyId] || false;
                     const savedReviewDate = formatReviewSavedDate(item.reviewVerifiedOn);
-                    const effectiveEbCharges = Number(item.ebCharges || 0);
+                    const effectiveEbCharges = Number(item.charges || 0);
                     // Check if this is a shop (room numbers like S1, S2, SHOP-1 etc or any number > 100 can be marked as shop)
                     const isShop = /^[Ss]/.test(item.roomNumber) || /[Ss]hop/i.test(item.roomNumber);
 
@@ -1244,8 +1227,13 @@ export default function RentalCollectionDetails() {
                       <tr key={item.occupancyId} className={isShop ? 'shop-row' : ''}>
                         <td><strong>{item.tenantName}</strong></td>
                         <td className={isShop ? 'shop-cell' : ''}><strong>{item.roomNumber}</strong></td>
+                        <td>
+                          {item.checkOutDate
+                            ? new Date(item.checkOutDate).toLocaleDateString('en-IN')
+                            : '—'}
+                        </td>
                         <td className="amount">{formatCurrency(item.proRataRent)}</td>
-                        <td className="amount eb-charges" title={`Units consumed: ${item.totalUnitsConsumed ?? 0}`}>
+                        <td className="amount eb-charges">
                           {formatCurrency(effectiveEbCharges)}
                         </td>
                         <td className="amount balance">{formatCurrency(item.proRataRent + effectiveEbCharges)}</td>
@@ -1259,7 +1247,20 @@ export default function RentalCollectionDetails() {
                             ? new Date(item.rentReceivedOn).toLocaleDateString('en-IN')
                             : 'No payment'}
                         </td>
-                        <td className="amount received">{formatCurrency(getTotalReceived(item.rentReceived, item.charges))}</td>
+                        <td className="amount received">
+                          <span>{formatCurrency(getTotalReceived(item.rentReceived, item.charges))}</span>
+                          <button
+                            type="button"
+                            className="view-income-transactions-btn"
+                            onClick={() => setShowIncomeTransactions(true)}
+                            title="View current-month income transactions"
+                            aria-label="View current-month income transactions"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h5" />
+                            </svg>
+                          </button>
+                        </td>
                         <td>
                           {item.screenshotUrl ? (
                             <button
@@ -1414,6 +1415,28 @@ export default function RentalCollectionDetails() {
               alt={proofPreview.alt}
               className="proof-preview-image"
             />
+          </div>
+        </div>
+      )}
+
+      {showIncomeTransactions && (
+        <div className="income-transactions-overlay" role="presentation" onClick={() => setShowIncomeTransactions(false)}>
+          <div className="income-transactions-modal" role="dialog" aria-modal="true" aria-label="Current-month income transactions" onClick={(event) => event.stopPropagation()}>
+            <div className="income-transactions-header">
+              <h2>Current Month Income</h2>
+              <button
+                type="button"
+                className="income-transactions-close"
+                onClick={() => setShowIncomeTransactions(false)}
+                aria-label="Close income transactions"
+                title="Close"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <TransactionManagement incomeOnly />
           </div>
         </div>
       )}

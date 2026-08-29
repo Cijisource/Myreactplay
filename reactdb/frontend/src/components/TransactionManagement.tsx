@@ -24,6 +24,10 @@ interface TransactionType {
   transactionType: string;
 }
 
+interface TransactionManagementProps {
+  incomeOnly?: boolean;
+}
+
 interface ExpensePieSlice {
   label: string;
   value: number;
@@ -36,7 +40,7 @@ interface ExpensePieSlice {
 
 const EXPENSE_PIE_COLORS = ['#0f766e', '#2563eb', '#dc2626', '#ea580c', '#7c3aed', '#0891b2', '#ca8a04'];
 
-export default function TransactionManagement() {
+export default function TransactionManagement({ incomeOnly = false }: TransactionManagementProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [transactionTypes, setTransactionTypes] = useState<TransactionType[]>([]);
   const [loading, setLoading] = useState(false);
@@ -195,9 +199,11 @@ export default function TransactionManagement() {
     const transactionDate = new Date(t.transactionDate);
     const startDate = new Date(dateRange.startDate);
     const endDate = new Date(dateRange.endDate);
+      const isIncome = t.transactionType?.transactionType?.trim().toLowerCase() === 'income';
     
     return transactionDate >= startDate && 
            transactionDate <= endDate &&
+        (!incomeOnly || isIncome) &&
            t.description.toLowerCase().includes(searchQuery.toLowerCase());
   }).sort((a, b) => {
     switch (sortBy) {
@@ -389,7 +395,7 @@ export default function TransactionManagement() {
       {error && <div className="error-message">{error}</div>}
       {successMessage && <div className="success-message">{successMessage}</div>}
 
-      <div className="category-section">
+      {!incomeOnly && <div className="category-section">
         <div className="category-header">
           <h3 className="category-title">Year-Wise Expense Report</h3>
           <div className="category-stats">
@@ -524,7 +530,7 @@ export default function TransactionManagement() {
             </div>
           </div>
         )}
-      </div>
+      </div>}
 
       <div className="toolbar">
         <input
