@@ -1288,7 +1288,9 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
 
       // Recalculate payment status based on updated balance
       let paymentStatus: string;
-      if (totalReceived === 0) {
+      if (proRataRent === 0 || rentFixed === 0) {
+        paymentStatus = 'merged';
+      } else if (totalReceived === 0) {
         paymentStatus = 'pending';
       } else if (rentBalance === 0) {
         paymentStatus = 'paid';

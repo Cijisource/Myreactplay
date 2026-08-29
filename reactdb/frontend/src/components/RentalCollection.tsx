@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../api';
 import SearchableDropdown from './SearchableDropdown';
+import TransactionManagement from './TransactionManagement';
 import './RentalCollection.css';
 
 interface SummaryData {
@@ -52,6 +53,7 @@ export default function RentalCollection() {
   const [editingMonth, setEditingMonth] = useState('');
   const [editingTenantName, setEditingTenantName] = useState('');
   const [editingProRataRent, setEditingProRataRent] = useState(0);
+  const [showIncomeTransactions, setShowIncomeTransactions] = useState(false);
   const defaultRange = getCurrentMonthRange();
   const [startDate, setStartDate] = useState<string>(defaultRange.start);
   const [endDate, setEndDate] = useState<string>(defaultRange.end);
@@ -301,6 +303,7 @@ export default function RentalCollection() {
                       <th>Tenant Name</th>
                       <th>Room</th>
                       <th>Check-In Date</th>
+                      <th>Check-Out Date</th>
                       <th>Pro-Rata Rent</th>
                       <th>Collected Amount</th>
                       <th>Outstanding Balance</th>
@@ -316,8 +319,24 @@ export default function RentalCollection() {
                         <td className="check-in-date">
                           {detail.CheckInDate ? new Date(detail.CheckInDate).toLocaleDateString('en-IN') : '—'}
                         </td>
+                        <td className="check-out-date">
+                          {detail.CheckOutDate ? new Date(detail.CheckOutDate).toLocaleDateString('en-IN') : '—'}
+                        </td>
                         <td className="pro-rata">₹ {detail.proRataRent.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
-                        <td className="paid">₹ {parseFloat(detail.collected_amount.toString()).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+                        <td className="paid">
+                          <span>₹ {parseFloat(detail.collected_amount.toString()).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+                          <button
+                            type="button"
+                            className="view-income-transactions-btn"
+                            onClick={() => setShowIncomeTransactions(true)}
+                            title="View current-month income transactions"
+                            aria-label="View current-month income transactions"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h5" />
+                            </svg>
+                          </button>
+                        </td>
                         <td className="amount outstanding">₹ {parseFloat(detail.pending_amount.toString()).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
                         <td className="text-center">{detail.records_count}</td>
                         <td className="actions">
@@ -396,6 +415,28 @@ export default function RentalCollection() {
                 ✕ Cancel
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showIncomeTransactions && (
+        <div className="transaction-popup-overlay" role="presentation" onClick={() => setShowIncomeTransactions(false)}>
+          <div className="transaction-popup" role="dialog" aria-modal="true" aria-label="Current-month income transactions" onClick={(event) => event.stopPropagation()}>
+            <div className="transaction-popup-header">
+              <h2>Current Month Income</h2>
+              <button
+                type="button"
+                className="transaction-popup-close"
+                onClick={() => setShowIncomeTransactions(false)}
+                aria-label="Close income transactions"
+                title="Close"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <TransactionManagement incomeOnly />
           </div>
         </div>
       )}

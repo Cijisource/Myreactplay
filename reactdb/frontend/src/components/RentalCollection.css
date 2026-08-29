@@ -244,6 +244,46 @@
   font-weight: 600;
 }
 
+.details-table td.paid {
+  color: #27ae60;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.view-income-transactions-btn,
+.transaction-popup-close {
+  border: 0;
+  background: transparent;
+  color: currentColor;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.view-income-transactions-btn {
+  width: 32px;
+  height: 32px;
+  margin-left: 0.4rem;
+  border-radius: 6px;
+}
+
+.view-income-transactions-btn:hover,
+.view-income-transactions-btn:focus-visible {
+  background: #dcfce7;
+}
+
+.view-income-transactions-btn svg,
+.transaction-popup-close svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .details-table td.tenant-id {
   font-weight: 600;
   color: #667eea;
@@ -434,6 +474,56 @@
   z-index: 10000;
   padding: clamp(0.75rem, 2vw, 1.5rem);
   overflow-y: auto;
+}
+
+.transaction-popup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(0.75rem, 2vw, 1.5rem);
+  background: rgba(15, 23, 42, 0.65);
+}
+
+.transaction-popup {
+  width: min(1400px, 100%);
+  max-height: calc(100vh - 1.5rem);
+  overflow: auto;
+  background: #f8fafc;
+  border-radius: 8px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.35);
+}
+
+.transaction-popup-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.transaction-popup-header h2 {
+  margin: 0;
+  color: #1e293b;
+  font-size: 1.1rem;
+}
+
+.transaction-popup-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  color: #475569;
+}
+
+.transaction-popup-close:hover,
+.transaction-popup-close:focus-visible {
+  background: #e2e8f0;
 }
 
 .modal-content {
