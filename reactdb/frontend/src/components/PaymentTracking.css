@@ -446,9 +446,30 @@
   background: white;
   border-radius: 6px;
   box-shadow: none;
-  overflow-x: auto;
+  overflow-x: scroll;
   overflow-y: hidden;
+  scrollbar-gutter: stable;
   border: 1px solid #e2e8f0;
+  scrollbar-color: #94a3b8 #e2e8f0;
+  scrollbar-width: thin;
+}
+
+.payment-table-wrapper::-webkit-scrollbar {
+  height: 10px;
+}
+
+.payment-table-wrapper::-webkit-scrollbar-track {
+  background: #e2e8f0;
+}
+
+.payment-table-wrapper::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border: 2px solid #e2e8f0;
+  border-radius: 999px;
+}
+
+.payment-table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
 }
 
 .payment-table {
@@ -957,57 +978,44 @@
 }
 
 @media (max-width: 640px) {
-  /* Convert table to card layout on small screen */
+  /* Preserve columns and provide a horizontal scroll track for payment comparison. */
   .payment-table-wrapper {
-    overflow: visible;
+    overflow-x: scroll;
+    overflow-y: hidden;
   }
 
   .payment-table {
-    display: block;
-    table-layout: auto;
+    display: table;
+    table-layout: fixed;
     width: 100%;
+    min-width: 960px;
   }
 
   .payment-table thead {
-    display: none;
+    display: table-header-group;
   }
 
   .payment-table tbody {
-    display: block;
+    display: table-row-group;
   }
 
   .payment-table tbody tr {
-    display: block;
+    display: table-row;
     border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    margin-bottom: 1rem;
-    padding: 0.75rem;
-    background: white;
   }
 
   .payment-table tbody tr:hover {
-    background-color: white;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    background-color: #eff6ff;
   }
 
   .payment-table td {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.5rem 0;
-    text-align: left;
-    border: none;
+    display: table-cell;
+    padding: 0.4rem 0.45rem;
   }
 
   .payment-table td::before {
-    content: attr(data-label);
-    font-weight: 600;
-    color: #718096;
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    margin-right: 0.75rem;
-    min-width: 100px;
-    flex-shrink: 0;
+    content: none;
+    display: none;
   }
 
   .payment-table td:nth-child(3)::before {
@@ -1038,17 +1046,6 @@
     content: "Room";
   }
 
-  .payment-table td:nth-child(3),
-  .payment-table td:nth-child(4),
-  .payment-table td:nth-child(5) {
-    text-align: right;
-  }
-
-  .badge {
-    min-width: auto;
-    padding: 0.25rem 0.4rem;
-    font-size: 0.7rem;
-  }
 }
 
 @media (max-width: 480px) {
