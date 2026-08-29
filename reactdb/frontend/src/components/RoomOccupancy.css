@@ -35,6 +35,35 @@
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
 }
 
+.room-occupancy-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 24px;
+  overflow-x: auto;
+  border-bottom: 1px solid #cbd5e1;
+}
+
+.room-occupancy-tab {
+  flex: 0 0 auto;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  padding: 10px 16px;
+}
+
+.room-occupancy-tab:hover,
+.room-occupancy-tab.active {
+  color: #1d4ed8;
+}
+
+.room-occupancy-tab.active {
+  border-bottom-color: #2563eb;
+}
+
 
 /* Header Section */
 .occupancy-header {

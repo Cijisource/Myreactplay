@@ -4,25 +4,20 @@ import './styles/mobile.css';
 //import RentalCollection from './components/RentalCollection';
 import RentalCollectionDetails from './components/RentalCollectionDetails';
 import Diagnostic from './components/Diagnostic';
-import PaymentTracking from './components/PaymentTracking';
 import TenantManagement from './components/TenantManagement';
 import RoomOccupancy from './components/RoomOccupancy';
 import RoomManagement from './components/RoomManagement';
 import OccupancyLinks from './components/OccupancyLinks';
 import ComplaintsManagement from './components/ComplaintsManagement';
-import ServiceDetailsManagement from './components/ServiceDetailsManagement';
 import EBServicePaymentsManagement from './components/EBServicePaymentsManagement';
 import LoginScreen from './components/LoginScreen';
 import UserManagement from './components/UserManagement';
 import RoleManagement from './components/RoleManagement';
 import TransactionManagement from './components/TransactionManagement';
 import StockManagement from './components/StockManagement';
-import DailyStatusManagement from './components/DailyStatusManagement';
 import GuestCheckinManagement from './components/GuestCheckinManagement';
-import ServiceAllocationManagement from './components/ServiceAllocationManagement';
 import RollingBanner from './components/RollingBanner';
 import ServiceConsumptionDetails from './components/ServiceConsumptionDetails';
-import MonthlyMeterReading from './components/MonthlyMeterReading';
 import WaterTankLevelMonitor from './components/WaterTankLevelMonitor';
 import TenantElectricityCharges from './components/TenantElectricityCharges';
 import MiscUploads from './components/MiscUploads';
@@ -34,7 +29,7 @@ interface TenantSelectionRequest {
   requestId: number;
 }
 
-type Page = 'home' | 'diagnostic' | 'payment' | 'rental-collection' | 'tenants' | 'occupancy' | 'room-wise-analysis' | 'room-management' | 'occupancy-links' | 'complaints' | 'services' | 'eb-payments' | 'users' | 'roles' | 'transactions' | 'stock' | 'daily-status' | 'guest-checkin' | 'misc-uploads' | 'service-allocation' | 'consumption' | 'meter-reading' | 'water-tank-monitor' | 'electricity-charges';
+type Page = 'home' | 'diagnostic' | 'rental-collection' | 'tenants' | 'occupancy' | 'room-management' | 'occupancy-links' | 'complaints' | 'eb-payments' | 'users' | 'roles' | 'transactions' | 'stock' | 'guest-checkin' | 'misc-uploads' | 'consumption' | 'water-tank-monitor' | 'electricity-charges';
 
 type NavItem = {
   page: Page;
@@ -52,26 +47,20 @@ type NavGroup = {
 const SCREEN_ROLES: Record<Page, string[]> = {
   home: [],
   diagnostic: ['admin'],
-  payment: ['admin', 'manager', 'accountant'],
   'rental-collection': ['admin', 'manager', 'accountant', 'property_manager'],
   tenants: ['admin', 'manager', 'property_manager', 'accountant'],
-  occupancy: ['admin', 'manager', 'property_manager', 'utilities_manager'],
-  'room-wise-analysis': ['admin', 'property_manager'],
+  occupancy: ['admin', 'manager', 'maintenance', 'property_manager', 'utilities_manager'],
   'room-management': ['admin', 'manager', 'property_manager', 'accountant'],
   'occupancy-links': ['admin', 'accountant'],
   complaints: ['admin', 'manager', 'maintenance', 'utilities_manager'],
-  services: ['admin'],
   'eb-payments': ['admin', 'manager'],
   users: ['admin'],
   roles: ['admin'],
   transactions: ['admin', 'manager', 'accountant'],
   stock: ['admin', 'manager', 'inventory_manager'],
-  'daily-status': ['admin', 'manager', 'maintenance', 'property_manager', 'utilities_manager'],
   'guest-checkin': ['admin', 'manager', 'maintenance', 'property_manager'],
   'misc-uploads': ['admin', 'manager', 'maintenance', 'property_manager'],
-  'service-allocation': ['admin'],
-  consumption: ['admin', 'manager'],
-  'meter-reading': ['admin', 'manager', 'utilities_manager'],
+  consumption: ['admin', 'manager', 'utilities_manager'],
   'water-tank-monitor': ['admin', 'manager', 'utilities_manager'],
   'electricity-charges': ['admin', 'manager']
 };
@@ -84,8 +73,6 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { page: 'home', label: 'Home', roles: SCREEN_ROLES.home },
       { page: 'occupancy', label: 'Room Vacancy Status', roles: SCREEN_ROLES.occupancy },
-      { page: 'room-wise-analysis', label: 'Room Wise Analysis', roles: SCREEN_ROLES['room-wise-analysis'] },
-      { page: 'daily-status', label: 'Daily Status', roles: SCREEN_ROLES['daily-status'] },
       { page: 'water-tank-monitor', label: 'Sintex Tank Monitor', roles: SCREEN_ROLES['water-tank-monitor'] }
     ]
   },
@@ -103,7 +90,6 @@ const NAV_GROUPS: NavGroup[] = [
     key: 'billing',
     label: 'Payments & Billing',
     items: [
-      { page: 'payment', label: 'Payment Tracking', roles: SCREEN_ROLES.payment },
       { page: 'rental-collection', label: 'Rental Collection', roles: SCREEN_ROLES['rental-collection'] },
       { page: 'electricity-charges', label: 'Electricity Charges', roles: SCREEN_ROLES['electricity-charges'] },
       { page: 'eb-payments', label: 'EB Payments', roles: SCREEN_ROLES['eb-payments'] },
@@ -114,9 +100,6 @@ const NAV_GROUPS: NavGroup[] = [
     key: 'utilities',
     label: 'Utilities & Services',
     items: [
-      { page: 'meter-reading', label: 'EB Meter Reading', roles: SCREEN_ROLES['meter-reading'] },
-      { page: 'services', label: 'Service Details', roles: SCREEN_ROLES.services },
-      { page: 'service-allocation', label: 'Service Allocation', roles: SCREEN_ROLES['service-allocation'] },
       { page: 'consumption', label: 'Service Consumption', roles: SCREEN_ROLES.consumption },
       { page: 'misc-uploads', label: 'Misc Uploads', roles: SCREEN_ROLES['misc-uploads'] },
       { page: 'complaints', label: 'Complaints', roles: SCREEN_ROLES.complaints }
@@ -292,10 +275,10 @@ function AppContent() {
       );
     }
 
-    if (currentPage === 'payment') {
+    if (currentPage === 'rental-collection') {
       return (
-        <ProtectedRoute requiredRoles={SCREEN_ROLES.payment}>
-          <PaymentTracking
+        <ProtectedRoute requiredRoles={SCREEN_ROLES['rental-collection']}>
+          <RentalCollectionDetails
             onViewTenantDetails={(tenantId) => {
               setTenantSelectionRequest({
                 tenantId,
@@ -304,14 +287,6 @@ function AppContent() {
               setCurrentPage('tenants');
             }}
           />
-        </ProtectedRoute>
-      );
-    }
-
-    if (currentPage === 'rental-collection') {
-      return (
-        <ProtectedRoute requiredRoles={SCREEN_ROLES['rental-collection']}>
-          <RentalCollectionDetails />
         </ProtectedRoute>
       );
     }
@@ -327,15 +302,7 @@ function AppContent() {
     if (currentPage === 'occupancy') {
       return (
         <ProtectedRoute requiredRoles={SCREEN_ROLES.occupancy}>
-          <RoomOccupancy mode="occupancy" />
-        </ProtectedRoute>
-      );
-    }
-
-    if (currentPage === 'room-wise-analysis') {
-      return (
-        <ProtectedRoute requiredRoles={SCREEN_ROLES['room-wise-analysis']}>
-          <RoomOccupancy mode="analysis" />
+          <RoomOccupancy />
         </ProtectedRoute>
       );
     }
@@ -360,14 +327,6 @@ function AppContent() {
       return (
         <ProtectedRoute requiredRoles={SCREEN_ROLES.complaints}>
           <ComplaintsManagement />
-        </ProtectedRoute>
-      );
-    }
-
-    if (currentPage === 'services') {
-      return (
-        <ProtectedRoute requiredRoles={SCREEN_ROLES.services}>
-          <ServiceDetailsManagement />
         </ProtectedRoute>
       );
     }
@@ -412,14 +371,6 @@ function AppContent() {
       );
     }
 
-    if (currentPage === 'daily-status') {
-      return (
-        <ProtectedRoute requiredRoles={SCREEN_ROLES['daily-status']}>
-          <DailyStatusManagement />
-        </ProtectedRoute>
-      );
-    }
-
     if (currentPage === 'guest-checkin') {
       return (
         <ProtectedRoute requiredRoles={SCREEN_ROLES['guest-checkin']}>
@@ -436,26 +387,10 @@ function AppContent() {
       );
     }
 
-    if (currentPage === 'service-allocation') {
-      return (
-        <ProtectedRoute requiredRoles={SCREEN_ROLES['service-allocation']}>
-          <ServiceAllocationManagement />
-        </ProtectedRoute>
-      );
-    }
-
     if (currentPage === 'consumption') {
       return (
         <ProtectedRoute requiredRoles={SCREEN_ROLES.consumption}>
           <ServiceConsumptionDetails />
-        </ProtectedRoute>
-      );
-    }
-
-    if (currentPage === 'meter-reading') {
-      return (
-        <ProtectedRoute requiredRoles={SCREEN_ROLES['meter-reading']}>
-          <MonthlyMeterReading />
         </ProtectedRoute>
       );
     }
