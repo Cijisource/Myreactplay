@@ -472,6 +472,10 @@
   background: #64748b;
 }
 
+.payment-table-scrollbar {
+  display: none;
+}
+
 .payment-table {
   width: 100%;
   min-width: 960px;
@@ -978,17 +982,54 @@
 }
 
 @media (max-width: 640px) {
-  /* Preserve columns and provide a horizontal scroll track for payment comparison. */
+  /* Keep the full payment table readable through horizontal scrolling. */
   .payment-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable;
+    border: 1px solid #e2e8f0;
+    background: white;
+  }
+
+  .payment-table-scrollbar {
+    display: block;
+    width: 100%;
+    height: 18px;
+    margin-top: 0.35rem;
     overflow-x: scroll;
     overflow-y: hidden;
+    scrollbar-color: #64748b #e2e8f0;
+    scrollbar-width: auto;
+  }
+
+  .payment-table-scrollbar-content {
+    width: 1080px;
+    height: 1px;
+  }
+
+  .payment-table-scrollbar::-webkit-scrollbar {
+    height: 12px;
+  }
+
+  .payment-table-scrollbar::-webkit-scrollbar-track {
+    background: #e2e8f0;
+    border-radius: 999px;
+  }
+
+  .payment-table-scrollbar::-webkit-scrollbar-thumb {
+    background: #64748b;
+    border: 2px solid #e2e8f0;
+    border-radius: 999px;
   }
 
   .payment-table {
     display: table;
-    table-layout: fixed;
     width: 100%;
-    min-width: 960px;
+    min-width: 1080px;
+    table-layout: fixed;
+    background: white;
   }
 
   .payment-table thead {
@@ -1001,7 +1042,6 @@
 
   .payment-table tbody tr {
     display: table-row;
-    border: 1px solid #e2e8f0;
   }
 
   .payment-table tbody tr:hover {
@@ -1010,42 +1050,22 @@
 
   .payment-table td {
     display: table-cell;
-    padding: 0.4rem 0.45rem;
+    padding: 0.45rem 0.55rem;
+    border-right: 1px solid #f1f5f9;
+    white-space: nowrap;
   }
 
-  .payment-table td::before {
-    content: none;
-    display: none;
+  .payment-table td:last-child {
+    border-right: none;
   }
 
-  .payment-table td:nth-child(3)::before {
-    content: "Rent Fixed";
+  .payment-table .tenant-name-cell {
+    display: flex;
   }
 
-  .payment-table td:nth-child(4)::before {
-    content: "Rent Received";
+  .payment-table .eb-charge-content {
+    justify-content: space-between;
   }
-
-  .payment-table td:nth-child(5)::before {
-    content: "Balance";
-  }
-
-  .payment-table td:nth-child(6)::before {
-    content: "Payment Date";
-  }
-
-  .payment-table td:nth-child(7)::before {
-    content: "Status";
-  }
-
-  .payment-table td:nth-child(1)::before {
-    content: "Tenant";
-  }
-
-  .payment-table td:nth-child(2)::before {
-    content: "Room";
-  }
-
 }
 
 @media (max-width: 480px) {
