@@ -72,7 +72,7 @@ export default function RoomManagement(): JSX.Element {
   const [savingRoomDetails, setSavingRoomDetails] = useState<Record<number, boolean>>({});
   const [roomDetailError, setRoomDetailError] = useState<string | null>(null);
   const [roomDetailSuccess, setRoomDetailSuccess] = useState<string | null>(null);
-  const [activeManagementTab, setActiveManagementTab] = useState<'details' | 'vacancy'>('details');
+  const [activeManagementTab, setActiveManagementTab] = useState<'details' | 'vacancy' | 'analysis'>('details');
 
   // Fetch rooms and occupancy data
   useEffect(() => {
@@ -807,6 +807,15 @@ export default function RoomManagement(): JSX.Element {
       >
         Room Vacancy Status
       </button>
+      <button
+        type="button"
+        className={`room-occupancy-tab ${activeManagementTab === 'analysis' ? 'active' : ''}`}
+        onClick={() => setActiveManagementTab('analysis')}
+        role="tab"
+        aria-selected={activeManagementTab === 'analysis'}
+      >
+        Room Wise Analysis
+      </button>
     </div>
   );
 
@@ -814,12 +823,16 @@ export default function RoomManagement(): JSX.Element {
     return <LoadingSpinner overlay text="Loading room management data" />;
   }
 
-  if (activeManagementTab === 'vacancy') {
+  if (activeManagementTab === 'vacancy' || activeManagementTab === 'analysis') {
     return (
       <div className="room-management-container">
         <h2 className="section-heading">Room Management</h2>
         {renderManagementTabs()}
-        <RoomOccupancy />
+        <RoomOccupancy
+          key={activeManagementTab}
+          mode={activeManagementTab === 'analysis' ? 'analysis' : 'occupancy'}
+          hideHeaderAndTabs
+        />
       </div>
     );
   }
