@@ -2,7 +2,6 @@ import { Fragment, useState, useEffect, useMemo, useRef, type KeyboardEvent as R
 import { apiService, getRoomOccupancyData } from '../api';
 import SearchableDropdown from './SearchableDropdown';
 import LoadingSpinner from './LoadingSpinner';
-import DailyStatusManagement from './DailyStatusManagement';
 import { useAuth } from './AuthContext';
 import './RoomOccupancy.css';
 
@@ -124,10 +123,7 @@ export default function RoomOccupancy({ mode = 'occupancy' }: RoomOccupancyProps
   const { hasAnyRole } = useAuth();
   const canAccessOccupancy = hasAnyRole(['admin', 'manager', 'property_manager', 'utilities_manager']);
   const canAccessAnalysis = hasAnyRole(['admin', 'property_manager']);
-  const canAccessDailyStatus = hasAnyRole(['admin', 'manager', 'maintenance', 'property_manager', 'utilities_manager']);
-  const [activeTab, setActiveTab] = useState<'occupancy' | 'analysis' | 'daily-status'>(
-    mode === 'analysis' ? 'analysis' : canAccessOccupancy ? 'occupancy' : 'daily-status'
-  );
+  const [activeTab, setActiveTab] = useState<'occupancy' | 'analysis'>(mode === 'analysis' ? 'analysis' : 'occupancy');
   const isAnalysisMode = activeTab === 'analysis';
   const today = new Date();
   const currentYear = today.getFullYear();
@@ -710,17 +706,8 @@ export default function RoomOccupancy({ mode = 'occupancy' }: RoomOccupancyProps
           Room Wise Analysis
         </button>
       )}
-      {canAccessDailyStatus && (
-        <button type="button" className={`room-occupancy-tab ${activeTab === 'daily-status' ? 'active' : ''}`} onClick={() => setActiveTab('daily-status')} role="tab" aria-selected={activeTab === 'daily-status'}>
-          Daily Status
-        </button>
-      )}
     </div>
   );
-
-  if (activeTab === 'daily-status') {
-    return <div className="occupancy-container"><h2 className="section-heading">Room Vacancy Status</h2>{renderTabs()}<DailyStatusManagement /></div>;
-  }
 
   if (loading) {
     return <div className="occupancy-container"><h2 className="section-heading">Room Vacancy Status</h2>{renderTabs()}<LoadingSpinner overlay text="Loading room occupancy data" /></div>;

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { apiService, getFileUrl, getRentalPaymentProofUrl } from '../api';
 import { getOccupancyLinks } from '../api';
 import LoadingSpinner from './LoadingSpinner';
+import RoomOccupancy from './RoomOccupancy';
 import './RoomManagement.css';
 
 interface Room {
@@ -71,6 +72,7 @@ export default function RoomManagement(): JSX.Element {
   const [savingRoomDetails, setSavingRoomDetails] = useState<Record<number, boolean>>({});
   const [roomDetailError, setRoomDetailError] = useState<string | null>(null);
   const [roomDetailSuccess, setRoomDetailSuccess] = useState<string | null>(null);
+  const [activeManagementTab, setActiveManagementTab] = useState<'details' | 'vacancy'>('details');
 
   // Fetch rooms and occupancy data
   useEffect(() => {
@@ -785,13 +787,47 @@ export default function RoomManagement(): JSX.Element {
     );
   };
 
+  const renderManagementTabs = () => (
+    <div className="room-occupancy-tabs" role="tablist" aria-label="Room management views">
+      <button
+        type="button"
+        className={`room-occupancy-tab ${activeManagementTab === 'details' ? 'active' : ''}`}
+        onClick={() => setActiveManagementTab('details')}
+        role="tab"
+        aria-selected={activeManagementTab === 'details'}
+      >
+        Room Details
+      </button>
+      <button
+        type="button"
+        className={`room-occupancy-tab ${activeManagementTab === 'vacancy' ? 'active' : ''}`}
+        onClick={() => setActiveManagementTab('vacancy')}
+        role="tab"
+        aria-selected={activeManagementTab === 'vacancy'}
+      >
+        Room Vacancy Status
+      </button>
+    </div>
+  );
+
   if (loading) {
     return <LoadingSpinner overlay text="Loading room management data" />;
+  }
+
+  if (activeManagementTab === 'vacancy') {
+    return (
+      <div className="room-management-container">
+        <h2 className="section-heading">Room Management</h2>
+        {renderManagementTabs()}
+        <RoomOccupancy />
+      </div>
+    );
   }
 
   return (
     <div className="room-management-container">
       <h2 className="section-heading">Room Management</h2>
+      {renderManagementTabs()}
       {/* Error Message */}
       {error && (
         <div className="error-card">
