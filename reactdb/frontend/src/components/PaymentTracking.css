@@ -31,6 +31,30 @@
   min-width: 250px;
 }
 
+.payment-month-label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #333;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.payment-month-select {
+  width: 100%;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fff;
+  color: #333;
+  padding: 0.75rem;
+  font: inherit;
+}
+
+.payment-month-select:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
 .room-filter {
   background: white;
   padding: 0.75rem 1rem;

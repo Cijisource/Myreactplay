@@ -544,16 +544,25 @@ export default function PaymentTracking() {
       {/* Month/Year Selection and Room Filter */}
       <div className="month-selector-wrapper">
         <div className="month-selector">
-          <SearchableDropdown
-            label="Select Month & Year"
+          <label className="payment-month-label" htmlFor="payment-month">
+            Select Month & Year
+          </label>
+          <select
+            id="payment-month"
+            className="payment-month-select"
             value={selectedMonth}
-            onChange={(option) => setSelectedMonth(option.id.toString())}
-            options={monthYearOptions.map(opt => ({
-              id: `${opt.year}-${String(opt.month).padStart(2, '0')}`,
-              label: opt.label
-            }))}
-            placeholder="Search month and year..."
-          />
+            onChange={(event) => setSelectedMonth(event.target.value)}
+          >
+            <option value="">Select month and year</option>
+            {monthYearOptions.map((option) => (
+              <option
+                key={`${option.year}-${option.month}`}
+                value={`${option.year}-${String(option.month).padStart(2, '0')}`}
+              >
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         {!selectedMonth && !hasActiveDateFilter && (
