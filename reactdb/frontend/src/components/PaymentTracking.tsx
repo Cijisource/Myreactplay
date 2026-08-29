@@ -716,16 +716,16 @@ export default function PaymentTracking({ onViewTenantDetails }: PaymentTracking
           <table className="payment-table">
             <thead>
               <tr>
-                <th>Tenant Name</th>
-                <th>Room Number</th>
-                <th>Check-In</th>
-                <th>Check-Out</th>
-                <th>Rent Fixed</th>
-                <th>Charges</th>
-                <th>Rent Received</th>
-                <th>Total Receivable</th>
+                <th title="Tenant Name">Tenant</th>
+                <th title="Room Number">Room</th>
+                <th title="Check-In Date">Check-In</th>
+                <th title="Check-Out Date">Check-Out</th>
+                <th title="Fixed Rent">Rent</th>
+                <th title="Electricity Charges">EB</th>
+                <th title="Rent Received">Received</th>
+                <th title="Total Receivable">Receivable</th>
                 <th>Balance</th>
-                <th>Payment Date</th>
+                <th title="Payment Date">Paid On</th>
                 <th>Status</th>
               </tr>
             </thead>

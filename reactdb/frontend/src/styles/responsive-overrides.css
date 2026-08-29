@@ -32,8 +32,10 @@ svg {
 .rental-collection-details,
 .complaints-container,
 .eb-container,
-.rental-container {
-  width: min(100%, var(--responsive-page-max));
+.rental-container,
+.room-management-container {
+  width: 100%;
+  max-width: none;
   margin-left: auto;
   margin-right: auto;
 }

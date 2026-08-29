@@ -1059,6 +1059,35 @@
 }
 
 /* Responsive */
+.service-consumption-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 24px;
+  overflow-x: auto;
+  border-bottom: 1px solid #cbd5e1;
+}
+
+.service-consumption-tab {
+  flex: 0 0 auto;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  padding: 10px 16px;
+}
+
+.service-consumption-tab:hover,
+.service-consumption-tab.active {
+  color: #1d4ed8;
+}
+
+.service-consumption-tab.active {
+  border-bottom-color: #2563eb;
+}
+
 @media (max-width: 768px) {
   .management-container {
     padding: 15px;

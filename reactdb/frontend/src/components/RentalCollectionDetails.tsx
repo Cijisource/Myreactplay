@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext';
 import SearchableDropdown from './SearchableDropdown';
 import LoadingSpinner from './LoadingSpinner';
 import TransactionManagement from './TransactionManagement';
+import PaymentTracking from './PaymentTracking';
 import './RentalCollectionDetails.css';
 
 interface OccupancyInfo {
@@ -94,8 +95,13 @@ function getDefaultMonthValue() {
   return `${year}-${month}`;
 }
 
-export default function RentalCollectionDetails() {
+interface RentalCollectionDetailsProps {
+  onViewTenantDetails?: (tenantId: number) => void;
+}
+
+export default function RentalCollectionDetails({ onViewTenantDetails }: RentalCollectionDetailsProps) {
   const { hasRole, hasAnyRole } = useAuth();
+  const [activeTab, setActiveTab] = useState<'collection' | 'tracking'>('collection');
   const [occupancyOptions, setOccupancyOptions] = useState<OccupancyOption[]>([]);
   const [selectedOccupancyId, setSelectedOccupancyId] = useState<number | null>(null);
   const [occupancyInfo, setOccupancyInfo] = useState<OccupancyInfo | null>(null);
@@ -814,6 +820,33 @@ export default function RentalCollectionDetails() {
   return (
     <div className="rental-collection-details">
       <h2 className="section-heading">Rental Collection</h2>
+      <div className="rental-collection-tabs" role="tablist" aria-label="Rental collection views">
+        <button
+          type="button"
+          className={`rental-collection-tab ${activeTab === 'collection' ? 'active' : ''}`}
+          onClick={() => setActiveTab('collection')}
+          role="tab"
+          aria-selected={activeTab === 'collection'}
+        >
+          Collection
+        </button>
+        {hasAnyRole(['admin', 'manager', 'accountant']) && (
+          <button
+            type="button"
+            className={`rental-collection-tab ${activeTab === 'tracking' ? 'active' : ''}`}
+            onClick={() => setActiveTab('tracking')}
+            role="tab"
+            aria-selected={activeTab === 'tracking'}
+          >
+            Payment Tracking
+          </button>
+        )}
+      </div>
+
+      {activeTab === 'tracking' ? (
+        <PaymentTracking onViewTenantDetails={onViewTenantDetails} />
+      ) : (
+        <>
       {error && (
         <div className="error-alert">
           <span>{error}</span>
@@ -1743,6 +1776,8 @@ export default function RentalCollectionDetails() {
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

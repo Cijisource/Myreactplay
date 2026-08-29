@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../api';
+import { useAuth } from './AuthContext';
+import MonthlyMeterReading from './MonthlyMeterReading';
+import ServiceDetailsManagement from './ServiceDetailsManagement';
+import ServiceAllocationManagement from './ServiceAllocationManagement';
 import '../components/ManagementStyles.css';
 
 interface ConsumptionDetail {
@@ -63,6 +67,11 @@ interface CategoryGroup {
 }
 
 export default function ServiceConsumptionDetails() {
+  const { hasAnyRole } = useAuth();
+  const canAccessConsumption = hasAnyRole(['admin', 'manager']);
+  const [activeTab, setActiveTab] = useState<'consumption' | 'meter-reading' | 'service-details' | 'service-allocation'>(
+    canAccessConsumption ? 'consumption' : 'meter-reading'
+  );
   const [consumptionDetails, setConsumptionDetails] = useState<ConsumptionDetail[]>([]);
   const [filteredDetails, setFilteredDetails] = useState<ConsumptionDetail[]>([]);
   const [rooms, setRooms] = useState<RoomOption[]>([]);
@@ -374,13 +383,51 @@ export default function ServiceConsumptionDetails() {
     }
   }
 
+  const renderTabs = () => (
+    <div className="service-consumption-tabs" role="tablist" aria-label="Service consumption views">
+      {canAccessConsumption && (
+        <button type="button" className={`service-consumption-tab ${activeTab === 'consumption' ? 'active' : ''}`} onClick={() => setActiveTab('consumption')} role="tab" aria-selected={activeTab === 'consumption'}>
+          Consumption
+        </button>
+      )}
+      {hasAnyRole(['admin', 'manager', 'utilities_manager']) && (
+        <button type="button" className={`service-consumption-tab ${activeTab === 'meter-reading' ? 'active' : ''}`} onClick={() => setActiveTab('meter-reading')} role="tab" aria-selected={activeTab === 'meter-reading'}>
+          EB Meter Reading
+        </button>
+      )}
+      {hasAnyRole(['admin']) && (
+        <button type="button" className={`service-consumption-tab ${activeTab === 'service-details' ? 'active' : ''}`} onClick={() => setActiveTab('service-details')} role="tab" aria-selected={activeTab === 'service-details'}>
+          Service Details
+        </button>
+      )}
+      {hasAnyRole(['admin']) && (
+        <button type="button" className={`service-consumption-tab ${activeTab === 'service-allocation' ? 'active' : ''}`} onClick={() => setActiveTab('service-allocation')} role="tab" aria-selected={activeTab === 'service-allocation'}>
+          Service Allocation
+        </button>
+      )}
+    </div>
+  );
+
+  if (activeTab === 'meter-reading') {
+    return <div className="management-section"><h2 className="section-heading">Service Consumption</h2>{renderTabs()}<MonthlyMeterReading /></div>;
+  }
+
+  if (activeTab === 'service-details') {
+    return <div className="management-section"><h2 className="section-heading">Service Consumption</h2>{renderTabs()}<ServiceDetailsManagement /></div>;
+  }
+
+  if (activeTab === 'service-allocation') {
+    return <div className="management-section"><h2 className="section-heading">Service Consumption</h2>{renderTabs()}<ServiceAllocationManagement /></div>;
+  }
+
   if (loading) {
-    return <div className="management-section">Loading...</div>;
+    return <div className="management-section"><h2 className="section-heading">Service Consumption</h2>{renderTabs()}Loading...</div>;
   }
 
   return (
     <div className="management-section">
       <h2 className="section-heading">Service Consumption</h2>
+      {renderTabs()}
 
       {error && <div className="error-message">{error}</div>}
 
