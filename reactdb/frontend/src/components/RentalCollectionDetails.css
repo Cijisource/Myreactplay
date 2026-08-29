@@ -112,6 +112,15 @@
   color: #744210;
 }
 
+.current-month-summary-item.highlight-pending-balance {
+  background: #fff5f5;
+  border-color: #feb2b2;
+}
+
+.current-month-summary-item.highlight-pending-balance strong {
+  color: #c53030;
+}
+
 /* Date range filter bar inside current-month-status-card */
 .rental-date-filter-bar {
   display: flex;
@@ -344,6 +353,108 @@
 .payment-status-badge.pending {
   background: #fed7d7;
   color: #742a2a;
+}
+
+.payment-status-badge.merged {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+/* Status Summary Badges */
+.status-summary {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 2px solid transparent;
+  user-select: none;
+}
+
+.status-badge:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.status-badge.paid {
+  background: #c6f6d5;
+  color: #22543d;
+}
+
+.status-badge.paid.active {
+  border-color: #22543d;
+  box-shadow: 0 0 0 4px rgba(34, 84, 61, 0.1);
+}
+
+.status-badge.partial {
+  background: #feebc8;
+  color: #7c2d12;
+}
+
+.status-badge.partial.active {
+  border-color: #7c2d12;
+  box-shadow: 0 0 0 4px rgba(124, 45, 18, 0.1);
+}
+
+.status-badge.pending {
+  background: #fed7d7;
+  color: #742a2a;
+}
+
+.status-badge.pending.active {
+  border-color: #742a2a;
+  box-shadow: 0 0 0 4px rgba(116, 42, 42, 0.1);
+}
+
+.status-badge.merged {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.status-badge.merged.active {
+  border-color: #1d4ed8;
+  box-shadow: 0 0 0 4px rgba(29, 78, 216, 0.1);
+}
+
+.status-badge.approved {
+  background: #ecfdf3;
+  color: #166534;
+}
+
+.status-badge.approved.active {
+  border-color: #166534;
+  box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.15);
+}
+
+.status-badge.rejected {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.status-badge.rejected.active {
+  border-color: #b91c1c;
+  box-shadow: 0 0 0 4px rgba(185, 28, 28, 0.15);
+}
+
+.status-label {
+  font-size: 0.95rem;
+}
+
+.status-count {
+  background: rgba(255, 255, 255, 0.6);
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-size: 1rem;
 }
 
 .empty-state.compact {
@@ -1409,6 +1520,18 @@
 
 .payment-table td.amount.balance {
   color: #c53030;
+}
+
+.payment-table td.amount.balance.pending,
+.payment-table td.amount.pending {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.payment-table td.amount.balance.success,
+.payment-table td.amount.success {
+  color: #16a34a;
+  font-weight: 600;
 }
 
 .payment-table td.date {

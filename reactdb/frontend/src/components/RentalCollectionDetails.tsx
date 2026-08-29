@@ -36,7 +36,7 @@ interface MonthlyPaymentStatus {
   checkOutDate: string | null;
   screenshotUrl: string | null;
   folder: string | null;
-  paymentStatus: 'paid' | 'partial' | 'pending';
+  paymentStatus: 'paid' | 'partial' | 'pending' | 'merged';
   proRataRent: number;
   rentBalance: number;
   occupancyDays: number;
@@ -47,6 +47,7 @@ interface MonthlyPaymentStatus {
 }
 
 type TenantReviewDecision = 'approved' | 'rejected' | null;
+type PaymentStatusFilter = 'paid' | 'pending' | 'partial' | 'merged' | 'approved' | 'rejected' | null;
 
 interface TenantReviewState {
   decision: TenantReviewDecision;
@@ -123,15 +124,24 @@ export default function RentalCollectionDetails() {
   const [currentMonthPayments, setCurrentMonthPayments] = useState<MonthlyPaymentStatus[]>([]);
   const [currentMonthLoading, setCurrentMonthLoading] = useState(false);
   const [currentMonthError, setCurrentMonthError] = useState<string | null>(null);
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<PaymentStatusFilter>(null);
   const [tenantReviews, setTenantReviews] = useState<Record<number, TenantReviewState>>({});
   const [expandedReviewRows, setExpandedReviewRows] = useState<Record<number, boolean>>({});
   const [savingReviewRows, setSavingReviewRows] = useState<Record<number, boolean>>({});
   const [showIncomeTransactions, setShowIncomeTransactions] = useState(false);
 
   const currentMonthYear = selectedMonthFilter;
+
+  const getEffectiveStatus = (
+    payment: Pick<MonthlyPaymentStatus, 'rentFixed' | 'proRataRent' | 'paymentStatus'>
+  ): 'paid' | 'pending' | 'partial' | 'merged' => {
+    if (payment.proRataRent === 0 || payment.rentFixed === 0) return 'merged';
+    return payment.paymentStatus;
+  };
+
   const paidOccupancyIds = new Set(
     currentMonthPayments
-      .filter((payment) => payment.paymentStatus === 'paid')
+      .filter((payment) => getEffectiveStatus(payment) === 'paid')
       .map((payment) => payment.occupancyId)
   );
 
@@ -139,8 +149,38 @@ export default function RentalCollectionDetails() {
     new Set(currentMonthPayments.map((payment) => payment.roomNumber))
   ).sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }));
 
-  const filteredCurrentMonthPayments = currentMonthPayments.filter((payment) =>
+  const roomFilteredPayments = currentMonthPayments.filter((payment) =>
     selectedRoomFilter === 'all' ? true : payment.roomNumber === selectedRoomFilter
+  );
+
+  const getReviewDecision = (item: MonthlyPaymentStatus): TenantReviewDecision => {
+    return tenantReviews[item.occupancyId]?.decision ?? item.reviewDecision ?? null;
+  };
+
+  const filteredCurrentMonthPayments = roomFilteredPayments.filter((payment) => {
+    if (!selectedStatusFilter) return true;
+    if (selectedStatusFilter === 'approved' || selectedStatusFilter === 'rejected') {
+      return getReviewDecision(payment) === selectedStatusFilter;
+    }
+    return getEffectiveStatus(payment) === selectedStatusFilter;
+  });
+
+  const paidCount = roomFilteredPayments.filter((item) => getEffectiveStatus(item) === 'paid').length;
+  const partialCount = roomFilteredPayments.filter((item) => getEffectiveStatus(item) === 'partial').length;
+  const pendingCount = roomFilteredPayments.filter((item) => getEffectiveStatus(item) === 'pending').length;
+  const mergedCount = roomFilteredPayments.filter((item) => getEffectiveStatus(item) === 'merged').length;
+  const approvedCount = roomFilteredPayments.filter((item) => getReviewDecision(item) === 'approved').length;
+  const rejectedCount = roomFilteredPayments.filter((item) => getReviewDecision(item) === 'rejected').length;
+  const totalReceivedAmount = roomFilteredPayments.reduce((sum, item) => sum + (item.rentReceived || 0), 0);
+  const totalChargesAmount = roomFilteredPayments.reduce((sum, item) => sum + Number(item.charges || 0), 0);
+  const totalPendingBalanceAmount = roomFilteredPayments.reduce(
+    (sum, item) =>
+      sum +
+      Math.max(
+        0,
+        item.rentBalance ?? (item.proRataRent - ((item.rentReceived || 0) + Number(item.charges || 0)))
+      ),
+    0
   );
   const canChangeReviewStatus = hasAnyRole(['admin', 'accountant']) || !hasRole('manager');
 
@@ -155,6 +195,21 @@ export default function RentalCollectionDetails() {
 
   const compareRoomNumbers = (left: string, right: string): number =>
     left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' });
+
+  const getDaysInMonth = (month: number, year: number): number => {
+    return new Date(year, month, 0).getDate();
+  };
+
+  const getBalanceTooltip = (item: MonthlyPaymentStatus): string => {
+    const [filterYear, filterMonth] = selectedMonthFilter.split('-').map(Number);
+    const year = item.year || filterYear || new Date().getFullYear();
+    const month = item.month || filterMonth || (new Date().getMonth() + 1);
+    const daysInMonth = getDaysInMonth(month, year);
+    const occupancyDays = item.occupancyDays || daysInMonth;
+    const monthName = new Date(year, month - 1, 1).toLocaleDateString('en-US', { month: 'long' });
+
+    return `Occupancy: ${occupancyDays} of ${daysInMonth} days in ${monthName} ${year}\nPro-rata rent balance`;
+  };
 
   const fetchCurrentMonthPayments = async () => {
     try {
@@ -208,9 +263,10 @@ export default function RentalCollectionDetails() {
     fetchCurrentMonthPayments();
   }, [currentMonthYear]);
 
-  // Reset room filter when month changes
+  // Reset room filter and status filter when month changes
   useEffect(() => {
     setSelectedRoomFilter('all');
+    setSelectedStatusFilter(null);
   }, [currentMonthYear]);
 
   const fetchOccupancies = async () => {
@@ -1147,19 +1203,96 @@ export default function RentalCollectionDetails() {
             onClick={() => {
               setSelectedMonthFilter(getDefaultMonthValue());
               setSelectedRoomFilter('all');
+              setSelectedStatusFilter(null);
             }}
           >
             Reset to Current Month
           </button>
         </div>
 
+        {/* Status Summary Filters */}
+        {!currentMonthLoading && roomFilteredPayments.length > 0 && (
+          <div className="status-summary">
+            <div 
+              className={`status-badge paid ${selectedStatusFilter === 'paid' ? 'active' : ''}`}
+              onClick={() => setSelectedStatusFilter(selectedStatusFilter === 'paid' ? null : 'paid')}
+              role="button"
+              tabIndex={0}
+            >
+              <span className="status-label">Paid</span>
+              <span className="status-count">{paidCount}</span>
+            </div>
+            <div 
+              className={`status-badge partial ${selectedStatusFilter === 'partial' ? 'active' : ''}`}
+              onClick={() => setSelectedStatusFilter(selectedStatusFilter === 'partial' ? null : 'partial')}
+              role="button"
+              tabIndex={0}
+            >
+              <span className="status-label">Partial</span>
+              <span className="status-count">{partialCount}</span>
+            </div>
+            <div 
+              className={`status-badge pending ${selectedStatusFilter === 'pending' ? 'active' : ''}`}
+              onClick={() => setSelectedStatusFilter(selectedStatusFilter === 'pending' ? null : 'pending')}
+              role="button"
+              tabIndex={0}
+            >
+              <span className="status-label">Pending</span>
+              <span className="status-count">{pendingCount}</span>
+            </div>
+            <div 
+              className={`status-badge merged ${selectedStatusFilter === 'merged' ? 'active' : ''}`}
+              onClick={() => setSelectedStatusFilter(selectedStatusFilter === 'merged' ? null : 'merged')}
+              role="button"
+              tabIndex={0}
+            >
+              <span className="status-label">Merged</span>
+              <span className="status-count">{mergedCount}</span>
+            </div>
+            <div 
+              className={`status-badge approved ${selectedStatusFilter === 'approved' ? 'active' : ''}`}
+              onClick={() => setSelectedStatusFilter(selectedStatusFilter === 'approved' ? null : 'approved')}
+              role="button"
+              tabIndex={0}
+            >
+              <span className="status-label">Approved</span>
+              <span className="status-count">{approvedCount}</span>
+            </div>
+            <div 
+              className={`status-badge rejected ${selectedStatusFilter === 'rejected' ? 'active' : ''}`}
+              onClick={() => setSelectedStatusFilter(selectedStatusFilter === 'rejected' ? null : 'rejected')}
+              role="button"
+              tabIndex={0}
+            >
+              <span className="status-label">Rejected</span>
+              <span className="status-count">{rejectedCount}</span>
+            </div>
+          </div>
+        )}
+
         {currentMonthError && (
           <div className="current-month-error">{currentMonthError}</div>
         )}
 
-        {!currentMonthError && filteredCurrentMonthPayments.length === 0 && !currentMonthLoading && (
+        {!currentMonthError && roomFilteredPayments.length === 0 && !currentMonthLoading && (
           <div className="empty-state compact">
             <p>No occupied room records found for this filter.</p>
+          </div>
+        )}
+
+        {!currentMonthError && roomFilteredPayments.length > 0 && filteredCurrentMonthPayments.length === 0 && !currentMonthLoading && (
+          <div className="empty-state compact">
+            <p>No {selectedStatusFilter || 'matching'} occupied room records found</p>
+            <button 
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                setSelectedStatusFilter(null);
+                setSelectedRoomFilter('all');
+              }}
+            >
+              Clear Filters
+            </button>
           </div>
         )}
 
@@ -1170,29 +1303,21 @@ export default function RentalCollectionDetails() {
                 <span>Total Occupied Rooms</span>
                 <strong>{filteredCurrentMonthPayments.length}</strong>
               </div>
-              <div className="current-month-summary-item">
-                <span>Fully Paid</span>
-                <strong>{filteredCurrentMonthPayments.filter((item) => item.paymentStatus === 'paid').length}</strong>
-              </div>
-              <div className="current-month-summary-item">
-                <span>Partial</span>
-                <strong>{filteredCurrentMonthPayments.filter((item) => item.paymentStatus === 'partial').length}</strong>
-              </div>
-              <div className="current-month-summary-item">
-                <span>Pending</span>
-                <strong>{filteredCurrentMonthPayments.filter((item) => item.paymentStatus === 'pending').length}</strong>
-              </div>
               <div className="current-month-summary-item highlight-received">
                 <span>Total Pro-Rata Rent Received</span>
-                <strong>{formatCurrency(filteredCurrentMonthPayments.reduce((sum, item) => sum + (item.rentReceived || 0), 0))}</strong>
+                <strong>{formatCurrency(totalReceivedAmount)}</strong>
               </div>
               <div className="current-month-summary-item highlight-charges">
                 <span>Total Charges</span>
-                <strong>{formatCurrency(filteredCurrentMonthPayments.reduce((sum, item) => sum + (Number(item.charges || 0)), 0))}</strong>
+                <strong>{formatCurrency(totalChargesAmount)}</strong>
               </div>
               <div className="current-month-summary-item highlight-eb">
                 <span>Total EB Charges</span>
-                <strong>{formatCurrency(filteredCurrentMonthPayments.reduce((sum, item) => sum + (Number(item.charges || 0)), 0))}</strong>
+                <strong>{formatCurrency(totalChargesAmount)}</strong>
+              </div>
+              <div className="current-month-summary-item highlight-pending-balance">
+                <span>Total Pending Balance</span>
+                <strong>{formatCurrency(totalPendingBalanceAmount)}</strong>
               </div>
             </div>
 
@@ -1220,6 +1345,10 @@ export default function RentalCollectionDetails() {
                     const isSavingReview = savingReviewRows[item.occupancyId] || false;
                     const savedReviewDate = formatReviewSavedDate(item.reviewVerifiedOn);
                     const effectiveEbCharges = Number(item.charges || 0);
+                    const effectiveStatus = getEffectiveStatus(item);
+                    const itemBalance = item.rentBalance !== undefined && item.rentBalance !== null
+                      ? Number(item.rentBalance)
+                      : Math.max(0, item.proRataRent - ((item.rentReceived || 0) + effectiveEbCharges));
                     // Check if this is a shop (room numbers like S1, S2, SHOP-1 etc or any number > 100 can be marked as shop)
                     const isShop = /^[Ss]/.test(item.roomNumber) || /[Ss]hop/i.test(item.roomNumber);
 
@@ -1236,10 +1365,15 @@ export default function RentalCollectionDetails() {
                         <td className="amount eb-charges">
                           {formatCurrency(effectiveEbCharges)}
                         </td>
-                        <td className="amount balance">{formatCurrency(item.proRataRent + effectiveEbCharges)}</td>
+                        <td
+                          className={`amount balance ${itemBalance > 0 ? 'pending' : 'success'}`}
+                          title={getBalanceTooltip(item)}
+                        >
+                          {formatCurrency(itemBalance)}
+                        </td>
                         <td>
-                          <span className={`payment-status-badge ${item.paymentStatus}`}>
-                            {item.paymentStatus}
+                          <span className={`payment-status-badge ${effectiveStatus}`}>
+                            {effectiveStatus}
                           </span>
                         </td>
                         <td>

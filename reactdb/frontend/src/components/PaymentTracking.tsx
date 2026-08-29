@@ -217,8 +217,8 @@ export default function PaymentTracking({ onViewTenantDetails }: PaymentTracking
     }));
   }, [payments]);
 
-  const getEffectiveStatus = (payment: Pick<PaymentRecord, 'rentFixed' | 'paymentStatus'>): 'paid' | 'pending' | 'partial' | 'merged' => {
-    if (payment.rentFixed === 0) return 'merged';
+  const getEffectiveStatus = (payment: Pick<PaymentRecord, 'rentFixed' | 'proRataRent' | 'paymentStatus'>): 'paid' | 'pending' | 'partial' | 'merged' => {
+    if (payment.proRataRent === 0 || payment.rentFixed === 0) return 'merged';
     return payment.paymentStatus;
   };
 
