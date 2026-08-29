@@ -234,10 +234,34 @@
 
 .current-month-table-wrapper {
   margin-top: 8px;
+  overflow-x: scroll;
+  overflow-y: hidden;
+  scrollbar-gutter: stable;
+  scrollbar-color: #94a3b8 #e2e8f0;
+  scrollbar-width: thin;
+}
+
+.current-month-table-wrapper::-webkit-scrollbar {
+  height: 10px;
+}
+
+.current-month-table-wrapper::-webkit-scrollbar-track {
+  background: #e2e8f0;
+}
+
+.current-month-table-wrapper::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border: 2px solid #e2e8f0;
+  border-radius: 999px;
+}
+
+.current-month-table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
 }
 
 .current-month-table.compact-grid {
   font-size: 12.5px;
+  min-width: 1040px;
 }
 
 .current-month-table thead {

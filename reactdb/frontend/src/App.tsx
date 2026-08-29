@@ -24,11 +24,6 @@ import MiscUploads from './components/MiscUploads';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
-interface TenantSelectionRequest {
-  tenantId: number;
-  requestId: number;
-}
-
 type Page = 'home' | 'diagnostic' | 'rental-collection' | 'tenants' | 'occupancy' | 'room-management' | 'occupancy-links' | 'complaints' | 'eb-payments' | 'users' | 'roles' | 'transactions' | 'stock' | 'guest-checkin' | 'misc-uploads' | 'consumption' | 'water-tank-monitor' | 'electricity-charges';
 
 type NavItem = {
@@ -126,7 +121,6 @@ const getGroupKeyForPage = (page: Page): string | null => {
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
-  const [tenantSelectionRequest, setTenantSelectionRequest] = useState<TenantSelectionRequest | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeGroupKey, setActiveGroupKey] = useState<string | null>(() => getGroupKeyForPage('home'));
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -278,15 +272,7 @@ function AppContent() {
     if (currentPage === 'rental-collection') {
       return (
         <ProtectedRoute requiredRoles={SCREEN_ROLES['rental-collection']}>
-          <RentalCollectionDetails
-            onViewTenantDetails={(tenantId) => {
-              setTenantSelectionRequest({
-                tenantId,
-                requestId: Date.now(),
-              });
-              setCurrentPage('tenants');
-            }}
-          />
+          <RentalCollectionDetails />
         </ProtectedRoute>
       );
     }
@@ -294,7 +280,7 @@ function AppContent() {
     if (currentPage === 'tenants') {
       return (
         <ProtectedRoute requiredRoles={SCREEN_ROLES.tenants}>
-          <TenantManagement tenantSelectionRequest={tenantSelectionRequest} />
+          <TenantManagement />
         </ProtectedRoute>
       );
     }

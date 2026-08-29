@@ -95,11 +95,7 @@ function getDefaultMonthValue() {
   return `${year}-${month}`;
 }
 
-interface RentalCollectionDetailsProps {
-  onViewTenantDetails?: (tenantId: number) => void;
-}
-
-export default function RentalCollectionDetails({ onViewTenantDetails }: RentalCollectionDetailsProps) {
+export default function RentalCollectionDetails() {
   const { hasRole, hasAnyRole } = useAuth();
   const [activeTab, setActiveTab] = useState<'collection' | 'tracking'>('collection');
   const [occupancyOptions, setOccupancyOptions] = useState<OccupancyOption[]>([]);
@@ -844,7 +840,7 @@ export default function RentalCollectionDetails({ onViewTenantDetails }: RentalC
       </div>
 
       {activeTab === 'tracking' ? (
-        <PaymentTracking onViewTenantDetails={onViewTenantDetails} />
+        <PaymentTracking />
       ) : (
         <>
       {error && (

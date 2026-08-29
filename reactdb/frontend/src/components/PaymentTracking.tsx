@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { apiService } from '../api';
 import SearchableDropdown from './SearchableDropdown';
 import LoadingSpinner from './LoadingSpinner';
+import TenantFullScreenView from './TenantFullScreenView';
+import type { TenantWithOccupancy } from './TenantManagement';
 import './PaymentTracking.css';
 
 interface PaymentRecord {
@@ -29,10 +31,6 @@ interface MonthYearOption {
   month: number;
   year: number;
   label: string;
-}
-
-interface PaymentTrackingProps {
-  onViewTenantDetails?: (tenantId: number) => void;
 }
 
 // Helper function to safely format dates
@@ -144,7 +142,7 @@ const getBalanceTooltip = (payment: PaymentRecord): string => {
   return `Occupancy: ${occupancyDays} of ${daysInMonth} days in ${monthName} ${payment.year}\nPro-rata rent balance`;
 };
 
-export default function PaymentTracking({ onViewTenantDetails }: PaymentTrackingProps) {
+export default function PaymentTracking() {
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -155,6 +153,7 @@ export default function PaymentTracking({ onViewTenantDetails }: PaymentTracking
   const [checkInDateTo, setCheckInDateTo] = useState<string>('');
   const [checkOutDateFrom, setCheckOutDateFrom] = useState<string>('');
   const [checkOutDateTo, setCheckOutDateTo] = useState<string>('');
+  const [fullScreenTenant, setFullScreenTenant] = useState<TenantWithOccupancy | null>(null);
   const [ebDetailsPopup, setEbDetailsPopup] = useState<{
     open: boolean;
     roomNumber: string;
@@ -429,9 +428,24 @@ export default function PaymentTracking({ onViewTenantDetails }: PaymentTracking
     }
   };
 
-  const handleOpenTenantDetails = (tenantId: number) => {
+  const handleOpenTenantDetails = async (tenantId: number) => {
     if (!tenantId) return;
-    onViewTenantDetails?.(tenantId);
+
+    try {
+      setError(null);
+      const response = await apiService.getAllTenantsWithOccupancy();
+      const tenants = Array.isArray(response.data) ? response.data as TenantWithOccupancy[] : [];
+      const tenant = tenants.find((candidate) => candidate.id === tenantId);
+
+      if (!tenant) {
+        setError('Tenant details are no longer available.');
+        return;
+      }
+
+      setFullScreenTenant(tenant);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load tenant details.');
+    }
   };
 
   const openEbDetails = async (roomNumber: string, monthValue?: string) => {
@@ -507,7 +521,6 @@ export default function PaymentTracking({ onViewTenantDetails }: PaymentTracking
 
   return (
     <div className="payment-tracking-container">
-      <h2 className="section-heading">Payment Tracking</h2>
       {/* Month/Year Selection and Room Filter */}
       <div className="month-selector-wrapper">
         <div className="month-selector">
@@ -891,6 +904,13 @@ export default function PaymentTracking({ onViewTenantDetails }: PaymentTracking
             )}
           </div>
         </div>
+      )}
+
+      {fullScreenTenant && (
+        <TenantFullScreenView
+          tenant={fullScreenTenant}
+          onClose={() => setFullScreenTenant(null)}
+        />
       )}
     </div>
   );
