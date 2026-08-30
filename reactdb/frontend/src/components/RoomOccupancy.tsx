@@ -68,6 +68,7 @@ const normalizeRoomKey = (value: string | number | null | undefined): string =>
   String(value ?? '')
     .trim()
     .replace(/^room\s+/i, '')
+    .replace(/^0+(?=\d)/, '')
     .replace(/\s+/g, ' ')
     .toLowerCase();
 
