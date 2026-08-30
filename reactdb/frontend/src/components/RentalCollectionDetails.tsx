@@ -96,6 +96,30 @@ function getDefaultMonthValue() {
   return `${year}-${month}`;
 }
 
+const getPreviousMonthValue = (monthValue?: string): string => {
+  if (!monthValue) {
+    return '';
+  }
+
+  const [yearText, monthText] = monthValue.split('-');
+  const year = Number(yearText);
+  const month = Number(monthText);
+
+  if (!year || !month) {
+    return '';
+  }
+
+  let previousYear = year;
+  let previousMonth = month - 1;
+
+  if (previousMonth === 0) {
+    previousMonth = 12;
+    previousYear -= 1;
+  }
+
+  return `${previousYear}-${String(previousMonth).padStart(2, '0')}`;
+};
+
 export default function RentalCollectionDetails() {
   const { hasRole, hasAnyRole } = useAuth();
   const [activeTab, setActiveTab] = useState<'collection' | 'tracking'>('collection');
@@ -134,6 +158,46 @@ export default function RentalCollectionDetails() {
   const [showIncomeTransactions, setShowIncomeTransactions] = useState(false);
   const [selectedIncomeRoom, setSelectedIncomeRoom] = useState<string | null>(null);
   const [selectedIncomeOccupancyId, setSelectedIncomeOccupancyId] = useState<number | null>(null);
+  const [tenantInfoPopup, setTenantInfoPopup] = useState<{
+    open: boolean;
+    tenantName: string;
+    checkInDate: string;
+    rentFixed: number | null;
+    phoneNumber: string;
+    advancePaid: number | null;
+    x: number;
+    y: number;
+  }>({
+    open: false,
+    tenantName: '',
+    checkInDate: '',
+    rentFixed: null,
+    phoneNumber: '',
+    advancePaid: null,
+    x: 0,
+    y: 0
+  });
+  const [occupancyDetailMap, setOccupancyDetailMap] = useState<Record<number, {
+    checkInDate: string;
+    rentFixed: number;
+    phoneNumber: string;
+    advanceCollected: number;
+  }>>({});
+  const [ebDetailsPopup, setEbDetailsPopup] = useState<{
+    open: boolean;
+    roomNumber: string;
+    monthLabel: string;
+    loading: boolean;
+    error: string | null;
+    records: any[];
+  }>({
+    open: false,
+    roomNumber: '',
+    monthLabel: '',
+    loading: false,
+    error: null,
+    records: []
+  });
 
   const currentMonthYear = selectedMonthFilter;
 
@@ -198,6 +262,74 @@ export default function RentalCollectionDetails() {
     return getRentalPaymentProofUrl(screenshotUrl, paymentDate, containerName);
   };
 
+  const openEbDetails = async (roomNumber: string, monthValue?: string) => {
+    const selectedMonthValue = monthValue || selectedMonthFilter;
+    const previousMonthValue = getPreviousMonthValue(selectedMonthValue);
+
+    if (!previousMonthValue) {
+      return;
+    }
+
+    const [yearText, monthText] = previousMonthValue.split('-');
+    const year = Number(yearText);
+    const month = Number(monthText);
+    if (!year || !month) {
+      return;
+    }
+
+    const monthLabel = new Date(year, month - 1, 1).toLocaleDateString('en-US', {
+      month: 'long',
+      year: 'numeric'
+    });
+
+    setEbDetailsPopup({
+      open: true,
+      roomNumber,
+      monthLabel,
+      loading: true,
+      error: null,
+      records: []
+    });
+
+    try {
+      const response = await apiService.getRoomMonthlyEbReport(year, month);
+      const allRecords = Array.isArray(response.data?.data) ? response.data.data : [];
+      const roomRecords = allRecords.filter((record: any) => {
+        const sameRoom = String(record.roomNumber ?? '').trim() === String(roomNumber ?? '').trim();
+        return sameRoom && (Number(record.totalAmount || 0) > 0 || record.unitsConsumed || record.startingReading || record.endingReading);
+      });
+
+      setEbDetailsPopup({
+        open: true,
+        roomNumber,
+        monthLabel,
+        loading: false,
+        error: roomRecords.length ? null : 'No EB readings found for this room in the previous month.',
+        records: roomRecords
+      });
+    } catch (err) {
+      setEbDetailsPopup({
+        open: true,
+        roomNumber,
+        monthLabel,
+        loading: false,
+        error: err instanceof Error ? err.message : 'Failed to load previous month EB details.',
+        records: []
+      });
+    }
+  };
+
+  const closeEbDetails = () => {
+    setEbDetailsPopup({
+      open: false,
+      roomNumber: '',
+      monthLabel: '',
+      loading: false,
+      error: null,
+      records: []
+    });
+  };
+
   const renderPaymentModeIcon = (mode?: string | null) => {
     const rawMode = (mode || '').trim();
     const normalizedMode = rawMode.toLowerCase();
@@ -216,20 +348,21 @@ export default function RentalCollectionDetails() {
     if (isCashMode) {
       return (
         <span className="payment-mode-icon money" title="Cash" aria-label="Cash">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <text
-              x="50%"
-              y="56%"
-              textAnchor="middle"
-              dominantBaseline="middle"
-              fontSize="13"
-              fontWeight="700"
-              fontFamily="Arial, sans-serif"
-              fill="currentColor"
-            >
-              ₹
-            </text>
-          </svg>
+          <img src="/cash.jpg" alt="Cash" />
+        </span>
+      );
+    }
+
+    const isCheckoutMode =
+      normalizedMode === 'checkout' ||
+      normalizedMode === 'check out' ||
+      compactMode === 'checkout' ||
+      compactMode === 'checkoutpayment';
+
+    if (isCheckoutMode) {
+      return (
+        <span className="payment-mode-icon checkout" title="Checkout" aria-label="Checkout">
+          <img src="/checkout.jpg" alt="Checkout" />
         </span>
       );
     }
@@ -248,10 +381,8 @@ export default function RentalCollectionDetails() {
 
     if (isGpayMode) {
       return (
-        <span className="payment-mode-icon gpay" title="Online" aria-label="Online">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 2.5a9.5 9.5 0 0 0 0 19 9.5 9.5 0 0 0 0-19Zm-5.5 9h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1 0-1Zm1.7-4.2a5.7 5.7 0 0 1 7.6 0l-.8.8a4.7 4.7 0 0 0-6 0l-.8-.8Zm7.1 9.4a5.7 5.7 0 0 1-7.6 0l.8-.8a4.7 4.7 0 0 0 6 0l.8.8Z" fill="currentColor"/>
-          </svg>
+        <span className="payment-mode-icon gpay" title="Google Pay" aria-label="Google Pay">
+          <img src="/gpay.png" alt="Google Pay" />
         </span>
       );
     }
@@ -386,7 +517,34 @@ export default function RentalCollectionDetails() {
           roomNumber
         })
       );
+
+      type OccupancyDetail = {
+        checkInDate: string;
+        rentFixed: number;
+        phoneNumber: string;
+        advanceCollected: number;
+      };
+
+      const detailMap = occupancies.reduce(
+        (accumulator: Record<number, OccupancyDetail>, occupancy: any) => {
+          const occupancyId = Number(occupancy.occupancyId || occupancy.id);
+          if (!Number.isFinite(occupancyId)) {
+            return accumulator;
+          }
+
+          accumulator[occupancyId] = {
+            checkInDate: occupancy.checkInDate || '',
+            rentFixed: Number(occupancy.rentFixed ?? occupancy.roomRent ?? 0),
+            phoneNumber: occupancy.tenantPhone || 'N/A',
+            advanceCollected: Number(occupancy.advanceCollected ?? 0)
+          };
+          return accumulator;
+        },
+        {} as Record<number, OccupancyDetail>
+      );
+
       setOccupancyOptions(options);
+      setOccupancyDetailMap(detailMap);
     } catch (err) {
       console.error('Error fetching occupancies:', err);
       setError('Failed to load occupancies. Please check your connection.');
@@ -744,6 +902,24 @@ export default function RentalCollectionDetails() {
 
   const openProofPreview = (url: string, alt: string) => {
     setProofPreview({ url, alt });
+  };
+
+  const openTenantInfoPopup = (event: React.MouseEvent<HTMLButtonElement>, item: MonthlyPaymentStatus) => {
+    const occupancyDetails = occupancyDetailMap[item.occupancyId];
+    setTenantInfoPopup({
+      open: true,
+      tenantName: item.tenantName,
+      checkInDate: occupancyDetails?.checkInDate || item.checkInDate || 'N/A',
+      rentFixed: occupancyDetails?.rentFixed ?? item.rentFixed ?? null,
+      phoneNumber: occupancyDetails?.phoneNumber || 'N/A',
+      advancePaid: occupancyDetails?.advanceCollected ?? null,
+      x: event.clientX,
+      y: event.clientY
+    });
+  };
+
+  const closeTenantInfoPopup = () => {
+    setTenantInfoPopup((prev) => ({ ...prev, open: false }));
   };
 
   const formatReviewSavedDate = (value: string | null): string | null => {
@@ -1447,7 +1623,20 @@ export default function RentalCollectionDetails() {
 
                     return (
                       <tr key={item.occupancyId} className={isShop ? 'shop-row' : ''}>
-                        <td><strong>{item.tenantName}</strong></td>
+                        <td>
+                          <div className="tenant-name-with-info">
+                            <strong>{item.tenantName}</strong>
+                            <button
+                              type="button"
+                              className="tenant-info-button"
+                              title="Tenant details"
+                              aria-label={`Show tenant details for ${item.tenantName}`}
+                              onClick={(event) => openTenantInfoPopup(event, item)}
+                            >
+                              ℹ
+                            </button>
+                          </div>
+                        </td>
                         <td className={isShop ? 'shop-cell' : ''}><strong>{item.roomNumber}</strong></td>
                         <td>
                           {item.checkOutDate
@@ -1456,7 +1645,20 @@ export default function RentalCollectionDetails() {
                         </td>
                         <td className="amount">{formatCurrency(item.proRataRent)}</td>
                         <td className="amount eb-charges">
-                          {formatCurrency(effectiveEbCharges)}
+                          <div className="eb-charge-content">
+                            <span>{effectiveEbCharges > 0 ? formatCurrency(effectiveEbCharges) : '-'}</span>
+                            {effectiveEbCharges > 0 && (
+                              <button
+                                type="button"
+                                className="eb-charge-icon"
+                                onClick={() => openEbDetails(item.roomNumber, `${item.year}-${String(item.month).padStart(2, '0')}`)}
+                                title={`EB details for Room ${item.roomNumber}`}
+                                aria-label={`Show EB details for Room ${item.roomNumber}`}
+                              >
+                                ⚡
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td
                           className={`amount balance ${itemBalance > 0 ? 'pending' : 'success'}`}
@@ -1476,49 +1678,10 @@ export default function RentalCollectionDetails() {
                         </td>
                         <td className="amount received">
                           <span>{formatCurrency(getTotalReceived(item.rentReceived, item.charges))}</span>
-                          {(() => {
-                            const paymentMode = (item.modeOfPayment || '').trim();
-                            const normalizedMode = paymentMode.toLowerCase();
-                            const compactMode = normalizedMode.replace(/\s+|\.|-/g, '');
-                            const isCashMode =
-                              normalizedMode === 'cash' ||
-                              normalizedMode === 'பணம்' ||
-                              compactMode === 'பணம்' ||
-                              normalizedMode === 'money';
-
-                            return !isCashMode ? renderPaymentModeIcon(item.modeOfPayment) : null;
-                          })()}
-                          {(() => {
-                            const paymentMode = (item.modeOfPayment || '').trim();
-                            const normalizedMode = paymentMode.toLowerCase();
-                            const compactMode = normalizedMode.replace(/\s+|\.|-/g, '');
-                            const isCashMode =
-                              normalizedMode === 'cash' ||
-                              normalizedMode === 'பணம்' ||
-                              compactMode === 'பணம்' ||
-                              normalizedMode === 'money';
-
-                            return isCashMode ? (
-                              <button
-                                type="button"
-                                className="view-income-transactions-btn"
-                                onClick={() => {
-                                  setSelectedIncomeRoom(item.roomNumber);
-                                  setSelectedIncomeOccupancyId(item.occupancyId);
-                                  setShowIncomeTransactions(true);
-                                }}
-                                title="View current-month income transactions"
-                                aria-label="View current-month income transactions"
-                              >
-                                <svg viewBox="0 0 24 24" aria-hidden="true">
-                                  <path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h5" />
-                                </svg>
-                              </button>
-                            ) : null;
-                          })()}
                         </td>
                         <td className="proof-cell">
                           <div className="proof-cell-content">
+                            {item.modeOfPayment ? renderPaymentModeIcon(item.modeOfPayment) : null}
                             {(() => {
                               const paymentMode = (item.modeOfPayment || '').trim();
                               const normalizedMode = paymentMode.toLowerCase();
@@ -1529,7 +1692,23 @@ export default function RentalCollectionDetails() {
                                 compactMode === 'பணம்' ||
                                 normalizedMode === 'money';
 
-                              return isCashMode ? renderPaymentModeIcon(item.modeOfPayment) : null;
+                              return isCashMode ? (
+                                <button
+                                  type="button"
+                                  className="view-income-transactions-btn"
+                                  onClick={() => {
+                                    setSelectedIncomeRoom(item.roomNumber);
+                                    setSelectedIncomeOccupancyId(item.occupancyId);
+                                    setShowIncomeTransactions(true);
+                                  }}
+                                  title="View current-month income transactions"
+                                  aria-label="View current-month income transactions"
+                                >
+                                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h5" />
+                                  </svg>
+                                </button>
+                              ) : null;
                             })()}
                             {item.screenshotUrl ? (
                               <button
@@ -1656,6 +1835,110 @@ export default function RentalCollectionDetails() {
       {!selectedOccupancyId && !loading && (
         <div className="empty-state">
           <p>👆 Select a tenant and room to view rental collection details</p>
+        </div>
+      )}
+
+      {tenantInfoPopup.open && (
+        <div
+          className="tenant-info-popover-overlay"
+          onClick={closeTenantInfoPopup}
+          role="presentation"
+        >
+          <div
+            className="tenant-info-popover"
+            style={{ left: tenantInfoPopup.x + 18, top: tenantInfoPopup.y + 18 }}
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-modal="false"
+            aria-label={`Tenant details for ${tenantInfoPopup.tenantName}`}
+          >
+            <div className="tenant-info-popover-header">
+              <strong>{tenantInfoPopup.tenantName}</strong>
+              <button
+                type="button"
+                className="tenant-info-popover-close"
+                onClick={closeTenantInfoPopup}
+                aria-label="Close tenant details"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="tenant-info-popover-body">
+              <div className="tenant-info-row">
+                <span className="tenant-info-label">Check-in:</span>
+                <span className="tenant-info-value">
+                  {tenantInfoPopup.checkInDate && tenantInfoPopup.checkInDate !== 'N/A'
+                    ? new Date(tenantInfoPopup.checkInDate).toLocaleDateString('en-IN')
+                    : 'N/A'}
+                </span>
+              </div>
+              <div className="tenant-info-row">
+                <span className="tenant-info-label">Rent Fixed:</span>
+                <span className="tenant-info-value">
+                  {tenantInfoPopup.rentFixed != null ? formatCurrency(tenantInfoPopup.rentFixed) : 'N/A'}
+                </span>
+              </div>
+              <div className="tenant-info-row">
+                <span className="tenant-info-label">Phone:</span>
+                <span className="tenant-info-value">{tenantInfoPopup.phoneNumber || 'N/A'}</span>
+              </div>
+              <div className="tenant-info-row">
+                <span className="tenant-info-label">Advance Paid:</span>
+                <span className="tenant-info-value">
+                  {tenantInfoPopup.advancePaid != null ? formatCurrency(tenantInfoPopup.advancePaid) : 'N/A'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {ebDetailsPopup.open && (
+        <div className="eb-details-overlay" onClick={closeEbDetails} role="presentation">
+          <div className="eb-details-popup" onClick={(event) => event.stopPropagation()}>
+            <div className="eb-details-header">
+              <div>
+                <h3>EB Details</h3>
+                <p>Room {ebDetailsPopup.roomNumber} • {ebDetailsPopup.monthLabel}</p>
+              </div>
+              <button type="button" className="eb-details-close" onClick={closeEbDetails} aria-label="Close EB details">
+                ✕
+              </button>
+            </div>
+
+            {ebDetailsPopup.loading ? (
+              <div className="eb-details-loading">Loading EB details...</div>
+            ) : ebDetailsPopup.error ? (
+              <div className="eb-details-empty">{ebDetailsPopup.error}</div>
+            ) : (
+              <div className="eb-details-table-wrap">
+                <table className="eb-details-table">
+                  <thead>
+                    <tr>
+                      <th>Service</th>
+                      <th>Meter</th>
+                      <th>Start</th>
+                      <th>End</th>
+                      <th>Units</th>
+                      <th>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ebDetailsPopup.records.map((record: any, index: number) => (
+                      <tr key={`${record.serviceConsumptionId || index}-${record.serviceName || 'eb'}`}>
+                        <td className="eb-table-service">{record.serviceName || 'EB Service'}</td>
+                        <td>{record.meterNo || '-'}</td>
+                        <td>{record.startingReading ?? '-'}</td>
+                        <td>{record.endingReading ?? '-'}</td>
+                        <td className="eb-table-units">{record.unitsConsumed ?? 0}</td>
+                        <td className="eb-table-amount">₹{Number(record.totalAmount || 0).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
