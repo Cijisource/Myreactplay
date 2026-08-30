@@ -1198,6 +1198,7 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
           CAST(latestPayment.rentReceivedOn AS NVARCHAR) as rentReceivedOn,
           latestPayment.screenshotUrl as screenshotUrl,
           latestPayment.folder as folder,
+          latestPayment.modeOfPayment as modeOfPayment,
           ISNULL(CAST(monthlyTotals.totalRentReceived AS FLOAT), 0) as rentReceived,
           ISNULL(CAST(monthlyTotals.totalCharges AS FLOAT), 0) as charges,
           CASE
@@ -1233,7 +1234,8 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
           SELECT TOP 1
             rcLatest.RentReceivedOn as rentReceivedOn,
             rcLatest.screenshoturl as screenshotUrl,
-            rcLatest.folder as folder
+            rcLatest.folder as folder,
+            rcLatest.ModeofPayment as modeOfPayment
           FROM RentalCollection rcLatest
           WHERE rcLatest.OccupancyId = o.Id
             AND YEAR(CAST(rcLatest.RentReceivedOn AS DATE)) = @year
