@@ -37,6 +37,7 @@ interface MonthlyPaymentStatus {
   checkOutDate: string | null;
   screenshotUrl: string | null;
   folder: string | null;
+  modeOfPayment?: string | null;
   paymentStatus: 'paid' | 'partial' | 'pending' | 'merged';
   proRataRent: number;
   rentBalance: number;
@@ -131,6 +132,8 @@ export default function RentalCollectionDetails() {
   const [expandedReviewRows, setExpandedReviewRows] = useState<Record<number, boolean>>({});
   const [savingReviewRows, setSavingReviewRows] = useState<Record<number, boolean>>({});
   const [showIncomeTransactions, setShowIncomeTransactions] = useState(false);
+  const [selectedIncomeRoom, setSelectedIncomeRoom] = useState<string | null>(null);
+  const [selectedIncomeOccupancyId, setSelectedIncomeOccupancyId] = useState<number | null>(null);
 
   const currentMonthYear = selectedMonthFilter;
 
@@ -193,6 +196,67 @@ export default function RentalCollectionDetails() {
   ): string => {
     if (!screenshotUrl) return '';
     return getRentalPaymentProofUrl(screenshotUrl, paymentDate, containerName);
+  };
+
+  const renderPaymentModeIcon = (mode?: string | null) => {
+    const rawMode = (mode || '').trim();
+    const normalizedMode = rawMode.toLowerCase();
+    const compactMode = normalizedMode.replace(/\s+|\.|-/g, '');
+
+    if (!rawMode) {
+      return <span className="payment-mode-icon placeholder" title="Payment mode not set" aria-label="Payment mode not set">—</span>;
+    }
+
+    const isCashMode =
+      normalizedMode === 'cash' ||
+      normalizedMode === 'பணம்' ||
+      compactMode === 'பணம்' ||
+      normalizedMode === 'money';
+
+    if (isCashMode) {
+      return (
+        <span className="payment-mode-icon money" title="Cash" aria-label="Cash">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <text
+              x="50%"
+              y="56%"
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fontSize="13"
+              fontWeight="700"
+              fontFamily="Arial, sans-serif"
+              fill="currentColor"
+            >
+              ₹
+            </text>
+          </svg>
+        </span>
+      );
+    }
+
+    const isGpayMode =
+      normalizedMode === 'gpay' ||
+      normalizedMode === 'google pay' ||
+      normalizedMode === 'googlepay' ||
+      normalizedMode === 'g-pay' ||
+      normalizedMode === 'g. pay' ||
+      normalizedMode === 'g.pay' ||
+      compactMode === 'gpay' ||
+      compactMode === 'googlepay' ||
+      compactMode === 'gpay' ||
+      normalizedMode === 'g. pay';
+
+    if (isGpayMode) {
+      return (
+        <span className="payment-mode-icon gpay" title="Online" aria-label="Online">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 2.5a9.5 9.5 0 0 0 0 19 9.5 9.5 0 0 0 0-19Zm-5.5 9h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1 0-1Zm1.7-4.2a5.7 5.7 0 0 1 7.6 0l-.8.8a4.7 4.7 0 0 0-6 0l-.8-.8Zm7.1 9.4a5.7 5.7 0 0 1-7.6 0l.8-.8a4.7 4.7 0 0 0 6 0l.8.8Z" fill="currentColor"/>
+          </svg>
+        </span>
+      );
+    }
+
+    return <span className="payment-mode-icon other" title={rawMode || 'Other'} aria-label={rawMode || 'Other'}>{rawMode}</span>;
   };
 
   const compareRoomNumbers = (left: string, right: string): number =>
@@ -1412,40 +1476,83 @@ export default function RentalCollectionDetails() {
                         </td>
                         <td className="amount received">
                           <span>{formatCurrency(getTotalReceived(item.rentReceived, item.charges))}</span>
-                          <button
-                            type="button"
-                            className="view-income-transactions-btn"
-                            onClick={() => setShowIncomeTransactions(true)}
-                            title="View current-month income transactions"
-                            aria-label="View current-month income transactions"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h5" />
-                            </svg>
-                          </button>
+                          {(() => {
+                            const paymentMode = (item.modeOfPayment || '').trim();
+                            const normalizedMode = paymentMode.toLowerCase();
+                            const compactMode = normalizedMode.replace(/\s+|\.|-/g, '');
+                            const isCashMode =
+                              normalizedMode === 'cash' ||
+                              normalizedMode === 'பணம்' ||
+                              compactMode === 'பணம்' ||
+                              normalizedMode === 'money';
+
+                            return !isCashMode ? renderPaymentModeIcon(item.modeOfPayment) : null;
+                          })()}
+                          {(() => {
+                            const paymentMode = (item.modeOfPayment || '').trim();
+                            const normalizedMode = paymentMode.toLowerCase();
+                            const compactMode = normalizedMode.replace(/\s+|\.|-/g, '');
+                            const isCashMode =
+                              normalizedMode === 'cash' ||
+                              normalizedMode === 'பணம்' ||
+                              compactMode === 'பணம்' ||
+                              normalizedMode === 'money';
+
+                            return isCashMode ? (
+                              <button
+                                type="button"
+                                className="view-income-transactions-btn"
+                                onClick={() => {
+                                  setSelectedIncomeRoom(item.roomNumber);
+                                  setSelectedIncomeOccupancyId(item.occupancyId);
+                                  setShowIncomeTransactions(true);
+                                }}
+                                title="View current-month income transactions"
+                                aria-label="View current-month income transactions"
+                              >
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                  <path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h5" />
+                                </svg>
+                              </button>
+                            ) : null;
+                          })()}
                         </td>
-                        <td>
-                          {item.screenshotUrl ? (
-                            <button
-                              type="button"
-                              className="last-proof-link"
-                              title="Preview latest payment proof"
-                              onClick={() =>
-                                openProofPreview(
-                                  getProofUrl(item.screenshotUrl, item.rentReceivedOn, item.folder),
-                                  `Payment proof ${item.tenantName}`
-                                )
-                              }
-                            >
-                              <img
-                                src={getProofUrl(item.screenshotUrl, item.rentReceivedOn, item.folder)}
-                                alt={`Payment proof ${item.tenantName}`}
-                                className="last-proof-thumb"
-                              />
-                            </button>
-                          ) : (
-                            <span className="no-proof">-</span>
-                          )}
+                        <td className="proof-cell">
+                          <div className="proof-cell-content">
+                            {(() => {
+                              const paymentMode = (item.modeOfPayment || '').trim();
+                              const normalizedMode = paymentMode.toLowerCase();
+                              const compactMode = normalizedMode.replace(/\s+|\.|-/g, '');
+                              const isCashMode =
+                                normalizedMode === 'cash' ||
+                                normalizedMode === 'பணம்' ||
+                                compactMode === 'பணம்' ||
+                                normalizedMode === 'money';
+
+                              return isCashMode ? renderPaymentModeIcon(item.modeOfPayment) : null;
+                            })()}
+                            {item.screenshotUrl ? (
+                              <button
+                                type="button"
+                                className="last-proof-link"
+                                title="Preview latest payment proof"
+                                onClick={() =>
+                                  openProofPreview(
+                                    getProofUrl(item.screenshotUrl, item.rentReceivedOn, item.folder),
+                                    `Payment proof ${item.tenantName}`
+                                  )
+                                }
+                              >
+                                <img
+                                  src={getProofUrl(item.screenshotUrl, item.rentReceivedOn, item.folder)}
+                                  alt={`Payment proof ${item.tenantName}`}
+                                  className="last-proof-thumb"
+                                />
+                              </button>
+                            ) : (
+                              <span className="no-proof">-</span>
+                            )}
+                          </div>
                         </td>
                         <td className="review-cell">
                           <div className="tenant-review-panel">
@@ -1583,14 +1690,22 @@ export default function RentalCollectionDetails() {
       )}
 
       {showIncomeTransactions && (
-        <div className="income-transactions-overlay" role="presentation" onClick={() => setShowIncomeTransactions(false)}>
+        <div className="income-transactions-overlay" role="presentation" onClick={() => {
+          setShowIncomeTransactions(false);
+          setSelectedIncomeRoom(null);
+          setSelectedIncomeOccupancyId(null);
+        }}>
           <div className="income-transactions-modal" role="dialog" aria-modal="true" aria-label="Current-month income transactions" onClick={(event) => event.stopPropagation()}>
             <div className="income-transactions-header">
               <h2>Current Month Income</h2>
               <button
                 type="button"
                 className="income-transactions-close"
-                onClick={() => setShowIncomeTransactions(false)}
+                onClick={() => {
+                  setShowIncomeTransactions(false);
+                  setSelectedIncomeRoom(null);
+                  setSelectedIncomeOccupancyId(null);
+                }}
                 aria-label="Close income transactions"
                 title="Close"
               >
@@ -1599,7 +1714,11 @@ export default function RentalCollectionDetails() {
                 </svg>
               </button>
             </div>
-            <TransactionManagement incomeOnly />
+            <TransactionManagement
+              incomeOnly
+              preselectedRoomNumber={selectedIncomeRoom}
+              preselectedOccupancyId={selectedIncomeOccupancyId}
+            />
           </div>
         </div>
       )}

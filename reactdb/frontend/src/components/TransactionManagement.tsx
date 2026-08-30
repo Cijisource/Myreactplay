@@ -26,6 +26,8 @@ interface TransactionType {
 
 interface TransactionManagementProps {
   incomeOnly?: boolean;
+  preselectedRoomNumber?: string | null;
+  preselectedOccupancyId?: number | null;
 }
 
 type TransactionTab = 'transactions' | 'yearly-expenses' | 'monthly-expenses';
@@ -42,7 +44,11 @@ interface ExpensePieSlice {
 
 const EXPENSE_PIE_COLORS = ['#0f766e', '#2563eb', '#dc2626', '#ea580c', '#7c3aed', '#0891b2', '#ca8a04'];
 
-export default function TransactionManagement({ incomeOnly = false }: TransactionManagementProps) {
+export default function TransactionManagement({
+  incomeOnly = false,
+  preselectedRoomNumber = null,
+  preselectedOccupancyId = null
+}: TransactionManagementProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [transactionTypes, setTransactionTypes] = useState<TransactionType[]>([]);
   const [loading, setLoading] = useState(false);
@@ -132,6 +138,12 @@ export default function TransactionManagement({ incomeOnly = false }: Transactio
     fetchTransactionTypes();
   }, []);
 
+  useEffect(() => {
+    if (preselectedRoomNumber) {
+      setSearchQuery(preselectedRoomNumber.trim());
+    }
+  }, [preselectedRoomNumber]);
+
   // Handle form submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -203,12 +215,18 @@ export default function TransactionManagement({ incomeOnly = false }: Transactio
     const transactionDate = new Date(t.transactionDate);
     const startDate = new Date(dateRange.startDate);
     const endDate = new Date(dateRange.endDate);
-      const isIncome = t.transactionType?.transactionType?.trim().toLowerCase() === 'income';
-    
-    return transactionDate >= startDate && 
+    const isIncome = t.transactionType?.transactionType?.trim().toLowerCase() === 'income';
+    const roomSearchValue = preselectedRoomNumber?.trim().toLowerCase() || searchQuery.trim().toLowerCase();
+    const matchesRoomFilter =
+      !roomSearchValue ||
+      t.description.toLowerCase().includes(roomSearchValue) ||
+      (preselectedOccupancyId != null && t.occupancyId === preselectedOccupancyId);
+
+    return transactionDate >= startDate &&
            transactionDate <= endDate &&
-        (!incomeOnly || isIncome) &&
-           t.description.toLowerCase().includes(searchQuery.toLowerCase());
+           (!incomeOnly || isIncome) &&
+           matchesRoomFilter &&
+           (!searchQuery.trim() || t.description.toLowerCase().includes(searchQuery.trim().toLowerCase()));
   }).sort((a, b) => {
     switch (sortBy) {
       case 'date-desc':
