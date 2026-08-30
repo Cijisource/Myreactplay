@@ -407,13 +407,13 @@ function AppContent() {
           </button>
           <div className="app-branding">
             <span className="app-logo">🏢</span>
-            <span className="app-name">Mansion</span>
+            <span className="app-name">Gnanabi Mansion</span>
           </div>
         </div>
         
         <div className="header-center">
           <h2 className="page-title">
-            {NAV_ITEMS.find(item => item.page === currentPage)?.label || 'Mansion'}
+            {NAV_ITEMS.find(item => item.page === currentPage)?.label || 'Gnanabi Mansion'}
           </h2>
         </div>
 
