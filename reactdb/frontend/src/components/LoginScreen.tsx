@@ -61,7 +61,7 @@ export default function LoginScreen() {
         <div className="login-card">
           <div className="login-header">
             <div className="logo">🏢</div>
-            <h1>Mansion App</h1>
+            <h1>Gnanabi Mansion</h1>
             <p>Property Management System</p>
           </div>
 
