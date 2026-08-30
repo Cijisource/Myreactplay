@@ -436,7 +436,7 @@ export default function RentalCollection() {
                 </svg>
               </button>
             </div>
-            <TransactionManagement incomeOnly />
+            <TransactionManagement incomeOnly selectedMonth={selectedMonth || defaultRange.start.substring(0, 7)} />
           </div>
         </div>
       )}

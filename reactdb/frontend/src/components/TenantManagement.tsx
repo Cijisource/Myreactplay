@@ -133,6 +133,11 @@ export default function TenantManagement({ tenantSelectionRequest = null }: Tena
     return phone.replace(/[\s\-()+.]/g, '').toLowerCase();
   };
 
+  const normalizeRoomSearchValue = (value: string | number | null | undefined): string => {
+    if (value == null) return '';
+    return String(value).trim().replace(/^0+(?=\d)/, '').toLowerCase();
+  };
+
   const fetchTenants = useCallback(async () => {
     try {
       setLoading(true);
@@ -181,30 +186,30 @@ export default function TenantManagement({ tenantSelectionRequest = null }: Tena
 
       // Apply room filter first
       if (selectedRoom) {
-        // Normalize room numbers for comparison: remove whitespace, handle numbers
-        const tenantRoom = tenant.roomNumber ? String(tenant.roomNumber).trim() : '';
-        const selectedRoomValue = String(selectedRoom).trim();
-        
-        // Try exact match first
+        // Normalize room numbers for comparison: remove whitespace and leading zeros
+        const tenantRoom = normalizeRoomSearchValue(tenant.roomNumber);
+        const selectedRoomValue = normalizeRoomSearchValue(selectedRoom);
+
         let isMatch = tenantRoom === selectedRoomValue;
-        
+
         // Also try numeric comparison if both are numeric
         if (!isMatch && !isNaN(Number(tenantRoom)) && !isNaN(Number(selectedRoomValue))) {
           isMatch = Number(tenantRoom) === Number(selectedRoomValue);
         }
-        
+
         if (!isMatch) {
-          return false;  // Exclude if room doesn't match
+          return false;
         }
       }
 
       // If no search query, include tenant (already passed room filter if applicable)
       if (!searchQuery.trim()) return true;
-      
+
       // Apply search filters only if search query exists
       const query = searchQuery.trim();
       const lowerQuery = query.toLowerCase();
       const normalizedQuery = normalizePhone(query);
+      const normalizedRoomQuery = normalizeRoomSearchValue(query);
       
       switch (searchField) {
         case 'name':
@@ -224,20 +229,20 @@ export default function TenantManagement({ tenantSelectionRequest = null }: Tena
         case 'address':
           return tenant.address.toLowerCase().includes(lowerQuery);
         case 'room':
-          return (tenant.roomNumber || '').toString().toLowerCase().includes(lowerQuery);
+          return normalizeRoomSearchValue(tenant.roomNumber).includes(normalizedRoomQuery);
         case 'all':
         default: {
           const tenantPhone = tenant.phone || '';
           const normalizedPhone = normalizePhone(tenantPhone);
-          const roomNumber = tenant.roomNumber || '';
-          
+          const roomNumber = normalizeRoomSearchValue(tenant.roomNumber);
+
           return (
             tenant.name.toLowerCase().includes(lowerQuery) ||
             tenantPhone.toLowerCase().includes(lowerQuery) ||
             (/^\d+/.test(query) && normalizedPhone.includes(normalizedQuery)) ||
             tenant.city.toLowerCase().includes(lowerQuery) ||
             tenant.address.toLowerCase().includes(lowerQuery) ||
-            roomNumber.toString().toLowerCase().includes(lowerQuery)
+            roomNumber.includes(normalizedRoomQuery)
           );
         }
       }

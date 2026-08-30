@@ -2001,6 +2001,7 @@ export default function RentalCollectionDetails() {
               incomeOnly
               preselectedRoomNumber={selectedIncomeRoom}
               preselectedOccupancyId={selectedIncomeOccupancyId}
+              selectedMonth={selectedMonthFilter}
             />
           </div>
         </div>

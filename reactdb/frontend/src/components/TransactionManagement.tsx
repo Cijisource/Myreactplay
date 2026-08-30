@@ -28,6 +28,7 @@ interface TransactionManagementProps {
   incomeOnly?: boolean;
   preselectedRoomNumber?: string | null;
   preselectedOccupancyId?: number | null;
+  selectedMonth?: string | null;
 }
 
 type TransactionTab = 'transactions' | 'yearly-expenses' | 'monthly-expenses';
@@ -47,7 +48,8 @@ const EXPENSE_PIE_COLORS = ['#0f766e', '#2563eb', '#dc2626', '#ea580c', '#7c3aed
 export default function TransactionManagement({
   incomeOnly = false,
   preselectedRoomNumber = null,
-  preselectedOccupancyId = null
+  preselectedOccupancyId = null,
+  selectedMonth = null
 }: TransactionManagementProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [transactionTypes, setTransactionTypes] = useState<TransactionType[]>([]);
@@ -84,22 +86,46 @@ export default function TransactionManagement({
     return `${year}-${month}-${day}`;
   };
 
-  // Get current month date range
-  const getCurrentMonthDates = () => {
-    const now = new Date();
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const normalizeRoomSearchValue = (value?: string | number | null): string => {
+    const normalized = String(value ?? '').trim();
+    return normalized.replace(/^0+(?=\d)/, '').toLowerCase();
+  };
+
+  // Get the date range for a selected month, defaulting to the current month
+  const getMonthDateRange = (monthValue?: string | null) => {
+    const activeMonth = monthValue || formatLocalDate(new Date()).slice(0, 7);
+    const [yearText, monthText] = activeMonth.split('-');
+    const year = Number(yearText);
+    const monthIndex = Number(monthText) - 1;
+
+    if (!year || Number.isNaN(monthIndex) || monthIndex < 0 || monthIndex > 11) {
+      const now = new Date();
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      return {
+        startDate: formatLocalDate(firstDay),
+        endDate: formatLocalDate(lastDay)
+      };
+    }
+
+    const firstDay = new Date(year, monthIndex, 1);
+    const lastDay = new Date(year, monthIndex + 1, 0);
     return {
       startDate: formatLocalDate(firstDay),
       endDate: formatLocalDate(lastDay)
     };
   };
 
-  const monthDates = getCurrentMonthDates();
+  const monthDates = getMonthDateRange(selectedMonth);
   const [dateRange, setDateRange] = useState({
     startDate: monthDates.startDate,
     endDate: monthDates.endDate
   });
+
+  useEffect(() => {
+    const nextRange = getMonthDateRange(selectedMonth);
+    setDateRange(nextRange);
+  }, [selectedMonth]);
 
   const [formData, setFormData] = useState({
     description: '',
@@ -216,17 +242,18 @@ export default function TransactionManagement({
     const startDate = new Date(dateRange.startDate);
     const endDate = new Date(dateRange.endDate);
     const isIncome = t.transactionType?.transactionType?.trim().toLowerCase() === 'income';
-    const roomSearchValue = preselectedRoomNumber?.trim().toLowerCase() || searchQuery.trim().toLowerCase();
+    const roomSearchValue = normalizeRoomSearchValue(preselectedRoomNumber) || normalizeRoomSearchValue(searchQuery);
+    const descriptionText = t.description.toLowerCase();
     const matchesRoomFilter =
       !roomSearchValue ||
-      t.description.toLowerCase().includes(roomSearchValue) ||
+      descriptionText.includes(roomSearchValue) ||
       (preselectedOccupancyId != null && t.occupancyId === preselectedOccupancyId);
 
     return transactionDate >= startDate &&
            transactionDate <= endDate &&
            (!incomeOnly || isIncome) &&
            matchesRoomFilter &&
-           (!searchQuery.trim() || t.description.toLowerCase().includes(searchQuery.trim().toLowerCase()));
+           (!searchQuery.trim() || descriptionText.includes(normalizeRoomSearchValue(searchQuery)));
   }).sort((a, b) => {
     switch (sortBy) {
       case 'date-desc':
@@ -732,10 +759,10 @@ export default function TransactionManagement({
           <button
             className="btn btn-sm btn-secondary"
             onClick={() => {
-              const dates = getCurrentMonthDates();
+              const dates = getMonthDateRange(selectedMonth);
               setDateRange({ startDate: dates.startDate, endDate: dates.endDate });
             }}
-            title="Reset to current month"
+            title={selectedMonth ? `Reset to ${selectedMonth}` : 'Reset to current month'}
           >
             Reset
           </button>
