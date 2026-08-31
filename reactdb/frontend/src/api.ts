@@ -33,22 +33,54 @@ const ACCESS_TOKEN_KEY = 'authToken';
 const REFRESH_TOKEN_KEY = 'refreshToken';
 const USER_KEY = 'user';
 
+const readTabStorageItem = (key: string): string | null => {
+  try {
+    return window.sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+
+const writeTabStorageItem = (key: string, value: string): void => {
+  try {
+    window.sessionStorage.setItem(key, value);
+  } catch {
+    // Ignore storage failures in restricted/private browsing contexts.
+  }
+};
+
+const removeTabStorageItem = (key: string): void => {
+  try {
+    window.sessionStorage.removeItem(key);
+  } catch {
+    // Ignore storage failures in restricted/private browsing contexts.
+  }
+};
+
 const triggerAutoLogout = (): void => {
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
+  removeTabStorageItem(ACCESS_TOKEN_KEY);
+  removeTabStorageItem(REFRESH_TOKEN_KEY);
+  removeTabStorageItem(USER_KEY);
+  removeTabStorageItem('sessionExpiresAt');
   window.dispatchEvent(new Event('auth:logout'));
+
+  // Notify other tabs so an expired/invalid session logs out everywhere, not just this tab.
+  try {
+    localStorage.setItem('global-logout-broadcast', String(Date.now()));
+  } catch {
+    // Ignore storage failures in restricted/private browsing contexts.
+  }
 };
 
 const storeTokens = (token: string, refreshToken?: string): void => {
-  localStorage.setItem(ACCESS_TOKEN_KEY, token);
+  writeTabStorageItem(ACCESS_TOKEN_KEY, token);
   if (refreshToken) {
-    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+    writeTabStorageItem(REFRESH_TOKEN_KEY, refreshToken);
   }
 };
 
 const refreshAccessToken = async (): Promise<string> => {
-  const storedRefreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+  const storedRefreshToken = readTabStorageItem(REFRESH_TOKEN_KEY);
 
   if (!storedRefreshToken) {
     throw new Error('No refresh token available');
@@ -101,7 +133,7 @@ api.interceptors.response.use(
 
 // Add token to requests if available
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+  const token = readTabStorageItem(ACCESS_TOKEN_KEY);
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -465,7 +497,7 @@ export const apiService = {
   deleteComplaint: (complaintId: number) => api.delete(`/complaints/${complaintId}`),
   uploadComplaintFiles: (formData: FormData) => {
     // Use fetch instead of axios for FormData to avoid header issues
-    const token = localStorage.getItem('authToken');
+    const token = readTabStorageItem('authToken');
     const headers: any = {};
     if (token) {
       headers.Authorization = `Bearer ${token}`;
