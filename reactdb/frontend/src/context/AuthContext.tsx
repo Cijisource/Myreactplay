@@ -19,6 +19,30 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const readTabStorageItem = (key: string): string | null => {
+  try {
+    return window.sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+
+const writeTabStorageItem = (key: string, value: string): void => {
+  try {
+    window.sessionStorage.setItem(key, value);
+  } catch {
+    // Ignore storage failures in restricted/private browsing contexts.
+  }
+};
+
+const removeTabStorageItem = (key: string): void => {
+  try {
+    window.sessionStorage.removeItem(key);
+  } catch {
+    // Ignore storage failures in restricted/private browsing contexts.
+  }
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -28,16 +52,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const token = localStorage.getItem('authToken');
-        const userData = localStorage.getItem('user');
+        const token = readTabStorageItem('authToken');
+        const userData = readTabStorageItem('user');
         
         if (token && userData) {
           setUser(JSON.parse(userData));
         }
       } catch (err) {
         console.error('Auth check failed:', err);
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('user');
+        removeTabStorageItem('authToken');
+        removeTabStorageItem('user');
       } finally {
         setLoading(false);
       }
@@ -66,8 +90,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await response.json();
       
       // Store token and user info
-      localStorage.setItem('authToken', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      writeTabStorageItem('authToken', data.token);
+      writeTabStorageItem('user', JSON.stringify(data.user));
       
       setUser(data.user);
     } catch (err) {
@@ -80,8 +104,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('user');
+    removeTabStorageItem('authToken');
+    removeTabStorageItem('user');
     setUser(null);
     setError(null);
   };
