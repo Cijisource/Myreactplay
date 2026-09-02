@@ -1060,13 +1060,16 @@ app.get('/api/rental/unpaid-details/:month', async (req: Request, res: Response)
       .query(`
         SELECT 
           o.Id as OccupancyId,
+          o.TenantId as TenantId,
           t.Name as TenantName,
           LTRIM(RTRIM(rd.Number)) as RoomNumber,
           LTRIM(RTRIM(o.CheckInDate)) as CheckInDate,
           LTRIM(RTRIM(o.CheckOutDate)) as CheckOutDate,
           ISNULL(CAST(o.RentFixed AS FLOAT), rd.Rent) as RentFixed,
           rd.Rent as RoomRent,
+          ISNULL(SUM(CAST(rc.RentReceived AS FLOAT)), 0) as received_amount,
           ISNULL(SUM(CAST(rc.RentReceived AS FLOAT)), 0) as collected_amount,
+          ISNULL(CAST(tenantServiceCharges.totalEbCharges AS FLOAT), 0) as ebCharges,
           COUNT(rc.Id) as records_count,
           MAX(rc.RentReceivedOn) as latest_date
         FROM Occupancy o
@@ -1075,6 +1078,13 @@ app.get('/api/rental/unpaid-details/:month', async (req: Request, res: Response)
         LEFT JOIN RentalCollection rc 
           ON o.Id = rc.OccupancyId 
           AND CONVERT(VARCHAR(7), rc.RentReceivedOn, 120) = @month
+        OUTER APPLY (
+          SELECT SUM(ISNULL(CAST(tsc.TotalCharge AS FLOAT), 0)) as totalEbCharges
+          FROM [dbo].[TenantServiceCharges] tsc
+          WHERE tsc.TenantId = o.TenantId
+            AND tsc.BillingYear = YEAR(DATEADD(month, -1, CAST(@month + '-01' AS DATE)))
+            AND tsc.BillingMonth = MONTH(DATEADD(month, -1, CAST(@month + '-01' AS DATE)))
+        ) tenantServiceCharges
         WHERE 
           -- Tenant is active in this month
           (CAST(o.CheckInDate AS DATE) <= EOMONTH(CAST(@month + '-01' AS DATE)))
@@ -1082,8 +1092,8 @@ app.get('/api/rental/unpaid-details/:month', async (req: Request, res: Response)
             OR LTRIM(RTRIM(o.CheckOutDate)) = '' 
             OR CAST(o.CheckOutDate AS DATE) >= CAST(@month + '-01' AS DATE))
         GROUP BY 
-          o.Id, t.Name, rd.Number, o.CheckInDate, o.CheckOutDate, 
-          o.RentFixed, rd.Rent
+          o.Id, o.TenantId, t.Name, rd.Number, o.CheckInDate, o.CheckOutDate,
+          o.RentFixed, rd.Rent, tenantServiceCharges.totalEbCharges
         ORDER BY t.Name ASC
       `);
     
@@ -1092,7 +1102,9 @@ app.get('/api/rental/unpaid-details/:month', async (req: Request, res: Response)
       const roomRent = parseFloat(record.RentFixed) || parseFloat(record.RoomRent) || 0;
       const checkInDate = record.CheckInDate?.trim() || null;
       const checkOutDate = record.CheckOutDate?.trim() || null;
-      const collectedAmount = parseFloat(record.collected_amount) || 0;
+      const receivedAmount = parseFloat(record.received_amount ?? record.collected_amount) || 0;
+      const collectedAmount = parseFloat(record.collected_amount ?? record.received_amount) || 0;
+      const ebCharges = parseFloat(record.ebCharges) || 0;
       const recordsCount = parseInt(record.records_count) || 0;
       
       // Parse the month to get year/month values
@@ -1140,9 +1152,9 @@ app.get('/api/rental/unpaid-details/:month', async (req: Request, res: Response)
         proRataRent = roomRent;
       }
       
-      // Calculate pending amount based on pro-rata
-      const pendingAmount = Math.round(Math.max(0, proRataRent - collectedAmount) * 100) / 100;
-      
+      const totalRent = Math.round((proRataRent + ebCharges) * 100) / 100;
+      const pendingAmount = totalRent;
+
       return {
         OccupancyId: record.OccupancyId,
         TenantName: record.TenantName?.trim() || '',
@@ -1150,8 +1162,11 @@ app.get('/api/rental/unpaid-details/:month', async (req: Request, res: Response)
         CheckInDate: checkInDate,
         CheckOutDate: checkOutDate,
         proRataRent: Math.round(proRataRent * 100) / 100,
+        ebCharges: Math.round(ebCharges * 100) / 100,
+        total_rent: totalRent,
         pending_amount: pendingAmount,
-        collected_amount: collectedAmount,
+        received_amount: Math.round(receivedAmount * 100) / 100,
+        collected_amount: Math.round(collectedAmount * 100) / 100,
         records_count: recordsCount,
         latest_date: record.latest_date
       };
@@ -1201,6 +1216,7 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
           latestPayment.modeOfPayment as modeOfPayment,
           ISNULL(CAST(monthlyTotals.totalRentReceived AS FLOAT), 0) as rentReceived,
           ISNULL(CAST(monthlyTotals.totalCharges AS FLOAT), 0) as charges,
+          ISNULL(CAST(tenantServiceCharges.totalEbCharges AS FLOAT), 0) as tenantServiceCharges,
           CASE
             WHEN latestReview.IsVerified = 1 THEN 'approved'
             WHEN latestReview.IsDisputeRaised = 1 THEN 'rejected'
@@ -1214,8 +1230,10 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
           CAST(o.CheckInDate AS NVARCHAR) as checkInDate,
           CAST(o.CheckOutDate AS NVARCHAR) as checkOutDate,
           CASE 
-            WHEN ISNULL(monthlyTotals.totalRentReceived, 0) + ISNULL(monthlyTotals.totalCharges, 0) = 0 THEN 'pending'
-            WHEN ISNULL(monthlyTotals.totalRentReceived, 0) > 0 THEN 'partial'
+            WHEN ISNULL(monthlyTotals.totalRentReceived, 0) <= 0
+              AND ISNULL(CASE WHEN monthlyTotals.totalCharges > 0 THEN monthlyTotals.totalCharges ELSE tenantServiceCharges.totalEbCharges END, 0) <= 0 THEN 'pending'
+            WHEN ISNULL(monthlyTotals.totalRentReceived, 0) > 0
+              AND ISNULL(CAST(o.RentFixed AS FLOAT), rd.Rent) > 0 THEN 'partial'
             ELSE 'pending'
           END as paymentStatus
         FROM Occupancy o
@@ -1230,6 +1248,13 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
             AND YEAR(CAST(rcMonth.RentReceivedOn AS DATE)) = @year
             AND MONTH(CAST(rcMonth.RentReceivedOn AS DATE)) = @month
         ) monthlyTotals
+        OUTER APPLY (
+          SELECT SUM(ISNULL(CAST(tsc.TotalCharge AS FLOAT), 0)) as totalEbCharges
+          FROM [dbo].[TenantServiceCharges] tsc
+          WHERE tsc.TenantId = o.TenantId
+            AND tsc.BillingYear = YEAR(DATEADD(month, -1, DATEFROMPARTS(@year, @month, 1)))
+            AND tsc.BillingMonth = MONTH(DATEADD(month, -1, DATEFROMPARTS(@year, @month, 1)))
+        ) tenantServiceCharges
         OUTER APPLY (
           SELECT TOP 1
             rcLatest.RentReceivedOn as rentReceivedOn,
@@ -1265,7 +1290,9 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
     const paymentRecords = result.recordset.map((record: any) => {
       const rentFixed = record.rentFixed || 0;
       const rentReceived = record.rentReceived || 0;
-      const charges = record.charges || 0;
+      const recordedCharges = Number(record.charges || 0);
+      const serviceCharges = Number(record.tenantServiceCharges || 0);
+      const charges = recordedCharges > 0 ? recordedCharges : serviceCharges;
       
       // Calculate pro-rata rent for this specific month based on check-in/check-out dates
       const proRataRent = calculateProRataRentForMonth(
@@ -1284,24 +1311,26 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
         month
       );
       
-      // Calculate rent balance as: proRataRent - (rentReceived + charges)
-      const totalReceived = rentReceived + charges;
-      const rentBalance = Math.max(0, proRataRent - totalReceived);
+      // Calculate rent balance as: proRataRent + charges - rentReceived
+      const totalDue = proRataRent + charges;
+      const rentBalance = Math.max(0, totalDue - rentReceived);
 
-      // Recalculate payment status based on updated balance
+      // Recalculate payment status based on actual outstanding amount.
+      // Charges are part of the amount due, but they are not treated as a partial payment.
       let paymentStatus: string;
       if (proRataRent === 0 || rentFixed === 0) {
         paymentStatus = 'merged';
-      } else if (totalReceived === 0) {
-        paymentStatus = 'pending';
       } else if (rentBalance === 0) {
         paymentStatus = 'paid';
-      } else {
+      } else if (rentReceived > 0 && totalDue > 0) {
         paymentStatus = 'partial';
+      } else {
+        paymentStatus = 'pending';
       }
       
       return {
         ...record,
+        charges,
         proRataRent,
         rentBalance,
         paymentStatus,
@@ -6480,6 +6509,11 @@ app.get('/api/rental/occupancy/:occupancyId/summary', async (req: Request, res: 
           ISNULL(CAST(o.DepositReceived AS FLOAT), 0) as depositReceived,
           ISNULL(SUM(CAST(rc.RentReceived AS FLOAT)), 0) as totalRentReceived,
           ISNULL(SUM(CAST(rc.Charges AS FLOAT)), 0) as totalCharges,
+          ISNULL((
+            SELECT SUM(CAST(tsc.TotalCharge AS FLOAT))
+            FROM [dbo].[TenantServiceCharges] tsc
+            WHERE tsc.TenantId = o.TenantId
+          ), 0) as totalServiceCharges,
           ISNULL(CAST(COALESCE(
             (SELECT TOP 1 CAST(RentBalance AS FLOAT) 
              FROM RentalCollection 
@@ -6505,6 +6539,9 @@ app.get('/api/rental/occupancy/:occupancyId/summary', async (req: Request, res: 
     }
     
     const record = result.recordset[0];
+    const recordedCharges = Number(record.totalCharges || 0);
+    const serviceCharges = Number(record.totalServiceCharges || 0);
+    const effectiveCharges = recordedCharges > 0 ? recordedCharges : serviceCharges;
     
     // Calculate pro-rata rent for current month based on check-in/check-out dates
     const now = new Date();
@@ -6534,6 +6571,7 @@ app.get('/api/rental/occupancy/:occupancyId/summary', async (req: Request, res: 
     // Return response with proRataRent included
     res.json({
       ...record,
+      totalCharges: effectiveCharges,
       proRataRent: Math.round(proRataRent * 100) / 100
     });
   } catch (error) {

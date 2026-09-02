@@ -247,7 +247,7 @@ export default function RentalCollectionDetails() {
       sum +
       Math.max(
         0,
-        item.rentBalance ?? (item.proRataRent - ((item.rentReceived || 0) + Number(item.charges || 0)))
+        item.rentBalance ?? (item.proRataRent + Number(item.charges || 0) - (item.rentReceived || 0))
       ),
     0
   );
@@ -896,7 +896,7 @@ export default function RentalCollectionDetails() {
     }
 
     // Fallback when legacy records have 0 in RentBalance even for partial payments.
-    const fallback = Number(record.rentFixed || 0) - (Number(record.rentReceived || 0) + Number(record.charges || 0));
+    const fallback = Number(record.rentFixed || 0) + Number(record.charges || 0) - Number(record.rentReceived || 0);
     return Math.max(0, fallback);
   };
 
@@ -1154,7 +1154,7 @@ export default function RentalCollectionDetails() {
             <div className="summary-card">
               <div className="card-label">Outstanding Balance (Est.)</div>
               <div className="card-value balance">
-                {formatCurrency(Math.max(0, occupancyInfo.proRataRent - (occupancyInfo.totalRentReceived + occupancyInfo.totalCharges)))}
+                {formatCurrency(Math.max(0, occupancyInfo.proRataRent + occupancyInfo.totalCharges - occupancyInfo.totalRentReceived))}
               </div>
             </div>
           </div>
@@ -1617,7 +1617,7 @@ export default function RentalCollectionDetails() {
                     const effectiveStatus = getEffectiveStatus(item);
                     const itemBalance = item.rentBalance !== undefined && item.rentBalance !== null
                       ? Number(item.rentBalance)
-                      : Math.max(0, item.proRataRent - ((item.rentReceived || 0) + effectiveEbCharges));
+                      : Math.max(0, item.proRataRent + effectiveEbCharges - (item.rentReceived || 0));
                     // Check if this is a shop (room numbers like S1, S2, SHOP-1 etc or any number > 100 can be marked as shop)
                     const isShop = /^[Ss]/.test(item.roomNumber) || /[Ss]hop/i.test(item.roomNumber);
 
@@ -1677,7 +1677,7 @@ export default function RentalCollectionDetails() {
                             : 'No payment'}
                         </td>
                         <td className="amount received">
-                          <span>{formatCurrency(getTotalReceived(item.rentReceived, item.charges))}</span>
+                          <span>{formatCurrency(Number(item.rentReceived || 0))}</span>
                         </td>
                         <td className="proof-cell">
                           <div className="proof-cell-content">
