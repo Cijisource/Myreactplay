@@ -25,7 +25,10 @@ interface UnpaidDetail {
   CheckInDate: string;
   CheckOutDate: string | null;
   proRataRent: number;
+  ebCharges: number;
+  total_rent?: number;
   pending_amount: number;
+  received_amount?: number;
   collected_amount: number;
   records_count: number;
   latest_date: string;
@@ -305,7 +308,9 @@ export default function RentalCollection() {
                       <th>Check-In Date</th>
                       <th>Check-Out Date</th>
                       <th>Pro-Rata Rent</th>
-                      <th>Collected Amount</th>
+                      <th>EB Charges</th>
+                      <th>Total Rent</th>
+                      <th>Received</th>
                       <th>Outstanding Balance</th>
                       <th>Records</th>
                       <th>Action</th>
@@ -323,8 +328,10 @@ export default function RentalCollection() {
                           {detail.CheckOutDate ? new Date(detail.CheckOutDate).toLocaleDateString('en-IN') : '—'}
                         </td>
                         <td className="pro-rata">₹ {detail.proRataRent.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+                        <td className="amount eb-charge">₹ {parseFloat((detail.ebCharges ?? 0).toString()).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+                        <td className="amount total-rent">₹ {((detail.total_rent ?? (detail.proRataRent + (detail.ebCharges || 0))) || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
                         <td className="paid">
-                          <span>₹ {parseFloat(detail.collected_amount.toString()).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+                          <span>₹ {(Number(detail.received_amount ?? detail.collected_amount) || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
                           <button
                             type="button"
                             className="view-income-transactions-btn"
