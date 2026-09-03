@@ -240,7 +240,10 @@ export default function RentalCollectionDetails() {
   const mergedCount = roomFilteredPayments.filter((item) => getEffectiveStatus(item) === 'merged').length;
   const approvedCount = roomFilteredPayments.filter((item) => getReviewDecision(item) === 'approved').length;
   const rejectedCount = roomFilteredPayments.filter((item) => getReviewDecision(item) === 'rejected').length;
-  const totalReceivedAmount = roomFilteredPayments.reduce((sum, item) => sum + (item.rentReceived || 0), 0);
+  const totalReceivedAmount = roomFilteredPayments.reduce(
+    (sum, item) => sum + Number(item.rentReceived || 0),
+    0
+  );
   const totalChargesAmount = roomFilteredPayments.reduce((sum, item) => sum + Number(item.charges || 0), 0);
   const totalPendingBalanceAmount = roomFilteredPayments.reduce(
     (sum, item) =>
@@ -567,22 +570,29 @@ export default function RentalCollectionDetails() {
       setLoading(true);
       setError(null);
       
-      const [summaryRes, recordsRes, chargesRes] = await Promise.all([
+      const [summaryRes, recordsRes] = await Promise.all([
         apiService.getRentalSummaryByOccupancy(selectedOccupancyId),
-        apiService.getRentalCollectionByOccupancy(selectedOccupancyId),
-        apiService.getPreviousMonthCharges(selectedOccupancyId, currentMonthYear)
+        apiService.getRentalCollectionByOccupancy(selectedOccupancyId)
       ]);
       
-      setOccupancyInfo(summaryRes.data || summaryRes);
-      setRentalRecords(recordsRes.data || recordsRes || []);
-      
-      // Auto-populate charges field with previous month's electricity charges
-      const previousMonthCharges = chargesRes.data || chargesRes;
-      const chargesAmount = previousMonthCharges?.totalCharges || 0;
+      const summaryData = summaryRes.data || summaryRes;
+      const recordsData = recordsRes.data || recordsRes || [];
+
+      setOccupancyInfo(summaryData);
+      setRentalRecords(recordsData);
+
+      let chargesAmount = 0;
+      try {
+        const chargesRes = await apiService.getPreviousMonthCharges(selectedOccupancyId, currentMonthYear);
+        const previousMonthCharges = chargesRes.data || chargesRes;
+        chargesAmount = previousMonthCharges?.totalCharges || 0;
+      } catch (chargeError) {
+        console.warn('Previous month charges lookup failed; continuing without it.', chargeError);
+      }
       
       setFormData(prev => ({
         ...prev,
-        rentFixed: summaryRes.data?.rentFixed != null ? String(summaryRes.data.rentFixed) : prev.rentFixed,
+        rentFixed: summaryData?.rentFixed != null ? String(summaryData.rentFixed) : prev.rentFixed,
         charges: chargesAmount > 0 ? chargesAmount.toString() : ''
       }));
     } catch (err) {
@@ -592,6 +602,23 @@ export default function RentalCollectionDetails() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const clearOccupancySelection = () => {
+    setSelectedOccupancyId(null);
+    setOccupancyInfo(null);
+    setRentalRecords([]);
+    setError(null);
+    setShowForm(false);
+    setEditingRecord(null);
+    setFormData({
+      rentFixed: '',
+      rentReceived: '',
+      charges: '',
+      modeOfPayment: 'cash',
+      rentReceivedOn: new Date().toISOString().split('T')[0],
+      screenshot: null
+    });
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -1093,7 +1120,18 @@ export default function RentalCollectionDetails() {
       {/* Occupancy Selector */}
       <div className="selector-card">
         <div className="selector-wrapper">
-          <label className="selector-label">Select Tenant & Room</label>
+          <div className="selector-label-row">
+            <label className="selector-label">Select Tenant & Room</label>
+            {selectedOccupancyId && (
+              <button
+                type="button"
+                className="clear-selection-button"
+                onClick={clearOccupancySelection}
+              >
+                Clear selection
+              </button>
+            )}
+          </div>
           <SearchableDropdown
             value={selectedOccupancyId?.toString() || ''}
             onChange={(option) => setSelectedOccupancyId(parseInt(option.id.toString()))}
@@ -1573,7 +1611,7 @@ export default function RentalCollectionDetails() {
                 <strong>{filteredCurrentMonthPayments.length}</strong>
               </div>
               <div className="current-month-summary-item highlight-received">
-                <span>Total Pro-Rata Rent Received</span>
+                <span>Total Rent Received</span>
                 <strong>{formatCurrency(totalReceivedAmount)}</strong>
               </div>
               <div className="current-month-summary-item highlight-charges">

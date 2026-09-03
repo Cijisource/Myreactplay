@@ -677,6 +677,11 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
     // Generate JWT access and refresh tokens
     const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
     const refreshTokenSecret = process.env.REFRESH_TOKEN_SECRET || `${jwtSecret}-refresh`;
+    const configuredLoginDuration = Number(user.nextLoginDuration);
+    const sessionDurationDays = Number.isFinite(configuredLoginDuration) && configuredLoginDuration > 0
+      ? configuredLoginDuration
+      : 30;
+    const tokenLifetimeSeconds = sessionDurationDays * 24 * 60 * 60;
 
     const tokenPayload = {
       id: user.id,
@@ -688,13 +693,13 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
     const token = jwt.sign(
       tokenPayload,
       jwtSecret,
-      { expiresIn: '24h' }
+      { expiresIn: tokenLifetimeSeconds }
     );
 
     const refreshToken = jwt.sign(
       tokenPayload,
       refreshTokenSecret,
-      { expiresIn: '30d' }
+      { expiresIn: tokenLifetimeSeconds }
     );
 
     res.json({
@@ -705,7 +710,7 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
         username: user.username,
         name: user.name,
         roles: roles,
-        nextLoginDuration: user.nextLoginDuration || null,
+        nextLoginDuration: sessionDurationDays,
         lastLogin: updatedLastLogin || null
       }
     });
@@ -6531,7 +6536,7 @@ app.get('/api/rental/occupancy/:occupancyId/summary', async (req: Request, res: 
         INNER JOIN RoomDetail rd ON o.RoomId = rd.Id
         LEFT JOIN RentalCollection rc ON o.Id = rc.OccupancyId
         WHERE o.Id = @occupancyId
-        GROUP BY o.Id, t.Name, rd.Number, o.RentFixed, o.DepositReceived, rd.Rent, o.CheckInDate, o.CheckOutDate
+        GROUP BY o.Id, o.TenantId, t.Name, rd.Number, o.RentFixed, o.DepositReceived, rd.Rent, o.CheckInDate, o.CheckOutDate
       `);
     
     if (result.recordset.length === 0) {
@@ -6634,10 +6639,10 @@ app.get('/api/rental/occupancy/:occupancyId/previous-month-charges', async (req:
         SELECT 
           ISNULL(SUM(CAST(tsc.TotalCharge AS FLOAT)), 0) as totalCharges,
           COUNT(DISTINCT tsc.ServiceId) as serviceCount,
-          STRING_AGG(sd.ConsumerName, ', ') as serviceNames,
+          MAX(LTRIM(RTRIM(sd.ConsumerName))) as serviceNames,
           MAX(ISNULL(tsc.TotalUnitsForRoom, 0)) as totalUnitsConsumed
         FROM [dbo].[TenantServiceCharges] tsc
-        INNER JOIN [dbo].[ServiceDetails] sd ON tsc.ServiceId = sd.Id
+        LEFT JOIN [dbo].[ServiceDetails] sd ON tsc.ServiceId = sd.Id
         WHERE tsc.TenantId = @tenantId
           AND tsc.BillingYear = @billingYear
           AND tsc.BillingMonth = @billingMonth
