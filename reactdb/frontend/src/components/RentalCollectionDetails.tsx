@@ -177,6 +177,23 @@ export default function RentalCollectionDetails() {
     x: 0,
     y: 0
   });
+  const [paymentHistoryPopup, setPaymentHistoryPopup] = useState<{
+    open: boolean;
+    occupancyId: number | null;
+    tenantName: string;
+    roomNumber: string;
+    loading: boolean;
+    error: string | null;
+    records: RentalRecord[];
+  }>({
+    open: false,
+    occupancyId: null,
+    tenantName: '',
+    roomNumber: '',
+    loading: false,
+    error: null,
+    records: []
+  });
   const [occupancyDetailMap, setOccupancyDetailMap] = useState<Record<number, {
     checkInDate: string;
     rentFixed: number;
@@ -940,6 +957,53 @@ export default function RentalCollectionDetails() {
     setProofPreview({ url, alt });
   };
 
+  const openPaymentHistoryPopup = async (event: React.MouseEvent<HTMLButtonElement>, item: MonthlyPaymentStatus) => {
+    event.stopPropagation();
+    setPaymentHistoryPopup({
+      open: true,
+      occupancyId: item.occupancyId,
+      tenantName: item.tenantName,
+      roomNumber: item.roomNumber,
+      loading: true,
+      error: null,
+      records: []
+    });
+
+    try {
+      const response = await apiService.getRentalCollectionByOccupancy(item.occupancyId);
+      const records = Array.isArray(response?.data)
+        ? response.data
+        : Array.isArray(response)
+          ? response
+          : [];
+
+      setPaymentHistoryPopup({
+        open: true,
+        occupancyId: item.occupancyId,
+        tenantName: item.tenantName,
+        roomNumber: item.roomNumber,
+        loading: false,
+        error: records.length ? null : 'No payment history found for this tenant.',
+        records
+      });
+    } catch (err) {
+      console.error('Error loading payment history popup:', err);
+      setPaymentHistoryPopup({
+        open: true,
+        occupancyId: item.occupancyId,
+        tenantName: item.tenantName,
+        roomNumber: item.roomNumber,
+        loading: false,
+        error: err instanceof Error ? err.message : 'Failed to load payment history.',
+        records: []
+      });
+    }
+  };
+
+  const closePaymentHistoryPopup = () => {
+    setPaymentHistoryPopup((prev) => ({ ...prev, open: false }));
+  };
+
   const openTenantInfoPopup = (event: React.MouseEvent<HTMLButtonElement>, item: MonthlyPaymentStatus) => {
     const occupancyDetails = occupancyDetailMap[item.occupancyId];
     setTenantInfoPopup({
@@ -1430,7 +1494,7 @@ export default function RentalCollectionDetails() {
                     </div>
                     <div className="detail-item">
                       <span className="label">Received</span>
-                      <span className="value received">{formatCurrency(getTotalReceived(record.rentFixed, record.charges))}</span>
+                      <span className="value received">{formatCurrency(Number(record.rentReceived || 0))}</span>
                     </div>
                     <div className="detail-item">
                       <span className="label">Balance</span>
@@ -1677,6 +1741,15 @@ export default function RentalCollectionDetails() {
                             <strong>{item.tenantName}</strong>
                             <button
                               type="button"
+                              className="tenant-payment-history-button"
+                              title="Payment history"
+                              aria-label={`Show payment history for ${item.tenantName}`}
+                              onClick={(event) => openPaymentHistoryPopup(event, item)}
+                            >
+                              🧾
+                            </button>
+                            <button
+                              type="button"
                               className="tenant-info-button"
                               title="Tenant details"
                               aria-label={`Show tenant details for ${item.tenantName}`}
@@ -1885,6 +1958,99 @@ export default function RentalCollectionDetails() {
       {!selectedOccupancyId && !loading && (
         <div className="empty-state">
           <p>👆 Select a tenant and room to view rental collection details</p>
+        </div>
+      )}
+
+      {paymentHistoryPopup.open && (
+        <div className="payment-history-popup-overlay" onClick={closePaymentHistoryPopup} role="presentation">
+          <div className="payment-history-popup-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`Payment history for ${paymentHistoryPopup.tenantName}`}>
+            <div className="payment-history-popup-header">
+              <div>
+                <h3>{paymentHistoryPopup.tenantName}</h3>
+                <p>Room {paymentHistoryPopup.roomNumber} • Payment History & Details Breakdown</p>
+              </div>
+              <button type="button" className="modal-close-btn" onClick={closePaymentHistoryPopup} aria-label="Close payment history">
+                ✕
+              </button>
+            </div>
+
+            {paymentHistoryPopup.loading ? (
+              <div className="empty-state compact"><p>Loading payment history...</p></div>
+            ) : paymentHistoryPopup.error ? (
+              <div className="empty-state compact"><p>{paymentHistoryPopup.error}</p></div>
+            ) : paymentHistoryPopup.records.length === 0 ? (
+              <div className="empty-state compact"><p>No payment records found.</p></div>
+            ) : (
+              <div className="payment-records-container popup-payment-records">
+                {paymentHistoryPopup.records.map((record) => (
+                  <div key={record.id} className="payment-record-card">
+                    <div className="payment-record-header">
+                      <div className="payment-date">
+                        <span className="label">Payment Date</span>
+                        <span className="value">
+                          {new Date(record.rentReceivedOn).toLocaleDateString('en-IN', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric'
+                          })}
+                        </span>
+                      </div>
+                      <div className="payment-mode">
+                        <span className="label">Mode</span>
+                        {record.modeOfPayment ? (
+                          <span className="badge-mode">{record.modeOfPayment}</span>
+                        ) : (
+                          <span className="badge-mode gray">—</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="payment-record-details">
+                      <div className="detail-item">
+                        <span className="label">Fixed Rent</span>
+                        <span className="value">{formatCurrency(record.rentFixed)}</span>
+                      </div>
+                      <div className="detail-item">
+                        <span className="label">Charges</span>
+                        <span className="value">{formatCurrency(record.charges)}</span>
+                      </div>
+                      <div className="detail-item">
+                        <span className="label">Received</span>
+                        <span className="value received">{formatCurrency(Number(record.rentReceived || 0))}</span>
+                      </div>
+                      <div className="detail-item">
+                        <span className="label">Balance</span>
+                        <span className="value balance">{formatCurrency(getDisplayBalance(record))}</span>
+                      </div>
+                    </div>
+
+                    {record.screenshotUrl && (
+                      <div className="payment-screenshot">
+                        <div className="screenshot-label">Payment Proof</div>
+                        <button
+                          type="button"
+                          className="screenshot-link"
+                          onClick={() =>
+                            openProofPreview(
+                              getProofUrl(record.screenshotUrl, record.rentReceivedOn, record.folder),
+                              `Payment proof screenshot for ${record.tenantName}`
+                            )
+                          }
+                          title="Preview payment proof"
+                        >
+                          <img
+                            src={getProofUrl(record.screenshotUrl, record.rentReceivedOn, record.folder)}
+                            alt="Payment proof screenshot"
+                            className="screenshot-thumbnail"
+                          />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
