@@ -276,9 +276,9 @@
 
 .current-month-table.compact-grid th:nth-child(1),
 .current-month-table.compact-grid td:nth-child(1) {
-  width: 30%;
-  min-width: 220px;
-  max-width: 420px;
+  width: auto;
+  min-width: 0;
+  max-width: none;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -888,6 +888,28 @@
   font-weight: 600;
   color: #2d3748;
   font-size: 14px;
+}
+
+.selector-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.clear-selection-button {
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 2px 0;
+}
+
+.clear-selection-button:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
 }
 
 /* Occupancy Info Card */

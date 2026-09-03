@@ -26,6 +26,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Shared localStorage key used purely to broadcast logout across tabs via the 'storage' event.
 const GLOBAL_LOGOUT_KEY = 'global-logout-broadcast';
+const DEFAULT_SESSION_DURATION_DAYS = 30;
 
 const readTabStorageItem = (key: string): string | null => {
   try {
@@ -68,9 +69,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const setupAutoLogout = (nextLoginDuration: number | null | undefined, expiryTimestamp?: number | null) => {
     const durationDays = Number(nextLoginDuration);
     const now = Date.now();
+    const sessionDurationDays = Number.isFinite(durationDays) && durationDays > 0
+      ? durationDays
+      : DEFAULT_SESSION_DURATION_DAYS;
     const absoluteExpiry = Number.isFinite(expiryTimestamp) && expiryTimestamp !== null && expiryTimestamp !== undefined
       ? expiryTimestamp
-      : (Number.isFinite(durationDays) && durationDays > 0 ? now + (durationDays * 24 * 60 * 60 * 1000) : null);
+      : now + (sessionDurationDays * 24 * 60 * 60 * 1000);
 
     console.log('[Auto-Logout] setupAutoLogout called with:', {
       nextLoginDuration,
@@ -121,7 +125,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (storedUser && storedToken) {
         const parsedUser = JSON.parse(storedUser);
-        const validStoredExpiry = Number.isFinite(storedExpiry) && storedExpiry > Date.now();
+        const lastLoginTimestamp = Date.parse(parsedUser.lastLogin || '');
+        const durationDays = Number(parsedUser.nextLoginDuration);
+        const sessionDurationDays = Number.isFinite(durationDays) && durationDays > 0
+          ? durationDays
+          : DEFAULT_SESSION_DURATION_DAYS;
+        const fallbackExpiry = (Number.isFinite(lastLoginTimestamp) ? lastLoginTimestamp : Date.now())
+          + (sessionDurationDays * 24 * 60 * 60 * 1000);
+        const sessionExpiry = Number.isFinite(storedExpiry) && storedExpiry > 0
+          ? storedExpiry
+          : fallbackExpiry;
+        const validStoredExpiry = sessionExpiry > Date.now();
 
         if (!validStoredExpiry) {
           console.log('[Auth] Stored session expired on mount, clearing it');
@@ -138,7 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             storedExpiry
           });
           setUser(parsedUser);
-          setupAutoLogout(parsedUser.nextLoginDuration, storedExpiry);
+          setupAutoLogout(parsedUser.nextLoginDuration, sessionExpiry);
         }
       } else {
         console.log('[Auth] No stored session found on mount');
@@ -192,16 +206,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const durationDays = Number(response.user.nextLoginDuration);
-      const expiryTimestamp = Number.isFinite(durationDays) && durationDays > 0
-        ? Date.now() + (durationDays * 24 * 60 * 60 * 1000)
-        : null;
+      const sessionDurationDays = Number.isFinite(durationDays) && durationDays > 0
+        ? durationDays
+        : DEFAULT_SESSION_DURATION_DAYS;
+      const expiryTimestamp = Date.now() + (sessionDurationDays * 24 * 60 * 60 * 1000);
 
       writeTabStorageItem('user', JSON.stringify(response.user));
-      if (expiryTimestamp) {
-        writeTabStorageItem('sessionExpiresAt', String(expiryTimestamp));
-      } else {
-        removeTabStorageItem('sessionExpiresAt');
-      }
+      writeTabStorageItem('sessionExpiresAt', String(expiryTimestamp));
       
       console.log('[Auth] User data stored in localStorage:', {
         user: {

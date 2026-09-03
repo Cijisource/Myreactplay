@@ -240,7 +240,10 @@ export default function RentalCollectionDetails() {
   const mergedCount = roomFilteredPayments.filter((item) => getEffectiveStatus(item) === 'merged').length;
   const approvedCount = roomFilteredPayments.filter((item) => getReviewDecision(item) === 'approved').length;
   const rejectedCount = roomFilteredPayments.filter((item) => getReviewDecision(item) === 'rejected').length;
-  const totalReceivedAmount = roomFilteredPayments.reduce((sum, item) => sum + (item.rentReceived || 0), 0);
+  const totalReceivedAmount = roomFilteredPayments.reduce(
+    (sum, item) => sum + Number(item.rentReceived || 0),
+    0
+  );
   const totalChargesAmount = roomFilteredPayments.reduce((sum, item) => sum + Number(item.charges || 0), 0);
   const totalPendingBalanceAmount = roomFilteredPayments.reduce(
     (sum, item) =>
@@ -250,6 +253,18 @@ export default function RentalCollectionDetails() {
         item.rentBalance ?? (item.proRataRent + Number(item.charges || 0) - (item.rentReceived || 0))
       ),
     0
+  );
+  const monthlyPaymentTotals = rentalRecords.reduce<Record<string, { rentReceived: number; charges: number }>>(
+    (totals, record) => {
+      const paymentMonth = record.rentReceivedOn?.slice(0, 7) || '';
+      const monthTotals = totals[paymentMonth] || { rentReceived: 0, charges: 0 };
+
+      monthTotals.rentReceived += Number(record.rentReceived || 0);
+      monthTotals.charges += Number(record.charges || 0);
+      totals[paymentMonth] = monthTotals;
+      return totals;
+    },
+    {}
   );
   const canChangeReviewStatus = hasAnyRole(['admin', 'accountant']) || !hasRole('manager');
 
@@ -567,22 +582,29 @@ export default function RentalCollectionDetails() {
       setLoading(true);
       setError(null);
       
-      const [summaryRes, recordsRes, chargesRes] = await Promise.all([
+      const [summaryRes, recordsRes] = await Promise.all([
         apiService.getRentalSummaryByOccupancy(selectedOccupancyId),
-        apiService.getRentalCollectionByOccupancy(selectedOccupancyId),
-        apiService.getPreviousMonthCharges(selectedOccupancyId, currentMonthYear)
+        apiService.getRentalCollectionByOccupancy(selectedOccupancyId)
       ]);
       
-      setOccupancyInfo(summaryRes.data || summaryRes);
-      setRentalRecords(recordsRes.data || recordsRes || []);
-      
-      // Auto-populate charges field with previous month's electricity charges
-      const previousMonthCharges = chargesRes.data || chargesRes;
-      const chargesAmount = previousMonthCharges?.totalCharges || 0;
+      const summaryData = summaryRes.data || summaryRes;
+      const recordsData = recordsRes.data || recordsRes || [];
+
+      setOccupancyInfo(summaryData);
+      setRentalRecords(recordsData);
+
+      let chargesAmount = 0;
+      try {
+        const chargesRes = await apiService.getPreviousMonthCharges(selectedOccupancyId, currentMonthYear);
+        const previousMonthCharges = chargesRes.data || chargesRes;
+        chargesAmount = previousMonthCharges?.totalCharges || 0;
+      } catch (chargeError) {
+        console.warn('Previous month charges lookup failed; continuing without it.', chargeError);
+      }
       
       setFormData(prev => ({
         ...prev,
-        rentFixed: summaryRes.data?.rentFixed != null ? String(summaryRes.data.rentFixed) : prev.rentFixed,
+        rentFixed: summaryData?.rentFixed != null ? String(summaryData.rentFixed) : prev.rentFixed,
         charges: chargesAmount > 0 ? chargesAmount.toString() : ''
       }));
     } catch (err) {
@@ -592,6 +614,23 @@ export default function RentalCollectionDetails() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const clearOccupancySelection = () => {
+    setSelectedOccupancyId(null);
+    setOccupancyInfo(null);
+    setRentalRecords([]);
+    setError(null);
+    setShowForm(false);
+    setEditingRecord(null);
+    setFormData({
+      rentFixed: '',
+      rentReceived: '',
+      charges: '',
+      modeOfPayment: 'cash',
+      rentReceivedOn: new Date().toISOString().split('T')[0],
+      screenshot: null
+    });
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -890,14 +929,11 @@ export default function RentalCollectionDetails() {
     Number(rentReceived || 0) + Number(charges || 0);
 
   const getDisplayBalance = (record: RentalRecord): number => {
-    const storedBalance = Number(record.rentBalance || 0);
-    if (storedBalance > 0) {
-      return storedBalance;
-    }
+    const paymentMonth = record.rentReceivedOn?.slice(0, 7) || '';
+    const monthlyTotals = monthlyPaymentTotals[paymentMonth] || { rentReceived: 0, charges: 0 };
+    const totalDue = Number(record.rentFixed || 0) + monthlyTotals.charges;
 
-    // Fallback when legacy records have 0 in RentBalance even for partial payments.
-    const fallback = Number(record.rentFixed || 0) + Number(record.charges || 0) - Number(record.rentReceived || 0);
-    return Math.max(0, fallback);
+    return Math.max(0, totalDue - monthlyTotals.rentReceived);
   };
 
   const openProofPreview = (url: string, alt: string) => {
@@ -1093,7 +1129,18 @@ export default function RentalCollectionDetails() {
       {/* Occupancy Selector */}
       <div className="selector-card">
         <div className="selector-wrapper">
-          <label className="selector-label">Select Tenant & Room</label>
+          <div className="selector-label-row">
+            <label className="selector-label">Select Tenant & Room</label>
+            {selectedOccupancyId && (
+              <button
+                type="button"
+                className="clear-selection-button"
+                onClick={clearOccupancySelection}
+              >
+                Clear selection
+              </button>
+            )}
+          </div>
           <SearchableDropdown
             value={selectedOccupancyId?.toString() || ''}
             onChange={(option) => setSelectedOccupancyId(parseInt(option.id.toString()))}
@@ -1383,7 +1430,7 @@ export default function RentalCollectionDetails() {
                     </div>
                     <div className="detail-item">
                       <span className="label">Received</span>
-                      <span className="value received">{formatCurrency(getTotalReceived(record.rentReceived, record.charges))}</span>
+                      <span className="value received">{formatCurrency(getTotalReceived(record.rentFixed, record.charges))}</span>
                     </div>
                     <div className="detail-item">
                       <span className="label">Balance</span>
@@ -1573,7 +1620,7 @@ export default function RentalCollectionDetails() {
                 <strong>{filteredCurrentMonthPayments.length}</strong>
               </div>
               <div className="current-month-summary-item highlight-received">
-                <span>Total Pro-Rata Rent Received</span>
+                <span>Total Rent Received</span>
                 <strong>{formatCurrency(totalReceivedAmount)}</strong>
               </div>
               <div className="current-month-summary-item highlight-charges">
@@ -1599,10 +1646,11 @@ export default function RentalCollectionDetails() {
                     <th>Check-Out</th>
                     <th>Pro-Rata Rent</th>
                     <th>EB Charges</th>
+                    <th>Total</th>
                     <th>Balance</th>
+                    <th>Received</th>
                     <th>Status</th>
                     <th>Last Payment</th>
-                    <th>Received</th>
                     <th>Proof</th>
                     <th>Review</th>
                   </tr>
@@ -1614,10 +1662,11 @@ export default function RentalCollectionDetails() {
                     const isSavingReview = savingReviewRows[item.occupancyId] || false;
                     const savedReviewDate = formatReviewSavedDate(item.reviewVerifiedOn);
                     const effectiveEbCharges = Number(item.charges || 0);
+                    const totalDue = Number(item.proRataRent || 0) + effectiveEbCharges;
                     const effectiveStatus = getEffectiveStatus(item);
                     const itemBalance = item.rentBalance !== undefined && item.rentBalance !== null
                       ? Number(item.rentBalance)
-                      : Math.max(0, item.proRataRent + effectiveEbCharges - (item.rentReceived || 0));
+                      : Math.max(0, totalDue - (item.rentReceived || 0));
                     // Check if this is a shop (room numbers like S1, S2, SHOP-1 etc or any number > 100 can be marked as shop)
                     const isShop = /^[Ss]/.test(item.roomNumber) || /[Ss]hop/i.test(item.roomNumber);
 
@@ -1660,11 +1709,15 @@ export default function RentalCollectionDetails() {
                             )}
                           </div>
                         </td>
+                        <td className="amount total-due">{formatCurrency(totalDue)}</td>
                         <td
                           className={`amount balance ${itemBalance > 0 ? 'pending' : 'success'}`}
                           title={getBalanceTooltip(item)}
                         >
                           {formatCurrency(itemBalance)}
+                        </td>
+                        <td className="amount received">
+                          <span>{formatCurrency(Number(item.rentReceived || 0))}</span>
                         </td>
                         <td>
                           <span className={`payment-status-badge ${effectiveStatus}`}>
@@ -1675,9 +1728,6 @@ export default function RentalCollectionDetails() {
                           {item.rentReceivedOn
                             ? new Date(item.rentReceivedOn).toLocaleDateString('en-IN')
                             : 'No payment'}
-                        </td>
-                        <td className="amount received">
-                          <span>{formatCurrency(Number(item.rentReceived || 0))}</span>
                         </td>
                         <td className="proof-cell">
                           <div className="proof-cell-content">
