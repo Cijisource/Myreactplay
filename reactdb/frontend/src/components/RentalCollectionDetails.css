@@ -276,9 +276,9 @@
 
 .current-month-table.compact-grid th:nth-child(1),
 .current-month-table.compact-grid td:nth-child(1) {
-  width: 30%;
-  min-width: 220px;
-  max-width: 420px;
+  width: auto;
+  min-width: 0;
+  max-width: none;
   overflow: hidden;
   text-overflow: ellipsis;
 }

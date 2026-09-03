@@ -254,6 +254,18 @@ export default function RentalCollectionDetails() {
       ),
     0
   );
+  const monthlyPaymentTotals = rentalRecords.reduce<Record<string, { rentReceived: number; charges: number }>>(
+    (totals, record) => {
+      const paymentMonth = record.rentReceivedOn?.slice(0, 7) || '';
+      const monthTotals = totals[paymentMonth] || { rentReceived: 0, charges: 0 };
+
+      monthTotals.rentReceived += Number(record.rentReceived || 0);
+      monthTotals.charges += Number(record.charges || 0);
+      totals[paymentMonth] = monthTotals;
+      return totals;
+    },
+    {}
+  );
   const canChangeReviewStatus = hasAnyRole(['admin', 'accountant']) || !hasRole('manager');
 
   const getProofUrl = (
@@ -917,14 +929,11 @@ export default function RentalCollectionDetails() {
     Number(rentReceived || 0) + Number(charges || 0);
 
   const getDisplayBalance = (record: RentalRecord): number => {
-    const storedBalance = Number(record.rentBalance || 0);
-    if (storedBalance > 0) {
-      return storedBalance;
-    }
+    const paymentMonth = record.rentReceivedOn?.slice(0, 7) || '';
+    const monthlyTotals = monthlyPaymentTotals[paymentMonth] || { rentReceived: 0, charges: 0 };
+    const totalDue = Number(record.rentFixed || 0) + monthlyTotals.charges;
 
-    // Fallback when legacy records have 0 in RentBalance even for partial payments.
-    const fallback = Number(record.rentFixed || 0) + Number(record.charges || 0) - Number(record.rentReceived || 0);
-    return Math.max(0, fallback);
+    return Math.max(0, totalDue - monthlyTotals.rentReceived);
   };
 
   const openProofPreview = (url: string, alt: string) => {
@@ -1421,7 +1430,7 @@ export default function RentalCollectionDetails() {
                     </div>
                     <div className="detail-item">
                       <span className="label">Received</span>
-                      <span className="value received">{formatCurrency(getTotalReceived(record.rentReceived, record.charges))}</span>
+                      <span className="value received">{formatCurrency(getTotalReceived(record.rentFixed, record.charges))}</span>
                     </div>
                     <div className="detail-item">
                       <span className="label">Balance</span>
@@ -1637,10 +1646,11 @@ export default function RentalCollectionDetails() {
                     <th>Check-Out</th>
                     <th>Pro-Rata Rent</th>
                     <th>EB Charges</th>
+                    <th>Total</th>
                     <th>Balance</th>
+                    <th>Received</th>
                     <th>Status</th>
                     <th>Last Payment</th>
-                    <th>Received</th>
                     <th>Proof</th>
                     <th>Review</th>
                   </tr>
@@ -1652,10 +1662,11 @@ export default function RentalCollectionDetails() {
                     const isSavingReview = savingReviewRows[item.occupancyId] || false;
                     const savedReviewDate = formatReviewSavedDate(item.reviewVerifiedOn);
                     const effectiveEbCharges = Number(item.charges || 0);
+                    const totalDue = Number(item.proRataRent || 0) + effectiveEbCharges;
                     const effectiveStatus = getEffectiveStatus(item);
                     const itemBalance = item.rentBalance !== undefined && item.rentBalance !== null
                       ? Number(item.rentBalance)
-                      : Math.max(0, item.proRataRent + effectiveEbCharges - (item.rentReceived || 0));
+                      : Math.max(0, totalDue - (item.rentReceived || 0));
                     // Check if this is a shop (room numbers like S1, S2, SHOP-1 etc or any number > 100 can be marked as shop)
                     const isShop = /^[Ss]/.test(item.roomNumber) || /[Ss]hop/i.test(item.roomNumber);
 
@@ -1698,11 +1709,15 @@ export default function RentalCollectionDetails() {
                             )}
                           </div>
                         </td>
+                        <td className="amount total-due">{formatCurrency(totalDue)}</td>
                         <td
                           className={`amount balance ${itemBalance > 0 ? 'pending' : 'success'}`}
                           title={getBalanceTooltip(item)}
                         >
                           {formatCurrency(itemBalance)}
+                        </td>
+                        <td className="amount received">
+                          <span>{formatCurrency(Number(item.rentReceived || 0))}</span>
                         </td>
                         <td>
                           <span className={`payment-status-badge ${effectiveStatus}`}>
@@ -1713,9 +1728,6 @@ export default function RentalCollectionDetails() {
                           {item.rentReceivedOn
                             ? new Date(item.rentReceivedOn).toLocaleDateString('en-IN')
                             : 'No payment'}
-                        </td>
-                        <td className="amount received">
-                          <span>{formatCurrency(Number(item.rentReceived || 0))}</span>
                         </td>
                         <td className="proof-cell">
                           <div className="proof-cell-content">
