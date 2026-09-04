@@ -918,8 +918,8 @@ export default function PaymentTracking() {
                 <table className="eb-details-table">
                   <thead>
                     <tr>
-                      <th>Service</th>
                       <th>Meter</th>
+                      <th>Reading Date</th>
                       <th>Start</th>
                       <th>End</th>
                       <th>Units</th>
@@ -929,8 +929,8 @@ export default function PaymentTracking() {
                   <tbody>
                     {ebDetailsPopup.records.map((record: any, index: number) => (
                       <tr key={`${record.serviceConsumptionId || index}-${record.serviceName || 'eb'}`}>
-                        <td className="eb-table-service">{record.serviceName || 'EB Service'}</td>
                         <td>{record.meterNo || '-'}</td>
+                        <td>{record.readingTakenDate ? new Date(record.readingTakenDate).toLocaleDateString('en-IN') : '-'}</td>
                         <td>{record.startingReading ?? '-'}</td>
                         <td>{record.endingReading ?? '-'}</td>
                         <td className="eb-table-units">{record.unitsConsumed ?? 0}</td>
