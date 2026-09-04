@@ -219,10 +219,17 @@ export default function RentalCollectionDetails() {
   const currentMonthYear = selectedMonthFilter;
 
   const getEffectiveStatus = (
-    payment: Pick<MonthlyPaymentStatus, 'rentFixed' | 'proRataRent' | 'paymentStatus'>
+    payment: Pick<MonthlyPaymentStatus, 'rentFixed' | 'proRataRent' | 'paymentStatus' | 'rentReceived' | 'charges' | 'rentReceivedOn'>
   ): 'paid' | 'pending' | 'partial' | 'merged' => {
     if (payment.proRataRent === 0 || payment.rentFixed === 0) return 'merged';
-    return payment.paymentStatus;
+
+    const hasRecordedPayment = Boolean(payment.rentReceivedOn) || Number(payment.rentReceived || 0) > 0;
+    const totalDue = Number(payment.proRataRent || 0) + Number(payment.charges || 0);
+    const effectiveReceived = hasRecordedPayment ? Number(payment.rentReceived || 0) + Number(payment.charges || 0) : 0;
+
+    if (totalDue > 0 && effectiveReceived >= totalDue) return 'paid';
+    if (totalDue > 0 && effectiveReceived > 0) return 'partial';
+    return 'pending';
   };
 
   const paidOccupancyIds = new Set(
@@ -257,18 +264,27 @@ export default function RentalCollectionDetails() {
   const mergedCount = roomFilteredPayments.filter((item) => getEffectiveStatus(item) === 'merged').length;
   const approvedCount = roomFilteredPayments.filter((item) => getReviewDecision(item) === 'approved').length;
   const rejectedCount = roomFilteredPayments.filter((item) => getReviewDecision(item) === 'rejected').length;
+  const getEffectiveReceived = (rentReceived: number, charges: number, hasPaymentRecord: boolean = true): number => {
+    if (!hasPaymentRecord) return 0;
+    return Number(rentReceived || 0) + Number(charges || 0);
+  };
+
   const totalReceivedAmount = roomFilteredPayments.reduce(
-    (sum, item) => sum + Number(item.rentReceived || 0),
+    (sum, item) =>
+      sum + getEffectiveReceived(Number(item.rentReceived || 0), Number(item.charges || 0), Boolean(item.rentReceivedOn) || Number(item.rentReceived || 0) > 0),
     0
   );
   const totalChargesAmount = roomFilteredPayments.reduce((sum, item) => sum + Number(item.charges || 0), 0);
   const totalPendingBalanceAmount = roomFilteredPayments.reduce(
-    (sum, item) =>
-      sum +
-      Math.max(
-        0,
-        item.rentBalance ?? (item.proRataRent + Number(item.charges || 0) - (item.rentReceived || 0))
-      ),
+    (sum, item) => {
+      const effectiveReceived = getEffectiveReceived(
+        Number(item.rentReceived || 0),
+        Number(item.charges || 0),
+        Boolean(item.rentReceivedOn) || Number(item.rentReceived || 0) > 0
+      );
+      const effectiveBalance = item.rentBalance ?? (item.proRataRent + Number(item.charges || 0) - effectiveReceived);
+      return sum + Math.max(0, effectiveBalance);
+    },
     0
   );
   const monthlyPaymentTotals = rentalRecords.reduce<Record<string, { rentReceived: number; charges: number }>>(
@@ -949,8 +965,9 @@ export default function RentalCollectionDetails() {
     const paymentMonth = record.rentReceivedOn?.slice(0, 7) || '';
     const monthlyTotals = monthlyPaymentTotals[paymentMonth] || { rentReceived: 0, charges: 0 };
     const totalDue = Number(record.rentFixed || 0) + monthlyTotals.charges;
+    const totalReceived = getEffectiveReceived(Number(record.rentReceived || 0), Number(record.charges || 0));
 
-    return Math.max(0, totalDue - monthlyTotals.rentReceived);
+    return Math.max(0, totalDue - totalReceived);
   };
 
   const openProofPreview = (url: string, alt: string) => {
@@ -1494,7 +1511,7 @@ export default function RentalCollectionDetails() {
                     </div>
                     <div className="detail-item">
                       <span className="label">Received</span>
-                      <span className="value received">{formatCurrency(Number(record.rentReceived || 0))}</span>
+                      <span className="value received">{formatCurrency(getEffectiveReceived(Number(record.rentReceived || 0), Number(record.charges || 0)))}</span>
                     </div>
                     <div className="detail-item">
                       <span className="label">Balance</span>
@@ -1684,7 +1701,7 @@ export default function RentalCollectionDetails() {
                 <strong>{filteredCurrentMonthPayments.length}</strong>
               </div>
               <div className="current-month-summary-item highlight-received">
-                <span>Total Rent Received</span>
+                <span>Total Received</span>
                 <strong>{formatCurrency(totalReceivedAmount)}</strong>
               </div>
               <div className="current-month-summary-item highlight-charges">
@@ -1727,10 +1744,10 @@ export default function RentalCollectionDetails() {
                     const savedReviewDate = formatReviewSavedDate(item.reviewVerifiedOn);
                     const effectiveEbCharges = Number(item.charges || 0);
                     const totalDue = Number(item.proRataRent || 0) + effectiveEbCharges;
+                    const hasPaymentRecord = Boolean(item.rentReceivedOn) || Number(item.rentReceived || 0) > 0;
+                    const effectiveReceived = getEffectiveReceived(Number(item.rentReceived || 0), effectiveEbCharges, hasPaymentRecord);
                     const effectiveStatus = getEffectiveStatus(item);
-                    const itemBalance = item.rentBalance !== undefined && item.rentBalance !== null
-                      ? Number(item.rentBalance)
-                      : Math.max(0, totalDue - (item.rentReceived || 0));
+                    const itemBalance = Math.max(0, totalDue - effectiveReceived);
                     // Check if this is a shop (room numbers like S1, S2, SHOP-1 etc or any number > 100 can be marked as shop)
                     const isShop = /^[Ss]/.test(item.roomNumber) || /[Ss]hop/i.test(item.roomNumber);
 
@@ -1790,7 +1807,7 @@ export default function RentalCollectionDetails() {
                           {formatCurrency(itemBalance)}
                         </td>
                         <td className="amount received">
-                          <span>{formatCurrency(Number(item.rentReceived || 0))}</span>
+                          <span>{formatCurrency(effectiveReceived)}</span>
                         </td>
                         <td>
                           <span className={`payment-status-badge ${effectiveStatus}`}>

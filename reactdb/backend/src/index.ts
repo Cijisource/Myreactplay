@@ -1316,18 +1316,21 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
         month
       );
       
-      // Calculate rent balance as: proRataRent + charges - rentReceived
+      // Only count charges as received when there is an actual payment record for the period.
+      // When rentReceivedOn is null, the tenant has not paid anything yet even if charges are due.
+      const hasRecordedPayment = Boolean(record.rentReceivedOn) || Number(rentReceived) > 0;
       const totalDue = proRataRent + charges;
-      const rentBalance = Math.max(0, totalDue - rentReceived);
+      const effectiveReceived = hasRecordedPayment ? rentReceived + charges : 0;
+      const rentBalance = Math.max(0, totalDue - effectiveReceived);
 
-      // Recalculate payment status based on actual outstanding amount.
-      // Charges are part of the amount due, but they are not treated as a partial payment.
+      // Recalculate payment status from the actual due-vs-received math.
+      // A full payment should still be marked paid even when a charge component is included.
       let paymentStatus: string;
       if (proRataRent === 0 || rentFixed === 0) {
         paymentStatus = 'merged';
-      } else if (rentBalance === 0) {
+      } else if (totalDue > 0 && effectiveReceived >= totalDue) {
         paymentStatus = 'paid';
-      } else if (rentReceived > 0 && totalDue > 0) {
+      } else if (effectiveReceived > 0 && totalDue > 0) {
         paymentStatus = 'partial';
       } else {
         paymentStatus = 'pending';
