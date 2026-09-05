@@ -413,6 +413,7 @@ export const apiService = {
   // Authentication APIs
   login: (username: string, password: string) => 
     api.post('/auth/login', { username, password }),
+  getActiveUsers: () => api.get('/auth/active-users'),
   
   // Tenant Management APIs
   getAllTenantsWithOccupancy: () => api.get('/tenants/with-occupancy'),
