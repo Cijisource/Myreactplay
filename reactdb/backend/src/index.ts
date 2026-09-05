@@ -35,6 +35,8 @@ const pruneExpiredLoggedInUsers = (): void => {
   }
 };
 
+const DEFAULT_SESSION_DURATION_DAYS = 30;
+
 const getLoginValidityEndTime = (lastLogin: Date | string | null | undefined, nextLoginDuration: number | string | null | undefined): Date | null => {
   const durationDays = Number(nextLoginDuration);
 
@@ -52,10 +54,12 @@ const getLoginValidityEndTime = (lastLogin: Date | string | null | undefined, ne
 };
 
 const getRemainingValiditySeconds = (lastLogin: Date | string | null | undefined, nextLoginDuration: number | string | null | undefined): number => {
-  const validityEndTime = getLoginValidityEndTime(lastLogin, nextLoginDuration);
+  const durationDays = Number(nextLoginDuration);
+  const safeDurationDays = Number.isFinite(durationDays) && durationDays > 0 ? durationDays : DEFAULT_SESSION_DURATION_DAYS;
+  const validityEndTime = getLoginValidityEndTime(lastLogin, safeDurationDays);
 
   if (!validityEndTime) {
-    return 24 * 60 * 60;
+    return safeDurationDays * 24 * 60 * 60;
   }
 
   const remainingMs = validityEndTime.getTime() - Date.now();
@@ -728,7 +732,7 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
     const configuredLoginDuration = Number(user.nextLoginDuration);
     const sessionDurationDays = Number.isFinite(configuredLoginDuration) && configuredLoginDuration > 0
       ? configuredLoginDuration
-      : 30;
+      : DEFAULT_SESSION_DURATION_DAYS;
     const tokenLifetimeSeconds = sessionDurationDays * 24 * 60 * 60;
     const sessionExpiresAt = new Date(Date.now() + (tokenLifetimeSeconds * 1000));
 
@@ -739,7 +743,11 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
       roles: roles
     };
 
-    const remainingValiditySeconds = getRemainingValiditySeconds(updatedLastLogin || user.lastLogin, user.nextLoginDuration);
+    const effectiveNextLoginDuration = Number(user.nextLoginDuration);
+    const safeNextLoginDuration = Number.isFinite(effectiveNextLoginDuration) && effectiveNextLoginDuration > 0
+      ? effectiveNextLoginDuration
+      : DEFAULT_SESSION_DURATION_DAYS;
+    const remainingValiditySeconds = getRemainingValiditySeconds(updatedLastLogin || user.lastLogin, safeNextLoginDuration);
 
     const token = jwt.sign(
       tokenPayload,
@@ -854,7 +862,11 @@ app.post('/api/auth/refresh', async (req: Request, res: Response) => {
     }
 
     const user = userResult.recordset[0];
-    const validityEndTime = getLoginValidityEndTime(user.lastLogin, user.nextLoginDuration);
+    const effectiveNextLoginDuration = Number(user.nextLoginDuration);
+    const safeNextLoginDuration = Number.isFinite(effectiveNextLoginDuration) && effectiveNextLoginDuration > 0
+      ? effectiveNextLoginDuration
+      : DEFAULT_SESSION_DURATION_DAYS;
+    const validityEndTime = getLoginValidityEndTime(user.lastLogin, safeNextLoginDuration);
 
     if (validityEndTime && Date.now() >= validityEndTime.getTime()) {
       console.log(`[Auth] Session expired during token refresh for user ${decoded.username} on ${validityEndTime.toISOString()}`);
@@ -871,7 +883,7 @@ app.post('/api/auth/refresh', async (req: Request, res: Response) => {
       roles: decoded.roles || 'user'
     };
 
-    const remainingValiditySeconds = getRemainingValiditySeconds(user.lastLogin, user.nextLoginDuration);
+    const remainingValiditySeconds = getRemainingValiditySeconds(user.lastLogin, safeNextLoginDuration);
     const newToken = jwt.sign(tokenPayload, jwtSecret, { expiresIn: remainingValiditySeconds });
     const newRefreshToken = jwt.sign(tokenPayload, refreshTokenSecret, { expiresIn: remainingValiditySeconds });
 
@@ -1470,7 +1482,7 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
   }
 });
 
-app.get('/api/auth/active-users', async (req: Request, res: Response) => {
+app.get(['/api/auth/active-users', '/auth/active-users'], async (req: Request, res: Response) => {
   try {
     const authHeader = req.headers['authorization'];
     const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
