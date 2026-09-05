@@ -391,9 +391,10 @@ h2 {
   line-height: 1.4;
 }
 
-.dropdown-next-login {
+.dropdown-next-login,
+.dropdown-next-login-time {
   font-size: 0.75em;
-  color: #64748b;
+  color: #dc2626;
   margin-top: 4px;
   line-height: 1.4;
 }

@@ -25,10 +25,17 @@ type ActiveUserSession = {
 
 const activeLoggedInUsers = new Map<number, ActiveUserSession>();
 
-const getLoginValidityEndTime = (
-  lastLogin: Date | string | null | undefined,
-  nextLoginDuration?: number | string | null
-): Date | null => {
+const pruneExpiredLoggedInUsers = (): void => {
+  const now = Date.now();
+
+  for (const [userId, session] of activeLoggedInUsers.entries()) {
+    if (new Date(session.expiresAt).getTime() <= now) {
+      activeLoggedInUsers.delete(userId);
+    }
+  }
+};
+
+const getLoginValidityEndTime = (lastLogin: Date | string | null | undefined, nextLoginDuration: number | string | null | undefined): Date | null => {
   const durationDays = Number(nextLoginDuration);
 
   if (!lastLogin || !Number.isFinite(durationDays) || durationDays <= 0) {
@@ -44,22 +51,15 @@ const getLoginValidityEndTime = (
   return new Date(lastLoginDate.getTime() + (durationDays * 24 * 60 * 60 * 1000));
 };
 
-const isLoginValidityExpired = (
-  lastLogin: Date | string | null | undefined,
-  nextLoginDuration?: number | string | null
-): boolean => {
-  const validityEnd = getLoginValidityEndTime(lastLogin, nextLoginDuration);
-  return validityEnd === null || Date.now() >= validityEnd.getTime();
-};
+const getRemainingValiditySeconds = (lastLogin: Date | string | null | undefined, nextLoginDuration: number | string | null | undefined): number => {
+  const validityEndTime = getLoginValidityEndTime(lastLogin, nextLoginDuration);
 
-const pruneExpiredLoggedInUsers = (): void => {
-  const now = Date.now();
-
-  for (const [userId, session] of activeLoggedInUsers.entries()) {
-    if (new Date(session.expiresAt).getTime() <= now) {
-      activeLoggedInUsers.delete(userId);
-    }
+  if (!validityEndTime) {
+    return 24 * 60 * 60;
   }
+
+  const remainingMs = validityEndTime.getTime() - Date.now();
+  return Math.max(1, Math.ceil(remainingMs / 1000));
 };
 
 // Determine complains directory based on environment
@@ -739,16 +739,18 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
       roles: roles
     };
 
+    const remainingValiditySeconds = getRemainingValiditySeconds(updatedLastLogin || user.lastLogin, user.nextLoginDuration);
+
     const token = jwt.sign(
       tokenPayload,
       jwtSecret,
-      { expiresIn: tokenLifetimeSeconds }
+      { expiresIn: remainingValiditySeconds }
     );
 
     const refreshToken = jwt.sign(
       tokenPayload,
       refreshTokenSecret,
-      { expiresIn: tokenLifetimeSeconds }
+      { expiresIn: remainingValiditySeconds }
     );
 
     pruneExpiredLoggedInUsers();
@@ -833,6 +835,35 @@ app.post('/api/auth/refresh', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Invalid or expired refresh token' });
     }
 
+    const pool = getPool();
+    const userResult = await pool.request()
+      .input('userId', sql.Int, decoded.id)
+      .query(`
+        SELECT 
+          Id as id,
+          UserName as username,
+          Name as name,
+          LastLogin as lastLogin,
+          NextLoginDuration as nextLoginDuration
+        FROM [User]
+        WHERE Id = @userId
+      `);
+
+    if (!userResult.recordset.length) {
+      return res.status(401).json({ error: 'User session is no longer valid' });
+    }
+
+    const user = userResult.recordset[0];
+    const validityEndTime = getLoginValidityEndTime(user.lastLogin, user.nextLoginDuration);
+
+    if (validityEndTime && Date.now() >= validityEndTime.getTime()) {
+      console.log(`[Auth] Session expired during token refresh for user ${decoded.username} on ${validityEndTime.toISOString()}`);
+      return res.status(401).json({
+        error: 'Session expired because the validity period is over',
+        validUntil: validityEndTime.toISOString()
+      });
+    }
+
     const tokenPayload = {
       id: decoded.id,
       username: decoded.username,
@@ -840,8 +871,9 @@ app.post('/api/auth/refresh', async (req: Request, res: Response) => {
       roles: decoded.roles || 'user'
     };
 
-    const newToken = jwt.sign(tokenPayload, jwtSecret, { expiresIn: '24h' });
-    const newRefreshToken = jwt.sign(tokenPayload, refreshTokenSecret, { expiresIn: '30d' });
+    const remainingValiditySeconds = getRemainingValiditySeconds(user.lastLogin, user.nextLoginDuration);
+    const newToken = jwt.sign(tokenPayload, jwtSecret, { expiresIn: remainingValiditySeconds });
+    const newRefreshToken = jwt.sign(tokenPayload, refreshTokenSecret, { expiresIn: remainingValiditySeconds });
 
     res.json({
       token: newToken,
@@ -1510,7 +1542,7 @@ const verifyToken = async (req: Request, res: Response, next: NextFunction) => {
       `);
 
     if (!userResult.recordset.length) {
-      activeLoggedInUsers.delete(Number(decoded.id));
+      console.log(`[Auth] User session no longer valid for user id ${decoded.id}`);
       return res.status(401).json({ error: 'User session is no longer valid' });
     }
 
@@ -1518,7 +1550,6 @@ const verifyToken = async (req: Request, res: Response, next: NextFunction) => {
     const validityEndTime = getLoginValidityEndTime(user.lastLogin, user.nextLoginDuration);
 
     if (validityEndTime && Date.now() >= validityEndTime.getTime()) {
-      activeLoggedInUsers.delete(Number(decoded.id));
       console.log(`[Auth] Session expired for user ${decoded.username} on ${validityEndTime.toISOString()}`);
       return res.status(401).json({
         error: 'Session expired because the validity period is over',
@@ -1526,6 +1557,7 @@ const verifyToken = async (req: Request, res: Response, next: NextFunction) => {
       });
     }
 
+    // Attach user info to request
     (req as any).user = decoded;
     console.log('[Auth] Token verified for user:', decoded.username, 'Roles:', decoded.roles);
     next();
