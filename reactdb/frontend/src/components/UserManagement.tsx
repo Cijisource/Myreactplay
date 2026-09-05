@@ -11,6 +11,7 @@ interface User {
   createdDate: string;
   updatedDate?: string;
   nextLoginDuration?: number;
+  lastLogin?: string | null;
 }
 
 interface RoleDetail {
@@ -514,6 +515,7 @@ export default function UserManagement() {
                   <p><strong>Username:</strong> {user.userName}</p>
                   <p><strong>Password:</strong> {user.password}</p>
                   <p><strong>Login Duration:</strong> {user.nextLoginDuration || 'N/A'} days</p>
+                  <p><strong>Last Login:</strong> {user.lastLogin ? new Date(user.lastLogin).toLocaleString() : 'Never'}</p>
                   <p><strong>Created:</strong> {new Date(user.createdDate).toLocaleDateString()}</p>
 
                   {assignRoleUserId === user.id && (

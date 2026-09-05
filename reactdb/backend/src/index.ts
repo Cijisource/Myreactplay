@@ -14,6 +14,54 @@ import { calculateCheckInProRataRent, calculateCheckOutProRataRent, recordProRat
 const app: Express = express();
 const PORT: number = parseInt(process.env.EXPRESS_PORT || '5000');
 
+type ActiveUserSession = {
+  userId: number;
+  username: string;
+  name: string;
+  roles: string;
+  loggedInAt: string;
+  expiresAt: string;
+};
+
+const activeLoggedInUsers = new Map<number, ActiveUserSession>();
+
+const getLoginValidityEndTime = (
+  lastLogin: Date | string | null | undefined,
+  nextLoginDuration?: number | string | null
+): Date | null => {
+  const durationDays = Number(nextLoginDuration);
+
+  if (!lastLogin || !Number.isFinite(durationDays) || durationDays <= 0) {
+    return null;
+  }
+
+  const lastLoginDate = lastLogin instanceof Date ? lastLogin : new Date(lastLogin);
+
+  if (Number.isNaN(lastLoginDate.getTime())) {
+    return null;
+  }
+
+  return new Date(lastLoginDate.getTime() + (durationDays * 24 * 60 * 60 * 1000));
+};
+
+const isLoginValidityExpired = (
+  lastLogin: Date | string | null | undefined,
+  nextLoginDuration?: number | string | null
+): boolean => {
+  const validityEnd = getLoginValidityEndTime(lastLogin, nextLoginDuration);
+  return validityEnd === null || Date.now() >= validityEnd.getTime();
+};
+
+const pruneExpiredLoggedInUsers = (): void => {
+  const now = Date.now();
+
+  for (const [userId, session] of activeLoggedInUsers.entries()) {
+    if (new Date(session.expiresAt).getTime() <= now) {
+      activeLoggedInUsers.delete(userId);
+    }
+  }
+};
+
 // Determine complains directory based on environment
 // In Docker: /app/complains (or use env variable if provided)
 // In local development: process.cwd()/complains
@@ -653,7 +701,7 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
       .map(r => r.roleName)
       .filter(r => r && r.trim() !== '') // Filter out null/empty values
       .join(',') || 'user';
-    
+
     console.log(`[Login] User roles for ${normalizedUsername}: ${roles}`);
 
     // Update LastLogin timestamp and fetch the updated value
@@ -682,6 +730,7 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
       ? configuredLoginDuration
       : 30;
     const tokenLifetimeSeconds = sessionDurationDays * 24 * 60 * 60;
+    const sessionExpiresAt = new Date(Date.now() + (tokenLifetimeSeconds * 1000));
 
     const tokenPayload = {
       id: user.id,
@@ -701,6 +750,16 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
       refreshTokenSecret,
       { expiresIn: tokenLifetimeSeconds }
     );
+
+    pruneExpiredLoggedInUsers();
+    activeLoggedInUsers.set(user.id, {
+      userId: user.id,
+      username: user.username,
+      name: user.name,
+      roles,
+      loggedInAt: new Date().toISOString(),
+      expiresAt: sessionExpiresAt.toISOString()
+    });
 
     res.json({
       token,
@@ -731,6 +790,28 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
       error: 'Login failed',
       details: errorMessage
     });
+  }
+});
+
+app.post('/api/auth/logout', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ error: 'Token is required' });
+    }
+
+    const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+    const decoded = jwt.verify(token, jwtSecret) as { id?: number };
+
+    if (decoded && decoded.id !== undefined) {
+      activeLoggedInUsers.delete(Number(decoded.id));
+    }
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('Logout tracking error:', error);
+    return res.status(401).json({ error: 'Invalid or expired token' });
   }
 });
 
@@ -1357,10 +1438,51 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
   }
 });
 
+app.get('/api/auth/active-users', async (req: Request, res: Response) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+    if (!token) {
+      return res.status(401).json({ error: 'No authorization token provided' });
+    }
+
+    const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+    const decoded = jwt.verify(token, jwtSecret) as any;
+
+    pruneExpiredLoggedInUsers();
+
+    const currentRoles = Array.isArray(decoded.roles)
+      ? decoded.roles
+      : String(decoded.roles || '')
+          .split(',')
+          .map((role: string) => role.trim().toLowerCase())
+          .filter(Boolean);
+
+    const isAdmin = currentRoles.includes('admin');
+
+    const activeUsers = Array.from(activeLoggedInUsers.values())
+      .filter((session) => {
+        if (isAdmin) return true;
+        return session.userId === Number(decoded.id);
+      })
+      .sort((a, b) => a.username.localeCompare(b.username));
+
+    return res.json({
+      count: activeUsers.length,
+      isAdmin,
+      users: activeUsers
+    });
+  } catch (error) {
+    console.log('[Auth] Active users lookup failed:', error instanceof Error ? error.message : String(error));
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+});
+
 // ==================== AUTHENTICATION & AUTHORIZATION MIDDLEWARE ====================
 
 // Verify JWT token and extract user info
-const verifyToken = (req: Request, res: Response, next: NextFunction) => {
+const verifyToken = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers['authorization'];
     const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
@@ -1373,7 +1495,37 @@ const verifyToken = (req: Request, res: Response, next: NextFunction) => {
     const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
     const decoded = jwt.verify(token, jwtSecret) as any;
 
-    // Attach user info to request
+    const pool = getPool();
+    const userResult = await pool.request()
+      .input('userId', sql.Int, decoded.id)
+      .query(`
+        SELECT 
+          Id as id,
+          UserName as username,
+          Name as name,
+          LastLogin as lastLogin,
+          NextLoginDuration as nextLoginDuration
+        FROM [User]
+        WHERE Id = @userId
+      `);
+
+    if (!userResult.recordset.length) {
+      activeLoggedInUsers.delete(Number(decoded.id));
+      return res.status(401).json({ error: 'User session is no longer valid' });
+    }
+
+    const user = userResult.recordset[0];
+    const validityEndTime = getLoginValidityEndTime(user.lastLogin, user.nextLoginDuration);
+
+    if (validityEndTime && Date.now() >= validityEndTime.getTime()) {
+      activeLoggedInUsers.delete(Number(decoded.id));
+      console.log(`[Auth] Session expired for user ${decoded.username} on ${validityEndTime.toISOString()}`);
+      return res.status(401).json({
+        error: 'Session expired because the validity period is over',
+        validUntil: validityEndTime.toISOString()
+      });
+    }
+
     (req as any).user = decoded;
     console.log('[Auth] Token verified for user:', decoded.username, 'Roles:', decoded.roles);
     next();
@@ -4092,7 +4244,8 @@ app.get('/api/users', verifyToken, requireRole(['admin']), async (req: Request, 
         Name as name,
         CreatedDate as createdDate,
         UpdatedDate as updatedDate,
-        NextLoginDuration as nextLoginDuration
+        NextLoginDuration as nextLoginDuration,
+        LastLogin as lastLogin
       FROM [User]
       ORDER BY Name ASC
     `);
@@ -4118,7 +4271,8 @@ app.get('/api/users/:id', verifyToken, requireRole(['admin']), async (req: Reque
           Name as name,
           CreatedDate as createdDate,
           UpdatedDate as updatedDate,
-          NextLoginDuration as nextLoginDuration
+          NextLoginDuration as nextLoginDuration,
+          LastLogin as lastLogin
         FROM [User]
         WHERE Id = @id
       `);

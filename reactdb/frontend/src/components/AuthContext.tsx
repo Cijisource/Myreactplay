@@ -28,6 +28,21 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const GLOBAL_LOGOUT_KEY = 'global-logout-broadcast';
 const DEFAULT_SESSION_DURATION_DAYS = 30;
 
+const getExpiryTimestampFromValidity = (lastLogin: string | null | undefined, nextLoginDuration: number | null | undefined): number => {
+  const durationDays = Number(nextLoginDuration);
+  const sessionDurationDays = Number.isFinite(durationDays) && durationDays > 0
+    ? durationDays
+    : DEFAULT_SESSION_DURATION_DAYS;
+
+  const lastLoginTimestamp = lastLogin ? Date.parse(lastLogin) : Number.NaN;
+
+  if (Number.isFinite(lastLoginTimestamp)) {
+    return lastLoginTimestamp + (sessionDurationDays * 24 * 60 * 60 * 1000);
+  }
+
+  return Date.now() + (sessionDurationDays * 24 * 60 * 60 * 1000);
+};
+
 const readTabStorageItem = (key: string): string | null => {
   try {
     return window.sessionStorage.getItem(key);
@@ -205,11 +220,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         writeTabStorageItem('refreshToken', response.refreshToken);
       }
 
-      const durationDays = Number(response.user.nextLoginDuration);
-      const sessionDurationDays = Number.isFinite(durationDays) && durationDays > 0
-        ? durationDays
-        : DEFAULT_SESSION_DURATION_DAYS;
-      const expiryTimestamp = Date.now() + (sessionDurationDays * 24 * 60 * 60 * 1000);
+      const expiryTimestamp = getExpiryTimestampFromValidity(
+        response.user.lastLogin,
+        response.user.nextLoginDuration
+      );
 
       writeTabStorageItem('user', JSON.stringify(response.user));
       writeTabStorageItem('sessionExpiresAt', String(expiryTimestamp));
