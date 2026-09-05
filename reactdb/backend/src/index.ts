@@ -14,6 +14,27 @@ import { calculateCheckInProRataRent, calculateCheckOutProRataRent, recordProRat
 const app: Express = express();
 const PORT: number = parseInt(process.env.EXPRESS_PORT || '5000');
 
+type ActiveUserSession = {
+  userId: number;
+  username: string;
+  name: string;
+  roles: string;
+  loggedInAt: string;
+  expiresAt: string;
+};
+
+const activeLoggedInUsers = new Map<number, ActiveUserSession>();
+
+const pruneExpiredLoggedInUsers = (): void => {
+  const now = Date.now();
+
+  for (const [userId, session] of activeLoggedInUsers.entries()) {
+    if (new Date(session.expiresAt).getTime() <= now) {
+      activeLoggedInUsers.delete(userId);
+    }
+  }
+};
+
 const getLoginValidityEndTime = (lastLogin: Date | string | null | undefined, nextLoginDuration: number | string | null | undefined): Date | null => {
   const durationDays = Number(nextLoginDuration);
 
