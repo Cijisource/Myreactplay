@@ -135,6 +135,18 @@ export default function TransactionManagement({
     occupancyId: ''
   });
 
+  const getSuggestedDescription = (transactionTypeId: number): string => {
+    if (!transactionTypeId) {
+      return '';
+    }
+
+    const matchingTransaction = [...transactions]
+      .filter((transaction) => transaction.transactionTypeId === transactionTypeId && transaction.description?.trim())
+      .sort((left, right) => new Date(right.transactionDate).getTime() - new Date(left.transactionDate).getTime())[0];
+
+    return matchingTransaction?.description?.trim() || '';
+  };
+
   // Fetch transactions
   const fetchTransactions = async () => {
     try {
@@ -387,6 +399,17 @@ export default function TransactionManagement({
     () => monthlyExpenseReport.reduce((sum, row) => sum + row.totalExpense, 0),
     [monthlyExpenseReport]
   );
+
+  const descriptionSuggestions = useMemo(() => {
+    const uniqueDescriptions = new Set<string>();
+
+    transactions
+      .map((transaction) => transaction.description?.trim())
+      .filter((description): description is string => Boolean(description))
+      .forEach((description) => uniqueDescriptions.add(description));
+
+    return [...uniqueDescriptions].sort((left, right) => left.localeCompare(right));
+  }, [transactions]);
 
   const expensePieSlices = useMemo((): ExpensePieSlice[] => {
     const source = filteredYearlyExpenseReport
@@ -797,9 +820,10 @@ export default function TransactionManagement({
           className="btn btn-primary"
           onClick={() => {
             setEditingTransaction(null);
+            const suggestedDescription = getSuggestedDescription(formData.transactionTypeId || 0);
             setFormData({
-              description: '',
-              transactionTypeId: 0,
+              description: suggestedDescription,
+              transactionTypeId: formData.transactionTypeId || 0,
               transactionDate: formatLocalDate(new Date()),
               amount: 0,
               occupancyId: ''
@@ -820,11 +844,26 @@ export default function TransactionManagement({
               placeholder="Description"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              list="transaction-description-suggestions"
+              autoComplete="on"
               required
             />
+            <datalist id="transaction-description-suggestions">
+              {descriptionSuggestions.map((description) => (
+                <option key={description} value={description} />
+              ))}
+            </datalist>
             <SearchableDropdown
               value={formData.transactionTypeId || null}
-              onChange={(option) => setFormData({ ...formData, transactionTypeId: option.id as number })}
+              onChange={(option) => {
+                const nextTransactionTypeId = option.id as number;
+                const suggestedDescription = getSuggestedDescription(nextTransactionTypeId);
+                setFormData((previousFormData) => ({
+                  ...previousFormData,
+                  transactionTypeId: nextTransactionTypeId,
+                  description: previousFormData.description?.trim() ? previousFormData.description : suggestedDescription
+                }));
+              }}
               options={transactionTypes.map(type => ({ id: type.id, label: type.transactionType }))}
               placeholder="Select Transaction Type"
             />

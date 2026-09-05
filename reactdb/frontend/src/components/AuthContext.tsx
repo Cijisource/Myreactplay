@@ -65,16 +65,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const setupAutoLogout = (nextLoginDuration: number | null | undefined, expiryTimestamp?: number | null) => {
+  const setupAutoLogout = (nextLoginDuration: number | null | undefined, expiryTimestamp?: number | null, lastLogin?: string | null) => {
     const durationDays = Number(nextLoginDuration);
     const now = Date.now();
+    const lastLoginTime = lastLogin ? new Date(lastLogin).getTime() : null;
     const absoluteExpiry = Number.isFinite(expiryTimestamp) && expiryTimestamp !== null && expiryTimestamp !== undefined
       ? expiryTimestamp
-      : (Number.isFinite(durationDays) && durationDays > 0 ? now + (durationDays * 24 * 60 * 60 * 1000) : null);
+      : (Number.isFinite(durationDays) && durationDays > 0
+        ? (Number.isFinite(lastLoginTime) ? lastLoginTime! + (durationDays * 24 * 60 * 60 * 1000) : now + (durationDays * 24 * 60 * 60 * 1000))
+        : null);
 
     console.log('[Auto-Logout] setupAutoLogout called with:', {
       nextLoginDuration,
       durationDays,
+      lastLogin,
       absoluteExpiry,
       now,
       type: typeof nextLoginDuration
@@ -138,7 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             storedExpiry
           });
           setUser(parsedUser);
-          setupAutoLogout(parsedUser.nextLoginDuration, storedExpiry);
+          setupAutoLogout(parsedUser.nextLoginDuration, storedExpiry, parsedUser.lastLogin);
         }
       } else {
         console.log('[Auth] No stored session found on mount');
@@ -192,8 +196,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const durationDays = Number(response.user.nextLoginDuration);
+      const lastLoginTime = response.user.lastLogin ? new Date(response.user.lastLogin).getTime() : null;
       const expiryTimestamp = Number.isFinite(durationDays) && durationDays > 0
-        ? Date.now() + (durationDays * 24 * 60 * 60 * 1000)
+        ? (Number.isFinite(lastLoginTime) ? lastLoginTime! + (durationDays * 24 * 60 * 60 * 1000) : Date.now() + (durationDays * 24 * 60 * 60 * 1000))
         : null;
 
       writeTabStorageItem('user', JSON.stringify(response.user));
@@ -216,9 +221,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       setUser(response.user);
       
-      // Setup auto-logout based on NextLoginDuration
-      console.log('[Auth] About to setup auto-logout with nextLoginDuration:', response.user.nextLoginDuration);
-      setupAutoLogout(response.user.nextLoginDuration, expiryTimestamp);
+      // Setup auto-logout based on actual validity end time from lastLogin + duration
+      console.log('[Auth] About to setup auto-logout with nextLoginDuration:', response.user.nextLoginDuration, 'lastLogin:', response.user.lastLogin);
+      setupAutoLogout(response.user.nextLoginDuration, expiryTimestamp, response.user.lastLogin);
     } catch (err) {
       const errorMessage = err instanceof Error 
         ? err.message 

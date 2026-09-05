@@ -120,9 +120,65 @@ function AppContent() {
   const [activeGroupKey, setActiveGroupKey] = useState<string | null>(() => getGroupKeyForPage('home'));
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [headerHidden, setHeaderHidden] = useState(false);
+  const [timeForNextLogin, setTimeForNextLogin] = useState<string | null>(null);
   const lastScrollPosRef = useRef(0);
   const headerHiddenRef = useRef(false);
   const { isAuthenticated, user, logout } = useAuth();
+
+  useEffect(() => {
+    const getValidityEndTime = (lastLogin?: string | null, nextLoginDuration?: number | null) => {
+      if (!lastLogin || !Number.isFinite(Number(nextLoginDuration)) || Number(nextLoginDuration) <= 0) {
+        return null;
+      }
+
+      const lastLoginTime = new Date(lastLogin).getTime();
+      if (Number.isNaN(lastLoginTime)) {
+        return null;
+      }
+
+      return lastLoginTime + (Number(nextLoginDuration) * 24 * 60 * 60 * 1000);
+    };
+
+    const formatRemainingTime = (remainingMs: number) => {
+      const totalSeconds = Math.max(0, Math.floor(remainingMs / 1000));
+      const days = Math.floor(totalSeconds / (24 * 60 * 60));
+      const hours = Math.floor((totalSeconds % (24 * 60 * 60)) / (60 * 60));
+      const minutes = Math.floor((totalSeconds % (60 * 60)) / 60);
+      const seconds = totalSeconds % 60;
+
+      if (days > 0) {
+        return `${days}d ${hours}h ${minutes}m`;
+      }
+      if (hours > 0) {
+        return `${hours}h ${minutes}m ${seconds}s`;
+      }
+      if (minutes > 0) {
+        return `${minutes}m ${seconds}s`;
+      }
+      return `${seconds}s`;
+    };
+
+    const updateCountdown = () => {
+      const validityEndTime = getValidityEndTime(user?.lastLogin, user?.nextLoginDuration);
+      if (!validityEndTime) {
+        setTimeForNextLogin(null);
+        return;
+      }
+
+      const remainingMs = validityEndTime - Date.now();
+      if (remainingMs <= 0) {
+        setTimeForNextLogin('Expired');
+        return;
+      }
+
+      setTimeForNextLogin(`Time for next login: ${formatRemainingTime(remainingMs)}`);
+    };
+
+    updateCountdown();
+
+    const timer = window.setInterval(updateCountdown, 1000);
+    return () => window.clearInterval(timer);
+  }, [user?.lastLogin, user?.nextLoginDuration]);
 
   // Debug logging for authentication state
   useEffect(() => {
@@ -484,9 +540,16 @@ function AppContent() {
                     </div>
                   )}
                   {user?.nextLoginDuration && (
-                    <div className="dropdown-next-login">
-                      Valid for: {user.nextLoginDuration} day{user.nextLoginDuration !== 1 ? 's' : ''}
-                    </div>
+                    <>
+                      <div className="dropdown-next-login">
+                        Valid for: {user.nextLoginDuration} day{user.nextLoginDuration !== 1 ? 's' : ''}
+                      </div>
+                      {timeForNextLogin && (
+                        <div className="dropdown-next-login-time">
+                          {timeForNextLogin}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
                 <hr className="dropdown-divider" />
