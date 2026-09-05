@@ -680,7 +680,7 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
       .map(r => r.roleName)
       .filter(r => r && r.trim() !== '') // Filter out null/empty values
       .join(',') || 'user';
-    
+
     console.log(`[Login] User roles for ${normalizedUsername}: ${roles}`);
 
     // Update LastLogin timestamp and fetch the updated value
@@ -704,6 +704,12 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
     // Generate JWT access and refresh tokens
     const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
     const refreshTokenSecret = process.env.REFRESH_TOKEN_SECRET || `${jwtSecret}-refresh`;
+    const configuredLoginDuration = Number(user.nextLoginDuration);
+    const sessionDurationDays = Number.isFinite(configuredLoginDuration) && configuredLoginDuration > 0
+      ? configuredLoginDuration
+      : 30;
+    const tokenLifetimeSeconds = sessionDurationDays * 24 * 60 * 60;
+    const sessionExpiresAt = new Date(Date.now() + (tokenLifetimeSeconds * 1000));
 
     const tokenPayload = {
       id: user.id,
@@ -726,6 +732,16 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
       { expiresIn: remainingValiditySeconds }
     );
 
+    pruneExpiredLoggedInUsers();
+    activeLoggedInUsers.set(user.id, {
+      userId: user.id,
+      username: user.username,
+      name: user.name,
+      roles,
+      loggedInAt: new Date().toISOString(),
+      expiresAt: sessionExpiresAt.toISOString()
+    });
+
     res.json({
       token,
       refreshToken,
@@ -734,7 +750,7 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
         username: user.username,
         name: user.name,
         roles: roles,
-        nextLoginDuration: user.nextLoginDuration || null,
+        nextLoginDuration: sessionDurationDays,
         lastLogin: updatedLastLogin || null
       }
     });
@@ -755,6 +771,28 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
       error: 'Login failed',
       details: errorMessage
     });
+  }
+});
+
+app.post('/api/auth/logout', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ error: 'Token is required' });
+    }
+
+    const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+    const decoded = jwt.verify(token, jwtSecret) as { id?: number };
+
+    if (decoded && decoded.id !== undefined) {
+      activeLoggedInUsers.delete(Number(decoded.id));
+    }
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('Logout tracking error:', error);
+    return res.status(401).json({ error: 'Invalid or expired token' });
   }
 });
 
@@ -1119,13 +1157,16 @@ app.get('/api/rental/unpaid-details/:month', async (req: Request, res: Response)
       .query(`
         SELECT 
           o.Id as OccupancyId,
+          o.TenantId as TenantId,
           t.Name as TenantName,
           LTRIM(RTRIM(rd.Number)) as RoomNumber,
           LTRIM(RTRIM(o.CheckInDate)) as CheckInDate,
           LTRIM(RTRIM(o.CheckOutDate)) as CheckOutDate,
           ISNULL(CAST(o.RentFixed AS FLOAT), rd.Rent) as RentFixed,
           rd.Rent as RoomRent,
+          ISNULL(SUM(CAST(rc.RentReceived AS FLOAT)), 0) as received_amount,
           ISNULL(SUM(CAST(rc.RentReceived AS FLOAT)), 0) as collected_amount,
+          ISNULL(CAST(tenantServiceCharges.totalEbCharges AS FLOAT), 0) as ebCharges,
           COUNT(rc.Id) as records_count,
           MAX(rc.RentReceivedOn) as latest_date
         FROM Occupancy o
@@ -1134,6 +1175,13 @@ app.get('/api/rental/unpaid-details/:month', async (req: Request, res: Response)
         LEFT JOIN RentalCollection rc 
           ON o.Id = rc.OccupancyId 
           AND CONVERT(VARCHAR(7), rc.RentReceivedOn, 120) = @month
+        OUTER APPLY (
+          SELECT SUM(ISNULL(CAST(tsc.TotalCharge AS FLOAT), 0)) as totalEbCharges
+          FROM [dbo].[TenantServiceCharges] tsc
+          WHERE tsc.TenantId = o.TenantId
+            AND tsc.BillingYear = YEAR(DATEADD(month, -1, CAST(@month + '-01' AS DATE)))
+            AND tsc.BillingMonth = MONTH(DATEADD(month, -1, CAST(@month + '-01' AS DATE)))
+        ) tenantServiceCharges
         WHERE 
           -- Tenant is active in this month
           (CAST(o.CheckInDate AS DATE) <= EOMONTH(CAST(@month + '-01' AS DATE)))
@@ -1141,8 +1189,8 @@ app.get('/api/rental/unpaid-details/:month', async (req: Request, res: Response)
             OR LTRIM(RTRIM(o.CheckOutDate)) = '' 
             OR CAST(o.CheckOutDate AS DATE) >= CAST(@month + '-01' AS DATE))
         GROUP BY 
-          o.Id, t.Name, rd.Number, o.CheckInDate, o.CheckOutDate, 
-          o.RentFixed, rd.Rent
+          o.Id, o.TenantId, t.Name, rd.Number, o.CheckInDate, o.CheckOutDate,
+          o.RentFixed, rd.Rent, tenantServiceCharges.totalEbCharges
         ORDER BY t.Name ASC
       `);
     
@@ -1151,7 +1199,9 @@ app.get('/api/rental/unpaid-details/:month', async (req: Request, res: Response)
       const roomRent = parseFloat(record.RentFixed) || parseFloat(record.RoomRent) || 0;
       const checkInDate = record.CheckInDate?.trim() || null;
       const checkOutDate = record.CheckOutDate?.trim() || null;
-      const collectedAmount = parseFloat(record.collected_amount) || 0;
+      const receivedAmount = parseFloat(record.received_amount ?? record.collected_amount) || 0;
+      const collectedAmount = parseFloat(record.collected_amount ?? record.received_amount) || 0;
+      const ebCharges = parseFloat(record.ebCharges) || 0;
       const recordsCount = parseInt(record.records_count) || 0;
       
       // Parse the month to get year/month values
@@ -1199,9 +1249,9 @@ app.get('/api/rental/unpaid-details/:month', async (req: Request, res: Response)
         proRataRent = roomRent;
       }
       
-      // Calculate pending amount based on pro-rata
-      const pendingAmount = Math.round(Math.max(0, proRataRent - collectedAmount) * 100) / 100;
-      
+      const totalRent = Math.round((proRataRent + ebCharges) * 100) / 100;
+      const pendingAmount = totalRent;
+
       return {
         OccupancyId: record.OccupancyId,
         TenantName: record.TenantName?.trim() || '',
@@ -1209,8 +1259,11 @@ app.get('/api/rental/unpaid-details/:month', async (req: Request, res: Response)
         CheckInDate: checkInDate,
         CheckOutDate: checkOutDate,
         proRataRent: Math.round(proRataRent * 100) / 100,
+        ebCharges: Math.round(ebCharges * 100) / 100,
+        total_rent: totalRent,
         pending_amount: pendingAmount,
-        collected_amount: collectedAmount,
+        received_amount: Math.round(receivedAmount * 100) / 100,
+        collected_amount: Math.round(collectedAmount * 100) / 100,
         records_count: recordsCount,
         latest_date: record.latest_date
       };
@@ -1260,6 +1313,7 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
           latestPayment.modeOfPayment as modeOfPayment,
           ISNULL(CAST(monthlyTotals.totalRentReceived AS FLOAT), 0) as rentReceived,
           ISNULL(CAST(monthlyTotals.totalCharges AS FLOAT), 0) as charges,
+          ISNULL(CAST(tenantServiceCharges.totalEbCharges AS FLOAT), 0) as tenantServiceCharges,
           CASE
             WHEN latestReview.IsVerified = 1 THEN 'approved'
             WHEN latestReview.IsDisputeRaised = 1 THEN 'rejected'
@@ -1273,8 +1327,10 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
           CAST(o.CheckInDate AS NVARCHAR) as checkInDate,
           CAST(o.CheckOutDate AS NVARCHAR) as checkOutDate,
           CASE 
-            WHEN ISNULL(monthlyTotals.totalRentReceived, 0) + ISNULL(monthlyTotals.totalCharges, 0) = 0 THEN 'pending'
-            WHEN ISNULL(monthlyTotals.totalRentReceived, 0) > 0 THEN 'partial'
+            WHEN ISNULL(monthlyTotals.totalRentReceived, 0) <= 0
+              AND ISNULL(CASE WHEN monthlyTotals.totalCharges > 0 THEN monthlyTotals.totalCharges ELSE tenantServiceCharges.totalEbCharges END, 0) <= 0 THEN 'pending'
+            WHEN ISNULL(monthlyTotals.totalRentReceived, 0) > 0
+              AND ISNULL(CAST(o.RentFixed AS FLOAT), rd.Rent) > 0 THEN 'partial'
             ELSE 'pending'
           END as paymentStatus
         FROM Occupancy o
@@ -1289,6 +1345,13 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
             AND YEAR(CAST(rcMonth.RentReceivedOn AS DATE)) = @year
             AND MONTH(CAST(rcMonth.RentReceivedOn AS DATE)) = @month
         ) monthlyTotals
+        OUTER APPLY (
+          SELECT SUM(ISNULL(CAST(tsc.TotalCharge AS FLOAT), 0)) as totalEbCharges
+          FROM [dbo].[TenantServiceCharges] tsc
+          WHERE tsc.TenantId = o.TenantId
+            AND tsc.BillingYear = YEAR(DATEADD(month, -1, DATEFROMPARTS(@year, @month, 1)))
+            AND tsc.BillingMonth = MONTH(DATEADD(month, -1, DATEFROMPARTS(@year, @month, 1)))
+        ) tenantServiceCharges
         OUTER APPLY (
           SELECT TOP 1
             rcLatest.RentReceivedOn as rentReceivedOn,
@@ -1324,7 +1387,9 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
     const paymentRecords = result.recordset.map((record: any) => {
       const rentFixed = record.rentFixed || 0;
       const rentReceived = record.rentReceived || 0;
-      const charges = record.charges || 0;
+      const recordedCharges = Number(record.charges || 0);
+      const serviceCharges = Number(record.tenantServiceCharges || 0);
+      const charges = recordedCharges > 0 ? recordedCharges : serviceCharges;
       
       // Calculate pro-rata rent for this specific month based on check-in/check-out dates
       const proRataRent = calculateProRataRentForMonth(
@@ -1343,24 +1408,29 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
         month
       );
       
-      // Calculate rent balance as: proRataRent - (rentReceived + charges)
-      const totalReceived = rentReceived + charges;
-      const rentBalance = Math.max(0, proRataRent - totalReceived);
+      // Only count charges as received when there is an actual payment record for the period.
+      // When rentReceivedOn is null, the tenant has not paid anything yet even if charges are due.
+      const hasRecordedPayment = Boolean(record.rentReceivedOn) || Number(rentReceived) > 0;
+      const totalDue = proRataRent + charges;
+      const effectiveReceived = hasRecordedPayment ? rentReceived + charges : 0;
+      const rentBalance = Math.max(0, totalDue - effectiveReceived);
 
-      // Recalculate payment status based on updated balance
+      // Recalculate payment status from the actual due-vs-received math.
+      // A full payment should still be marked paid even when a charge component is included.
       let paymentStatus: string;
       if (proRataRent === 0 || rentFixed === 0) {
         paymentStatus = 'merged';
-      } else if (totalReceived === 0) {
-        paymentStatus = 'pending';
-      } else if (rentBalance === 0) {
+      } else if (totalDue > 0 && effectiveReceived >= totalDue) {
         paymentStatus = 'paid';
-      } else {
+      } else if (effectiveReceived > 0 && totalDue > 0) {
         paymentStatus = 'partial';
+      } else {
+        paymentStatus = 'pending';
       }
       
       return {
         ...record,
+        charges,
         proRataRent,
         rentBalance,
         paymentStatus,
@@ -1376,6 +1446,47 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
       error: 'Failed to retrieve payment details',
       details: errorMessage
     });
+  }
+});
+
+app.get('/api/auth/active-users', async (req: Request, res: Response) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+    if (!token) {
+      return res.status(401).json({ error: 'No authorization token provided' });
+    }
+
+    const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+    const decoded = jwt.verify(token, jwtSecret) as any;
+
+    pruneExpiredLoggedInUsers();
+
+    const currentRoles = Array.isArray(decoded.roles)
+      ? decoded.roles
+      : String(decoded.roles || '')
+          .split(',')
+          .map((role: string) => role.trim().toLowerCase())
+          .filter(Boolean);
+
+    const isAdmin = currentRoles.includes('admin');
+
+    const activeUsers = Array.from(activeLoggedInUsers.values())
+      .filter((session) => {
+        if (isAdmin) return true;
+        return session.userId === Number(decoded.id);
+      })
+      .sort((a, b) => a.username.localeCompare(b.username));
+
+    return res.json({
+      count: activeUsers.length,
+      isAdmin,
+      users: activeUsers
+    });
+  } catch (error) {
+    console.log('[Auth] Active users lookup failed:', error instanceof Error ? error.message : String(error));
+    return res.status(401).json({ error: 'Invalid or expired token' });
   }
 });
 
@@ -4144,7 +4255,8 @@ app.get('/api/users', verifyToken, requireRole(['admin']), async (req: Request, 
         Name as name,
         CreatedDate as createdDate,
         UpdatedDate as updatedDate,
-        NextLoginDuration as nextLoginDuration
+        NextLoginDuration as nextLoginDuration,
+        LastLogin as lastLogin
       FROM [User]
       ORDER BY Name ASC
     `);
@@ -4170,7 +4282,8 @@ app.get('/api/users/:id', verifyToken, requireRole(['admin']), async (req: Reque
           Name as name,
           CreatedDate as createdDate,
           UpdatedDate as updatedDate,
-          NextLoginDuration as nextLoginDuration
+          NextLoginDuration as nextLoginDuration,
+          LastLogin as lastLogin
         FROM [User]
         WHERE Id = @id
       `);
@@ -6569,6 +6682,11 @@ app.get('/api/rental/occupancy/:occupancyId/summary', async (req: Request, res: 
           ISNULL(CAST(o.DepositReceived AS FLOAT), 0) as depositReceived,
           ISNULL(SUM(CAST(rc.RentReceived AS FLOAT)), 0) as totalRentReceived,
           ISNULL(SUM(CAST(rc.Charges AS FLOAT)), 0) as totalCharges,
+          ISNULL((
+            SELECT SUM(CAST(tsc.TotalCharge AS FLOAT))
+            FROM [dbo].[TenantServiceCharges] tsc
+            WHERE tsc.TenantId = o.TenantId
+          ), 0) as totalServiceCharges,
           ISNULL(CAST(COALESCE(
             (SELECT TOP 1 CAST(RentBalance AS FLOAT) 
              FROM RentalCollection 
@@ -6586,7 +6704,7 @@ app.get('/api/rental/occupancy/:occupancyId/summary', async (req: Request, res: 
         INNER JOIN RoomDetail rd ON o.RoomId = rd.Id
         LEFT JOIN RentalCollection rc ON o.Id = rc.OccupancyId
         WHERE o.Id = @occupancyId
-        GROUP BY o.Id, t.Name, rd.Number, o.RentFixed, o.DepositReceived, rd.Rent, o.CheckInDate, o.CheckOutDate
+        GROUP BY o.Id, o.TenantId, t.Name, rd.Number, o.RentFixed, o.DepositReceived, rd.Rent, o.CheckInDate, o.CheckOutDate
       `);
     
     if (result.recordset.length === 0) {
@@ -6594,6 +6712,9 @@ app.get('/api/rental/occupancy/:occupancyId/summary', async (req: Request, res: 
     }
     
     const record = result.recordset[0];
+    const recordedCharges = Number(record.totalCharges || 0);
+    const serviceCharges = Number(record.totalServiceCharges || 0);
+    const effectiveCharges = recordedCharges > 0 ? recordedCharges : serviceCharges;
     
     // Calculate pro-rata rent for current month based on check-in/check-out dates
     const now = new Date();
@@ -6623,6 +6744,7 @@ app.get('/api/rental/occupancy/:occupancyId/summary', async (req: Request, res: 
     // Return response with proRataRent included
     res.json({
       ...record,
+      totalCharges: effectiveCharges,
       proRataRent: Math.round(proRataRent * 100) / 100
     });
   } catch (error) {
@@ -6685,10 +6807,10 @@ app.get('/api/rental/occupancy/:occupancyId/previous-month-charges', async (req:
         SELECT 
           ISNULL(SUM(CAST(tsc.TotalCharge AS FLOAT)), 0) as totalCharges,
           COUNT(DISTINCT tsc.ServiceId) as serviceCount,
-          STRING_AGG(sd.ConsumerName, ', ') as serviceNames,
+          MAX(LTRIM(RTRIM(sd.ConsumerName))) as serviceNames,
           MAX(ISNULL(tsc.TotalUnitsForRoom, 0)) as totalUnitsConsumed
         FROM [dbo].[TenantServiceCharges] tsc
-        INNER JOIN [dbo].[ServiceDetails] sd ON tsc.ServiceId = sd.Id
+        LEFT JOIN [dbo].[ServiceDetails] sd ON tsc.ServiceId = sd.Id
         WHERE tsc.TenantId = @tenantId
           AND tsc.BillingYear = @billingYear
           AND tsc.BillingMonth = @billingMonth

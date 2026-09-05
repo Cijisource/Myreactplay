@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiService } from '../api';
 import LoadingSpinner from './LoadingSpinner';
 import { Scanner } from '@yudiel/react-qr-scanner';
@@ -61,11 +61,9 @@ export default function MonthlyMeterReading(): JSX.Element {
     shops: true,
     residential: true
   });
-  const [collapsedCards, setCollapsedCards] = useState<Record<number, boolean>>({});
   const [calculatedCharges, setCalculatedCharges] = useState<{ consumption: number; charges: number } | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [reportRefreshKey, setReportRefreshKey] = useState(0);
-  const [lastCapturedPhotos, setLastCapturedPhotos] = useState<Record<string, string>>({});
   const [expandedPhotoUrl, setExpandedPhotoUrl] = useState<string | null>(null);
   const [showQrScanner, setShowQrScanner] = useState(false);
   const [scannerError, setScannerError] = useState<string | null>(null);
@@ -179,7 +177,6 @@ export default function MonthlyMeterReading(): JSX.Element {
     try {
       const response = await apiService.getMiscellaneousFiles();
       const files = response.data?.files || [];
-      const groupedPhotos: Record<string, string> = {};
 
       files
         .filter((file: any) => {
@@ -192,17 +189,10 @@ export default function MonthlyMeterReading(): JSX.Element {
           const fileName = blobName.split('/').pop() || blobName;
           const roomMatch = fileName.match(/room([a-z0-9]+)[_-]\d{4}-\d{2}-\d{2}/i);
 
-          if (!roomMatch) {
-            return;
-          }
-
-          const roomKey = getRoomPhotoKey(roomMatch[1]);
-          if (!groupedPhotos[roomKey]) {
-            groupedPhotos[roomKey] = file.url || blobName;
+          if (roomMatch) {
+            getRoomPhotoKey(roomMatch[1]);
           }
         });
-
-      setLastCapturedPhotos(groupedPhotos);
     } catch (error) {
       console.error('[Meter Reading Photos] Failed to load captured images:', error);
     }
@@ -228,17 +218,6 @@ export default function MonthlyMeterReading(): JSX.Element {
     void loadLastCapturedPhotos();
   }, [loadLastCapturedPhotos]);
 
-  useEffect(() => {
-    // Initialize all cards as collapsed by default
-    if (allocations.length > 0) {
-      const initialCollapsedState: Record<number, boolean> = {};
-      allocations.forEach(alloc => {
-        initialCollapsedState[alloc.id] = true;
-      });
-      setCollapsedCards(initialCollapsedState);
-    }
-  }, [allocations]);
-
   // Helper function to check if room is a shop (no beds)
   const isShop = (beds: number): boolean => beds === 0;
 
@@ -259,18 +238,42 @@ export default function MonthlyMeterReading(): JSX.Element {
     return acc;
   }, {} as Record<string, ServiceAllocation[]>);
 
+  const getPreviousMonthKey = (monthKey: string): string | null => {
+    if (!monthKey || !/^\d{4}-\d{2}$/.test(monthKey)) {
+      return null;
+    }
+
+    const [yearValue, monthValue] = monthKey.split('-').map(Number);
+    const monthDate = new Date(yearValue, monthValue - 1, 1);
+    monthDate.setMonth(monthDate.getMonth() - 1);
+    const previousYear = monthDate.getFullYear();
+    const previousMonth = String(monthDate.getMonth() + 1).padStart(2, '0');
+    return `${previousYear}-${previousMonth}`;
+  };
+
+  const getPreviousMonthReadingDate = (alloc: ServiceAllocation, monthKey: string): Date | null => {
+    if (!alloc.lastReadingDate) {
+      return null;
+    }
+
+    const previousMonthKey = getPreviousMonthKey(monthKey);
+    if (!previousMonthKey) {
+      return null;
+    }
+
+    const readingDate = new Date(alloc.lastReadingDate);
+    if (Number.isNaN(readingDate.getTime())) {
+      return null;
+    }
+
+    const readingKey = `${readingDate.getFullYear()}-${String(readingDate.getMonth() + 1).padStart(2, '0')}`;
+    return readingKey === previousMonthKey ? readingDate : null;
+  };
+
   const toggleCategory = (category: string) => {
     setCollapsedCategories(prev => ({
       ...prev,
       [category]: !prev[category]
-    }));
-  };
-
-  const toggleCard = (allocationId: number, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setCollapsedCards(prev => ({
-      ...prev,
-      [allocationId]: !prev[allocationId]
     }));
   };
 
@@ -693,6 +696,11 @@ export default function MonthlyMeterReading(): JSX.Element {
     setShowForm(true);
   };
 
+  const handleRoomCardClick = async (alloc: ServiceAllocation) => {
+    setShowForm(true);
+    await handleSelectAllocation(alloc);
+  };
+
   return (
     <div className="meter-reading-container">
       <h2 className="section-heading">EB Meter Reading</h2>
@@ -756,291 +764,6 @@ export default function MonthlyMeterReading(): JSX.Element {
         </div>
       )}
 
-      {showForm && (
-        <div className="meter-reading-form" ref={meterReadingFormRef}>
-          <h2 className="form-section-title" ref={meterReadingTitleRef} tabIndex={-1}>Record Meter Reading</h2>
-
-          <div className="qr-actions-row">
-            <button type="button" className="btn-qr-scan" onClick={handleOpenScanner}>
-              Scan Room QR
-            </button>
-            {scanSuccessMessage && <span className="qr-scan-success">{scanSuccessMessage}</span>}
-          </div>
-
-          {showQrScanner && (
-            <div className="qr-scanner-panel">
-              <div className="qr-scanner-header">
-                <h3>Scan Room QR Code</h3>
-                <button type="button" className="btn-qr-close" onClick={handleCloseScanner}>Close</button>
-              </div>
-              <p className="qr-scanner-help">Point the camera at a room QR code to auto-select the room.</p>
-              <div className="qr-scanner-frame">
-                <Scanner
-                  constraints={{ facingMode: 'environment' }}
-                  scanDelay={300}
-                  onScan={(detectedCodes) => {
-                    if (detectedCodes.length > 0 && !hasProcessedScanRef.current) {
-                      hasProcessedScanRef.current = true;
-                      const payload = detectedCodes[0].rawValue;
-                      void handleQrScanResult(payload);
-                    }
-                  }}
-                  onError={() => {
-                    setScannerError('Unable to access camera. Please allow camera permission and retry.');
-                    hasProcessedScanRef.current = false;
-                  }}
-                  allowMultiple={false}
-                />
-              </div>
-              {scannerError && <div className="qr-scanner-error">{scannerError}</div>}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit}>
-            {!selectedAllocationId ? (
-              <div style={{
-                background: '#E3F2FD',
-                color: '#1976D2',
-                padding: '15px',
-                borderRadius: '8px',
-                borderLeft: '4px solid #1976D2',
-                marginBottom: '20px'
-              }}>
-                <p style={{ margin: 0 }}>Select a room/service below to record its meter reading</p>
-              </div>
-            ) : (
-              <>
-                <div className="qr-generator-panel">
-                  <div className="qr-generator-left">
-                    <h3>Room QR Generator</h3>
-                    <p>Generate or print a QR code for this room. Scanning this code auto-selects the room.</p>
-                    <label htmlFor="qr-room-number-input">Room Number</label>
-                    <input
-                      id="qr-room-number-input"
-                      type="text"
-                      value={qrGeneratorRoomNumber}
-                      onChange={(e) => setQrGeneratorRoomNumber(e.target.value)}
-                      placeholder="Enter room number"
-                    />
-                    <small>Encoded value: ROOM:{qrGeneratorRoomNumber.trim() || 'N/A'}</small>
-                    <button
-                      type="button"
-                      className="btn-qr-print"
-                      onClick={handlePrintRoomQr}
-                      disabled={!qrGeneratorRoomNumber.trim()}
-                    >
-                      Print QR Label
-                    </button>
-                  </div>
-                  <div className="qr-generator-preview">
-                    {qrGeneratorRoomNumber.trim() ? (
-                      <QRCodeSVG
-                        value={`ROOM:${qrGeneratorRoomNumber.trim()}`}
-                        size={180}
-                        level="M"
-                        includeMargin
-                      />
-                    ) : (
-                      <div className="qr-generator-empty">Enter a room number to generate QR.</div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Reading Date *</label>
-                    <input
-                      type="date"
-                      name="readingTakenDate"
-                      value={formData.readingTakenDate}
-                      onChange={handleInputChange}
-                      required
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>Starting Meter Reading *</label>
-                    <input
-                      type="number"
-                      name="startingMeterReading"
-                      value={formData.startingMeterReading}
-                      onChange={handleInputChange}
-                      placeholder="Previous month's ending reading"
-                      required
-                    />
-                    {formData.startingMeterReading && (
-                      <p style={{
-                        fontSize: '11px',
-                        color: '#27ae60',
-                        margin: '4px 0 0 0',
-                        fontWeight: '500'
-                      }}>
-                        ✓ Auto-filled from previous month's reading
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="form-group">
-                    <label>Ending Meter Reading *</label>
-                    <input
-                      ref={endingMeterReadingRef}
-                      type="number"
-                      name="endingMeterReading"
-                      value={formData.endingMeterReading}
-                      onChange={handleInputChange}
-                      placeholder="This month's reading"
-                      required
-                    />
-                    <div className="ocr-camera-actions">
-                      <button type="button" className="btn-ocr-start" onClick={() => {
-                        if (ocrCameraActive) {
-                          stopOcrCamera();
-                        } else {
-                          void startOcrCamera();
-                        }
-                      }}>
-                        {ocrCameraActive ? 'Close Camera' : 'Capture Reading Photo'}
-                      </button>
-                      {ocrCameraActive && (
-                        <button type="button" className="btn-ocr-capture" onClick={() => void captureMeterReadingFromCamera()} disabled={ocrBusy}>
-                          {ocrBusy ? 'Uploading...' : 'Capture & Upload'}
-                        </button>
-                      )}
-                    </div>
-                    {ocrCameraActive && (
-                      <div className="ocr-camera-panel">
-                        <div className="ocr-camera-preview-wrap">
-                          <video ref={ocrVideoRef} className="ocr-camera-preview" autoPlay muted playsInline />
-                          <div className="ocr-focus-overlay" aria-hidden="true">
-                            <div className="ocr-focus-box" />
-                          </div>
-                        </div>
-                        <p className="ocr-camera-help">Place only the meter digits inside the box for best results.</p>
-                        {ocrPreviewUrl && <img src={ocrPreviewUrl} alt="OCR capture preview" className="ocr-camera-preview-image" />}
-                        {ocrCameraError && <p className="ocr-camera-error">{ocrCameraError}</p>}
-                        {ocrExtractedText && <p className="ocr-camera-text">OCR text: {ocrExtractedText}</p>}
-                      </div>
-                    )}
-                    {validationError && (
-                      <p style={{
-                        fontSize: '11px',
-                        color: '#e74c3c',
-                        margin: '4px 0 0 0',
-                        fontWeight: '600',
-                        backgroundColor: '#fadbd8',
-                        padding: '6px 8px',
-                        borderRadius: '4px',
-                        borderLeft: '3px solid #e74c3c'
-                      }}>
-                        {validationError}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="form-group">
-                    <label>Unit Rate (₹) *</label>
-                    <input
-                      type="number"
-                      name="unitRate"
-                      value={formData.unitRate}
-                      onChange={handleInputChange}
-                      step="0.50"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* Real-time Charge Calculation Display */}
-                {calculatedCharges && (
-                  <div className="meter-summary-panel" style={{
-                    background: 'linear-gradient(135deg, #fff5f5 0%, #fef2f2 100%)',
-                    border: '2px solid #dc2626',
-                    borderRadius: '8px',
-                    padding: '16px',
-                    marginBottom: '20px'
-                  }}>
-                    <h3 className="meter-summary-title" style={{
-                      fontSize: '14px',
-                      fontWeight: 700,
-                      color: '#b91c1c',
-                      margin: '0 0 12px 0',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px'
-                    }}>⚡ EB Reading Summary</h3>
-                    <div className="meter-summary-grid" style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-                      gap: '12px'
-                    }}>
-                      <div className="meter-summary-item">
-                        <div className="meter-summary-label">Reading Date</div>
-                        <div className="meter-summary-value">{formData.readingTakenDate ? new Date(formData.readingTakenDate).toLocaleDateString('en-IN') : '-'}</div>
-                      </div>
-                      <div className="meter-summary-item">
-                        <div className="meter-summary-label">Start</div>
-                        <div className="meter-summary-value">{formData.startingMeterReading || 0}</div>
-                      </div>
-                      <div className="meter-summary-item">
-                        <div className="meter-summary-label">End</div>
-                        <div className="meter-summary-value">{formData.endingMeterReading || 0}</div>
-                      </div>
-                      <div className="meter-summary-item">
-                        <div className="meter-summary-label">Units</div>
-                        <div className="meter-summary-value">{calculatedCharges.consumption}</div>
-                      </div>
-                      <div className="meter-summary-item">
-                        <div className="meter-summary-label">Rate</div>
-                        <div className="meter-summary-value">₹{Number(formData.unitRate || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                      </div>
-                      <div className="meter-summary-item">
-                        <div className="meter-summary-label">Total</div>
-                        <div className="meter-summary-value">₹{calculatedCharges.charges.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                      </div>
-                    </div>
-                    <div className="meter-summary-formula" style={{
-                      marginTop: '12px',
-                      padding: '8px',
-                      background: 'rgba(220, 38, 38, 0.06)',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      color: '#991b1b',
-                      textAlign: 'center',
-                      fontWeight: 700
-                    }}>
-                      {calculatedCharges.consumption} units × ₹{Number(formData.unitRate || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} = ₹{calculatedCharges.charges.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </div>
-                  </div>
-                )}
-
-                <div className="form-actions">
-                  <button type="submit" className="btn-save">
-                    💾 Save & Calculate Charges
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedAllocationId(null);
-                      setQrGeneratorRoomNumber('');
-                      setFormData({
-                        serviceAllocId: 0,
-                        readingTakenDate: new Date().toISOString().split('T')[0],
-                        startingMeterReading: '',
-                        endingMeterReading: '',
-                        unitRate: chargePerUnit
-                      });
-                      setValidationError(null);
-                    }}
-                    className="btn-cancel"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </>
-            )}
-          </form>
-        </div>
-      )}
-
       {loading ? (
         <LoadingSpinner text="Loading service allocations" />
       ) : filteredAllocations.length === 0 ? (
@@ -1050,251 +773,340 @@ export default function MonthlyMeterReading(): JSX.Element {
         </div>
       ) : (
         <div className="categories-container">
-          {/* Residential Category */}
-          {groupedAllocations['residential'] && groupedAllocations['residential'].length > 0 && (
-            <div className="category-section">
-              <div className="category-header" onClick={() => toggleCategory('residential')}>
-                <span className="category-toggle-icon">{collapsedCategories['residential'] ? '▶' : '▼'}</span>
-                <h2 className="category-title">🏠 Residential ({groupedAllocations['residential'].length})</h2>
-              </div>
-              
-              {!collapsedCategories['residential'] && (
-                <div className="allocations-grid">
-                  {groupedAllocations['residential'].map(alloc => (
-                    <div key={alloc.id} onClick={() => handleSelectAllocation(alloc)} className={`allocation-card ${selectedAllocationId === alloc.id ? 'selected' : ''} residential-category ${collapsedCards[alloc.id] ? 'collapsed' : ''}`}>
-                      <div className="card-collapsed-header">
-                        <div className="collapsed-room-info">
-                          <h3>Room {alloc.room.number}</h3>
-                          <span className="residential-badge">🏠 RESIDENTIAL</span>
-                        </div>
-                        <button className="collapse-btn" onClick={(e) => toggleCard(alloc.id, e)} title="Expand/Collapse">{collapsedCards[alloc.id] ? '▼ Expand' : '▲ Collapse'}</button>
-                      </div>
+          {Object.entries(groupedAllocations).map(([category, roomAllocations]) => {
+            const title = category === 'residential' ? 'Residential' : 'Shops';
+            const icon = category === 'residential' ? '🏠' : '🏪';
 
-                      {alloc.lastReadingDate && (
-                        <div className="collapsed-reading-info">
-                          <div className="reading-item">
-                            <label>Last Reading:</label>
-                            <span>{new Date(alloc.lastReadingDate).toLocaleDateString()}</span>
-                          </div>
-                          {alloc.lastEndingReading && (
-                            <div className="reading-item">
-                              <label>Last Value:</label>
-                              <span className="reading-value">{String(alloc.lastEndingReading).trim()}</span>
+            return (
+              <div key={category} className="category-section">
+                <div className="category-header" onClick={() => toggleCategory(category)}>
+                  <span className="category-toggle-icon">{collapsedCategories[category] ? '▶' : '▼'}</span>
+                  <h2 className="category-title">{icon} {title} ({roomAllocations.length})</h2>
+                </div>
+
+                {!collapsedCategories[category] && (
+                  <div className="meter-room-grid">
+                    {roomAllocations.map(alloc => {
+                      const isSelected = selectedAllocationId === alloc.id;
+                      const previousMonthReadingDate = getPreviousMonthReadingDate(alloc, selectedMonth);
+                      const previousMonthReadingTaken = !!previousMonthReadingDate;
+
+                      return (
+                        <React.Fragment key={alloc.id}>
+                          <button
+                            type="button"
+                            className={`meter-room-card ${isSelected ? 'selected' : ''} ${previousMonthReadingTaken ? 'reading-taken' : 'reading-pending'} ${isShop(alloc.room.beds) ? 'shop' : 'residential'}`}
+                            onClick={() => void handleRoomCardClick(alloc)}
+                            aria-label={`Room ${alloc.room.number}${previousMonthReadingTaken ? ', previous month reading already taken' : ', previous month reading pending'}`}
+                          >
+                            <div className="meter-room-circle">
+                              <span className="meter-room-status-dot" aria-hidden="true" />
+                              <span className="meter-room-number-only">{alloc.room.number}</span>
+                              <span className="meter-room-status-label">
+                                {previousMonthReadingTaken ? 'Prev Read' : 'Needs Read'}
+                              </span>
+                            </div>
+                            <div className="meter-room-meta">
+                              <span className="meter-room-type">{isShop(alloc.room.beds) ? 'Shop' : 'Residential'}</span>
+                              {previousMonthReadingTaken && previousMonthReadingDate ? (
+                                <span className="meter-room-highlight">{previousMonthReadingDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                              ) : (
+                                <span className="meter-room-pending">No prior read</span>
+                              )}
+                            </div>
+                          </button>
+
+                          {showForm && isSelected && (
+                            <div className="meter-selected-room-form" ref={meterReadingFormRef}>
+                              <h2 className="form-section-title" ref={meterReadingTitleRef} tabIndex={-1}>Record Meter Reading</h2>
+
+                              <div className="qr-actions-row">
+                                <button type="button" className="btn-qr-scan" onClick={handleOpenScanner}>
+                                  Scan Room QR
+                                </button>
+                                {scanSuccessMessage && <span className="qr-scan-success">{scanSuccessMessage}</span>}
+                              </div>
+
+                              {showQrScanner && (
+                                <div className="qr-scanner-panel">
+                                  <div className="qr-scanner-header">
+                                    <h3>Scan Room QR Code</h3>
+                                    <button type="button" className="btn-qr-close" onClick={handleCloseScanner}>Close</button>
+                                  </div>
+                                  <p className="qr-scanner-help">Point the camera at a room QR code to auto-select the room.</p>
+                                  <div className="qr-scanner-frame">
+                                    <Scanner
+                                      constraints={{ facingMode: 'environment' }}
+                                      scanDelay={300}
+                                      onScan={(detectedCodes) => {
+                                        if (detectedCodes.length > 0 && !hasProcessedScanRef.current) {
+                                          hasProcessedScanRef.current = true;
+                                          const payload = detectedCodes[0].rawValue;
+                                          void handleQrScanResult(payload);
+                                        }
+                                      }}
+                                      onError={() => {
+                                        setScannerError('Unable to access camera. Please allow camera permission and retry.');
+                                        hasProcessedScanRef.current = false;
+                                      }}
+                                      allowMultiple={false}
+                                    />
+                                  </div>
+                                  {scannerError && <div className="qr-scanner-error">{scannerError}</div>}
+                                </div>
+                              )}
+
+                              <form onSubmit={handleSubmit}>
+                                {!selectedAllocationId ? (
+                                  <div style={{
+                                    background: '#E3F2FD',
+                                    color: '#1976D2',
+                                    padding: '15px',
+                                    borderRadius: '8px',
+                                    borderLeft: '4px solid #1976D2',
+                                    marginBottom: '20px'
+                                  }}>
+                                    <p style={{ margin: 0 }}>Select a room/service below to record its meter reading</p>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="qr-generator-panel">
+                                      <div className="qr-generator-left">
+                                        <h3>Room QR Generator</h3>
+                                        <p>Generate or print a QR code for this room. Scanning this code auto-selects the room.</p>
+                                        <label htmlFor="qr-room-number-input">Room Number</label>
+                                        <input
+                                          id="qr-room-number-input"
+                                          type="text"
+                                          value={qrGeneratorRoomNumber}
+                                          onChange={(e) => setQrGeneratorRoomNumber(e.target.value)}
+                                          placeholder="Enter room number"
+                                        />
+                                        <small>Encoded value: ROOM:{qrGeneratorRoomNumber.trim() || 'N/A'}</small>
+                                        <button
+                                          type="button"
+                                          className="btn-qr-print"
+                                          onClick={handlePrintRoomQr}
+                                          disabled={!qrGeneratorRoomNumber.trim()}
+                                        >
+                                          Print QR Label
+                                        </button>
+                                      </div>
+                                      <div className="qr-generator-preview">
+                                        {qrGeneratorRoomNumber.trim() ? (
+                                          <QRCodeSVG
+                                            value={`ROOM:${qrGeneratorRoomNumber.trim()}`}
+                                            size={180}
+                                            level="M"
+                                            includeMargin
+                                          />
+                                        ) : (
+                                          <div className="qr-generator-empty">Enter a room number to generate QR.</div>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    <div className="form-row">
+                                      <div className="form-group">
+                                        <label>Reading Date *</label>
+                                        <input
+                                          type="date"
+                                          name="readingTakenDate"
+                                          value={formData.readingTakenDate}
+                                          onChange={handleInputChange}
+                                          required
+                                        />
+                                      </div>
+
+                                      <div className="form-group">
+                                        <label>Starting Meter Reading *</label>
+                                        <input
+                                          type="number"
+                                          name="startingMeterReading"
+                                          value={formData.startingMeterReading}
+                                          onChange={handleInputChange}
+                                          placeholder="Previous month's ending reading"
+                                          required
+                                        />
+                                        {formData.startingMeterReading && (
+                                          <p style={{
+                                            fontSize: '11px',
+                                            color: '#27ae60',
+                                            margin: '4px 0 0 0',
+                                            fontWeight: '500'
+                                          }}>
+                                            ✓ Auto-filled from previous month's reading
+                                          </p>
+                                        )}
+                                      </div>
+
+                                      <div className="form-group">
+                                        <label>Ending Meter Reading *</label>
+                                        <input
+                                          ref={endingMeterReadingRef}
+                                          type="number"
+                                          name="endingMeterReading"
+                                          value={formData.endingMeterReading}
+                                          onChange={handleInputChange}
+                                          placeholder="This month's reading"
+                                          required
+                                        />
+                                        <div className="ocr-camera-actions">
+                                          <button type="button" className="btn-ocr-start" onClick={() => {
+                                            if (ocrCameraActive) {
+                                              stopOcrCamera();
+                                            } else {
+                                              void startOcrCamera();
+                                            }
+                                          }}>
+                                            {ocrCameraActive ? 'Close Camera' : 'Capture Reading Photo'}
+                                          </button>
+                                          {ocrCameraActive && (
+                                            <button type="button" className="btn-ocr-capture" onClick={() => void captureMeterReadingFromCamera()} disabled={ocrBusy}>
+                                              {ocrBusy ? 'Uploading...' : 'Capture & Upload'}
+                                            </button>
+                                          )}
+                                        </div>
+                                        {ocrCameraActive && (
+                                          <div className="ocr-camera-panel">
+                                            <div className="ocr-camera-preview-wrap">
+                                              <video ref={ocrVideoRef} className="ocr-camera-preview" autoPlay muted playsInline />
+                                              <div className="ocr-focus-overlay" aria-hidden="true">
+                                                <div className="ocr-focus-box" />
+                                              </div>
+                                            </div>
+                                            <p className="ocr-camera-help">Place only the meter digits inside the box for best results.</p>
+                                            {ocrPreviewUrl && <img src={ocrPreviewUrl} alt="OCR capture preview" className="ocr-camera-preview-image" />}
+                                            {ocrCameraError && <p className="ocr-camera-error">{ocrCameraError}</p>}
+                                            {ocrExtractedText && <p className="ocr-camera-text">OCR text: {ocrExtractedText}</p>}
+                                          </div>
+                                        )}
+                                        {validationError && (
+                                          <p style={{
+                                            fontSize: '11px',
+                                            color: '#e74c3c',
+                                            margin: '4px 0 0 0',
+                                            fontWeight: '600',
+                                            backgroundColor: '#fadbd8',
+                                            padding: '6px 8px',
+                                            borderRadius: '4px',
+                                            borderLeft: '3px solid #e74c3c'
+                                          }}>
+                                            {validationError}
+                                          </p>
+                                        )}
+                                      </div>
+
+                                      <div className="form-group">
+                                        <label>Unit Rate (₹) *</label>
+                                        <input
+                                          type="number"
+                                          name="unitRate"
+                                          value={formData.unitRate}
+                                          onChange={handleInputChange}
+                                          step="0.50"
+                                          required
+                                        />
+                                      </div>
+                                    </div>
+
+                                    {calculatedCharges && (
+                                      <div className="meter-summary-panel" style={{
+                                        background: 'linear-gradient(135deg, #fff5f5 0%, #fef2f2 100%)',
+                                        border: '2px solid #dc2626',
+                                        borderRadius: '8px',
+                                        padding: '16px',
+                                        marginBottom: '20px'
+                                      }}>
+                                        <h3 className="meter-summary-title" style={{
+                                          fontSize: '14px',
+                                          fontWeight: 700,
+                                          color: '#b91c1c',
+                                          margin: '0 0 12px 0',
+                                          textTransform: 'uppercase',
+                                          letterSpacing: '0.5px'
+                                        }}>⚡ EB Reading Summary</h3>
+                                        <div className="meter-summary-grid" style={{
+                                          display: 'grid',
+                                          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                                          gap: '12px'
+                                        }}>
+                                          <div className="meter-summary-item">
+                                            <div className="meter-summary-label">Reading Date</div>
+                                            <div className="meter-summary-value">{formData.readingTakenDate ? new Date(formData.readingTakenDate).toLocaleDateString('en-IN') : '-'}</div>
+                                          </div>
+                                          <div className="meter-summary-item">
+                                            <div className="meter-summary-label">Start</div>
+                                            <div className="meter-summary-value">{formData.startingMeterReading || 0}</div>
+                                          </div>
+                                          <div className="meter-summary-item">
+                                            <div className="meter-summary-label">End</div>
+                                            <div className="meter-summary-value">{formData.endingMeterReading || 0}</div>
+                                          </div>
+                                          <div className="meter-summary-item">
+                                            <div className="meter-summary-label">Units</div>
+                                            <div className="meter-summary-value">{calculatedCharges.consumption}</div>
+                                          </div>
+                                          <div className="meter-summary-item">
+                                            <div className="meter-summary-label">Rate</div>
+                                            <div className="meter-summary-value">₹{Number(formData.unitRate || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                          </div>
+                                          <div className="meter-summary-item">
+                                            <div className="meter-summary-label">Total</div>
+                                            <div className="meter-summary-value">₹{calculatedCharges.charges.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                          </div>
+                                        </div>
+                                        <div className="meter-summary-formula" style={{
+                                          marginTop: '12px',
+                                          padding: '8px',
+                                          background: 'rgba(220, 38, 38, 0.06)',
+                                          borderRadius: '4px',
+                                          fontSize: '12px',
+                                          color: '#991b1b',
+                                          textAlign: 'center',
+                                          fontWeight: 700
+                                        }}>
+                                          {calculatedCharges.consumption} units × ₹{Number(formData.unitRate || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} = ₹{calculatedCharges.charges.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    <div className="form-actions">
+                                      <button type="submit" className="btn-save">
+                                        💾 Save & Calculate Charges
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedAllocationId(null);
+                                          setQrGeneratorRoomNumber('');
+                                          setFormData({
+                                            serviceAllocId: 0,
+                                            readingTakenDate: new Date().toISOString().split('T')[0],
+                                            startingMeterReading: '',
+                                            endingMeterReading: '',
+                                            unitRate: chargePerUnit
+                                          });
+                                          setValidationError(null);
+                                        }}
+                                        className="btn-cancel"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
+                              </form>
                             </div>
                           )}
-                        </div>
-                      )}
-
-                      {!collapsedCards[alloc.id] && (
-                        <>
-                          <div className="card-header">
-                            <div className="room-info-container">
-                              <h3>Room {alloc.room.number}</h3>
-                              <span className="residential-badge">🏠 RESIDENTIAL</span>
-                            </div>
-                            <span className="service-badge">{alloc.service.serviceCategory}</span>
-                          </div>
-
-                          <div className="card-body">
-                            {lastCapturedPhotos[getRoomPhotoKey(alloc.room.number)] && (
-                              <div className="meter-photo-thumb-wrap">
-                                <span className="meter-photo-label">Last capture</span>
-                                <img
-                                  src={lastCapturedPhotos[getRoomPhotoKey(alloc.room.number)]}
-                                  alt={`Last captured meter image for room ${alloc.room.number}`}
-                                  className="meter-photo-thumb"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    setExpandedPhotoUrl(lastCapturedPhotos[getRoomPhotoKey(alloc.room.number)]);
-                                  }}
-                                />
-                              </div>
-                            )}
-
-                            <div className="info-row">
-                              <label>Service:</label>
-                              <span>{alloc.service.consumerName}</span>
-                            </div>
-
-                            <div className="info-row">
-                              <label>Meter No:</label>
-                              <span>{alloc.service.meterNo}</span>
-                            </div>
-
-                            <div className="info-row">
-                              <label>Consumer No:</label>
-                              <span>{alloc.service.consumerNo}</span>
-                            </div>
-
-                            <div className="info-row">
-                              <label>Load:</label>
-                              <span>{alloc.service.load}</span>
-                            </div>
-
-                            <div className="info-row">
-                              <label>Room Rent:</label>
-                              <span>₹{alloc.room.rent.toLocaleString()}</span>
-                            </div>
-
-                            <div className="info-row">
-                              <label>Category:</label>
-                              <span>Residential ({alloc.room.beds} bed{alloc.room.beds !== 1 ? 's' : ''})</span>
-                            </div>
-
-                            {alloc.lastReadingDate && (
-                              <>
-                                <div className="info-row" style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #ecf0f1' }}>
-                                  <label>Last Reading Date:</label>
-                                  <span>{new Date(alloc.lastReadingDate).toLocaleDateString()}</span>
-                                </div>
-                                {alloc.lastEndingReading && (
-                                  <div className="info-row">
-                                    <label>Last Ending Reading:</label>
-                                    <span style={{ fontWeight: '700', color: '#2c3e50' }}>{String(alloc.lastEndingReading).trim()}</span>
-                                  </div>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </>
-                      )}
-
-                      <div className="card-footer">
-                        {selectedAllocationId === alloc.id ? (
-                          <span className="selected-badge">✓ Selected</span>
-                        ) : (
-                          <span style={{ color: '#3498db', fontWeight: '600', fontSize: '12px' }}>Click to Select</span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Shops Category */}
-          {groupedAllocations['shops'] && groupedAllocations['shops'].length > 0 && (
-            <div className="category-section">
-              <div className="category-header" onClick={() => toggleCategory('shops')}>
-                <span className="category-toggle-icon">{collapsedCategories['shops'] ? '▶' : '▼'}</span>
-                <h2 className="category-title">🏪 Shops ({groupedAllocations['shops'].length})</h2>
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-              
-              {!collapsedCategories['shops'] && (
-                <div className="allocations-grid">
-                  {groupedAllocations['shops'].map(alloc => (
-                    <div key={alloc.id} onClick={() => handleSelectAllocation(alloc)} className={`allocation-card ${selectedAllocationId === alloc.id ? 'selected' : ''} shop-category ${collapsedCards[alloc.id] ? 'collapsed' : ''}`}>
-                      <div className="card-collapsed-header">
-                        <div className="collapsed-room-info">
-                          <h3>Room {alloc.room.number}</h3>
-                          <span className="shop-badge">🏪 SHOP</span>
-                        </div>
-                        <button className="collapse-btn" onClick={(e) => toggleCard(alloc.id, e)} title="Expand/Collapse">{collapsedCards[alloc.id] ? '▼ Expand' : '▲ Collapse'}</button>
-                      </div>
-
-                      {alloc.lastReadingDate && (
-                        <div className="collapsed-reading-info">
-                          <div className="reading-item">
-                            <label>Last Reading:</label>
-                            <span>{new Date(alloc.lastReadingDate).toLocaleDateString()}</span>
-                          </div>
-                          {alloc.lastEndingReading && (
-                            <div className="reading-item">
-                              <label>Last Value:</label>
-                              <span className="reading-value">{String(alloc.lastEndingReading).trim()}</span>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {!collapsedCards[alloc.id] && (
-                        <>
-                          <div className="card-header">
-                            <div className="room-info-container">
-                              <h3>Room {alloc.room.number}</h3>
-                              <span className="shop-badge">🏪 SHOP</span>
-                            </div>
-                            <span className="service-badge">{alloc.service.serviceCategory}</span>
-                          </div>
-
-                          <div className="card-body">
-                            {lastCapturedPhotos[getRoomPhotoKey(alloc.room.number)] && (
-                              <div className="meter-photo-thumb-wrap">
-                                <span className="meter-photo-label">Last capture</span>
-                                <img
-                                  src={lastCapturedPhotos[getRoomPhotoKey(alloc.room.number)]}
-                                  alt={`Last captured meter image for room ${alloc.room.number}`}
-                                  className="meter-photo-thumb"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    setExpandedPhotoUrl(lastCapturedPhotos[getRoomPhotoKey(alloc.room.number)]);
-                                  }}
-                                />
-                              </div>
-                            )}
-
-                            <div className="info-row">
-                              <label>Service:</label>
-                              <span>{alloc.service.consumerName}</span>
-                            </div>
-
-                            <div className="info-row">
-                              <label>Meter No:</label>
-                              <span>{alloc.service.meterNo}</span>
-                            </div>
-
-                            <div className="info-row">
-                              <label>Consumer No:</label>
-                              <span>{alloc.service.consumerNo}</span>
-                            </div>
-
-                            <div className="info-row">
-                              <label>Load:</label>
-                              <span>{alloc.service.load}</span>
-                            </div>
-
-                            <div className="info-row">
-                              <label>Room Rent:</label>
-                              <span>₹{alloc.room.rent.toLocaleString()}</span>
-                            </div>
-
-                            <div className="info-row">
-                              <label>Category:</label>
-                              <span>🏪 Shop/Commercial</span>
-                            </div>
-
-                            {alloc.lastReadingDate && (
-                              <>
-                                <div className="info-row" style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #ecf0f1' }}>
-                                  <label>Last Reading Date:</label>
-                                  <span>{new Date(alloc.lastReadingDate).toLocaleDateString()}</span>
-                                </div>
-                                {alloc.lastEndingReading && (
-                                  <div className="info-row">
-                                    <label>Last Ending Reading:</label>
-                                    <span style={{ fontWeight: '700', color: '#2c3e50' }}>{String(alloc.lastEndingReading).trim()}</span>
-                                  </div>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </>
-                      )}
-
-                      <div className="card-footer">
-                        {selectedAllocationId === alloc.id ? (
-                          <span className="selected-badge">✓ Selected</span>
-                        ) : (
-                          <span style={{ color: '#3498db', fontWeight: '600', fontSize: '12px' }}>Click to Select</span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+            );
+          })}
         </div>
       )}
     </div>

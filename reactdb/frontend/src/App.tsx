@@ -20,10 +20,11 @@ import WaterTankLevelMonitor from './components/WaterTankLevelMonitor';
 import TenantElectricityCharges from './components/TenantElectricityCharges';
 import MiscUploads from './components/MiscUploads';
 import DailyStatusManagement from './components/DailyStatusManagement';
+import ActiveSessionsManagement from './components/ActiveSessionsManagement';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
-type Page = 'home' | 'diagnostic' | 'rental-collection' | 'tenants' | 'occupancy' | 'daily-status' | 'room-management' | 'complaints' | 'users' | 'roles' | 'transactions' | 'stock' | 'guest-checkin' | 'misc-uploads' | 'consumption' | 'water-tank-monitor' | 'electricity-charges';
+type Page = 'home' | 'diagnostic' | 'rental-collection' | 'tenants' | 'occupancy' | 'daily-status' | 'room-management' | 'complaints' | 'active-sessions' | 'users' | 'roles' | 'transactions' | 'stock' | 'guest-checkin' | 'misc-uploads' | 'consumption' | 'water-tank-monitor' | 'electricity-charges';
 
 type NavItem = {
   page: Page;
@@ -47,6 +48,7 @@ const SCREEN_ROLES: Record<Page, string[]> = {
   'daily-status': ['admin', 'manager', 'maintenance', 'property_manager', 'utilities_manager'],
   'room-management': ['admin', 'manager', 'property_manager', 'accountant'],
   complaints: ['admin', 'manager', 'maintenance', 'utilities_manager'],
+  'active-sessions': ['admin'],
   users: ['admin'],
   roles: ['admin'],
   transactions: ['admin', 'manager', 'accountant'],
@@ -99,6 +101,7 @@ const NAV_GROUPS: NavGroup[] = [
     key: 'admin',
     label: 'Administration',
     items: [
+      { page: 'active-sessions', label: 'Active Sessions', roles: SCREEN_ROLES['active-sessions'] },
       { page: 'users', label: 'Users', roles: SCREEN_ROLES.users },
       { page: 'roles', label: 'Roles & Access', roles: SCREEN_ROLES.roles },
       { page: 'stock', label: 'Stock', roles: SCREEN_ROLES.stock },
@@ -364,6 +367,14 @@ function AppContent() {
       return (
         <ProtectedRoute requiredRoles={SCREEN_ROLES.complaints}>
           <ComplaintsManagement />
+        </ProtectedRoute>
+      );
+    }
+
+    if (currentPage === 'active-sessions') {
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES['active-sessions']}>
+          <ActiveSessionsManagement />
         </ProtectedRoute>
       );
     }

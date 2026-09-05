@@ -26,6 +26,22 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Shared localStorage key used purely to broadcast logout across tabs via the 'storage' event.
 const GLOBAL_LOGOUT_KEY = 'global-logout-broadcast';
+const DEFAULT_SESSION_DURATION_DAYS = 30;
+
+const getExpiryTimestampFromValidity = (lastLogin: string | null | undefined, nextLoginDuration: number | null | undefined): number => {
+  const durationDays = Number(nextLoginDuration);
+  const sessionDurationDays = Number.isFinite(durationDays) && durationDays > 0
+    ? durationDays
+    : DEFAULT_SESSION_DURATION_DAYS;
+
+  const lastLoginTimestamp = lastLogin ? Date.parse(lastLogin) : Number.NaN;
+
+  if (Number.isFinite(lastLoginTimestamp)) {
+    return lastLoginTimestamp + (sessionDurationDays * 24 * 60 * 60 * 1000);
+  }
+
+  return Date.now() + (sessionDurationDays * 24 * 60 * 60 * 1000);
+};
 
 const readTabStorageItem = (key: string): string | null => {
   try {
@@ -125,7 +141,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (storedUser && storedToken) {
         const parsedUser = JSON.parse(storedUser);
-        const validStoredExpiry = Number.isFinite(storedExpiry) && storedExpiry > Date.now();
+        const lastLoginTimestamp = Date.parse(parsedUser.lastLogin || '');
+        const durationDays = Number(parsedUser.nextLoginDuration);
+        const sessionDurationDays = Number.isFinite(durationDays) && durationDays > 0
+          ? durationDays
+          : DEFAULT_SESSION_DURATION_DAYS;
+        const fallbackExpiry = (Number.isFinite(lastLoginTimestamp) ? lastLoginTimestamp : Date.now())
+          + (sessionDurationDays * 24 * 60 * 60 * 1000);
+        const sessionExpiry = Number.isFinite(storedExpiry) && storedExpiry > 0
+          ? storedExpiry
+          : fallbackExpiry;
+        const validStoredExpiry = sessionExpiry > Date.now();
 
         if (!validStoredExpiry) {
           console.log('[Auth] Stored session expired on mount, clearing it');
@@ -202,11 +228,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         : null;
 
       writeTabStorageItem('user', JSON.stringify(response.user));
-      if (expiryTimestamp) {
-        writeTabStorageItem('sessionExpiresAt', String(expiryTimestamp));
-      } else {
-        removeTabStorageItem('sessionExpiresAt');
-      }
+      writeTabStorageItem('sessionExpiresAt', String(expiryTimestamp));
       
       console.log('[Auth] User data stored in localStorage:', {
         user: {
