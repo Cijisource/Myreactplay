@@ -33,35 +33,47 @@ const ACCESS_TOKEN_KEY = 'authToken';
 const REFRESH_TOKEN_KEY = 'refreshToken';
 const USER_KEY = 'user';
 
-const readTabStorageItem = (key: string): string | null => {
+const readAuthStorageItem = (key: string): string | null => {
   try {
-    return window.sessionStorage.getItem(key);
+    return window.localStorage.getItem(key);
   } catch {
-    return null;
+    try {
+      return window.sessionStorage.getItem(key);
+    } catch {
+      return null;
+    }
   }
 };
 
-const writeTabStorageItem = (key: string, value: string): void => {
+const writeAuthStorageItem = (key: string, value: string): void => {
   try {
-    window.sessionStorage.setItem(key, value);
+    window.localStorage.setItem(key, value);
   } catch {
-    // Ignore storage failures in restricted/private browsing contexts.
+    try {
+      window.sessionStorage.setItem(key, value);
+    } catch {
+      // Ignore storage failures in restricted/private browsing contexts.
+    }
   }
 };
 
-const removeTabStorageItem = (key: string): void => {
+const removeAuthStorageItem = (key: string): void => {
   try {
-    window.sessionStorage.removeItem(key);
+    window.localStorage.removeItem(key);
   } catch {
-    // Ignore storage failures in restricted/private browsing contexts.
+    try {
+      window.sessionStorage.removeItem(key);
+    } catch {
+      // Ignore storage failures in restricted/private browsing contexts.
+    }
   }
 };
 
 const triggerAutoLogout = (): void => {
-  removeTabStorageItem(ACCESS_TOKEN_KEY);
-  removeTabStorageItem(REFRESH_TOKEN_KEY);
-  removeTabStorageItem(USER_KEY);
-  removeTabStorageItem('sessionExpiresAt');
+  removeAuthStorageItem(ACCESS_TOKEN_KEY);
+  removeAuthStorageItem(REFRESH_TOKEN_KEY);
+  removeAuthStorageItem(USER_KEY);
+  removeAuthStorageItem('sessionExpiresAt');
   window.dispatchEvent(new Event('auth:logout'));
 
   // Notify other tabs so an expired/invalid session logs out everywhere, not just this tab.
@@ -73,14 +85,14 @@ const triggerAutoLogout = (): void => {
 };
 
 const storeTokens = (token: string, refreshToken?: string): void => {
-  writeTabStorageItem(ACCESS_TOKEN_KEY, token);
+  writeAuthStorageItem(ACCESS_TOKEN_KEY, token);
   if (refreshToken) {
-    writeTabStorageItem(REFRESH_TOKEN_KEY, refreshToken);
+    writeAuthStorageItem(REFRESH_TOKEN_KEY, refreshToken);
   }
 };
 
 const refreshAccessToken = async (): Promise<string> => {
-  const storedRefreshToken = readTabStorageItem(REFRESH_TOKEN_KEY);
+  const storedRefreshToken = readAuthStorageItem(REFRESH_TOKEN_KEY);
 
   if (!storedRefreshToken) {
     throw new Error('No refresh token available');
@@ -133,7 +145,7 @@ api.interceptors.response.use(
 
 // Add token to requests if available
 api.interceptors.request.use((config) => {
-  const token = readTabStorageItem(ACCESS_TOKEN_KEY);
+  const token = readAuthStorageItem(ACCESS_TOKEN_KEY);
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -172,7 +184,7 @@ const xhrRequestWithAuthRetry = (
   retryAttempted: boolean = false
 ): Promise<{ data: any }> => {
   return new Promise((resolve, reject) => {
-    const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+    const token = readAuthStorageItem(ACCESS_TOKEN_KEY);
     const xhr = new XMLHttpRequest();
 
     if (onProgress) {
@@ -498,7 +510,7 @@ export const apiService = {
   deleteComplaint: (complaintId: number) => api.delete(`/complaints/${complaintId}`),
   uploadComplaintFiles: (formData: FormData) => {
     // Use fetch instead of axios for FormData to avoid header issues
-    const token = readTabStorageItem('authToken');
+    const token = readAuthStorageItem('authToken');
     const headers: any = {};
     if (token) {
       headers.Authorization = `Bearer ${token}`;
