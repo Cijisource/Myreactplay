@@ -1,6 +1,6 @@
 import { TenantWithOccupancy } from './TenantManagement';
 import { getFileUrl, apiService } from '../api';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import './TenantFullScreenView.css';
 
 interface OccupancyHistoryRecord {
@@ -55,6 +55,9 @@ export default function TenantFullScreenView({
   const [paymentHistoryError, setPaymentHistoryError] = useState<string | null>(null);
   const [azurePhotoUrl, setAzurePhotoUrl] = useState<string | null>(tenant.azurePhotoUrl || null);
   const [activeTab, setActiveTab] = useState<TenantDetailTab>('overview');
+  const [visibleOccupancyCount, setVisibleOccupancyCount] = useState(5);
+  const historySentinelRef = useRef<HTMLDivElement | null>(null);
+  const historyLoadBatchSize = 5;
 
   const isCurrentOccupancyRecord = (record: OccupancyHistoryRecord) => {
     const today = new Date();
@@ -176,6 +179,33 @@ export default function TenantFullScreenView({
         ? [currentOccupancyFallback]
         : []
   );
+
+  useEffect(() => {
+    setVisibleOccupancyCount(5);
+  }, [tenant.id, displayedHistory.length]);
+
+  useEffect(() => {
+    if (!historySentinelRef.current || visibleOccupancyCount >= displayedHistory.length) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisibleOccupancyCount((currentCount) =>
+            Math.min(currentCount + historyLoadBatchSize, displayedHistory.length)
+          );
+        }
+      },
+      { threshold: 0.1, rootMargin: '80px' }
+    );
+
+    observer.observe(historySentinelRef.current);
+
+    return () => observer.disconnect();
+  }, [displayedHistory.length, historyLoadBatchSize, visibleOccupancyCount]);
+
+  const visibleHistory = displayedHistory.slice(0, visibleOccupancyCount);
 
   const mainPhotoUrl = azurePhotoUrl || (tenant.photoUrl ? getFileUrl(tenant.photoUrl) : null);
 
@@ -379,44 +409,56 @@ export default function TenantFullScreenView({
                 )}
 
                 {!loadingHistory && !historyError && displayedHistory.length > 0 && (
-                  <div className="table-wrapper">
-                    <table className="occupancy-history-table">
-                      <thead>
-                        <tr>
-                          <th>Room</th>
-                          <th>Status</th>
-                          <th>Check-in</th>
-                          <th>Check-out</th>
-                          <th>Rent</th>
-                          <th>Deposit</th>
-                          <th>Refunded</th>
-                          <th>Charges</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {displayedHistory.map((record) => {
-                          const isCurrent = isCurrentOccupancyRecord(record);
+                  <>
+                    <div className="table-wrapper">
+                      <table className="occupancy-history-table">
+                        <thead>
+                          <tr>
+                            <th>Room</th>
+                            <th>Status</th>
+                            <th>Check-in</th>
+                            <th>Check-out</th>
+                            <th>Rent</th>
+                            <th>Deposit</th>
+                            <th>Refunded</th>
+                            <th>Charges</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {visibleHistory.map((record) => {
+                            const isCurrent = isCurrentOccupancyRecord(record);
 
-                          return (
-                            <tr key={record.occupancyId} className={isCurrent ? 'current-occupancy-row' : undefined}>
-                              <td>{record.roomNumber || (record.roomId ? `Room ${record.roomId}` : 'N/A')}</td>
-                              <td>
-                                <span className={`history-status-badge ${isCurrent ? 'currently-checked-in' : 'checked-out'}`}>
-                                  {isCurrent ? 'Currently checked in' : 'Checked out'}
-                                </span>
-                              </td>
-                              <td>{formatDate(record.checkInDate)}</td>
-                              <td>{record.checkOutDate ? formatDate(record.checkOutDate) : '—'}</td>
-                              <td>{record.rentFixed != null ? formatCurrency(record.rentFixed) : 'N/A'}</td>
-                              <td>{record.depositReceived != null ? formatCurrency(record.depositReceived) : 'N/A'}</td>
-                              <td>{record.depositRefunded != null ? formatCurrency(record.depositRefunded) : 'N/A'}</td>
-                              <td>{record.charges != null ? formatCurrency(record.charges) : 'N/A'}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                            return (
+                              <tr key={record.occupancyId} className={isCurrent ? 'current-occupancy-row' : undefined}>
+                                <td>{record.roomNumber || (record.roomId ? `Room ${record.roomId}` : 'N/A')}</td>
+                                <td>
+                                  <span className={`history-status-badge ${isCurrent ? 'currently-checked-in' : 'checked-out'}`}>
+                                    {isCurrent ? 'Currently checked in' : 'Checked out'}
+                                  </span>
+                                </td>
+                                <td>{formatDate(record.checkInDate)}</td>
+                                <td>{record.checkOutDate ? formatDate(record.checkOutDate) : '—'}</td>
+                                <td>{record.rentFixed != null ? formatCurrency(record.rentFixed) : 'N/A'}</td>
+                                <td>{record.depositReceived != null ? formatCurrency(record.depositReceived) : 'N/A'}</td>
+                                <td>{record.depositRefunded != null ? formatCurrency(record.depositRefunded) : 'N/A'}</td>
+                                <td>{record.charges != null ? formatCurrency(record.charges) : 'N/A'}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {displayedHistory.length > historyLoadBatchSize && (
+                      <div ref={historySentinelRef} className="occupancy-history-sentinel">
+                        <p>
+                          {visibleOccupancyCount < displayedHistory.length
+                            ? 'Scroll to load more occupancy records...'
+                            : 'All occupancy records loaded'}
+                        </p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>

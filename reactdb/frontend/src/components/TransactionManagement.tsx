@@ -31,7 +31,7 @@ interface TransactionManagementProps {
   selectedMonth?: string | null;
 }
 
-type TransactionTab = 'transactions' | 'yearly-expenses' | 'monthly-expenses';
+type TransactionTab = 'transactions' | 'yearly-expenses' | 'monthly-expenses' | 'day-wise-expenses';
 
 interface ExpensePieSlice {
   label: string;
@@ -40,6 +40,7 @@ interface ExpensePieSlice {
   percentage: number;
   startAngle: number;
   endAngle: number;
+  date?: string;
   breakdown?: Array<{ label: string; value: number }>;
 }
 
@@ -65,6 +66,7 @@ export default function TransactionManagement({
   const [activeTab, setActiveTab] = useState<TransactionTab>('transactions');
   const [selectedExpenseYear, setSelectedExpenseYear] = useState<string>('all');
   const [selectedMonthlyExpenseYear, setSelectedMonthlyExpenseYear] = useState<string>(String(new Date().getFullYear()));
+  const [selectedDailyExpenseDate, setSelectedDailyExpenseDate] = useState<string | null>(null);
 
   const isExpenseType = (transactionType?: string): boolean => {
     const normalized = String(transactionType || '').trim().toLowerCase();
@@ -85,6 +87,8 @@ export default function TransactionManagement({
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   };
+
+  const [selectedDailyExpenseMonth, setSelectedDailyExpenseMonth] = useState<string>(formatLocalDate(new Date()).slice(0, 7));
 
   const normalizeRoomSearchValue = (value?: string | number | null): string => {
     const normalized = String(value ?? '').trim();
@@ -400,6 +404,142 @@ export default function TransactionManagement({
     [monthlyExpenseReport]
   );
 
+  const dailyExpenseReport = useMemo(() => {
+    const [yearText, monthText] = selectedDailyExpenseMonth.split('-');
+    const year = Number(yearText);
+    const monthIndex = Number(monthText) - 1;
+
+    if (!selectedDailyExpenseMonth || Number.isNaN(year) || Number.isNaN(monthIndex) || monthIndex < 0 || monthIndex > 11) {
+      return [] as Array<{
+        date: string;
+        day: number;
+        label: string;
+        transactionCount: number;
+        totalExpense: number;
+      }>;
+    }
+
+    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+
+    return Array.from({ length: daysInMonth }, (_, index) => {
+      const day = index + 1;
+      const date = new Date(year, monthIndex, day);
+      const dailyTransactions = expenseTransactions.filter((transaction) => {
+        const transactionDate = new Date(transaction.transactionDate);
+        return transactionDate.getFullYear() === year &&
+          transactionDate.getMonth() === monthIndex &&
+          transactionDate.getDate() === day;
+      });
+
+      const totalExpense = dailyTransactions.reduce((sum, transaction) => sum + (Number(transaction.amount) || 0), 0);
+
+      return {
+        date: formatLocalDate(date),
+        day,
+        label: date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
+        transactionCount: dailyTransactions.length,
+        totalExpense
+      };
+    });
+  }, [expenseTransactions, selectedDailyExpenseMonth]);
+
+  const dailyExpenseTotal = useMemo(
+    () => dailyExpenseReport.reduce((sum, row) => sum + row.totalExpense, 0),
+    [dailyExpenseReport]
+  );
+
+  const dailyExpensePieSlices = useMemo((): ExpensePieSlice[] => {
+    const source = dailyExpenseReport
+      .filter((row) => row.totalExpense > 0)
+      .map((row) => ({ date: row.date, label: row.label, value: row.totalExpense }))
+      .sort((left, right) => right.value - left.value);
+
+    if (!source.length) return [];
+
+    const total = source.reduce((sum, item) => sum + item.value, 0);
+    let angle = -90;
+
+    return source.map((item, index) => {
+      const percentage = total > 0 ? (item.value / total) * 100 : 0;
+      const sweep = (percentage / 100) * 360;
+      const slice: ExpensePieSlice = {
+        label: item.label,
+        value: item.value,
+        color: EXPENSE_PIE_COLORS[index % EXPENSE_PIE_COLORS.length],
+        percentage,
+        startAngle: angle,
+        endAngle: angle + sweep,
+        date: item.date
+      };
+      angle += sweep;
+      return slice;
+    });
+  }, [dailyExpenseReport]);
+
+  const dailyExpensePieTotal = useMemo(
+    () => dailyExpensePieSlices.reduce((sum, slice) => sum + slice.value, 0),
+    [dailyExpensePieSlices]
+  );
+
+  const selectedDailyTransactions = useMemo(() => {
+    if (!selectedDailyExpenseDate) return [] as Transaction[];
+    return [...expenseTransactions]
+      .filter((transaction) => formatLocalDate(new Date(transaction.transactionDate)) === selectedDailyExpenseDate)
+      .sort((left, right) => new Date(right.transactionDate).getTime() - new Date(left.transactionDate).getTime());
+  }, [expenseTransactions, selectedDailyExpenseDate]);
+
+  const dailyExpenseDescriptionBreakdown = useMemo(() => {
+    const [yearText, monthText] = selectedDailyExpenseMonth.split('-');
+    const year = Number(yearText);
+    const monthIndex = Number(monthText) - 1;
+
+    if (!selectedDailyExpenseMonth || Number.isNaN(year) || Number.isNaN(monthIndex) || monthIndex < 0 || monthIndex > 11) {
+      return [] as Array<{
+        date: string;
+        label: string;
+        description: string;
+        total: number;
+        count: number;
+      }>;
+    }
+
+    const dateMap = new Map<string, Map<string, { description: string; total: number; count: number }>>();
+
+    expenseTransactions.forEach((transaction) => {
+      const transactionDate = new Date(transaction.transactionDate);
+      if (transactionDate.getFullYear() !== year || transactionDate.getMonth() !== monthIndex) {
+        return;
+      }
+
+      const dateKey = formatLocalDate(transactionDate);
+      const description = String(transaction.description || '').trim() || 'Uncategorized';
+
+      if (!dateMap.has(dateKey)) {
+        dateMap.set(dateKey, new Map());
+      }
+
+      const perDateMap = dateMap.get(dateKey)!;
+      const existing = perDateMap.get(description) || { description, total: 0, count: 0 };
+      existing.total += Number(transaction.amount) || 0;
+      existing.count += 1;
+      perDateMap.set(description, existing);
+    });
+
+    return Array.from(dateMap.entries())
+      .sort(([left], [right]) => new Date(left).getTime() - new Date(right).getTime())
+      .flatMap(([date, descriptionMap]) =>
+        Array.from(descriptionMap.values())
+          .sort((left, right) => right.total - left.total)
+          .map((entry) => ({
+            date,
+            label: new Date(date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
+            description: entry.description,
+            total: entry.total,
+            count: entry.count
+          }))
+      );
+  }, [expenseTransactions, selectedDailyExpenseMonth]);
+
   const descriptionSuggestions = useMemo(() => {
     const uniqueDescriptions = new Set<string>();
 
@@ -543,6 +683,15 @@ export default function TransactionManagement({
             aria-selected={activeTab === 'monthly-expenses'}
           >
             Month-Wise Expenses
+          </button>
+          <button
+            type="button"
+            className={`transaction-tab ${activeTab === 'day-wise-expenses' ? 'active' : ''}`}
+            onClick={() => setActiveTab('day-wise-expenses')}
+            role="tab"
+            aria-selected={activeTab === 'day-wise-expenses'}
+          >
+            Day-Wise Expenses
           </button>
         </div>
       )}
@@ -752,6 +901,177 @@ export default function TransactionManagement({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {!incomeOnly && activeTab === 'day-wise-expenses' && (
+        <div className="category-section expense-report-page">
+          <div className="category-header">
+            <h3 className="category-title">Day-Wise Expense Report</h3>
+            <div className="category-stats">
+              <input
+                type="month"
+                className="sort-select"
+                value={selectedDailyExpenseMonth}
+                onChange={(event) => setSelectedDailyExpenseMonth(event.target.value)}
+                aria-label="Select daily expense report month"
+              />
+              <span className="stat-badge">Daily totals</span>
+            </div>
+          </div>
+
+          {dailyExpenseReport.length === 0 ? (
+            <div className="no-results-message">
+              <p>No expense transactions available for {selectedDailyExpenseMonth}.</p>
+            </div>
+          ) : (
+            <div className="expense-report-content">
+              <div className="daily-expense-summary-row">
+                <div className="stat-badge total expense-total">Total: ₹{formatAmount(dailyExpenseTotal)}</div>
+                <div className="stat-badge">Days with activity: {dailyExpenseReport.filter((row) => row.transactionCount > 0).length}</div>
+              </div>
+
+              <div className="expense-pie-section">
+                <div className="expense-pie-wrap">
+                  {dailyExpensePieSlices.length === 0 ? (
+                    <div className="chart-info-state">No expense activity for this month.</div>
+                  ) : (
+                    <svg viewBox="0 0 240 240" className="expense-pie-svg" aria-label="Daily expense circular chart">
+                      {dailyExpensePieSlices.map((slice) => (
+                        <path
+                          key={slice.label}
+                          d={describePieArc(120, 120, 98, slice.startAngle, slice.endAngle)}
+                          fill={slice.color}
+                          stroke="#ffffff"
+                          strokeWidth="1.5"
+                          onClick={() => setSelectedDailyExpenseDate(slice.date || null)}
+                          style={{ cursor: 'pointer' }}
+                        />
+                      ))}
+                      <circle cx="120" cy="120" r="52" fill="#ffffff" />
+                      <text x="120" y="112" textAnchor="middle" className="expense-pie-total-label">Total</text>
+                      <text x="120" y="133" textAnchor="middle" className="expense-pie-total-value">₹{formatAmount(dailyExpensePieTotal, 0)}</text>
+                    </svg>
+                  )}
+                </div>
+                <div className="expense-pie-legend">
+                  {dailyExpensePieSlices.map((slice) => (
+                    <div key={slice.label} className="expense-pie-legend-item-wrap">
+                      <button
+                        type="button"
+                        className={`expense-pie-legend-item ${selectedDailyExpenseDate === slice.date ? 'selected' : ''}`}
+                        onClick={() => setSelectedDailyExpenseDate((current) => current === slice.date ? null : slice.date || null)}
+                        aria-label={`View transactions for ${slice.label}`}
+                      >
+                        <span className="expense-pie-color-dot" style={{ backgroundColor: slice.color }} />
+                        <span className="expense-pie-label" title={slice.label}>{slice.label}</span>
+                        <span className="expense-pie-value">₹{formatAmount(slice.value)}</span>
+                        <span className="expense-pie-share">{slice.percentage.toFixed(1)}%</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="table-responsive">
+                <table className="data-table expense-report-table daily-expense-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th className="text-right">Expense Count</th>
+                      <th className="text-right">Total Expense (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dailyExpenseReport.map((row) => (
+                      <tr
+                        key={row.date}
+                        className={row.transactionCount > 0 ? 'daily-expense-row active' : 'daily-expense-row'}
+                        onClick={() => setSelectedDailyExpenseDate((current) => current === row.date ? null : row.date)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <td>{row.label}</td>
+                        <td className="text-right">{row.transactionCount}</td>
+                        <td className="text-right">{formatAmount(row.totalExpense)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="daily-expense-breakdown">
+                <div className="daily-expense-breakdown-header">
+                  <h4>Expense description groupings</h4>
+                </div>
+                {dailyExpenseDescriptionBreakdown.length === 0 ? (
+                  <div className="chart-info-state">No expense description groups for this month.</div>
+                ) : (
+                  <div className="table-responsive">
+                    <table className="data-table expense-report-table">
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Description</th>
+                          <th className="text-right">Entries</th>
+                          <th className="text-right">Amount (₹)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {dailyExpenseDescriptionBreakdown.map((row) => (
+                          <tr key={`${row.date}-${row.description}`}>
+                            <td>{row.label}</td>
+                            <td>{row.description}</td>
+                            <td className="text-right">{row.count}</td>
+                            <td className="text-right">{formatAmount(row.total)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {selectedDailyExpenseDate && (
+        <div className="modal-overlay" role="presentation" onClick={() => setSelectedDailyExpenseDate(null)}>
+          <div className="modal-content daily-transaction-popup" role="dialog" aria-modal="true" aria-label="Transactions for selected date" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <h3>
+                {new Date(selectedDailyExpenseDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+              </h3>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setSelectedDailyExpenseDate(null)}>
+                Close
+              </button>
+            </div>
+
+            {selectedDailyTransactions.length === 0 ? (
+              <div className="chart-info-state">No expense transactions recorded for this date.</div>
+            ) : (
+              <div className="table-responsive">
+                <table className="data-table expense-report-table">
+                  <thead>
+                    <tr>
+                      <th>Description</th>
+                      <th>Type</th>
+                      <th className="text-right">Amount (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedDailyTransactions.map((transaction) => (
+                      <tr key={transaction.id}>
+                        <td>{transaction.description}</td>
+                        <td>{transaction.transactionType?.transactionType || 'Unknown'}</td>
+                        <td className="text-right">{formatAmount(transaction.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
