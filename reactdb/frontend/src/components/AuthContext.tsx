@@ -28,27 +28,39 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const GLOBAL_LOGOUT_KEY = 'global-logout-broadcast';
 const DEFAULT_SESSION_DURATION_DAYS = 30;
 
-const readTabStorageItem = (key: string): string | null => {
+const readAuthStorageItem = (key: string): string | null => {
   try {
-    return window.sessionStorage.getItem(key);
+    return window.localStorage.getItem(key);
   } catch {
-    return null;
+    try {
+      return window.sessionStorage.getItem(key);
+    } catch {
+      return null;
+    }
   }
 };
 
-const writeTabStorageItem = (key: string, value: string): void => {
+const writeAuthStorageItem = (key: string, value: string): void => {
   try {
-    window.sessionStorage.setItem(key, value);
+    window.localStorage.setItem(key, value);
   } catch {
-    // Ignore storage failures in restricted/private browsing contexts.
+    try {
+      window.sessionStorage.setItem(key, value);
+    } catch {
+      // Ignore storage failures in restricted/private browsing contexts.
+    }
   }
 };
 
-const removeTabStorageItem = (key: string): void => {
+const removeAuthStorageItem = (key: string): void => {
   try {
-    window.sessionStorage.removeItem(key);
+    window.localStorage.removeItem(key);
   } catch {
-    // Ignore storage failures in restricted/private browsing contexts.
+    try {
+      window.sessionStorage.removeItem(key);
+    } catch {
+      // Ignore storage failures in restricted/private browsing contexts.
+    }
   }
 };
 
@@ -88,10 +100,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearAutoLogoutTimer();
 
     if (!absoluteExpiry || absoluteExpiry <= now) {
-      removeTabStorageItem('sessionExpiresAt');
-      console.log('[Auto-Logout] No valid expiry found; auto-logout not scheduled');
-      return;
-    }
+removeAuthStorageItem('sessionExpiresAt');
+    console.log('[Auto-Logout] No valid expiry found; auto-logout not scheduled');
+    return;
+  }
 
     const remainingMs = absoluteExpiry - now;
     console.log(`[Auto-Logout] Scheduling logout for ${remainingMs}ms from now`, {
@@ -100,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       days: durationDays
     });
 
-    writeTabStorageItem('sessionExpiresAt', String(absoluteExpiry));
+    writeAuthStorageItem('sessionExpiresAt', String(absoluteExpiry));
 
     const timer = setTimeout(() => {
       console.log('[Auto-Logout] ⏰ Session expired, logging out user');
@@ -113,9 +125,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Check if user is already logged in on mount
   useEffect(() => {
     try {
-      const storedUser = readTabStorageItem('user');
-      const storedToken = readTabStorageItem('authToken');
-      const storedExpiry = Number(readTabStorageItem('sessionExpiresAt'));
+      const storedUser = readAuthStorageItem('user');
+      const storedToken = readAuthStorageItem('authToken');
+      const storedExpiry = Number(readAuthStorageItem('sessionExpiresAt'));
       
       console.log('[Auth] Checking for stored session on mount:', {
         hasStoredUser: !!storedUser,
@@ -140,10 +152,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (!validStoredExpiry) {
           console.log('[Auth] Stored session expired on mount, clearing it');
-          removeTabStorageItem('authToken');
-          removeTabStorageItem('refreshToken');
-          removeTabStorageItem('user');
-          removeTabStorageItem('sessionExpiresAt');
+          removeAuthStorageItem('authToken');
+          removeAuthStorageItem('refreshToken');
+          removeAuthStorageItem('user');
+          removeAuthStorageItem('sessionExpiresAt');
           setUser(null);
         } else {
           console.log('[Auth] Restored user from localStorage:', {
@@ -160,10 +172,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (err) {
       console.error('Error restoring auth state:', err);
-      removeTabStorageItem('user');
-      removeTabStorageItem('authToken');
-      removeTabStorageItem('refreshToken');
-      removeTabStorageItem('sessionExpiresAt');
+      removeAuthStorageItem('user');
+      removeAuthStorageItem('authToken');
+      removeAuthStorageItem('refreshToken');
+      removeAuthStorageItem('sessionExpiresAt');
     } finally {
       setLoading(false);
     }
@@ -201,9 +213,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       // Store token and user info
-      writeTabStorageItem('authToken', response.token);
+      writeAuthStorageItem('authToken', response.token);
       if (response.refreshToken) {
-        writeTabStorageItem('refreshToken', response.refreshToken);
+        writeAuthStorageItem('refreshToken', response.refreshToken);
       }
 
       const durationDays = Number(response.user.nextLoginDuration);
@@ -212,8 +224,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ? (Number.isFinite(lastLoginTime) ? lastLoginTime! + (durationDays * 24 * 60 * 60 * 1000) : Date.now() + (durationDays * 24 * 60 * 60 * 1000))
         : null;
 
-      writeTabStorageItem('user', JSON.stringify(response.user));
-      writeTabStorageItem('sessionExpiresAt', String(expiryTimestamp));
+      writeAuthStorageItem('user', JSON.stringify(response.user));
+      writeAuthStorageItem('sessionExpiresAt', String(expiryTimestamp));
       
       console.log('[Auth] User data stored in localStorage:', {
         user: {
@@ -252,10 +264,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     clearAutoLogoutTimer();
 
-    removeTabStorageItem('authToken');
-    removeTabStorageItem('refreshToken');
-    removeTabStorageItem('user');
-    removeTabStorageItem('sessionExpiresAt');
+    removeAuthStorageItem('authToken');
+    removeAuthStorageItem('refreshToken');
+    removeAuthStorageItem('user');
+    removeAuthStorageItem('sessionExpiresAt');
     setUser(null);
     setError(null);
 
