@@ -383,6 +383,22 @@
   color: #475569;
 }
 
+.occupancy-history-sentinel {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.75rem;
+}
+
+.occupancy-history-sentinel p {
+  margin: 0;
+  padding: 0.5rem 0.85rem;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
 .payment-received {
   color: #166534;
   font-weight: 700;

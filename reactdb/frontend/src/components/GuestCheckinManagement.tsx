@@ -951,52 +951,57 @@ export default function GuestCheckinManagement() {
   return (
     <div className="management-container guest-checkin-container guest-checkin-mobile-layout">
       <h2 className="section-heading">Guest Check-In Management</h2>
-      <div className="toolbar guest-checkin-toolbar">
-        <select
-          className="sort-select"
-          value={viewMode}
-          onChange={(e) => setViewMode(e.target.value as 'daily' | 'weekly' | 'monthly')}
-        >
-          <option value="daily">Daily View</option>
-          <option value="weekly">Weekly Consolidated</option>
-          <option value="monthly">Monthly Consolidated</option>
-        </select>
 
-        <input
-          type="date"
-          className="sort-select"
-          value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
-        />
+      <div className="toolbar guest-checkin-toolbar guest-checkin-topbar">
+        <div className="guest-checkin-toolbar-group guest-checkin-toolbar-inline">
+          <select
+            className="sort-select"
+            value={viewMode}
+            onChange={(e) => setViewMode(e.target.value as 'daily' | 'weekly' | 'monthly')}
+          >
+            <option value="daily">Daily View</option>
+            <option value="weekly">Weekly Consolidated</option>
+            <option value="monthly">Monthly Consolidated</option>
+          </select>
 
-        <div className="guest-phone-filter-group">
           <input
-            type="text"
-            className="search-input guest-phone-filter-input"
-            placeholder="Search guests by phone number"
-            value={phoneFilter}
-            onChange={(e) => setPhoneFilter(normalizePhoneDigits(e.target.value))}
-            inputMode="numeric"
-            list={guestPhoneFilterListId}
+            type="date"
+            className="sort-select"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
           />
-          <datalist id={guestPhoneFilterListId}>
-            {guestPhoneOptions.map((option) => (
-              <option
-                key={option.phoneNumber}
-                value={option.phoneNumber}
-                label={`${option.phoneNumber} - ${option.guestName}`}
-              />
-            ))}
-          </datalist>
-          {phoneFilter && (
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => setPhoneFilter('')}
-            >
-              Clear Phone Filter
-            </button>
-          )}
+        </div>
+
+        <div className="guest-checkin-toolbar-group guest-checkin-toolbar-search">
+          <div className="guest-phone-filter-group">
+            <input
+              type="text"
+              className="search-input guest-phone-filter-input"
+              placeholder="Search guests by phone number"
+              value={phoneFilter}
+              onChange={(e) => setPhoneFilter(normalizePhoneDigits(e.target.value))}
+              inputMode="numeric"
+              list={guestPhoneFilterListId}
+            />
+            <datalist id={guestPhoneFilterListId}>
+              {guestPhoneOptions.map((option) => (
+                <option
+                  key={option.phoneNumber}
+                  value={option.phoneNumber}
+                  label={`${option.phoneNumber} - ${option.guestName}`}
+                />
+              ))}
+            </datalist>
+            {phoneFilter && (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setPhoneFilter('')}
+              >
+                Clear Phone Filter
+              </button>
+            )}
+          </div>
         </div>
 
         <button
@@ -1015,7 +1020,7 @@ export default function GuestCheckinManagement() {
       </div>
 
       {selectedStatus && (
-        <div className="filter-info guest-checkin-filter-info">
+        <div className="filter-info guest-checkin-filter-info guest-checkin-status-bar">
           <p>
             {viewMode === 'daily' && `Managing guest entries for ${new Date(selectedStatus.date).toLocaleDateString()}`}
             {viewMode === 'weekly' && `Weekly consolidated view around ${new Date(selectedStatus.date).toLocaleDateString()}`}
@@ -1029,388 +1034,409 @@ export default function GuestCheckinManagement() {
       )}
 
       <div className="items-grid guest-checkin-stats-grid" style={{ marginBottom: '1rem' }}>
-        <div className="item-card"><p><strong>Total Guests:</strong> {consolidatedStats.totalGuests}</p></div>
-        <div className="item-card"><p><strong>Active:</strong> {consolidatedStats.activeGuests}</p></div>
-        <div className="item-card"><p><strong>Checked Out:</strong> {consolidatedStats.checkedOutGuests}</p></div>
-        <div className="item-card"><p><strong>Total Rent:</strong> ₹{consolidatedStats.totalRent.toFixed(2)}</p></div>
-        <div className="item-card"><p><strong>Total Deposit:</strong> ₹{consolidatedStats.totalDeposit.toFixed(2)}</p></div>
+        <div className="item-card guest-checkin-stat-card">
+          <span className="guest-stat-label">Total Guests</span>
+          <strong>{consolidatedStats.totalGuests}</strong>
+        </div>
+        <div className="item-card guest-checkin-stat-card">
+          <span className="guest-stat-label">Active</span>
+          <strong>{consolidatedStats.activeGuests}</strong>
+        </div>
+        <div className="item-card guest-checkin-stat-card">
+          <span className="guest-stat-label">Checked Out</span>
+          <strong>{consolidatedStats.checkedOutGuests}</strong>
+        </div>
+        <div className="item-card guest-checkin-stat-card">
+          <span className="guest-stat-label">Total Rent</span>
+          <strong>₹{consolidatedStats.totalRent.toFixed(2)}</strong>
+        </div>
+        <div className="item-card guest-checkin-stat-card">
+          <span className="guest-stat-label">Total Deposit</span>
+          <strong>₹{consolidatedStats.totalDeposit.toFixed(2)}</strong>
+        </div>
       </div>
 
       {error && <div className="error-message">{error}</div>}
       {success && <div className="success-message">{success}</div>}
 
-      {viewMode === 'daily' && (
-      <div className="form-container guest-checkin-add-section" style={{ marginBottom: '1rem' }}>
-        <h3>Add Guest Check-In</h3>
-        {formCamera && (
-          <CameraCapture
-            label={formCamera}
-            onCapture={(file) => {
-              setFormFiles(prev => ({ ...prev, [formCamera]: file }));
-              setFormCamera(null);
-            }}
-            onCancel={() => setFormCamera(null)}
-          />
-        )}
-        <form onSubmit={handleCreateCheckin}>
-          <div style={{ marginBottom: '0.5rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>Check-In Date</label>
-            <input
-              type="date"
-              value={formData.checkInDate}
-              max={new Date().toISOString().split('T')[0]}
-              onChange={(e) => setFormData(prev => ({ ...prev, checkInDate: e.target.value }))}
-              required
-              style={{ width: '100%' }}
-            />
-          </div>
-          <input
-            type="text"
-            placeholder="Guest Name *"
-            value={formData.guestName}
-            onChange={(e) => setFormData(prev => ({ ...prev, guestName: e.target.value }))}
-            required
-          />
-          {guestNameValidationMessage && (
-            <div className="error-message" style={{ marginTop: '-0.5rem', marginBottom: '0.5rem' }}>
-              {guestNameValidationMessage}
+      <div className="guest-checkin-main-grid">
+        {viewMode === 'daily' && (
+          <div className="form-container guest-checkin-add-section guest-checkin-panel" style={{ marginBottom: '1rem' }}>
+            <div className="guest-checkin-panel-header">
+              <h3>Add Guest Check-In</h3>
             </div>
-          )}
-          <input
-            type="text"
-            placeholder="Phone Number"
-            value={formData.phoneNumber}
-            onChange={(e) => handlePhoneChange(e.target.value)}
-            maxLength={10}
-            inputMode="numeric"
-            required
-          />
-          {phoneValidationMessage && (
-            <div className="error-message" style={{ marginTop: '-0.5rem', marginBottom: '0.5rem' }}>
-              {phoneValidationMessage}
-            </div>
-          )}
-          <select
-            value={formData.visitingRoomNo}
-            onChange={(e) => handleRoomChange(e.target.value)}
-            required
-          >
-            <option value="">Select Visiting Room</option>
-            {rooms.map((room) => (
-              <option key={room.id} value={room.number}>
-                Room {room.number} (Rent: {room.rent})
-              </option>
-            ))}
-          </select>
-          {roomValidationMessage && (
-            <div className="error-message" style={{ marginTop: '-0.5rem', marginBottom: '0.5rem' }}>
-              {roomValidationMessage}
-            </div>
-          )}
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="Rent Amount"
-            value={formData.rentAmount}
-            onChange={(e) => setFormData(prev => ({ ...prev, rentAmount: e.target.value }))}
-            required
-          />
-          {rentValidationMessage && (
-            <div className="error-message" style={{ marginTop: '-0.5rem', marginBottom: '0.5rem' }}>
-              {rentValidationMessage}
-            </div>
-          )}
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="Deposit Amount"
-            value={formData.depositAmount}
-            onChange={(e) => setFormData(prev => ({ ...prev, depositAmount: e.target.value }))}
-            required
-          />
-          {depositValidationMessage && (
-            <div className="error-message" style={{ marginTop: '-0.5rem', marginBottom: '0.5rem' }}>
-              {depositValidationMessage}
-            </div>
-          )}
-          <textarea
-            placeholder="Purpose"
-            rows={2}
-            value={formData.purpose}
-            onChange={(e) => setFormData(prev => ({ ...prev, purpose: e.target.value }))}
-            required
-          />
-          {purposeValidationMessage && (
-            <div className="error-message" style={{ marginTop: '-0.5rem', marginBottom: '0.5rem' }}>
-              {purposeValidationMessage}
-            </div>
-          )}
-          <div style={{ marginBottom: '0.5rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
-              Proof (ID/document photo)
-            </label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setFormFiles(prev => ({ ...prev, proof: e.target.files?.[0] ?? null }))}
+            {formCamera && (
+              <CameraCapture
+                label={formCamera}
+                onCapture={(file) => {
+                  setFormFiles(prev => ({ ...prev, [formCamera]: file }));
+                  setFormCamera(null);
+                }}
+                onCancel={() => setFormCamera(null)}
               />
-              <button type="button" className="btn btn-sm btn-secondary" onClick={() => setFormCamera('proof')}>
-                Use Camera
-              </button>
-              {formFiles.proof && <span style={{ fontSize: '0.85rem', color: '#555' }}>{formFiles.proof.name}</span>}
-            </div>
-          </div>
-          <div style={{ marginBottom: '0.5rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
-              Guest Photo
-            </label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setFormFiles(prev => ({ ...prev, photo: e.target.files?.[0] ?? null }))}
-              />
-              <button type="button" className="btn btn-sm btn-secondary" onClick={() => setFormCamera('photo')}>
-                Use Camera
-              </button>
-              {formFiles.photo && <span style={{ fontSize: '0.85rem', color: '#555' }}>{formFiles.photo.name}</span>}
-            </div>
-          </div>
-          <div className="form-buttons">
-            <button type="submit" className="btn btn-success" disabled={saving || !formData.checkInDate || !isFormValid}>
-              {saving ? 'Saving...' : 'Check In Guest'}
-            </button>
-          </div>
-          {saving && createUploadProgress > 0 && (
-            <div style={{ marginTop: '0.75rem', width: '100%', maxWidth: 340 }}>
-              <div style={{ height: 10, background: '#e5e7eb', borderRadius: 999, overflow: 'hidden' }}>
-                <div
-                  style={{
-                    width: `${Math.max(0, Math.min(100, createUploadProgress))}%`,
-                    height: '100%',
-                    background: '#16a34a',
-                    transition: 'width 0.2s ease'
-                  }}
+            )}
+            <form onSubmit={handleCreateCheckin}>
+              <div style={{ marginBottom: '0.5rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>Check-In Date</label>
+                <input
+                  type="date"
+                  value={formData.checkInDate}
+                  max={new Date().toISOString().split('T')[0]}
+                  onChange={(e) => setFormData(prev => ({ ...prev, checkInDate: e.target.value }))}
+                  required
+                  style={{ width: '100%' }}
                 />
               </div>
-              <div style={{ marginTop: 4, fontSize: '0.8rem', color: '#14532d' }}>
-                Uploading documents {Math.max(0, Math.min(100, createUploadProgress))}%
+              <input
+                type="text"
+                placeholder="Guest Name *"
+                value={formData.guestName}
+                onChange={(e) => setFormData(prev => ({ ...prev, guestName: e.target.value }))}
+                required
+              />
+              {guestNameValidationMessage && (
+                <div className="error-message" style={{ marginTop: '-0.5rem', marginBottom: '0.5rem' }}>
+                  {guestNameValidationMessage}
+                </div>
+              )}
+              <input
+                type="text"
+                placeholder="Phone Number"
+                value={formData.phoneNumber}
+                onChange={(e) => handlePhoneChange(e.target.value)}
+                maxLength={10}
+                inputMode="numeric"
+                required
+              />
+              {phoneValidationMessage && (
+                <div className="error-message" style={{ marginTop: '-0.5rem', marginBottom: '0.5rem' }}>
+                  {phoneValidationMessage}
+                </div>
+              )}
+              <select
+                value={formData.visitingRoomNo}
+                onChange={(e) => handleRoomChange(e.target.value)}
+                required
+              >
+                <option value="">Select Visiting Room</option>
+                {rooms.map((room) => (
+                  <option key={room.id} value={room.number}>
+                    Room {room.number} (Rent: {room.rent})
+                  </option>
+                ))}
+              </select>
+              {roomValidationMessage && (
+                <div className="error-message" style={{ marginTop: '-0.5rem', marginBottom: '0.5rem' }}>
+                  {roomValidationMessage}
+                </div>
+              )}
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Rent Amount"
+                value={formData.rentAmount}
+                onChange={(e) => setFormData(prev => ({ ...prev, rentAmount: e.target.value }))}
+                required
+              />
+              {rentValidationMessage && (
+                <div className="error-message" style={{ marginTop: '-0.5rem', marginBottom: '0.5rem' }}>
+                  {rentValidationMessage}
+                </div>
+              )}
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Deposit Amount"
+                value={formData.depositAmount}
+                onChange={(e) => setFormData(prev => ({ ...prev, depositAmount: e.target.value }))}
+                required
+              />
+              {depositValidationMessage && (
+                <div className="error-message" style={{ marginTop: '-0.5rem', marginBottom: '0.5rem' }}>
+                  {depositValidationMessage}
+                </div>
+              )}
+              <textarea
+                placeholder="Purpose"
+                rows={2}
+                value={formData.purpose}
+                onChange={(e) => setFormData(prev => ({ ...prev, purpose: e.target.value }))}
+                required
+              />
+              {purposeValidationMessage && (
+                <div className="error-message" style={{ marginTop: '-0.5rem', marginBottom: '0.5rem' }}>
+                  {purposeValidationMessage}
+                </div>
+              )}
+              <div style={{ marginBottom: '0.5rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
+                  Proof (ID/document photo)
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setFormFiles(prev => ({ ...prev, proof: e.target.files?.[0] ?? null }))}
+                  />
+                  <button type="button" className="btn btn-sm btn-secondary" onClick={() => setFormCamera('proof')}>
+                    Use Camera
+                  </button>
+                  {formFiles.proof && <span style={{ fontSize: '0.85rem', color: '#555' }}>{formFiles.proof.name}</span>}
+                </div>
               </div>
-            </div>
-          )}
-        </form>
-      </div>
-      )}
-
-      {loading ? (
-        <LoadingSpinner />
-      ) : filteredGuestCheckins.length === 0 ? (
-        <div className="no-results-message">
-          <p>
-            {phoneFilter
-              ? 'No guest check-ins match the selected phone number.'
-              : 'No guest check-ins found for the selected date.'}
-          </p>
-        </div>
-      ) : (
-        <div className="items-grid">
-          {filteredGuestCheckins.map((guest) => {
-            const isCheckedOut = Boolean(guest.checkOutTime);
-            const isCollapsed = collapsedGuestIds[guest.id] ?? true;
-            return (
-              <div key={guest.id} className={`item-card guest-checkin-card${isCollapsed ? ' is-collapsed' : ''}`}>
-                <div className="item-header">
-                  <div className="guest-card-title-block">
-                    <h4>{guest.guestName}</h4>
-                    <div className="guest-card-summary">
-                      <span>{guest.phoneNumber || 'No phone number'}</span>
-                      <span>{guest.visitingRoomNo ? `Room ${guest.visitingRoomNo}` : 'No room assigned'}</span>
-                      <span>{isCheckedOut ? 'Checked out' : 'Active'}</span>
-                    </div>
+              <div style={{ marginBottom: '0.5rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
+                  Guest Photo
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setFormFiles(prev => ({ ...prev, photo: e.target.files?.[0] ?? null }))}
+                  />
+                  <button type="button" className="btn btn-sm btn-secondary" onClick={() => setFormCamera('photo')}>
+                    Use Camera
+                  </button>
+                  {formFiles.photo && <span style={{ fontSize: '0.85rem', color: '#555' }}>{formFiles.photo.name}</span>}
+                </div>
+              </div>
+              <div className="form-buttons">
+                <button type="submit" className="btn btn-success" disabled={saving || !formData.checkInDate || !isFormValid}>
+                  {saving ? 'Saving...' : 'Check In Guest'}
+                </button>
+              </div>
+              {saving && createUploadProgress > 0 && (
+                <div style={{ marginTop: '0.75rem', width: '100%', maxWidth: 340 }}>
+                  <div style={{ height: 10, background: '#e5e7eb', borderRadius: 999, overflow: 'hidden' }}>
+                    <div
+                      style={{
+                        width: `${Math.max(0, Math.min(100, createUploadProgress))}%`,
+                        height: '100%',
+                        background: '#16a34a',
+                        transition: 'width 0.2s ease'
+                      }}
+                    />
                   </div>
-                  <div className="item-actions">
-                    {!isCheckedOut && (
-                      <input
-                        type="date"
-                        className="sort-select"
-                        value={getSelectedCheckoutDate(guest)}
-                        min={formatDateForInput(guest.checkInTime)}
-                        max={formatDateForInput(new Date())}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          setCheckoutDates(prev => ({ ...prev, [guest.id]: value }));
-                        }}
-                        disabled={saving}
-                        style={{ minWidth: '150px' }}
-                      />
-                    )}
-                    <button
-                      className="btn btn-sm btn-info"
-                      onClick={() => handleCheckout(guest)}
-                      disabled={isCheckedOut || saving}
-                    >
-                      {isCheckedOut ? 'Checked Out' : 'Check Out'}
-                    </button>
-                    <button
-                      className="btn btn-sm btn-secondary"
-                      onClick={() => editingGuest?.id === guest.id ? cancelEditGuest() : startEditGuest(guest)}
-                      disabled={saving}
-                    >
-                      {editingGuest?.id === guest.id ? 'Cancel Edit' : 'Edit'}
-                    </button>
-                    {isAdmin && (
-                      <button
-                        className="btn btn-sm btn-danger"
-                        onClick={() => handleDelete(guest)}
-                        disabled={saving}
-                      >
-                        Delete
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      className="btn-collapse-icon"
-                      onClick={() => toggleGuestCard(guest.id)}
-                      aria-expanded={!isCollapsed}
-                      title={isCollapsed ? 'Expand' : 'Collapse'}
-                    >
-                      {isCollapsed ? '▶' : '▼'}
-                    </button>
+                  <div style={{ marginTop: 4, fontSize: '0.8rem', color: '#14532d' }}>
+                    Uploading documents {Math.max(0, Math.min(100, createUploadProgress))}%
                   </div>
                 </div>
+              )}
+            </form>
+          </div>
+        )}
+      </div>
 
-                {!isCollapsed && (
-                  <div className="guest-card-content">
-                    {editingGuest?.id === guest.id && editFormData ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
-                        <h4 style={{ margin: 0 }}>Edit Guest Check-In</h4>
-                        <label style={{ fontWeight: 500, fontSize: '0.85rem' }}>Check-In Date</label>
-                        <input
-                          type="date"
-                          value={editFormData.checkInDate}
-                          max={new Date().toISOString().split('T')[0]}
-                          onChange={(e) => setEditFormData(prev => prev ? { ...prev, checkInDate: e.target.value } : prev)}
-                        />
-                        <input
-                          type="text"
-                          placeholder="Guest Name *"
-                          value={editFormData.guestName}
-                          onChange={(e) => setEditFormData(prev => prev ? { ...prev, guestName: e.target.value } : prev)}
-                        />
-                        <input
-                          type="text"
-                          placeholder="Phone Number"
-                          value={editFormData.phoneNumber}
-                          maxLength={10}
-                          inputMode="numeric"
-                          onChange={(e) => setEditFormData(prev => prev ? { ...prev, phoneNumber: normalizePhoneDigits(e.target.value) } : prev)}
-                        />
-                        <select
-                          value={editFormData.visitingRoomNo}
-                          onChange={(e) => {
-                            const matchedRoom = rooms.find(r => r.number.trim() === e.target.value.trim());
-                            setEditFormData(prev => prev ? {
-                              ...prev,
-                              visitingRoomNo: e.target.value,
-                              rentAmount: matchedRoom ? String(matchedRoom.rent ?? prev.rentAmount) : prev.rentAmount
-                            } : prev);
-                          }}
-                        >
-                          <option value="">Select Visiting Room</option>
-                          {rooms.map((room) => (
-                            <option key={room.id} value={room.number.trim()}>Room {room.number} (Rent: {room.rent})</option>
-                          ))}
-                        </select>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          placeholder="Rent Amount"
-                          value={editFormData.rentAmount}
-                          onChange={(e) => setEditFormData(prev => prev ? { ...prev, rentAmount: e.target.value } : prev)}
-                        />
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          placeholder="Deposit Amount"
-                          value={editFormData.depositAmount}
-                          onChange={(e) => setEditFormData(prev => prev ? { ...prev, depositAmount: e.target.value } : prev)}
-                        />
-                        <textarea
-                          placeholder="Purpose"
-                          rows={2}
-                          value={editFormData.purpose}
-                          onChange={(e) => setEditFormData(prev => prev ? { ...prev, purpose: e.target.value } : prev)}
-                        />
-                        <label style={{ fontWeight: 500, fontSize: '0.85rem' }}>Check-Out Date (optional)</label>
-                        <input
-                          type="date"
-                          value={editFormData.checkOutDate}
-                          min={editFormData.checkInDate}
-                          max={new Date().toISOString().split('T')[0]}
-                          onChange={(e) => setEditFormData(prev => prev ? { ...prev, checkOutDate: e.target.value } : prev)}
-                        />
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-success"
-                            onClick={() => handleUpdateCheckin(guest)}
-                            disabled={saving}
-                          >
-                            {saving ? 'Saving...' : 'Save Changes'}
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-secondary"
-                            onClick={cancelEditGuest}
-                            disabled={saving}
-                          >
-                            Cancel
-                          </button>
-                        </div>
+      <div className="guest-checkin-list-panel">
+        {loading ? (
+          <LoadingSpinner />
+        ) : filteredGuestCheckins.length === 0 ? (
+          <div className="no-results-message">
+            <p>
+              {phoneFilter
+                ? 'No guest check-ins match the selected phone number.'
+                : 'No guest check-ins found for the selected date.'}
+            </p>
+          </div>
+        ) : (
+          <div className="items-grid guest-checkin-list-grid">
+            {filteredGuestCheckins.map((guest) => {
+              const isCheckedOut = Boolean(guest.checkOutTime);
+              const isCollapsed = collapsedGuestIds[guest.id] ?? true;
+              return (
+                <div key={guest.id} className={`item-card guest-checkin-card${isCollapsed ? ' is-collapsed' : ''}`}>
+                  <div className="item-header">
+                    <div className="guest-card-title-block">
+                      <h4>{guest.guestName}</h4>
+                      <div className="guest-card-summary">
+                        <span>{guest.phoneNumber || 'No phone number'}</span>
+                        <span>{guest.visitingRoomNo ? `Room ${guest.visitingRoomNo}` : 'No room assigned'}</span>
+                        <span>{isCheckedOut ? 'Checked out' : 'Active'}</span>
                       </div>
-                    ) : (
-                      <>
-                    <p><strong>Phone:</strong> {guest.phoneNumber || 'N/A'}</p>
-                    <p><strong>Status Date:</strong> {guest.statusDate ? new Date(guest.statusDate).toLocaleDateString() : 'N/A'}</p>
-                    <p><strong>Visiting Room:</strong> {guest.visitingRoomNo || 'N/A'}</p>
-                    <p><strong>Rent:</strong> ₹{(guest.rentAmount || 0).toFixed(2)}</p>
-                    <p><strong>Deposit:</strong> ₹{(guest.depositAmount || 0).toFixed(2)}</p>
-                    <p><strong>Purpose:</strong> {guest.purpose || 'N/A'}</p>
-                    <p><strong>Check-In:</strong> {new Date(guest.checkInTime).toLocaleString()}</p>
-                    <p><strong>Check-Out:</strong> {guest.checkOutTime ? new Date(guest.checkOutTime).toLocaleString() : 'Still inside'}</p>
-                    {!isCheckedOut && (
-                      <p>
-                        <strong>Auto Rent on Checkout:</strong> ₹
-                        {calculateRentForStay(
-                          guest.checkInTime,
-                          getSelectedCheckoutDate(guest),
-                          guest.rentAmount || 0
-                        ).toFixed(2)}
-                        {' '}for{' '}
-                        {calculateStayDays(guest.checkInTime, getSelectedCheckoutDate(guest))}
-                        {' '}day(s)
-                      </p>
-                    )}
-                    <GuestFileUploadSection
-                      guest={guest}
-                      uploading={!!uploadingFiles[guest.id]}
-                      uploadProgress={uploadProgressByGuest[guest.id] || 0}
-                      onUpload={handleUploadFiles}
-                    />
-                      </>
-                    )}
+                    </div>
+                    <div className="item-actions">
+                      {!isCheckedOut && (
+                        <input
+                          type="date"
+                          className="sort-select"
+                          value={getSelectedCheckoutDate(guest)}
+                          min={formatDateForInput(guest.checkInTime)}
+                          max={formatDateForInput(new Date())}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setCheckoutDates(prev => ({ ...prev, [guest.id]: value }));
+                          }}
+                          disabled={saving}
+                          style={{ minWidth: '150px' }}
+                        />
+                      )}
+                      <button
+                        className="btn btn-sm btn-info"
+                        onClick={() => handleCheckout(guest)}
+                        disabled={isCheckedOut || saving}
+                      >
+                        {isCheckedOut ? 'Checked Out' : 'Check Out'}
+                      </button>
+                      <button
+                        className="btn btn-sm btn-secondary"
+                        onClick={() => editingGuest?.id === guest.id ? cancelEditGuest() : startEditGuest(guest)}
+                        disabled={saving}
+                      >
+                        {editingGuest?.id === guest.id ? 'Cancel Edit' : 'Edit'}
+                      </button>
+                      {isAdmin && (
+                        <button
+                          className="btn btn-sm btn-danger"
+                          onClick={() => handleDelete(guest)}
+                          disabled={saving}
+                        >
+                          Delete
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="btn-collapse-icon"
+                        onClick={() => toggleGuestCard(guest.id)}
+                        aria-expanded={!isCollapsed}
+                        title={isCollapsed ? 'Expand' : 'Collapse'}
+                      >
+                        {isCollapsed ? '▶' : '▼'}
+                      </button>
+                    </div>
                   </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+
+                  {!isCollapsed && (
+                    <div className="guest-card-content">
+                      {editingGuest?.id === guest.id && editFormData ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+                          <h4 style={{ margin: 0 }}>Edit Guest Check-In</h4>
+                          <label style={{ fontWeight: 500, fontSize: '0.85rem' }}>Check-In Date</label>
+                          <input
+                            type="date"
+                            value={editFormData.checkInDate}
+                            max={new Date().toISOString().split('T')[0]}
+                            onChange={(e) => setEditFormData(prev => prev ? { ...prev, checkInDate: e.target.value } : prev)}
+                          />
+                          <input
+                            type="text"
+                            placeholder="Guest Name *"
+                            value={editFormData.guestName}
+                            onChange={(e) => setEditFormData(prev => prev ? { ...prev, guestName: e.target.value } : prev)}
+                          />
+                          <input
+                            type="text"
+                            placeholder="Phone Number"
+                            value={editFormData.phoneNumber}
+                            maxLength={10}
+                            inputMode="numeric"
+                            onChange={(e) => setEditFormData(prev => prev ? { ...prev, phoneNumber: normalizePhoneDigits(e.target.value) } : prev)}
+                          />
+                          <select
+                            value={editFormData.visitingRoomNo}
+                            onChange={(e) => {
+                              const matchedRoom = rooms.find(r => r.number.trim() === e.target.value.trim());
+                              setEditFormData(prev => prev ? {
+                                ...prev,
+                                visitingRoomNo: e.target.value,
+                                rentAmount: matchedRoom ? String(matchedRoom.rent ?? prev.rentAmount) : prev.rentAmount
+                              } : prev);
+                            }}
+                          >
+                            <option value="">Select Visiting Room</option>
+                            {rooms.map((room) => (
+                              <option key={room.id} value={room.number.trim()}>Room {room.number} (Rent: {room.rent})</option>
+                            ))}
+                          </select>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="Rent Amount"
+                            value={editFormData.rentAmount}
+                            onChange={(e) => setEditFormData(prev => prev ? { ...prev, rentAmount: e.target.value } : prev)}
+                          />
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="Deposit Amount"
+                            value={editFormData.depositAmount}
+                            onChange={(e) => setEditFormData(prev => prev ? { ...prev, depositAmount: e.target.value } : prev)}
+                          />
+                          <textarea
+                            placeholder="Purpose"
+                            rows={2}
+                            value={editFormData.purpose}
+                            onChange={(e) => setEditFormData(prev => prev ? { ...prev, purpose: e.target.value } : prev)}
+                          />
+                          <label style={{ fontWeight: 500, fontSize: '0.85rem' }}>Check-Out Date (optional)</label>
+                          <input
+                            type="date"
+                            value={editFormData.checkOutDate}
+                            min={editFormData.checkInDate}
+                            max={new Date().toISOString().split('T')[0]}
+                            onChange={(e) => setEditFormData(prev => prev ? { ...prev, checkOutDate: e.target.value } : prev)}
+                          />
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-success"
+                              onClick={() => handleUpdateCheckin(guest)}
+                              disabled={saving}
+                            >
+                              {saving ? 'Saving...' : 'Save Changes'}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-secondary"
+                              onClick={cancelEditGuest}
+                              disabled={saving}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <p><strong>Phone:</strong> {guest.phoneNumber || 'N/A'}</p>
+                          <p><strong>Status Date:</strong> {guest.statusDate ? new Date(guest.statusDate).toLocaleDateString() : 'N/A'}</p>
+                          <p><strong>Visiting Room:</strong> {guest.visitingRoomNo || 'N/A'}</p>
+                          <p><strong>Rent:</strong> ₹{(guest.rentAmount || 0).toFixed(2)}</p>
+                          <p><strong>Deposit:</strong> ₹{(guest.depositAmount || 0).toFixed(2)}</p>
+                          <p><strong>Purpose:</strong> {guest.purpose || 'N/A'}</p>
+                          <p><strong>Check-In:</strong> {new Date(guest.checkInTime).toLocaleString()}</p>
+                          <p><strong>Check-Out:</strong> {guest.checkOutTime ? new Date(guest.checkOutTime).toLocaleString() : 'Still inside'}</p>
+                          {!isCheckedOut && (
+                            <p>
+                              <strong>Auto Rent on Checkout:</strong> ₹
+                              {calculateRentForStay(
+                                guest.checkInTime,
+                                getSelectedCheckoutDate(guest),
+                                guest.rentAmount || 0
+                              ).toFixed(2)}
+                              {' '}for{' '}
+                              {calculateStayDays(guest.checkInTime, getSelectedCheckoutDate(guest))}
+                              {' '}day(s)
+                            </p>
+                          )}
+                          <GuestFileUploadSection
+                            guest={guest}
+                            uploading={!!uploadingFiles[guest.id]}
+                            uploadProgress={uploadProgressByGuest[guest.id] || 0}
+                            onUpload={handleUploadFiles}
+                          />
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

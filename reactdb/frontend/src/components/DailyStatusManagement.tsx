@@ -879,11 +879,11 @@ export default function DailyStatusManagement() {
   const [replacingMediaId, setReplacingMediaId] = useState<number | null>(null);
 
   // Lazy loading states
-  const [visibleCount, setVisibleCount] = useState(10);
-  const [itemsPerPage] = useState(10);
+  const [visibleCount, setVisibleCount] = useState(3);
+  const [itemsPerPage] = useState(3);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const listTopRef = useRef<HTMLDivElement>(null);
-  const visibleCountRef = useRef(10);
+  const visibleCountRef = useRef(3);
   
   // Keep ref in sync with state
   useEffect(() => {
@@ -1358,7 +1358,7 @@ export default function DailyStatusManagement() {
 
   // Reset visible count when filters change
   useEffect(() => {
-    setVisibleCount(10);
+    setVisibleCount(3);
   }, [searchQuery, filterFromDate, filterToDate, sortBy]);
 
   // Intersection Observer for lazy loading
