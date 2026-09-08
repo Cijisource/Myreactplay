@@ -1583,8 +1583,13 @@
 
 .payment-table td.amount {
   text-align: right;
-  font-weight: 600;
+  font-weight: 700;
   color: #2d3748;
+}
+
+.payment-table td.amount.total-due,
+.payment-table td.amount.received {
+  font-weight: 900;
 }
 
 .payment-table td.amount.received {
@@ -1692,10 +1697,30 @@
   color: #64748b;
 }
 
+.tenant-cell {
+  min-width: 220px;
+}
+
 .tenant-name-with-info {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
+}
+
+.current-month-table tbody tr.review-approved {
+  background: rgba(220, 252, 231, 0.52);
+  box-shadow: inset 2px 0 0 #22c55e;
+}
+
+.current-month-table tbody tr.review-rejected {
+  background: rgba(254, 226, 226, 0.52);
+  box-shadow: inset 2px 0 0 #ef4444;
+}
+
+.current-month-table tbody tr.review-pending {
+  background: rgba(254, 243, 199, 0.46);
+  box-shadow: inset 2px 0 0 #f59e0b;
 }
 
 .tenant-payment-history-button,

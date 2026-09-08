@@ -6003,7 +6003,11 @@ app.get('/api/service-allocations-for-reading', verifyToken, requireRole(['admin
         (SELECT TOP 1 scd.EndingMeterReading 
          FROM ServiceConsumptionDetails scd 
          WHERE scd.ServiceAllocId = sra.Id 
-         ORDER BY scd.ReadingTakenDate DESC) as lastEndingReading
+         ORDER BY scd.ReadingTakenDate DESC) as lastEndingReading,
+        (SELECT TOP 1 scd.AmountToBeCollected 
+         FROM ServiceConsumptionDetails scd 
+         WHERE scd.ServiceAllocId = sra.Id 
+         ORDER BY scd.ReadingTakenDate DESC) as lastCharge
       FROM ServiceRoomAllocation sra
       INNER JOIN ServiceDetails sd ON sra.ServiceId = sd.Id
       INNER JOIN RoomDetail rd ON sra.RoomId = rd.Id
@@ -6029,6 +6033,7 @@ app.get('/api/service-allocations-for-reading', verifyToken, requireRole(['admin
       roomId: row.roomId,
       lastReadingDate: row.lastReadingDate,
       lastEndingReading: row.lastEndingReading,
+      lastCharge: row.lastCharge != null ? Number(row.lastCharge) : null,
       service: {
         id: row['service.id'],
         consumerNo: row['service.consumerNo'],
