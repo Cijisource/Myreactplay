@@ -1748,12 +1748,16 @@ export default function RentalCollectionDetails() {
                     const effectiveReceived = getEffectiveReceived(Number(item.rentReceived || 0), effectiveEbCharges, hasPaymentRecord);
                     const effectiveStatus = getEffectiveStatus(item);
                     const itemBalance = Math.max(0, totalDue - effectiveReceived);
+                    const tenantReviewDecision = getReviewDecision(item);
                     // Check if this is a shop (room numbers like S1, S2, SHOP-1 etc or any number > 100 can be marked as shop)
                     const isShop = /^[Ss]/.test(item.roomNumber) || /[Ss]hop/i.test(item.roomNumber);
 
                     return (
-                      <tr key={item.occupancyId} className={isShop ? 'shop-row' : ''}>
-                        <td>
+                      <tr
+                        key={item.occupancyId}
+                        className={`${isShop ? 'shop-row' : ''} ${tenantReviewDecision ? `review-${tenantReviewDecision}` : 'review-pending'}`.trim()}
+                      >
+                        <td className="tenant-cell">
                           <div className="tenant-name-with-info">
                             <strong>{item.tenantName}</strong>
                             <button

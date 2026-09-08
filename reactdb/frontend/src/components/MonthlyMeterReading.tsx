@@ -13,6 +13,7 @@ interface ServiceAllocation {
   roomId: number;
   lastReadingDate?: string | null;
   lastEndingReading?: string | null;
+  lastCharge?: number | null;
   service: {
     id: number;
     consumerNo: string;
@@ -790,6 +791,7 @@ export default function MonthlyMeterReading(): JSX.Element {
                       const isSelected = selectedAllocationId === alloc.id;
                       const previousMonthReadingDate = getPreviousMonthReadingDate(alloc, selectedMonth);
                       const previousMonthReadingTaken = !!previousMonthReadingDate;
+                      const hasLastCharge = typeof alloc.lastCharge === 'number' && !Number.isNaN(alloc.lastCharge) && alloc.lastCharge > 0;
 
                       return (
                         <React.Fragment key={alloc.id}>
@@ -801,6 +803,11 @@ export default function MonthlyMeterReading(): JSX.Element {
                           >
                             <div className="meter-room-circle">
                               <span className="meter-room-status-dot" aria-hidden="true" />
+                              {hasLastCharge ? (
+                                <span className="meter-room-charge-bubble">
+                                  ₹{alloc.lastCharge!.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              ) : null}
                               <span className="meter-room-number-only">{alloc.room.number}</span>
                               <span className="meter-room-status-label">
                                 {previousMonthReadingTaken ? 'Prev Read' : 'Needs Read'}
