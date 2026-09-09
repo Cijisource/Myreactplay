@@ -415,6 +415,15 @@ export default function RentalCollectionDetails() {
       );
     }
 
+    const isUpiMode =
+      normalizedMode === 'upi' ||
+      normalizedMode === 'upi payment' ||
+      normalizedMode === 'upi transfer' ||
+      normalizedMode === 'upi transfer payment' ||
+      compactMode === 'upi' ||
+      compactMode === 'upipayment' ||
+      compactMode === 'upitransfer';
+
     const isGpayMode =
       normalizedMode === 'gpay' ||
       normalizedMode === 'google pay' ||
@@ -425,7 +434,8 @@ export default function RentalCollectionDetails() {
       compactMode === 'gpay' ||
       compactMode === 'googlepay' ||
       compactMode === 'gpay' ||
-      normalizedMode === 'g. pay';
+      normalizedMode === 'g. pay' ||
+      isUpiMode;
 
     if (isGpayMode) {
       return (
