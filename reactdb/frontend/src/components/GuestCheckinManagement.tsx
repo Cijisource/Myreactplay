@@ -114,6 +114,28 @@ interface DailyStatus {
   date: string;
 }
 
+type GuestCheckinFileField =
+  | 'proof'
+  | 'proof2'
+  | 'proof3'
+  | 'proof4'
+  | 'proof5'
+  | 'proof6'
+  | 'proof7'
+  | 'proof8'
+  | 'proof9'
+  | 'proof10'
+  | 'photo'
+  | 'photo2'
+  | 'photo3'
+  | 'photo4'
+  | 'photo5'
+  | 'photo6'
+  | 'photo7'
+  | 'photo8'
+  | 'photo9'
+  | 'photo10';
+
 interface GuestCheckIn {
   id: number;
   dailyStatusId: number;
@@ -127,7 +149,25 @@ interface GuestCheckIn {
   checkInTime: string;
   checkOutTime?: string;
   proofUrl?: string;
+  proof2Url?: string;
+  proof3Url?: string;
+  proof4Url?: string;
+  proof5Url?: string;
+  proof6Url?: string;
+  proof7Url?: string;
+  proof8Url?: string;
+  proof9Url?: string;
+  proof10Url?: string;
   photoUrl?: string;
+  photo2Url?: string;
+  photo3Url?: string;
+  photo4Url?: string;
+  photo5Url?: string;
+  photo6Url?: string;
+  photo7Url?: string;
+  photo8Url?: string;
+  photo9Url?: string;
+  photo10Url?: string;
 }
 
 interface Room {
@@ -141,15 +181,47 @@ interface GuestFileUploadSectionProps {
   guest: GuestCheckIn;
   uploading: boolean;
   uploadProgress: number;
-  onUpload: (guest: GuestCheckIn, proof: File | null, photo: File | null) => void;
+  onUpload: (guest: GuestCheckIn, files: Partial<Record<GuestCheckinFileField, File | null>>) => void;
 }
 
-function GuestFileUploadSection({ guest, uploading, uploadProgress, onUpload }: GuestFileUploadSectionProps) {
-  const [proof, setProof] = useState<File | null>(null);
-  const [photo, setPhoto] = useState<File | null>(null);
-  const [camera, setCamera] = useState<'proof' | 'photo' | null>(null);
+const guestCheckinFileSlots: Array<{ key: GuestCheckinFileField; label: string; type: 'proof' | 'photo' }> = [
+  { key: 'proof', label: 'Proof 1', type: 'proof' },
+  { key: 'proof2', label: 'Proof 2', type: 'proof' },
+  { key: 'proof3', label: 'Proof 3', type: 'proof' },
+  { key: 'proof4', label: 'Proof 4', type: 'proof' },
+  { key: 'proof5', label: 'Proof 5', type: 'proof' },
+  { key: 'proof6', label: 'Proof 6', type: 'proof' },
+  { key: 'proof7', label: 'Proof 7', type: 'proof' },
+  { key: 'proof8', label: 'Proof 8', type: 'proof' },
+  { key: 'proof9', label: 'Proof 9', type: 'proof' },
+  { key: 'proof10', label: 'Proof 10', type: 'proof' },
+  { key: 'photo', label: 'Photo 1', type: 'photo' },
+  { key: 'photo2', label: 'Photo 2', type: 'photo' },
+  { key: 'photo3', label: 'Photo 3', type: 'photo' },
+  { key: 'photo4', label: 'Photo 4', type: 'photo' },
+  { key: 'photo5', label: 'Photo 5', type: 'photo' },
+  { key: 'photo6', label: 'Photo 6', type: 'photo' },
+  { key: 'photo7', label: 'Photo 7', type: 'photo' },
+  { key: 'photo8', label: 'Photo 8', type: 'photo' },
+  { key: 'photo9', label: 'Photo 9', type: 'photo' },
+  { key: 'photo10', label: 'Photo 10', type: 'photo' }
+];
 
-  const hasFiles = proof || photo;
+function GuestFileUploadSection({ guest, uploading, uploadProgress, onUpload }: GuestFileUploadSectionProps) {
+  const [selectedFiles, setSelectedFiles] = useState<Partial<Record<GuestCheckinFileField, File | null>>>({});
+  const [camera, setCamera] = useState<GuestCheckinFileField | null>(null);
+  const [selectedPreview, setSelectedPreview] = useState<string | null>(null);
+
+  const previewFiles = guestCheckinFileSlots.filter((slot) => {
+    const previewValue = guest[`${slot.key}Url` as keyof GuestCheckIn] as string | undefined;
+    return Boolean(previewValue);
+  });
+
+  const hasFiles = Object.values(selectedFiles).some(Boolean);
+
+  const updateSelectedFile = (field: GuestCheckinFileField, file: File | null) => {
+    setSelectedFiles((prev) => ({ ...prev, [field]: file }));
+  };
 
   return (
     <div style={{ marginTop: '0.75rem', borderTop: '1px solid #e0e0e0', paddingTop: '0.75rem' }}>
@@ -157,69 +229,144 @@ function GuestFileUploadSection({ guest, uploading, uploadProgress, onUpload }: 
         <CameraCapture
           label={camera}
           onCapture={(file) => {
-            if (camera === 'proof') setProof(file);
-            else setPhoto(file);
+            updateSelectedFile(camera, file);
             setCamera(null);
           }}
           onCancel={() => setCamera(null)}
         />
       )}
+      {selectedPreview && (
+        <div
+          onClick={() => setSelectedPreview(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1200,
+            background: 'rgba(15, 23, 42, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem'
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              position: 'relative',
+              maxWidth: '92vw',
+              maxHeight: '82vh',
+              borderRadius: 12,
+              background: '#fff',
+              padding: '0.75rem',
+              boxShadow: '0 24px 60px rgba(15, 23, 42, 0.35)'
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setSelectedPreview(null)}
+              style={{
+                position: 'absolute',
+                top: 8,
+                right: 8,
+                border: 'none',
+                background: 'rgba(15, 23, 42, 0.75)',
+                color: '#fff',
+                borderRadius: '999px',
+                width: 30,
+                height: 30,
+                cursor: 'pointer',
+                fontSize: 18,
+                lineHeight: 1
+              }}
+            >
+              ×
+            </button>
+            <img
+              src={selectedPreview}
+              alt="Guest document preview"
+              style={{
+                display: 'block',
+                maxWidth: '90vw',
+                maxHeight: '78vh',
+                objectFit: 'contain',
+                borderRadius: 8,
+                background: '#f8fafc'
+              }}
+              onError={(event) => {
+                event.currentTarget.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+                  '<svg xmlns="http://www.w3.org/2000/svg" width="500" height="400"><rect width="500" height="400" fill="#f1f5f9"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-size="24" fill="#64748b" font-family="Arial">Image unavailable</text></svg>'
+                );
+              }}
+            />
+          </div>
+        </div>
+      )}
       <strong>Documents</strong>
-      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.4rem' }}>
-        {guest.proofUrl && (
-          <a href={getGuestCheckinFileUrl(guest.proofUrl)} target="_blank" rel="noopener noreferrer">
-            <img
-              src={getGuestCheckinFileUrl(guest.proofUrl)}
-              alt="Proof"
-              style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 4, border: '1px solid #ccc' }}
-              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-            />
-            <div style={{ fontSize: '0.75rem', textAlign: 'center' }}>Proof</div>
-          </a>
-        )}
-        {guest.photoUrl && (
-          <a href={getGuestCheckinFileUrl(guest.photoUrl)} target="_blank" rel="noopener noreferrer">
-            <img
-              src={getGuestCheckinFileUrl(guest.photoUrl)}
-              alt="Photo"
-              style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 4, border: '1px solid #ccc' }}
-              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-            />
-            <div style={{ fontSize: '0.75rem', textAlign: 'center' }}>Photo</div>
-          </a>
-        )}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(78px, 1fr))', gap: '0.6rem', marginTop: '0.5rem' }}>
+        {previewFiles.map((slot) => {
+          const previewUrl = guest[`${slot.key}Url` as keyof GuestCheckIn] as string | undefined;
+          if (!previewUrl) return null;
+          const resolvedPreviewUrl = getGuestCheckinFileUrl(previewUrl);
+          return (
+            <button
+              key={slot.key}
+              type="button"
+              onClick={() => setSelectedPreview(resolvedPreviewUrl)}
+              style={{
+                background: 'none',
+                border: '1px solid #d0d7de',
+                borderRadius: 8,
+                padding: 5,
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 4,
+                minWidth: 0,
+                width: '100%'
+              }}
+            >
+              <img
+                src={resolvedPreviewUrl}
+                alt={slot.label}
+                loading="lazy"
+                decoding="async"
+                style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, border: '1px solid #d0d7de', background: '#fff' }}
+                onError={(e) => { (e.target as HTMLImageElement).src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56"><rect width="56" height="56" fill="#f1f5f9"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-size="9" fill="#64748b" font-family="Arial">Image</text></svg>'); }}
+              />
+              <div style={{ fontSize: '0.66rem', textAlign: 'center', color: '#334155', lineHeight: 1.2 }}>{slot.label}</div>
+            </button>
+          );
+        })}
       </div>
-      <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-        <div>
-          <label style={{ fontSize: '0.85rem' }}>
-            {guest.proofUrl ? 'Replace Proof:' : 'Upload Proof:'}
-            <input
-              type="file"
-              accept="image/*"
-              style={{ marginLeft: '0.5rem' }}
-              onChange={(e) => setProof(e.target.files?.[0] ?? null)}
-            />
-          </label>
-          <button type="button" className="btn btn-sm btn-secondary" style={{ marginLeft: '0.5rem' }} onClick={() => setCamera('proof')}>
-            Use Camera
-          </button>
-          {proof && <span style={{ marginLeft: '0.5rem', fontSize: '0.8rem', color: '#555' }}>{proof.name}</span>}
-        </div>
-        <div>
-          <label style={{ fontSize: '0.85rem' }}>
-            {guest.photoUrl ? 'Replace Photo:' : 'Upload Photo:'}
-            <input
-              type="file"
-              accept="image/*"
-              style={{ marginLeft: '0.5rem' }}
-              onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
-            />
-          </label>
-          <button type="button" className="btn btn-sm btn-secondary" style={{ marginLeft: '0.5rem' }} onClick={() => setCamera('photo')}>
-            Use Camera
-          </button>
-          {photo && <span style={{ marginLeft: '0.5rem', fontSize: '0.8rem', color: '#555' }}>{photo.name}</span>}
-        </div>
+      <div style={{ marginTop: '0.5rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(185px, 1fr))', gap: '0.45rem 0.5rem' }}>
+        {guestCheckinFileSlots.map((slot) => {
+          const existingUrl = guest[`${slot.key}Url` as keyof GuestCheckIn] as string | undefined;
+          const selected = selectedFiles[slot.key] ?? null;
+          return (
+            <div key={slot.key} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', padding: '0.35rem 0.4rem', border: '1px solid #e2e8f0', borderRadius: 8, background: '#f8fafc' }}>
+              <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>
+                {existingUrl ? `Replace ${slot.label}` : `Upload ${slot.label}`}
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                <input
+                  type="file"
+                  accept="image/*"
+                  style={{ fontSize: '0.75rem', maxWidth: '100%' }}
+                  onChange={(e) => updateSelectedFile(slot.key, e.target.files?.[0] ?? null)}
+                />
+                <button
+                  type="button"
+                  className="btn btn-sm btn-secondary"
+                  onClick={() => setCamera(slot.key)}
+                >
+                  Camera
+                </button>
+              </div>
+              {selected && <span style={{ fontSize: '0.72rem', color: '#555', overflowWrap: 'anywhere' }}>{selected.name}</span>}
+            </div>
+          );
+        })}
         {hasFiles && (
           <>
             <button
@@ -227,9 +374,8 @@ function GuestFileUploadSection({ guest, uploading, uploadProgress, onUpload }: 
               style={{ marginTop: '0.25rem', alignSelf: 'flex-start' }}
               disabled={uploading}
               onClick={() => {
-                onUpload(guest, proof, photo);
-                setProof(null);
-                setPhoto(null);
+                onUpload(guest, selectedFiles);
+                setSelectedFiles({});
               }}
             >
               {uploading ? 'Uploading...' : 'Upload Files'}
@@ -268,6 +414,7 @@ export default function GuestCheckinManagement() {
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [guestCheckins, setGuestCheckins] = useState<GuestCheckIn[]>([]);
+  const [previousGuestHistory, setPreviousGuestHistory] = useState<GuestCheckIn[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -275,6 +422,8 @@ export default function GuestCheckinManagement() {
   const [checkoutDates, setCheckoutDates] = useState<Record<number, string>>({});
   const [phoneFilter, setPhoneFilter] = useState('');
   const [collapsedGuestIds, setCollapsedGuestIds] = useState<Record<number, boolean>>({});
+  const [guestCardTabs, setGuestCardTabs] = useState<Record<number, 'overview' | 'documents'>>({});
+  const [phoneValidationTriggered, setPhoneValidationTriggered] = useState(false);
 
   const [formData, setFormData] = useState({
     guestName: '',
@@ -323,14 +472,13 @@ export default function GuestCheckinManagement() {
   };
 
   const phoneValidationMessage = useMemo(() => {
-    if (!formData.phoneNumber) return '';
+    if (!phoneValidationTriggered) return '';
+    if (!formData.phoneNumber) return 'Phone number is required';
     if (!/^\d+$/.test(formData.phoneNumber)) return 'Phone number must contain digits only';
     if (formData.phoneNumber.length < 10) return `Phone number must be 10 digits (${formData.phoneNumber.length}/10)`;
     if (formData.phoneNumber.length > 10) return 'Phone number must be exactly 10 digits';
     return '';
-  }, [formData.phoneNumber]);
-
-  const isPhoneValid = phoneRegex.test(formData.phoneNumber);
+  }, [formData.phoneNumber, phoneValidationTriggered]);
 
   const guestNameValidationMessage = useMemo(() => {
     if (!formData.guestName) return '';
@@ -372,7 +520,7 @@ export default function GuestCheckinManagement() {
   const isRoomValid = formData.visitingRoomNo !== '' && rooms.some(room => room.number === formData.visitingRoomNo);
   const isRentValid = formData.rentAmount !== '' && !isNaN(parseFloat(formData.rentAmount)) && parseFloat(formData.rentAmount) >= 0;
   const isDepositValid = formData.depositAmount !== '' && !isNaN(parseFloat(formData.depositAmount)) && parseFloat(formData.depositAmount) >= 0;
-  const isFormValid = isGuestNameValid && isPhoneValid && isPurposeValid && isRoomValid && isRentValid && isDepositValid;
+  const isFormValid = isGuestNameValid && isPurposeValid && isRoomValid && isRentValid && isDepositValid;
 
   const getErrorMessage = (err: unknown, fallback: string): string => {
     if (err && typeof err === 'object' && 'response' in err) {
@@ -403,29 +551,95 @@ export default function GuestCheckinManagement() {
     return { totalGuests, checkedOutGuests, activeGuests, totalRent, totalDeposit };
   }, [guestCheckins]);
 
-  const guestPhoneOptions = useMemo(() => {
-    const phoneMap = new Map<string, string>();
+  const guestHistorySource = previousGuestHistory.length > 0 ? previousGuestHistory : guestCheckins;
 
-    guestCheckins.forEach((guest) => {
+  const guestSearchOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+
+    guestHistorySource.forEach((guest) => {
       const normalizedPhone = normalizePhoneDigits(guest.phoneNumber || '');
-      if (!normalizedPhone) return;
-      if (!phoneMap.has(normalizedPhone)) {
-        phoneMap.set(normalizedPhone, guest.guestName);
+      if (normalizedPhone && !seen.has(normalizedPhone)) {
+        seen.set(normalizedPhone, guest.guestName);
+      }
+
+      const guestName = guest.guestName?.trim();
+      if (guestName && !seen.has(`name:${guestName.toLowerCase()}`)) {
+        seen.set(`name:${guestName.toLowerCase()}`, guestName);
+      }
+
+      const purpose = guest.purpose?.trim();
+      if (purpose && !seen.has(`purpose:${purpose.toLowerCase()}`)) {
+        seen.set(`purpose:${purpose.toLowerCase()}`, purpose);
       }
     });
 
-    return Array.from(phoneMap.entries())
-      .map(([phoneNumber, guestName]) => ({ phoneNumber, guestName }))
-      .sort((left, right) => left.phoneNumber.localeCompare(right.phoneNumber));
-  }, [guestCheckins]);
+    return Array.from(seen.entries())
+      .map(([key, value]) => ({ key, value }))
+      .sort((left, right) => left.value.localeCompare(right.value));
+  }, [guestHistorySource]);
+
+  const guestEntrySuggestions = useMemo(() => {
+    const candidates = new Set<string>();
+
+    guestHistorySource.forEach((guest) => {
+      const guestName = guest.guestName?.trim();
+      if (guestName) candidates.add(guestName);
+
+      const phoneNumber = normalizePhoneDigits(guest.phoneNumber || '');
+      if (phoneNumber) candidates.add(phoneNumber);
+
+      const purpose = guest.purpose?.trim();
+      if (purpose) candidates.add(purpose);
+    });
+
+    return Array.from(candidates).sort((left, right) => left.localeCompare(right));
+  }, [guestHistorySource]);
+
+  const applyPreviousEntrySuggestion = (field: 'guestName' | 'phoneNumber' | 'purpose', value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+
+    const source = previousGuestHistory.length > 0 ? previousGuestHistory : guestCheckins;
+    const match = source.find((guest) => {
+      const guestName = (guest.guestName || '').trim().toLowerCase();
+      const phoneNumber = normalizePhoneDigits(guest.phoneNumber || '');
+      const purpose = (guest.purpose || '').trim().toLowerCase();
+      const normalizedValue = trimmed.toLowerCase();
+
+      return (
+        (field === 'guestName' && guestName === normalizedValue)
+        || (field === 'phoneNumber' && phoneNumber === normalizePhoneDigits(trimmed))
+        || (field === 'purpose' && purpose === normalizedValue)
+      );
+    });
+
+    if (!match) return;
+
+    setFormData((prev) => ({
+      ...prev,
+      guestName: field === 'guestName' ? trimmed : prev.guestName || match.guestName || prev.guestName,
+      phoneNumber: field === 'phoneNumber' ? normalizePhoneDigits(trimmed) : prev.phoneNumber || normalizePhoneDigits(match.phoneNumber || '') || prev.phoneNumber,
+      purpose: field === 'purpose' ? trimmed : prev.purpose || match.purpose || prev.purpose
+    }));
+  };
 
   const filteredGuestCheckins = useMemo(() => {
-    const normalizedFilter = normalizePhoneDigits(phoneFilter);
-    if (!normalizedFilter) {
+    const trimmedFilter = phoneFilter.trim().toLowerCase();
+    if (!trimmedFilter) {
       return guestCheckins;
     }
 
-    return guestCheckins.filter((guest) => normalizePhoneDigits(guest.phoneNumber || '').includes(normalizedFilter));
+    const normalizedFilter = normalizePhoneDigits(trimmedFilter);
+
+    return guestCheckins.filter((guest) => {
+      const guestName = (guest.guestName || '').toLowerCase();
+      const purpose = (guest.purpose || '').toLowerCase();
+      const phone = normalizePhoneDigits(guest.phoneNumber || '');
+
+      return guestName.includes(trimmedFilter)
+        || purpose.includes(trimmedFilter)
+        || (normalizedFilter && phone.includes(normalizedFilter));
+    });
   }, [guestCheckins, phoneFilter]);
 
   const fetchStatuses = async () => {
@@ -434,6 +648,19 @@ export default function GuestCheckinManagement() {
       const rows = Array.isArray(response.data) ? response.data : [];
       const ordered = [...rows].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       setStatuses(ordered);
+
+      const historyResults = await Promise.all(
+        ordered.map(async (status) => {
+          try {
+            const guestResponse = await apiService.getDailyGuestCheckins(status.id);
+            return Array.isArray(guestResponse.data) ? guestResponse.data : [];
+          } catch {
+            return [];
+          }
+        })
+      );
+      setPreviousGuestHistory(historyResults.flat());
+
       if (!selectedDate && ordered.length > 0) {
         setSelectedDate(new Date(ordered[0].date).toISOString().split('T')[0]);
       }
@@ -547,6 +774,7 @@ export default function GuestCheckinManagement() {
 
   const handleCreateCheckin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setPhoneValidationTriggered(true);
 
     if (!formData.checkInDate) {
       setError('Check-in date is required');
@@ -613,18 +841,21 @@ export default function GuestCheckinManagement() {
         visitingRoomNo: formData.visitingRoomNo.trim() || undefined,
         rentAmount: parseFloat(formData.rentAmount),
         depositAmount: parseFloat(formData.depositAmount),
-        checkInTime: formData.checkInDate
+        checkInTime: buildCheckInTimestamp(formData.checkInDate)
       });
 
       // Upload proof/photo files if provided
-      if ((formFiles.proof || formFiles.photo) && created.data?.id) {
+      const initialFormFiles: Array<{ field: GuestCheckinFileField; file: File }> = [];
+      if (formFiles.proof) initialFormFiles.push({ field: 'proof', file: formFiles.proof });
+      if (formFiles.photo) initialFormFiles.push({ field: 'photo', file: formFiles.photo });
+
+      if (initialFormFiles.length > 0 && created.data?.id) {
         setCreateUploadProgress(0);
         try {
           await uploadGuestFilesInParallel(
             statusId,
             created.data.id,
-            formFiles.proof,
-            formFiles.photo,
+            initialFormFiles,
             setCreateUploadProgress
           );
         } catch (uploadErr) {
@@ -642,6 +873,7 @@ export default function GuestCheckinManagement() {
         checkInDate: new Date().toISOString().split('T')[0]
       });
       setFormFiles({ proof: null, photo: null });
+      setPhoneValidationTriggered(false);
       setCreateUploadProgress(0);
       setSuccess('Guest check-in recorded successfully');
       await fetchGuestCheckins(statusId);
@@ -659,6 +891,27 @@ export default function GuestCheckinManagement() {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  };
+
+  const buildCheckInTimestamp = (dateValue?: string, fallbackDate?: Date): string => {
+    const baseDate = fallbackDate ?? new Date();
+    const dateOnly = dateValue ? new Date(dateValue) : new Date(baseDate);
+
+    if (isNaN(dateOnly.getTime())) {
+      return baseDate.toISOString();
+    }
+
+    const accurateDate = new Date(
+      dateOnly.getFullYear(),
+      dateOnly.getMonth(),
+      dateOnly.getDate(),
+      baseDate.getHours(),
+      baseDate.getMinutes(),
+      baseDate.getSeconds(),
+      baseDate.getMilliseconds()
+    );
+
+    return accurateDate.toISOString();
   };
 
   const toDateOnly = (value: string | Date): Date => {
@@ -806,26 +1059,24 @@ export default function GuestCheckinManagement() {
   const handlePhoneChange = (value: string) => {
     const digitsOnly = normalizePhoneDigits(value);
     setFormData(prev => ({ ...prev, phoneNumber: digitsOnly }));
+    if (phoneValidationTriggered) {
+      setPhoneValidationTriggered(false);
+    }
   };
 
   const uploadGuestFilesInParallel = async (
     statusId: number,
     guestId: number,
-    proof: File | null,
-    photo: File | null,
+    files: Array<{ field: GuestCheckinFileField; file: File }>,
     onProgress: (progress: number) => void
   ) => {
-    const files: Array<{ field: 'proof' | 'photo'; file: File }> = [];
-    if (proof) files.push({ field: 'proof', file: proof });
-    if (photo) files.push({ field: 'photo', file: photo });
-
     if (files.length === 0) {
       onProgress(0);
       return;
     }
 
     const totalBytes = files.reduce((sum, item) => sum + (item.file.size || 0), 0) || files.length;
-    const progressByField: Record<'proof' | 'photo', number> = { proof: 0, photo: 0 };
+    const progressByField: Partial<Record<GuestCheckinFileField, number>> = {};
 
     const updateAggregateProgress = () => {
       const uploadedBytes = files.reduce((sum, item) => {
@@ -848,8 +1099,12 @@ export default function GuestCheckinManagement() {
     onProgress(100);
   };
 
-  const handleUploadFiles = async (guest: GuestCheckIn, proof: File | null, photo: File | null) => {
-    if (!proof && !photo) return;
+  const handleUploadFiles = async (guest: GuestCheckIn, files: Partial<Record<GuestCheckinFileField, File | null>>) => {
+    const selectedFiles = Object.entries(files)
+      .filter(([, file]) => Boolean(file))
+      .map(([field, file]) => ({ field: field as GuestCheckinFileField, file: file as File }));
+
+    if (selectedFiles.length === 0) return;
 
     setUploadingFiles(prev => ({ ...prev, [guest.id]: true }));
     setUploadProgressByGuest(prev => ({ ...prev, [guest.id]: 0 }));
@@ -859,8 +1114,7 @@ export default function GuestCheckinManagement() {
       await uploadGuestFilesInParallel(
         guest.dailyStatusId,
         guest.id,
-        proof,
-        photo,
+        selectedFiles,
         (progress) => {
           setUploadProgressByGuest(prev => ({ ...prev, [guest.id]: progress }));
         }
@@ -934,7 +1188,7 @@ export default function GuestCheckinManagement() {
         visitingRoomNo: editFormData.visitingRoomNo.trim() || undefined,
         rentAmount: parsedRent,
         depositAmount: parsedDeposit,
-        checkInTime: editFormData.checkInDate,
+        checkInTime: buildCheckInTimestamp(editFormData.checkInDate, new Date(guest.checkInTime)),
         checkOutTime: editFormData.checkOutDate ? buildCheckoutDateTimeIso(editFormData.checkOutDate) : undefined
       });
 
@@ -977,18 +1231,17 @@ export default function GuestCheckinManagement() {
             <input
               type="text"
               className="search-input guest-phone-filter-input"
-              placeholder="Search guests by phone number"
+              placeholder="Search by guest name, phone or purpose"
               value={phoneFilter}
-              onChange={(e) => setPhoneFilter(normalizePhoneDigits(e.target.value))}
-              inputMode="numeric"
+              onChange={(e) => setPhoneFilter(e.target.value)}
               list={guestPhoneFilterListId}
             />
             <datalist id={guestPhoneFilterListId}>
-              {guestPhoneOptions.map((option) => (
+              {guestSearchOptions.map((option) => (
                 <option
-                  key={option.phoneNumber}
-                  value={option.phoneNumber}
-                  label={`${option.phoneNumber} - ${option.guestName}`}
+                  key={option.key}
+                  value={option.value}
+                  label={option.value}
                 />
               ))}
             </datalist>
@@ -1056,6 +1309,12 @@ export default function GuestCheckinManagement() {
         </div>
       </div>
 
+      <datalist id="guest-checkin-entry-suggestions">
+        {guestEntrySuggestions.map((option) => (
+          <option key={option} value={option} />
+        ))}
+      </datalist>
+
       {error && <div className="error-message">{error}</div>}
       {success && <div className="success-message">{success}</div>}
 
@@ -1091,7 +1350,12 @@ export default function GuestCheckinManagement() {
                 type="text"
                 placeholder="Guest Name *"
                 value={formData.guestName}
-                onChange={(e) => setFormData(prev => ({ ...prev, guestName: e.target.value }))}
+                list="guest-checkin-entry-suggestions"
+                onChange={(e) => {
+                  const nextValue = e.target.value;
+                  setFormData(prev => ({ ...prev, guestName: nextValue }));
+                  applyPreviousEntrySuggestion('guestName', nextValue);
+                }}
                 required
               />
               {guestNameValidationMessage && (
@@ -1103,7 +1367,12 @@ export default function GuestCheckinManagement() {
                 type="text"
                 placeholder="Phone Number"
                 value={formData.phoneNumber}
-                onChange={(e) => handlePhoneChange(e.target.value)}
+                list="guest-checkin-entry-suggestions"
+                onChange={(e) => {
+                  const nextValue = e.target.value;
+                  handlePhoneChange(nextValue);
+                  applyPreviousEntrySuggestion('phoneNumber', nextValue);
+                }}
                 maxLength={10}
                 inputMode="numeric"
                 required
@@ -1113,18 +1382,21 @@ export default function GuestCheckinManagement() {
                   {phoneValidationMessage}
                 </div>
               )}
-              <select
+              <input
+                type="text"
+                list="guest-checkin-room-options"
+                placeholder="Select Visiting Room *"
                 value={formData.visitingRoomNo}
                 onChange={(e) => handleRoomChange(e.target.value)}
                 required
-              >
-                <option value="">Select Visiting Room</option>
+              />
+              <datalist id="guest-checkin-room-options">
                 {rooms.map((room) => (
                   <option key={room.id} value={room.number}>
                     Room {room.number} (Rent: {room.rent})
                   </option>
                 ))}
-              </select>
+              </datalist>
               {roomValidationMessage && (
                 <div className="error-message" style={{ marginTop: '-0.5rem', marginBottom: '0.5rem' }}>
                   {roomValidationMessage}
@@ -1162,7 +1434,11 @@ export default function GuestCheckinManagement() {
                 placeholder="Purpose"
                 rows={2}
                 value={formData.purpose}
-                onChange={(e) => setFormData(prev => ({ ...prev, purpose: e.target.value }))}
+                onChange={(e) => {
+                  const nextValue = e.target.value;
+                  setFormData(prev => ({ ...prev, purpose: nextValue }));
+                  applyPreviousEntrySuggestion('purpose', nextValue);
+                }}
                 required
               />
               {purposeValidationMessage && (
@@ -1273,26 +1549,35 @@ export default function GuestCheckinManagement() {
                         />
                       )}
                       <button
-                        className="btn btn-sm btn-info"
+                        type="button"
+                        className="guest-checkin-icon-button success"
                         onClick={() => handleCheckout(guest)}
                         disabled={isCheckedOut || saving}
+                        title={isCheckedOut ? 'Checked out' : 'Check out guest'}
+                        aria-label={isCheckedOut ? 'Checked out' : 'Check out guest'}
                       >
-                        {isCheckedOut ? 'Checked Out' : 'Check Out'}
+                        ✓
                       </button>
                       <button
-                        className="btn btn-sm btn-secondary"
+                        type="button"
+                        className="guest-checkin-icon-button secondary"
                         onClick={() => editingGuest?.id === guest.id ? cancelEditGuest() : startEditGuest(guest)}
                         disabled={saving}
+                        title={editingGuest?.id === guest.id ? 'Cancel edit' : 'Edit guest'}
+                        aria-label={editingGuest?.id === guest.id ? 'Cancel edit' : 'Edit guest'}
                       >
-                        {editingGuest?.id === guest.id ? 'Cancel Edit' : 'Edit'}
+                        {editingGuest?.id === guest.id ? '×' : '✎'}
                       </button>
                       {isAdmin && (
                         <button
-                          className="btn btn-sm btn-danger"
+                          type="button"
+                          className="guest-checkin-icon-button danger"
                           onClick={() => handleDelete(guest)}
                           disabled={saving}
+                          title="Delete guest"
+                          aria-label="Delete guest"
                         >
-                          Delete
+                          🗑
                         </button>
                       )}
                       <button
@@ -1400,33 +1685,50 @@ export default function GuestCheckinManagement() {
                         </div>
                       ) : (
                         <>
-                          <p><strong>Phone:</strong> {guest.phoneNumber || 'N/A'}</p>
-                          <p><strong>Status Date:</strong> {guest.statusDate ? new Date(guest.statusDate).toLocaleDateString() : 'N/A'}</p>
-                          <p><strong>Visiting Room:</strong> {guest.visitingRoomNo || 'N/A'}</p>
-                          <p><strong>Rent:</strong> ₹{(guest.rentAmount || 0).toFixed(2)}</p>
-                          <p><strong>Deposit:</strong> ₹{(guest.depositAmount || 0).toFixed(2)}</p>
-                          <p><strong>Purpose:</strong> {guest.purpose || 'N/A'}</p>
-                          <p><strong>Check-In:</strong> {new Date(guest.checkInTime).toLocaleString()}</p>
-                          <p><strong>Check-Out:</strong> {guest.checkOutTime ? new Date(guest.checkOutTime).toLocaleString() : 'Still inside'}</p>
-                          {!isCheckedOut && (
-                            <p>
-                              <strong>Auto Rent on Checkout:</strong> ₹
-                              {calculateRentForStay(
-                                guest.checkInTime,
-                                getSelectedCheckoutDate(guest),
-                                guest.rentAmount || 0
-                              ).toFixed(2)}
-                              {' '}for{' '}
-                              {calculateStayDays(guest.checkInTime, getSelectedCheckoutDate(guest))}
-                              {' '}day(s)
-                            </p>
+                          <div className="guest-card-tab-bar" role="tablist" aria-label="Guest details tabs">
+                            <button
+                              type="button"
+                              className={`guest-card-tab${(guestCardTabs[guest.id] ?? 'overview') === 'overview' ? ' active' : ''}`}
+                              onClick={() => setGuestCardTabs(prev => ({ ...prev, [guest.id]: 'overview' }))}
+                            >
+                              Overview
+                            </button>
+                            <button
+                              type="button"
+                              className={`guest-card-tab${(guestCardTabs[guest.id] ?? 'overview') === 'documents' ? ' active' : ''}`}
+                              onClick={() => setGuestCardTabs(prev => ({ ...prev, [guest.id]: 'documents' }))}
+                            >
+                              Documents
+                            </button>
+                          </div>
+
+                          {(guestCardTabs[guest.id] ?? 'overview') === 'overview' ? (
+                            <div className="guest-card-overview-grid">
+                              <p><strong>Phone</strong><span>{guest.phoneNumber || 'N/A'}</span></p>
+                              <p><strong>Status Date</strong><span>{guest.statusDate ? new Date(guest.statusDate).toLocaleDateString() : 'N/A'}</span></p>
+                              <p><strong>Room</strong><span>{guest.visitingRoomNo || 'N/A'}</span></p>
+                              <p><strong>Rent</strong><span>₹{(guest.rentAmount || 0).toFixed(2)}</span></p>
+                              <p><strong>Deposit</strong><span>₹{(guest.depositAmount || 0).toFixed(2)}</span></p>
+                              <p><strong>Purpose</strong><span>{guest.purpose || 'N/A'}</span></p>
+                              <p><strong>Check-In</strong><span>{new Date(guest.checkInTime).toLocaleString()}</span></p>
+                              <p><strong>Check-Out</strong><span>{guest.checkOutTime ? new Date(guest.checkOutTime).toLocaleString() : 'Still inside'}</span></p>
+                              {!isCheckedOut && (
+                                <p>
+                                  <strong>Auto Rent</strong>
+                                  <span>₹{calculateRentForStay(guest.checkInTime, getSelectedCheckoutDate(guest), guest.rentAmount || 0).toFixed(2)} for {calculateStayDays(guest.checkInTime, getSelectedCheckoutDate(guest))} day(s)</span>
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="guest-card-documents-panel">
+                              <GuestFileUploadSection
+                                guest={guest}
+                                uploading={!!uploadingFiles[guest.id]}
+                                uploadProgress={uploadProgressByGuest[guest.id] || 0}
+                                onUpload={handleUploadFiles}
+                              />
+                            </div>
                           )}
-                          <GuestFileUploadSection
-                            guest={guest}
-                            uploading={!!uploadingFiles[guest.id]}
-                            uploadProgress={uploadProgressByGuest[guest.id] || 0}
-                            onUpload={handleUploadFiles}
-                          />
                         </>
                       )}
                     </div>
