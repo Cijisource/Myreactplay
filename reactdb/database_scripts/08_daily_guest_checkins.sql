@@ -118,6 +118,132 @@ BEGIN
 END
 GO
 
+IF COL_LENGTH('dbo.DailyGuestCheckIn', 'Proof2Url') IS NULL
+BEGIN
+  ALTER TABLE [dbo].[DailyGuestCheckIn] ADD [Proof2Url] [nvarchar](1000) NULL;
+  PRINT 'Added Proof2Url column.';
+END
+GO
+
+IF COL_LENGTH('dbo.DailyGuestCheckIn', 'Photo2Url') IS NULL
+BEGIN
+  ALTER TABLE [dbo].[DailyGuestCheckIn] ADD [Photo2Url] [nvarchar](1000) NULL;
+  PRINT 'Added Photo2Url column.';
+END
+GO
+
+IF COL_LENGTH('dbo.DailyGuestCheckIn', 'Proof3Url') IS NULL
+BEGIN
+  ALTER TABLE [dbo].[DailyGuestCheckIn] ADD [Proof3Url] [nvarchar](1000) NULL;
+  PRINT 'Added Proof3Url column.';
+END
+GO
+
+IF COL_LENGTH('dbo.DailyGuestCheckIn', 'Photo3Url') IS NULL
+BEGIN
+  ALTER TABLE [dbo].[DailyGuestCheckIn] ADD [Photo3Url] [nvarchar](1000) NULL;
+  PRINT 'Added Photo3Url column.';
+END
+GO
+
+IF COL_LENGTH('dbo.DailyGuestCheckIn', 'Proof4Url') IS NULL
+BEGIN
+  ALTER TABLE [dbo].[DailyGuestCheckIn] ADD [Proof4Url] [nvarchar](1000) NULL;
+  PRINT 'Added Proof4Url column.';
+END
+GO
+
+IF COL_LENGTH('dbo.DailyGuestCheckIn', 'Photo4Url') IS NULL
+BEGIN
+  ALTER TABLE [dbo].[DailyGuestCheckIn] ADD [Photo4Url] [nvarchar](1000) NULL;
+  PRINT 'Added Photo4Url column.';
+END
+GO
+
+IF COL_LENGTH('dbo.DailyGuestCheckIn', 'Proof5Url') IS NULL
+BEGIN
+  ALTER TABLE [dbo].[DailyGuestCheckIn] ADD [Proof5Url] [nvarchar](1000) NULL;
+  PRINT 'Added Proof5Url column.';
+END
+GO
+
+IF COL_LENGTH('dbo.DailyGuestCheckIn', 'Photo5Url') IS NULL
+BEGIN
+  ALTER TABLE [dbo].[DailyGuestCheckIn] ADD [Photo5Url] [nvarchar](1000) NULL;
+  PRINT 'Added Photo5Url column.';
+END
+GO
+
+IF COL_LENGTH('dbo.DailyGuestCheckIn', 'Proof6Url') IS NULL
+BEGIN
+  ALTER TABLE [dbo].[DailyGuestCheckIn] ADD [Proof6Url] [nvarchar](1000) NULL;
+  PRINT 'Added Proof6Url column.';
+END
+GO
+
+IF COL_LENGTH('dbo.DailyGuestCheckIn', 'Photo6Url') IS NULL
+BEGIN
+  ALTER TABLE [dbo].[DailyGuestCheckIn] ADD [Photo6Url] [nvarchar](1000) NULL;
+  PRINT 'Added Photo6Url column.';
+END
+GO
+
+IF COL_LENGTH('dbo.DailyGuestCheckIn', 'Proof7Url') IS NULL
+BEGIN
+  ALTER TABLE [dbo].[DailyGuestCheckIn] ADD [Proof7Url] [nvarchar](1000) NULL;
+  PRINT 'Added Proof7Url column.';
+END
+GO
+
+IF COL_LENGTH('dbo.DailyGuestCheckIn', 'Photo7Url') IS NULL
+BEGIN
+  ALTER TABLE [dbo].[DailyGuestCheckIn] ADD [Photo7Url] [nvarchar](1000) NULL;
+  PRINT 'Added Photo7Url column.';
+END
+GO
+
+IF COL_LENGTH('dbo.DailyGuestCheckIn', 'Proof8Url') IS NULL
+BEGIN
+  ALTER TABLE [dbo].[DailyGuestCheckIn] ADD [Proof8Url] [nvarchar](1000) NULL;
+  PRINT 'Added Proof8Url column.';
+END
+GO
+
+IF COL_LENGTH('dbo.DailyGuestCheckIn', 'Photo8Url') IS NULL
+BEGIN
+  ALTER TABLE [dbo].[DailyGuestCheckIn] ADD [Photo8Url] [nvarchar](1000) NULL;
+  PRINT 'Added Photo8Url column.';
+END
+GO
+
+IF COL_LENGTH('dbo.DailyGuestCheckIn', 'Proof9Url') IS NULL
+BEGIN
+  ALTER TABLE [dbo].[DailyGuestCheckIn] ADD [Proof9Url] [nvarchar](1000) NULL;
+  PRINT 'Added Proof9Url column.';
+END
+GO
+
+IF COL_LENGTH('dbo.DailyGuestCheckIn', 'Photo9Url') IS NULL
+BEGIN
+  ALTER TABLE [dbo].[DailyGuestCheckIn] ADD [Photo9Url] [nvarchar](1000) NULL;
+  PRINT 'Added Photo9Url column.';
+END
+GO
+
+IF COL_LENGTH('dbo.DailyGuestCheckIn', 'Proof10Url') IS NULL
+BEGIN
+  ALTER TABLE [dbo].[DailyGuestCheckIn] ADD [Proof10Url] [nvarchar](1000) NULL;
+  PRINT 'Added Proof10Url column.';
+END
+GO
+
+IF COL_LENGTH('dbo.DailyGuestCheckIn', 'Photo10Url') IS NULL
+BEGIN
+  ALTER TABLE [dbo].[DailyGuestCheckIn] ADD [Photo10Url] [nvarchar](1000) NULL;
+  PRINT 'Added Photo10Url column.';
+END
+GO
+
 IF COL_LENGTH('dbo.DailyGuestCheckIn', 'RentAmount') IS NULL
 BEGIN
   ALTER TABLE [dbo].[DailyGuestCheckIn]

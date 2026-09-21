@@ -1,6 +1,6 @@
 import axios, { AxiosError, AxiosInstance } from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5002/api' : 'https://mansion.gnanabi.info/api');
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'https://mansion.gnanabi.info/api');
 
 // Interface for upload response
 interface UploadResponse {

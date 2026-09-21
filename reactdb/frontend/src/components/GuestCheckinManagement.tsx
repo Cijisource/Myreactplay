@@ -307,14 +307,15 @@ function GuestFileUploadSection({ guest, uploading, uploadProgress, onUpload }: 
           const previewUrl = guest[`${slot.key}Url` as keyof GuestCheckIn] as string | undefined;
           if (!previewUrl) return null;
           const resolvedPreviewUrl = getGuestCheckinFileUrl(previewUrl);
+          const isProofSlot = slot.type === 'proof';
           return (
             <button
               key={slot.key}
               type="button"
               onClick={() => setSelectedPreview(resolvedPreviewUrl)}
               style={{
-                background: 'none',
-                border: '1px solid #d0d7de',
+                background: isProofSlot ? '#fff7ed' : '#eff6ff',
+                border: isProofSlot ? '1px solid #f59e0b' : '1px solid #60a5fa',
                 borderRadius: 8,
                 padding: 5,
                 cursor: 'pointer',
@@ -331,10 +332,10 @@ function GuestFileUploadSection({ guest, uploading, uploadProgress, onUpload }: 
                 alt={slot.label}
                 loading="lazy"
                 decoding="async"
-                style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, border: '1px solid #d0d7de', background: '#fff' }}
+                style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, border: isProofSlot ? '1px solid #f59e0b' : '1px solid #60a5fa', background: '#fff' }}
                 onError={(e) => { (e.target as HTMLImageElement).src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56"><rect width="56" height="56" fill="#f1f5f9"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-size="9" fill="#64748b" font-family="Arial">Image</text></svg>'); }}
               />
-              <div style={{ fontSize: '0.66rem', textAlign: 'center', color: '#334155', lineHeight: 1.2 }}>{slot.label}</div>
+              <div style={{ fontSize: '0.66rem', textAlign: 'center', color: isProofSlot ? '#b45309' : '#1d4ed8', fontWeight: 700, lineHeight: 1.2 }}>{slot.label}</div>
             </button>
           );
         })}
@@ -343,9 +344,21 @@ function GuestFileUploadSection({ guest, uploading, uploadProgress, onUpload }: 
         {guestCheckinFileSlots.map((slot) => {
           const existingUrl = guest[`${slot.key}Url` as keyof GuestCheckIn] as string | undefined;
           const selected = selectedFiles[slot.key] ?? null;
+          const isProofSlot = slot.type === 'proof';
           return (
-            <div key={slot.key} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', padding: '0.35rem 0.4rem', border: '1px solid #e2e8f0', borderRadius: 8, background: '#f8fafc' }}>
-              <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>
+            <div
+              key={slot.key}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.25rem',
+                padding: '0.35rem 0.4rem',
+                border: isProofSlot ? '1px solid #f59e0b' : '1px solid #60a5fa',
+                borderRadius: 8,
+                background: isProofSlot ? '#fff7ed' : '#eff6ff'
+              }}
+            >
+              <label style={{ fontSize: '0.78rem', fontWeight: 700, color: isProofSlot ? '#b45309' : '#1d4ed8' }}>
                 {existingUrl ? `Replace ${slot.label}` : `Upload ${slot.label}`}
               </label>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
@@ -537,9 +550,41 @@ export default function GuestCheckinManagement() {
     return fallback;
   };
 
+  const parseDateOnly = (value: string | Date): Date => {
+    if (value instanceof Date) {
+      return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+    }
+
+    if (typeof value === 'string') {
+      const isoMatch = value.match(/^\d{4}-\d{2}-\d{2}/);
+      if (isoMatch) {
+        const [year, month, day] = isoMatch[0].split('-').map(Number);
+        return new Date(year, month - 1, day);
+      }
+    }
+
+    return new Date(value);
+  };
+
+  const getWeekRangeForDate = (value: string | Date) => {
+    const baseDate = parseDateOnly(value);
+    const weekStart = new Date(baseDate);
+    const day = baseDate.getDay();
+    const mondayOffset = day === 0 ? -6 : 1 - day;
+    weekStart.setDate(baseDate.getDate() + mondayOffset);
+
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+
+    weekStart.setHours(0, 0, 0, 0);
+    weekEnd.setHours(23, 59, 59, 999);
+
+    return { weekStart, weekEnd };
+  };
+
   const selectedStatus = useMemo(() => {
     if (!selectedDate) return null;
-    return statuses.find(s => new Date(s.date).toISOString().split('T')[0] === selectedDate) || null;
+    return statuses.find(s => parseDateOnly(s.date).getTime() === parseDateOnly(selectedDate).getTime()) || null;
   }, [selectedDate, statuses]);
 
   const consolidatedStats = useMemo(() => {
@@ -595,7 +640,10 @@ export default function GuestCheckinManagement() {
     return Array.from(candidates).sort((left, right) => left.localeCompare(right));
   }, [guestHistorySource]);
 
-  const applyPreviousEntrySuggestion = (field: 'guestName' | 'phoneNumber' | 'purpose', value: string) => {
+  const applyPreviousEntrySuggestion = (
+    field: 'guestName' | 'phoneNumber' | 'depositAmount' | 'purpose',
+    value: string
+  ) => {
     const trimmed = value.trim();
     if (!trimmed) return;
 
@@ -604,12 +652,16 @@ export default function GuestCheckinManagement() {
       const guestName = (guest.guestName || '').trim().toLowerCase();
       const phoneNumber = normalizePhoneDigits(guest.phoneNumber || '');
       const purpose = (guest.purpose || '').trim().toLowerCase();
+      const depositAmount = guest.depositAmount != null ? String(guest.depositAmount).trim() : '';
       const normalizedValue = trimmed.toLowerCase();
+      const normalizedPhoneInput = normalizePhoneDigits(trimmed);
+      const normalizedDepositInput = trimmed.replace(/[^\d.]/g, '');
 
       return (
-        (field === 'guestName' && guestName === normalizedValue)
-        || (field === 'phoneNumber' && phoneNumber === normalizePhoneDigits(trimmed))
-        || (field === 'purpose' && purpose === normalizedValue)
+        (field === 'guestName' && guestName.includes(normalizedValue))
+        || (field === 'phoneNumber' && (phoneNumber.includes(normalizedPhoneInput) || normalizedPhoneInput.includes(phoneNumber)))
+        || (field === 'depositAmount' && depositAmount.includes(normalizedDepositInput))
+        || (field === 'purpose' && purpose.includes(normalizedValue))
       );
     });
 
@@ -619,6 +671,9 @@ export default function GuestCheckinManagement() {
       ...prev,
       guestName: field === 'guestName' ? trimmed : prev.guestName || match.guestName || prev.guestName,
       phoneNumber: field === 'phoneNumber' ? normalizePhoneDigits(trimmed) : prev.phoneNumber || normalizePhoneDigits(match.phoneNumber || '') || prev.phoneNumber,
+      depositAmount: field === 'depositAmount'
+        ? String(match.depositAmount ?? prev.depositAmount)
+        : prev.depositAmount || String(match.depositAmount ?? '') || prev.depositAmount,
       purpose: field === 'purpose' ? trimmed : prev.purpose || match.purpose || prev.purpose
     }));
   };
@@ -662,7 +717,7 @@ export default function GuestCheckinManagement() {
       setPreviousGuestHistory(historyResults.flat());
 
       if (!selectedDate && ordered.length > 0) {
-        setSelectedDate(new Date(ordered[0].date).toISOString().split('T')[0]);
+        setSelectedDate(formatDateForInput(new Date(ordered[0].date)));
       }
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to load daily statuses'));
@@ -703,25 +758,53 @@ export default function GuestCheckinManagement() {
       return;
     }
 
-    const baseDate = new Date(selectedDate);
-    const start = new Date(baseDate);
-    const end = new Date(baseDate);
+    const baseDate = parseDateOnly(selectedDate);
+    let start = new Date(baseDate);
+    let end = new Date(baseDate);
 
     if (mode === 'weekly') {
-      const day = baseDate.getDay();
-      const offset = day === 0 ? 6 : day - 1;
-      start.setDate(baseDate.getDate() - offset);
-      end.setDate(start.getDate() + 6);
+      const weekRange = getWeekRangeForDate(baseDate);
+      start = weekRange.weekStart;
+      end = weekRange.weekEnd;
     } else {
       start.setDate(1);
       end.setMonth(baseDate.getMonth() + 1, 0);
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
     }
 
-    start.setHours(0, 0, 0, 0);
-    end.setHours(23, 59, 59, 999);
+    if (mode === 'weekly') {
+      const targetStatuses = statuses.filter(s => {
+        const d = parseDateOnly(s.date);
+        return d >= start && d <= end;
+      });
+
+      try {
+        setLoading(true);
+        setError(null);
+
+        const responses = await Promise.all(
+          targetStatuses.map(async (s) => {
+            const response = await apiService.getDailyGuestCheckins(s.id);
+            const rows: GuestCheckIn[] = Array.isArray(response.data) ? response.data : [];
+            return rows.map(row => ({ ...row, statusDate: s.date }));
+          })
+        );
+
+        const merged = responses.flat().sort(
+          (a, b) => new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime()
+        );
+        setGuestCheckins(merged);
+      } catch (err) {
+        setError(getErrorMessage(err, 'Failed to load weekly consolidated guest check-ins'));
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
 
     const targetStatuses = statuses.filter(s => {
-      const d = new Date(s.date);
+      const d = parseDateOnly(s.date);
       return d >= start && d <= end;
     });
 
@@ -752,6 +835,16 @@ export default function GuestCheckinManagement() {
     fetchStatuses();
     fetchRooms();
   }, []);
+
+  useEffect(() => {
+    const today = new Date().toISOString().split('T')[0];
+    if (viewMode === 'daily') {
+      setSelectedDate((prev) => prev || '');
+      setFormData((prev) => ({ ...prev, checkInDate: prev.checkInDate || today }));
+    } else if (viewMode === 'weekly' || viewMode === 'monthly') {
+      setSelectedDate((prev) => prev || today);
+    }
+  }, [viewMode]);
 
   useEffect(() => {
     if (viewMode === 'daily') {
@@ -1422,7 +1515,11 @@ export default function GuestCheckinManagement() {
                 step="0.01"
                 placeholder="Deposit Amount"
                 value={formData.depositAmount}
-                onChange={(e) => setFormData(prev => ({ ...prev, depositAmount: e.target.value }))}
+                onChange={(e) => {
+                  const nextValue = e.target.value;
+                  setFormData(prev => ({ ...prev, depositAmount: nextValue }));
+                  applyPreviousEntrySuggestion('depositAmount', nextValue);
+                }}
                 required
               />
               {depositValidationMessage && (
@@ -1528,8 +1625,13 @@ export default function GuestCheckinManagement() {
                       <h4>{guest.guestName}</h4>
                       <div className="guest-card-summary">
                         <span>{guest.phoneNumber || 'No phone number'}</span>
-                        <span>{guest.visitingRoomNo ? `Room ${guest.visitingRoomNo}` : 'No room assigned'}</span>
+                        <span style={{ fontWeight: 800, color: '#0f172a', background: '#fef3c7', borderRadius: 6, padding: '0.1rem 0.35rem' }}>
+                          {guest.visitingRoomNo ? `Room ${guest.visitingRoomNo}` : 'No room assigned'}
+                        </span>
                         <span>{isCheckedOut ? 'Checked out' : 'Active'}</span>
+                        <span style={{ fontWeight: 600, color: '#1e3a8a' }}>
+                          Check-In: {new Date(guest.checkInTime).toLocaleString()}
+                        </span>
                       </div>
                     </div>
                     <div className="item-actions">
@@ -1703,21 +1805,38 @@ export default function GuestCheckinManagement() {
                           </div>
 
                           {(guestCardTabs[guest.id] ?? 'overview') === 'overview' ? (
-                            <div className="guest-card-overview-grid">
-                              <p><strong>Phone</strong><span>{guest.phoneNumber || 'N/A'}</span></p>
-                              <p><strong>Status Date</strong><span>{guest.statusDate ? new Date(guest.statusDate).toLocaleDateString() : 'N/A'}</span></p>
-                              <p><strong>Room</strong><span>{guest.visitingRoomNo || 'N/A'}</span></p>
-                              <p><strong>Rent</strong><span>₹{(guest.rentAmount || 0).toFixed(2)}</span></p>
-                              <p><strong>Deposit</strong><span>₹{(guest.depositAmount || 0).toFixed(2)}</span></p>
-                              <p><strong>Purpose</strong><span>{guest.purpose || 'N/A'}</span></p>
-                              <p><strong>Check-In</strong><span>{new Date(guest.checkInTime).toLocaleString()}</span></p>
-                              <p><strong>Check-Out</strong><span>{guest.checkOutTime ? new Date(guest.checkOutTime).toLocaleString() : 'Still inside'}</span></p>
-                              {!isCheckedOut && (
-                                <p>
-                                  <strong>Auto Rent</strong>
-                                  <span>₹{calculateRentForStay(guest.checkInTime, getSelectedCheckoutDate(guest), guest.rentAmount || 0).toFixed(2)} for {calculateStayDays(guest.checkInTime, getSelectedCheckoutDate(guest))} day(s)</span>
+                            <div style={{ position: 'relative', paddingTop: '0.75rem' }}>
+                              <div style={{ position: 'absolute', top: 0, right: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem', textAlign: 'right' }}>
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.45rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                  <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#475569' }}>Room</span>
+                                  <span style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a' }}>{guest.visitingRoomNo || 'N/A'}</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.45rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                  <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#475569' }}>Check-In</span>
+                                  <span style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>{new Date(guest.checkInTime).toLocaleString()}</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.45rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                  <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#475569' }}>Check-Out</span>
+                                  <span style={{ fontSize: '1.0rem', fontWeight: 700, color: guest.checkOutTime ? '#0f172a' : '#b45309' }}>{guest.checkOutTime ? new Date(guest.checkOutTime).toLocaleString() : 'Still inside'}</span>
+                                </div>
+                              </div>
+                              <div className="guest-card-overview-grid" style={{ paddingTop: '5.2rem' }}>
+                                <p><strong>Phone</strong><span>{guest.phoneNumber || 'N/A'}</span></p>
+                                <p><strong>Status Date</strong><span>{guest.statusDate ? new Date(guest.statusDate).toLocaleDateString() : 'N/A'}</span></p>
+                                <p><strong>Rent</strong><span>₹{(guest.rentAmount || 0).toFixed(2)}</span></p>
+                                <p><strong>Deposit</strong><span>₹{(guest.depositAmount || 0).toFixed(2)}</span></p>
+                                <p><strong>Purpose</strong><span>{guest.purpose || 'N/A'}</span></p>
+                                <p style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                  <strong style={{ fontSize: '1.05rem' }}>Check-Out</strong>
+                                  <span style={{ fontSize: '1.1rem', fontWeight: 700, color: guest.checkOutTime ? '#0f172a' : '#b45309' }}>{guest.checkOutTime ? new Date(guest.checkOutTime).toLocaleString() : 'Still inside'}</span>
                                 </p>
-                              )}
+                                {!isCheckedOut && (
+                                  <p>
+                                    <strong>Auto Rent</strong>
+                                    <span>₹{calculateRentForStay(guest.checkInTime, getSelectedCheckoutDate(guest), guest.rentAmount || 0).toFixed(2)} for {calculateStayDays(guest.checkInTime, getSelectedCheckoutDate(guest))} day(s)</span>
+                                  </p>
+                                )}
+                              </div>
                             </div>
                           ) : (
                             <div className="guest-card-documents-panel">
