@@ -1,6 +1,6 @@
 import axios, { AxiosError, AxiosInstance } from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5002/api' : 'https://mansion.gnanabi.info/api');
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'https://mansion.gnanabi.info/api');
 
 // Interface for upload response
 interface UploadResponse {
@@ -363,6 +363,9 @@ export const getRentalPaymentProofUrl = (
 
 export const getGuestCheckinFileUrl = (filePath: string): string => {
   if (!filePath) return '';
+  if (filePath.startsWith('data:')) {
+    return filePath;
+  }
   const baseUrl = getApiBaseUrl();
   console.log('[Guest Check-in File URL] Generating URL for:', { filePath, baseUrl });
   if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
@@ -651,7 +654,7 @@ export const apiService = {
   uploadGuestCheckinFile: (
     statusId: number,
     guestCheckinId: number,
-    fieldName: 'proof' | 'photo',
+    fieldName: 'proof' | 'proof2' | 'proof3' | 'proof4' | 'proof5' | 'proof6' | 'proof7' | 'proof8' | 'proof9' | 'proof10' | 'photo' | 'photo2' | 'photo3' | 'photo4' | 'photo5' | 'photo6' | 'photo7' | 'photo8' | 'photo9' | 'photo10',
     file: File,
     onProgress?: (progress: number) => void
   ) => {

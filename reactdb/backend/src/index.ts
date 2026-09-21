@@ -486,16 +486,25 @@ const normalizeAzureMetadataValue = (value: string): string => (
     .slice(0, 512)
 );
 
+const guestCheckinExtraImageFields = [
+  'proof2Url', 'proof3Url', 'proof4Url', 'proof5Url', 'proof6Url', 'proof7Url', 'proof8Url', 'proof9Url', 'proof10Url',
+  'photo2Url', 'photo3Url', 'photo4Url', 'photo5Url', 'photo6Url', 'photo7Url', 'photo8Url', 'photo9Url', 'photo10Url'
+] as const;
+
 const normalizeGuestCheckinFilesForResponse = <T extends Record<string, any>>(record: T): T => {
   if (!record || typeof record !== 'object') {
     return record;
   }
 
-  return {
-    ...record,
-    proofUrl: normalizeStoredFileName(record.proofUrl ?? record.ProofUrl),
-    photoUrl: normalizeStoredFileName(record.photoUrl ?? record.PhotoUrl)
-  };
+  const normalizedRecord: Record<string, unknown> = { ...record };
+
+  for (const fieldName of ['proofUrl', 'photoUrl', ...guestCheckinExtraImageFields]) {
+    const dbFieldName = fieldName.charAt(0).toUpperCase() + fieldName.slice(1);
+    const value = normalizedRecord[fieldName] ?? normalizedRecord[dbFieldName];
+    normalizedRecord[fieldName] = normalizeStoredFileName(value);
+  }
+
+  return normalizedRecord as T;
 };
 
 const resolveComplaintFileUrlForResponse = (value: unknown): string | null => {
@@ -4937,6 +4946,24 @@ app.get('/api/daily-status/:id/guest-checkins', async (req: Request, res: Respon
           g.CheckOutTime as checkOutTime,
           g.ProofUrl as proofUrl,
           g.PhotoUrl as photoUrl,
+          g.Proof2Url as proof2Url,
+          g.Proof3Url as proof3Url,
+          g.Proof4Url as proof4Url,
+          g.Proof5Url as proof5Url,
+          g.Proof6Url as proof6Url,
+          g.Proof7Url as proof7Url,
+          g.Proof8Url as proof8Url,
+          g.Proof9Url as proof9Url,
+          g.Proof10Url as proof10Url,
+          g.Photo2Url as photo2Url,
+          g.Photo3Url as photo3Url,
+          g.Photo4Url as photo4Url,
+          g.Photo5Url as photo5Url,
+          g.Photo6Url as photo6Url,
+          g.Photo7Url as photo7Url,
+          g.Photo8Url as photo8Url,
+          g.Photo9Url as photo9Url,
+          g.Photo10Url as photo10Url,
           g.CreatedDate as createdDate,
           g.UpdatedDate as updatedDate
         FROM DailyGuestCheckIn g
@@ -4968,9 +4995,55 @@ const normalizeGuestPhoneNumber = (value: string): string => {
 app.post('/api/daily-status/:id/guest-checkins', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { guestName, phoneNumber, purpose, visitingRoomNo, checkInTime, rentAmount, depositAmount, proofUrl, photoUrl } = req.body;
+    const {
+      guestName,
+      phoneNumber,
+      purpose,
+      visitingRoomNo,
+      checkInTime,
+      rentAmount,
+      depositAmount,
+      proofUrl,
+      photoUrl,
+      proof2Url,
+      photo2Url,
+      proof3Url,
+      photo3Url,
+      proof4Url,
+      photo4Url,
+      proof5Url,
+      photo5Url,
+      proof6Url,
+      photo6Url,
+      proof7Url,
+      photo7Url,
+      proof8Url,
+      photo8Url,
+      proof9Url,
+      photo9Url,
+      proof10Url,
+      photo10Url
+    } = req.body;
     const normalizedProofUrl = normalizeStoredFileName(proofUrl);
     const normalizedPhotoUrl = normalizeStoredFileName(photoUrl);
+    const normalizedProof2Url = normalizeStoredFileName(proof2Url);
+    const normalizedPhoto2Url = normalizeStoredFileName(photo2Url);
+    const normalizedProof3Url = normalizeStoredFileName(proof3Url);
+    const normalizedPhoto3Url = normalizeStoredFileName(photo3Url);
+    const normalizedProof4Url = normalizeStoredFileName(proof4Url);
+    const normalizedPhoto4Url = normalizeStoredFileName(photo4Url);
+    const normalizedProof5Url = normalizeStoredFileName(proof5Url);
+    const normalizedPhoto5Url = normalizeStoredFileName(photo5Url);
+    const normalizedProof6Url = normalizeStoredFileName(proof6Url);
+    const normalizedPhoto6Url = normalizeStoredFileName(photo6Url);
+    const normalizedProof7Url = normalizeStoredFileName(proof7Url);
+    const normalizedPhoto7Url = normalizeStoredFileName(photo7Url);
+    const normalizedProof8Url = normalizeStoredFileName(proof8Url);
+    const normalizedPhoto8Url = normalizeStoredFileName(photo8Url);
+    const normalizedProof9Url = normalizeStoredFileName(proof9Url);
+    const normalizedPhoto9Url = normalizeStoredFileName(photo9Url);
+    const normalizedProof10Url = normalizeStoredFileName(proof10Url);
+    const normalizedPhoto10Url = normalizeStoredFileName(photo10Url);
 
     if (!guestName || typeof guestName !== 'string' || !guestName.trim()) {
       return res.status(400).json({ error: 'Guest name is required' });
@@ -5038,6 +5111,24 @@ app.post('/api/daily-status/:id/guest-checkins', async (req: Request, res: Respo
       .input('checkInTime', sql.DateTime, parsedCheckInTime)
       .input('proofUrl', sql.NVarChar(1000), normalizedProofUrl)
       .input('photoUrl', sql.NVarChar(1000), normalizedPhotoUrl)
+      .input('proof2Url', sql.NVarChar(1000), normalizedProof2Url)
+      .input('photo2Url', sql.NVarChar(1000), normalizedPhoto2Url)
+      .input('proof3Url', sql.NVarChar(1000), normalizedProof3Url)
+      .input('photo3Url', sql.NVarChar(1000), normalizedPhoto3Url)
+      .input('proof4Url', sql.NVarChar(1000), normalizedProof4Url)
+      .input('photo4Url', sql.NVarChar(1000), normalizedPhoto4Url)
+      .input('proof5Url', sql.NVarChar(1000), normalizedProof5Url)
+      .input('photo5Url', sql.NVarChar(1000), normalizedPhoto5Url)
+      .input('proof6Url', sql.NVarChar(1000), normalizedProof6Url)
+      .input('photo6Url', sql.NVarChar(1000), normalizedPhoto6Url)
+      .input('proof7Url', sql.NVarChar(1000), normalizedProof7Url)
+      .input('photo7Url', sql.NVarChar(1000), normalizedPhoto7Url)
+      .input('proof8Url', sql.NVarChar(1000), normalizedProof8Url)
+      .input('photo8Url', sql.NVarChar(1000), normalizedPhoto8Url)
+      .input('proof9Url', sql.NVarChar(1000), normalizedProof9Url)
+      .input('photo9Url', sql.NVarChar(1000), normalizedPhoto9Url)
+      .input('proof10Url', sql.NVarChar(1000), normalizedProof10Url)
+      .input('photo10Url', sql.NVarChar(1000), normalizedPhoto10Url)
       .query(`
         INSERT INTO DailyGuestCheckIn (
           DailyStatusId,
@@ -5050,6 +5141,24 @@ app.post('/api/daily-status/:id/guest-checkins', async (req: Request, res: Respo
           CheckInTime,
           ProofUrl,
           PhotoUrl,
+          Proof2Url,
+          Photo2Url,
+          Proof3Url,
+          Photo3Url,
+          Proof4Url,
+          Photo4Url,
+          Proof5Url,
+          Photo5Url,
+          Proof6Url,
+          Photo6Url,
+          Proof7Url,
+          Photo7Url,
+          Proof8Url,
+          Photo8Url,
+          Proof9Url,
+          Photo9Url,
+          Proof10Url,
+          Photo10Url,
           CreatedDate
         )
         VALUES (
@@ -5063,6 +5172,24 @@ app.post('/api/daily-status/:id/guest-checkins', async (req: Request, res: Respo
           @checkInTime,
           @proofUrl,
           @photoUrl,
+          @proof2Url,
+          @photo2Url,
+          @proof3Url,
+          @photo3Url,
+          @proof4Url,
+          @photo4Url,
+          @proof5Url,
+          @photo5Url,
+          @proof6Url,
+          @photo6Url,
+          @proof7Url,
+          @photo7Url,
+          @proof8Url,
+          @photo8Url,
+          @proof9Url,
+          @photo9Url,
+          @proof10Url,
+          @photo10Url,
           GETDATE()
         );
 
@@ -5079,6 +5206,24 @@ app.post('/api/daily-status/:id/guest-checkins', async (req: Request, res: Respo
           CheckOutTime as checkOutTime,
           ProofUrl as proofUrl,
           PhotoUrl as photoUrl,
+          Proof2Url as proof2Url,
+          Photo2Url as photo2Url,
+          Proof3Url as proof3Url,
+          Photo3Url as photo3Url,
+          Proof4Url as proof4Url,
+          Photo4Url as photo4Url,
+          Proof5Url as proof5Url,
+          Photo5Url as photo5Url,
+          Proof6Url as proof6Url,
+          Photo6Url as photo6Url,
+          Proof7Url as proof7Url,
+          Photo7Url as photo7Url,
+          Proof8Url as proof8Url,
+          Photo8Url as photo8Url,
+          Proof9Url as proof9Url,
+          Photo9Url as photo9Url,
+          Proof10Url as proof10Url,
+          Photo10Url as photo10Url,
           CreatedDate as createdDate,
           UpdatedDate as updatedDate
         FROM DailyGuestCheckIn
@@ -5095,7 +5240,36 @@ app.post('/api/daily-status/:id/guest-checkins', async (req: Request, res: Respo
 app.put('/api/daily-status/:dailyStatusId/guest-checkins/:guestCheckinId', async (req: Request, res: Response) => {
   try {
     const { dailyStatusId, guestCheckinId } = req.params;
-    const { guestName, phoneNumber, purpose, visitingRoomNo, checkInTime, checkOutTime, rentAmount, depositAmount, proofUrl, photoUrl } = req.body;
+    const {
+      guestName,
+      phoneNumber,
+      purpose,
+      visitingRoomNo,
+      checkInTime,
+      checkOutTime,
+      rentAmount,
+      depositAmount,
+      proofUrl,
+      photoUrl,
+      proof2Url,
+      photo2Url,
+      proof3Url,
+      photo3Url,
+      proof4Url,
+      photo4Url,
+      proof5Url,
+      photo5Url,
+      proof6Url,
+      photo6Url,
+      proof7Url,
+      photo7Url,
+      proof8Url,
+      photo8Url,
+      proof9Url,
+      photo9Url,
+      proof10Url,
+      photo10Url
+    } = req.body;
 
     const pool = getPool();
 
@@ -5121,6 +5295,24 @@ app.put('/api/daily-status/:dailyStatusId/guest-checkins/:guestCheckinId', async
     const nextVisitingRoomNo = visitingRoomNo !== undefined ? String(visitingRoomNo).trim() : existing.VisitingRoomNo;
     const nextProofUrl = proofUrl !== undefined ? normalizeStoredFileName(proofUrl) : existing.ProofUrl;
     const nextPhotoUrl = photoUrl !== undefined ? normalizeStoredFileName(photoUrl) : existing.PhotoUrl;
+    const nextProof2Url = proof2Url !== undefined ? normalizeStoredFileName(proof2Url) : existing.Proof2Url;
+    const nextPhoto2Url = photo2Url !== undefined ? normalizeStoredFileName(photo2Url) : existing.Photo2Url;
+    const nextProof3Url = proof3Url !== undefined ? normalizeStoredFileName(proof3Url) : existing.Proof3Url;
+    const nextPhoto3Url = photo3Url !== undefined ? normalizeStoredFileName(photo3Url) : existing.Photo3Url;
+    const nextProof4Url = proof4Url !== undefined ? normalizeStoredFileName(proof4Url) : existing.Proof4Url;
+    const nextPhoto4Url = photo4Url !== undefined ? normalizeStoredFileName(photo4Url) : existing.Photo4Url;
+    const nextProof5Url = proof5Url !== undefined ? normalizeStoredFileName(proof5Url) : existing.Proof5Url;
+    const nextPhoto5Url = photo5Url !== undefined ? normalizeStoredFileName(photo5Url) : existing.Photo5Url;
+    const nextProof6Url = proof6Url !== undefined ? normalizeStoredFileName(proof6Url) : existing.Proof6Url;
+    const nextPhoto6Url = photo6Url !== undefined ? normalizeStoredFileName(photo6Url) : existing.Photo6Url;
+    const nextProof7Url = proof7Url !== undefined ? normalizeStoredFileName(proof7Url) : existing.Proof7Url;
+    const nextPhoto7Url = photo7Url !== undefined ? normalizeStoredFileName(photo7Url) : existing.Photo7Url;
+    const nextProof8Url = proof8Url !== undefined ? normalizeStoredFileName(proof8Url) : existing.Proof8Url;
+    const nextPhoto8Url = photo8Url !== undefined ? normalizeStoredFileName(photo8Url) : existing.Photo8Url;
+    const nextProof9Url = proof9Url !== undefined ? normalizeStoredFileName(proof9Url) : existing.Proof9Url;
+    const nextPhoto9Url = photo9Url !== undefined ? normalizeStoredFileName(photo9Url) : existing.Photo9Url;
+    const nextProof10Url = proof10Url !== undefined ? normalizeStoredFileName(proof10Url) : existing.Proof10Url;
+    const nextPhoto10Url = photo10Url !== undefined ? normalizeStoredFileName(photo10Url) : existing.Photo10Url;
 
     if (!nextGuestName) {
       return res.status(400).json({ error: 'Guest name is required' });
@@ -5190,6 +5382,24 @@ app.put('/api/daily-status/:dailyStatusId/guest-checkins/:guestCheckinId', async
       .input('checkOutTime', sql.DateTime, nextCheckOutTime ? new Date(nextCheckOutTime) : null)
       .input('proofUrl', sql.NVarChar(1000), nextProofUrl)
       .input('photoUrl', sql.NVarChar(1000), nextPhotoUrl)
+      .input('proof2Url', sql.NVarChar(1000), nextProof2Url)
+      .input('photo2Url', sql.NVarChar(1000), nextPhoto2Url)
+      .input('proof3Url', sql.NVarChar(1000), nextProof3Url)
+      .input('photo3Url', sql.NVarChar(1000), nextPhoto3Url)
+      .input('proof4Url', sql.NVarChar(1000), nextProof4Url)
+      .input('photo4Url', sql.NVarChar(1000), nextPhoto4Url)
+      .input('proof5Url', sql.NVarChar(1000), nextProof5Url)
+      .input('photo5Url', sql.NVarChar(1000), nextPhoto5Url)
+      .input('proof6Url', sql.NVarChar(1000), nextProof6Url)
+      .input('photo6Url', sql.NVarChar(1000), nextPhoto6Url)
+      .input('proof7Url', sql.NVarChar(1000), nextProof7Url)
+      .input('photo7Url', sql.NVarChar(1000), nextPhoto7Url)
+      .input('proof8Url', sql.NVarChar(1000), nextProof8Url)
+      .input('photo8Url', sql.NVarChar(1000), nextPhoto8Url)
+      .input('proof9Url', sql.NVarChar(1000), nextProof9Url)
+      .input('photo9Url', sql.NVarChar(1000), nextPhoto9Url)
+      .input('proof10Url', sql.NVarChar(1000), nextProof10Url)
+      .input('photo10Url', sql.NVarChar(1000), nextPhoto10Url)
       .query(`
         UPDATE DailyGuestCheckIn
         SET
@@ -5203,6 +5413,24 @@ app.put('/api/daily-status/:dailyStatusId/guest-checkins/:guestCheckinId', async
           CheckOutTime = @checkOutTime,
           ProofUrl = @proofUrl,
           PhotoUrl = @photoUrl,
+          Proof2Url = @proof2Url,
+          Photo2Url = @photo2Url,
+          Proof3Url = @proof3Url,
+          Photo3Url = @photo3Url,
+          Proof4Url = @proof4Url,
+          Photo4Url = @photo4Url,
+          Proof5Url = @proof5Url,
+          Photo5Url = @photo5Url,
+          Proof6Url = @proof6Url,
+          Photo6Url = @photo6Url,
+          Proof7Url = @proof7Url,
+          Photo7Url = @photo7Url,
+          Proof8Url = @proof8Url,
+          Photo8Url = @photo8Url,
+          Proof9Url = @proof9Url,
+          Photo9Url = @photo9Url,
+          Proof10Url = @proof10Url,
+          Photo10Url = @photo10Url,
           UpdatedDate = GETDATE()
         WHERE Id = @guestCheckinId
       `);
@@ -5223,6 +5451,24 @@ app.put('/api/daily-status/:dailyStatusId/guest-checkins/:guestCheckinId', async
           CheckOutTime as checkOutTime,
           ProofUrl as proofUrl,
           PhotoUrl as photoUrl,
+          Proof2Url as proof2Url,
+          Photo2Url as photo2Url,
+          Proof3Url as proof3Url,
+          Photo3Url as photo3Url,
+          Proof4Url as proof4Url,
+          Photo4Url as photo4Url,
+          Proof5Url as proof5Url,
+          Photo5Url as photo5Url,
+          Proof6Url as proof6Url,
+          Photo6Url as photo6Url,
+          Proof7Url as proof7Url,
+          Photo7Url as photo7Url,
+          Proof8Url as proof8Url,
+          Photo8Url as photo8Url,
+          Proof9Url as proof9Url,
+          Photo9Url as photo9Url,
+          Proof10Url as proof10Url,
+          Photo10Url as photo10Url,
           CreatedDate as createdDate,
           UpdatedDate as updatedDate
         FROM DailyGuestCheckIn
@@ -5239,7 +5485,25 @@ app.put('/api/daily-status/:dailyStatusId/guest-checkins/:guestCheckinId', async
 app.post('/api/daily-status/:dailyStatusId/guest-checkins/:guestCheckinId/upload',
   uploadGuestCheckin.fields([
     { name: 'proof', maxCount: 1 },
-    { name: 'photo', maxCount: 1 }
+    { name: 'photo', maxCount: 1 },
+    { name: 'proof2', maxCount: 1 },
+    { name: 'photo2', maxCount: 1 },
+    { name: 'proof3', maxCount: 1 },
+    { name: 'photo3', maxCount: 1 },
+    { name: 'proof4', maxCount: 1 },
+    { name: 'photo4', maxCount: 1 },
+    { name: 'proof5', maxCount: 1 },
+    { name: 'photo5', maxCount: 1 },
+    { name: 'proof6', maxCount: 1 },
+    { name: 'photo6', maxCount: 1 },
+    { name: 'proof7', maxCount: 1 },
+    { name: 'photo7', maxCount: 1 },
+    { name: 'proof8', maxCount: 1 },
+    { name: 'photo8', maxCount: 1 },
+    { name: 'proof9', maxCount: 1 },
+    { name: 'photo9', maxCount: 1 },
+    { name: 'proof10', maxCount: 1 },
+    { name: 'photo10', maxCount: 1 }
   ]),
   async (req: Request, res: Response) => {
     try {
@@ -5252,42 +5516,32 @@ app.post('/api/daily-status/:dailyStatusId/guest-checkins/:guestCheckinId/upload
       const files = req.files as { [fieldname: string]: Express.Multer.File[] };
       const azureConfigured = isAzureConfigured();
 
-      let proofUrl: string | null = null;
-      let photoUrl: string | null = null;
+      const uploadedFieldNames = [
+        'proof', 'photo', 'proof2', 'photo2', 'proof3', 'photo3', 'proof4', 'photo4',
+        'proof5', 'photo5', 'proof6', 'photo6', 'proof7', 'photo7', 'proof8', 'photo8',
+        'proof9', 'photo9', 'proof10', 'photo10'
+      ] as const;
 
-      if (files.proof && files.proof[0]) {
-        const file = files.proof[0];
+      const uploadedValues: Record<string, string | null> = {};
+
+      for (const fieldName of uploadedFieldNames) {
+        const fileList = files[fieldName];
+        if (!fileList || !fileList[0]) continue;
+
+        const file = fileList[0];
         const fileName = path.basename(file.path);
         if (azureConfigured) {
           try {
             const fileBuffer = fs.readFileSync(file.path);
             await uploadAzureBlobToContainer(AZURE_GUEST_CHECKIN_CONTAINER, fileName, fileBuffer, file.mimetype);
-            proofUrl = fileName;
+            uploadedValues[fieldName] = fileName;
             fs.unlinkSync(file.path);
           } catch (azureError) {
-            console.warn('[Guest Checkin Upload] Azure upload failed for proof, using fallback:', azureError);
-            proofUrl = fileName;
+            console.warn(`[Guest Checkin Upload] Azure upload failed for ${fieldName}, using fallback:`, azureError);
+            uploadedValues[fieldName] = fileName;
           }
         } else {
-          proofUrl = fileName;
-        }
-      }
-
-      if (files.photo && files.photo[0]) {
-        const file = files.photo[0];
-        const fileName = path.basename(file.path);
-        if (azureConfigured) {
-          try {
-            const fileBuffer = fs.readFileSync(file.path);
-            await uploadAzureBlobToContainer(AZURE_GUEST_CHECKIN_CONTAINER, fileName, fileBuffer, file.mimetype);
-            photoUrl = fileName;
-            fs.unlinkSync(file.path);
-          } catch (azureError) {
-            console.warn('[Guest Checkin Upload] Azure upload failed for photo, using fallback:', azureError);
-            photoUrl = fileName;
-          }
-        } else {
-          photoUrl = fileName;
+          uploadedValues[fieldName] = fileName;
         }
       }
 
@@ -5304,33 +5558,87 @@ app.post('/api/daily-status/:dailyStatusId/guest-checkins/:guestCheckinId/upload
         return res.status(404).json({ error: 'Guest check-in not found' });
       }
 
-      // Atomic partial update to avoid race conditions when proof/photo upload in parallel.
+      const updateQuery = `
+        UPDATE DailyGuestCheckIn
+        SET
+          ProofUrl = COALESCE(@proofUrl, ProofUrl),
+          PhotoUrl = COALESCE(@photoUrl, PhotoUrl),
+          Proof2Url = COALESCE(@proof2Url, Proof2Url),
+          Photo2Url = COALESCE(@photo2Url, Photo2Url),
+          Proof3Url = COALESCE(@proof3Url, Proof3Url),
+          Photo3Url = COALESCE(@photo3Url, Photo3Url),
+          Proof4Url = COALESCE(@proof4Url, Proof4Url),
+          Photo4Url = COALESCE(@photo4Url, Photo4Url),
+          Proof5Url = COALESCE(@proof5Url, Proof5Url),
+          Photo5Url = COALESCE(@photo5Url, Photo5Url),
+          Proof6Url = COALESCE(@proof6Url, Proof6Url),
+          Photo6Url = COALESCE(@photo6Url, Photo6Url),
+          Proof7Url = COALESCE(@proof7Url, Proof7Url),
+          Photo7Url = COALESCE(@photo7Url, Photo7Url),
+          Proof8Url = COALESCE(@proof8Url, Proof8Url),
+          Photo8Url = COALESCE(@photo8Url, Photo8Url),
+          Proof9Url = COALESCE(@proof9Url, Proof9Url),
+          Photo9Url = COALESCE(@photo9Url, Photo9Url),
+          Proof10Url = COALESCE(@proof10Url, Proof10Url),
+          Photo10Url = COALESCE(@photo10Url, Photo10Url),
+          UpdatedDate = GETDATE()
+        WHERE Id = @guestCheckinId AND DailyStatusId = @dailyStatusId
+      `;
+
       await pool.request()
         .input('dailyStatusId', sql.Int, dailyStatusIdInt)
         .input('guestCheckinId', sql.Int, guestCheckinIdInt)
-        .input('proofUrl', sql.NVarChar(1000), proofUrl)
-        .input('photoUrl', sql.NVarChar(1000), photoUrl)
-        .query(`
-          UPDATE DailyGuestCheckIn
-          SET
-            ProofUrl = COALESCE(@proofUrl, ProofUrl),
-            PhotoUrl = COALESCE(@photoUrl, PhotoUrl),
-            UpdatedDate = GETDATE()
-          WHERE Id = @guestCheckinId AND DailyStatusId = @dailyStatusId
-        `);
+        .input('proofUrl', sql.NVarChar(1000), uploadedValues.proof ?? null)
+        .input('photoUrl', sql.NVarChar(1000), uploadedValues.photo ?? null)
+        .input('proof2Url', sql.NVarChar(1000), uploadedValues.proof2 ?? null)
+        .input('photo2Url', sql.NVarChar(1000), uploadedValues.photo2 ?? null)
+        .input('proof3Url', sql.NVarChar(1000), uploadedValues.proof3 ?? null)
+        .input('photo3Url', sql.NVarChar(1000), uploadedValues.photo3 ?? null)
+        .input('proof4Url', sql.NVarChar(1000), uploadedValues.proof4 ?? null)
+        .input('photo4Url', sql.NVarChar(1000), uploadedValues.photo4 ?? null)
+        .input('proof5Url', sql.NVarChar(1000), uploadedValues.proof5 ?? null)
+        .input('photo5Url', sql.NVarChar(1000), uploadedValues.photo5 ?? null)
+        .input('proof6Url', sql.NVarChar(1000), uploadedValues.proof6 ?? null)
+        .input('photo6Url', sql.NVarChar(1000), uploadedValues.photo6 ?? null)
+        .input('proof7Url', sql.NVarChar(1000), uploadedValues.proof7 ?? null)
+        .input('photo7Url', sql.NVarChar(1000), uploadedValues.photo7 ?? null)
+        .input('proof8Url', sql.NVarChar(1000), uploadedValues.proof8 ?? null)
+        .input('photo8Url', sql.NVarChar(1000), uploadedValues.photo8 ?? null)
+        .input('proof9Url', sql.NVarChar(1000), uploadedValues.proof9 ?? null)
+        .input('photo9Url', sql.NVarChar(1000), uploadedValues.photo9 ?? null)
+        .input('proof10Url', sql.NVarChar(1000), uploadedValues.proof10 ?? null)
+        .input('photo10Url', sql.NVarChar(1000), uploadedValues.photo10 ?? null)
+        .query(updateQuery);
 
       const updatedResult = await pool.request()
         .input('dailyStatusId', sql.Int, dailyStatusIdInt)
         .input('guestCheckinId', sql.Int, guestCheckinIdInt)
-        .query('SELECT ProofUrl, PhotoUrl FROM DailyGuestCheckIn WHERE Id = @guestCheckinId AND DailyStatusId = @dailyStatusId');
+        .query(`SELECT ProofUrl, PhotoUrl, Proof2Url, Photo2Url, Proof3Url, Photo3Url, Proof4Url, Photo4Url, Proof5Url, Photo5Url, Proof6Url, Photo6Url, Proof7Url, Photo7Url, Proof8Url, Photo8Url, Proof9Url, Photo9Url, Proof10Url, Photo10Url FROM DailyGuestCheckIn WHERE Id = @guestCheckinId AND DailyStatusId = @dailyStatusId`);
 
-      const finalProofUrl = updatedResult.recordset[0]?.ProofUrl || null;
-      const finalPhotoUrl = updatedResult.recordset[0]?.PhotoUrl || null;
+      const row = updatedResult.recordset[0] || {};
 
       res.json({
         message: 'Files uploaded successfully',
-        proofUrl: finalProofUrl,
-        photoUrl: finalPhotoUrl,
+        proofUrl: row.ProofUrl || null,
+        photoUrl: row.PhotoUrl || null,
+        proof2Url: row.Proof2Url || null,
+        photo2Url: row.Photo2Url || null,
+        proof3Url: row.Proof3Url || null,
+        photo3Url: row.Photo3Url || null,
+        proof4Url: row.Proof4Url || null,
+        photo4Url: row.Photo4Url || null,
+        proof5Url: row.Proof5Url || null,
+        photo5Url: row.Photo5Url || null,
+        proof6Url: row.Proof6Url || null,
+        photo6Url: row.Photo6Url || null,
+        proof7Url: row.Proof7Url || null,
+        photo7Url: row.Photo7Url || null,
+        proof8Url: row.Proof8Url || null,
+        photo8Url: row.Photo8Url || null,
+        proof9Url: row.Proof9Url || null,
+        photo9Url: row.Photo9Url || null,
+        proof10Url: row.Proof10Url || null,
+        photo10Url: row.Photo10Url || null,
         uploadedToAzure: azureConfigured
       });
     } catch (error) {
@@ -5350,7 +5658,7 @@ app.delete('/api/daily-status/:dailyStatusId/guest-checkins/:guestCheckinId', as
       .input('dailyStatusId', sql.Int, parseInt(dailyStatusId))
       .input('guestCheckinId', sql.Int, parseInt(guestCheckinId))
       .query(`
-        SELECT ProofUrl, PhotoUrl
+        SELECT ProofUrl, PhotoUrl, Proof2Url, Photo2Url, Proof3Url, Photo3Url, Proof4Url, Photo4Url, Proof5Url, Photo5Url, Proof6Url, Photo6Url, Proof7Url, Photo7Url, Proof8Url, Photo8Url, Proof9Url, Photo9Url, Proof10Url, Photo10Url
         FROM DailyGuestCheckIn
         WHERE Id = @guestCheckinId AND DailyStatusId = @dailyStatusId
       `);
@@ -5361,6 +5669,24 @@ app.delete('/api/daily-status/:dailyStatusId/guest-checkins/:guestCheckinId', as
 
     const proofFileName = normalizeStoredFileName(existingResult.recordset[0].ProofUrl);
     const photoFileName = normalizeStoredFileName(existingResult.recordset[0].PhotoUrl);
+    const proof2FileName = normalizeStoredFileName(existingResult.recordset[0].Proof2Url);
+    const photo2FileName = normalizeStoredFileName(existingResult.recordset[0].Photo2Url);
+    const proof3FileName = normalizeStoredFileName(existingResult.recordset[0].Proof3Url);
+    const photo3FileName = normalizeStoredFileName(existingResult.recordset[0].Photo3Url);
+    const proof4FileName = normalizeStoredFileName(existingResult.recordset[0].Proof4Url);
+    const photo4FileName = normalizeStoredFileName(existingResult.recordset[0].Photo4Url);
+    const proof5FileName = normalizeStoredFileName(existingResult.recordset[0].Proof5Url);
+    const photo5FileName = normalizeStoredFileName(existingResult.recordset[0].Photo5Url);
+    const proof6FileName = normalizeStoredFileName(existingResult.recordset[0].Proof6Url);
+    const photo6FileName = normalizeStoredFileName(existingResult.recordset[0].Photo6Url);
+    const proof7FileName = normalizeStoredFileName(existingResult.recordset[0].Proof7Url);
+    const photo7FileName = normalizeStoredFileName(existingResult.recordset[0].Photo7Url);
+    const proof8FileName = normalizeStoredFileName(existingResult.recordset[0].Proof8Url);
+    const photo8FileName = normalizeStoredFileName(existingResult.recordset[0].Photo8Url);
+    const proof9FileName = normalizeStoredFileName(existingResult.recordset[0].Proof9Url);
+    const photo9FileName = normalizeStoredFileName(existingResult.recordset[0].Photo9Url);
+    const proof10FileName = normalizeStoredFileName(existingResult.recordset[0].Proof10Url);
+    const photo10FileName = normalizeStoredFileName(existingResult.recordset[0].Photo10Url);
 
     const deleteResult = await pool.request()
       .input('dailyStatusId', sql.Int, parseInt(dailyStatusId))
@@ -5374,7 +5700,28 @@ app.delete('/api/daily-status/:dailyStatusId/guest-checkins/:guestCheckinId', as
       return res.status(404).json({ error: 'Guest check-in not found' });
     }
 
-    const filesToDelete = [proofFileName, photoFileName].filter((value): value is string => Boolean(value));
+    const filesToDelete = [
+      proofFileName,
+      photoFileName,
+      proof2FileName,
+      photo2FileName,
+      proof3FileName,
+      photo3FileName,
+      proof4FileName,
+      photo4FileName,
+      proof5FileName,
+      photo5FileName,
+      proof6FileName,
+      photo6FileName,
+      proof7FileName,
+      photo7FileName,
+      proof8FileName,
+      photo8FileName,
+      proof9FileName,
+      photo9FileName,
+      proof10FileName,
+      photo10FileName
+    ].filter((value): value is string => Boolean(value));
 
     for (const fileName of filesToDelete) {
       if (isAzureConfigured()) {
