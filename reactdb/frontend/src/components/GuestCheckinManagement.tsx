@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { apiService, getGuestCheckinFileUrl } from '../api';
 import { useAuth } from './AuthContext';
 import LoadingSpinner from './LoadingSpinner';
@@ -176,6 +176,37 @@ interface Room {
   rent: number;
   beds: number;
 }
+
+const guestCheckinStatusesCacheKey = 'guest-checkin-management:statuses';
+const guestCheckinRoomsCacheKey = 'guest-checkin-management:rooms';
+const guestCheckinEntriesCachePrefix = 'guest-checkin-management:entries';
+
+const getDateInputValue = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getGuestCheckinCacheKey = (mode: 'daily' | 'weekly' | 'monthly', date: string): string =>
+  `${guestCheckinEntriesCachePrefix}:${mode}:${date}`;
+
+const readGuestCheckinCache = <T,>(key: string): T | null => {
+  try {
+    const value = window.sessionStorage.getItem(key);
+    return value ? JSON.parse(value) as T : null;
+  } catch {
+    return null;
+  }
+};
+
+const writeGuestCheckinCache = (key: string, value: unknown): void => {
+  try {
+    window.sessionStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Ignore unavailable or full browser storage.
+  }
+};
 
 interface GuestFileUploadSectionProps {
   guest: GuestCheckIn;
@@ -422,18 +453,17 @@ export default function GuestCheckinManagement() {
   const isAdmin = hasRole('admin');
   const guestPhoneFilterListId = 'guest-checkin-phone-filter-options';
 
-  const [statuses, setStatuses] = useState<DailyStatus[]>([]);
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  });
-  const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'monthly'>('daily');
-  const [guestCheckins, setGuestCheckins] = useState<GuestCheckIn[]>([]);
-  const [previousGuestHistory, setPreviousGuestHistory] = useState<GuestCheckIn[]>([]);
+  const initialDate = getDateInputValue(new Date());
+  const [statuses, setStatuses] = useState<DailyStatus[]>(() => readGuestCheckinCache<DailyStatus[]>(guestCheckinStatusesCacheKey) || []);
+  const [rooms, setRooms] = useState<Room[]>(() => readGuestCheckinCache<Room[]>(guestCheckinRoomsCacheKey) || []);
+  const [selectedDate, setSelectedDate] = useState<string>(initialDate);
+  const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
+  const [guestCheckins, setGuestCheckins] = useState<GuestCheckIn[]>(() =>
+    readGuestCheckinCache<GuestCheckIn[]>(getGuestCheckinCacheKey('monthly', initialDate)) || []
+  );
+  const [previousGuestHistory, setPreviousGuestHistory] = useState<GuestCheckIn[]>(() =>
+    readGuestCheckinCache<GuestCheckIn[]>(getGuestCheckinCacheKey('monthly', initialDate)) || []
+  );
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -703,14 +733,27 @@ export default function GuestCheckinManagement() {
     });
   }, [guestCheckins, phoneFilter]);
 
+  const activeGuestCheckins = useMemo(
+    () => filteredGuestCheckins.filter((guest) => !guest.checkOutTime),
+    [filteredGuestCheckins]
+  );
+
+  const checkedOutGuestCheckins = useMemo(
+    () => filteredGuestCheckins.filter((guest) => Boolean(guest.checkOutTime)),
+    [filteredGuestCheckins]
+  );
+
   const fetchStatuses = async () => {
     try {
       const response = await apiService.getDailyStatuses();
       const rows = Array.isArray(response.data) ? response.data : [];
       const ordered = [...rows].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       setStatuses(ordered);
+      writeGuestCheckinCache(guestCheckinStatusesCacheKey, ordered);
     } catch (err) {
-      setError(getErrorMessage(err, 'Failed to load daily statuses'));
+      if (statuses.length === 0) {
+        setError(getErrorMessage(err, 'Failed to load daily statuses'));
+      }
     }
   };
 
@@ -719,8 +762,11 @@ export default function GuestCheckinManagement() {
       const response = await apiService.getRooms();
       const roomRows = Array.isArray(response.data) ? response.data : [];
       setRooms(roomRows);
+      writeGuestCheckinCache(guestCheckinRoomsCacheKey, roomRows);
     } catch (err) {
-      setError(getErrorMessage(err, 'Failed to load rooms'));
+      if (rooms.length === 0) {
+        setError(getErrorMessage(err, 'Failed to load rooms'));
+      }
     }
   };
 
@@ -736,9 +782,13 @@ export default function GuestCheckinManagement() {
       const response = await apiService.getDailyGuestCheckins(statusId);
       const rows = Array.isArray(response.data) ? response.data : [];
       setGuestCheckins(rows);
+      writeGuestCheckinCache(getGuestCheckinCacheKey('daily', selectedDate), rows);
+
       setPreviousGuestHistory((previous) => {
-        const knownGuestIds = new Set(previous.map((guest) => guest.id));
-        return [...previous, ...rows.filter((guest) => !knownGuestIds.has(guest.id))];
+        const merged = new Map<number, GuestCheckIn>();
+        previous.forEach((guest) => merged.set(guest.id, guest));
+        rows.forEach((guest) => merged.set(guest.id, guest));
+        return Array.from(merged.values()).sort((a, b) => b.id - a.id);
       });
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to load guest check-ins'));
@@ -790,6 +840,7 @@ export default function GuestCheckinManagement() {
           (a, b) => new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime()
         );
         setGuestCheckins(merged);
+        writeGuestCheckinCache(getGuestCheckinCacheKey('weekly', selectedDate), merged);
       } catch (err) {
         setError(getErrorMessage(err, 'Failed to load weekly consolidated guest check-ins'));
       } finally {
@@ -819,6 +870,8 @@ export default function GuestCheckinManagement() {
         (a, b) => new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime()
       );
       setGuestCheckins(merged);
+      setPreviousGuestHistory(merged);
+      writeGuestCheckinCache(getGuestCheckinCacheKey('monthly', selectedDate), merged);
     } catch (err) {
       setError(getErrorMessage(err, `Failed to load ${mode} consolidated guest check-ins`));
     } finally {
@@ -842,6 +895,14 @@ export default function GuestCheckinManagement() {
   }, [viewMode]);
 
   useEffect(() => {
+    if (selectedDate) {
+      const cachedEntries = readGuestCheckinCache<GuestCheckIn[]>(getGuestCheckinCacheKey(viewMode, selectedDate));
+      if (cachedEntries) {
+        setGuestCheckins(cachedEntries);
+        setPreviousGuestHistory(cachedEntries);
+      }
+    }
+
     if (viewMode === 'daily') {
       if (!selectedDate) {
         setGuestCheckins([]);
@@ -1626,17 +1687,29 @@ export default function GuestCheckinManagement() {
           </div>
         ) : (
           <div className="items-grid guest-checkin-list-grid">
-            {filteredGuestCheckins.map((guest) => {
+            {[...activeGuestCheckins, ...checkedOutGuestCheckins].map((guest, index, groupedGuests) => {
               const isCheckedOut = Boolean(guest.checkOutTime);
               const isCollapsed = collapsedGuestIds[guest.id] ?? true;
+              const isFirstCheckedOut = isCheckedOut && !groupedGuests[index - 1]?.checkOutTime;
               return (
-                <div key={guest.id} className={`item-card guest-checkin-card${isCollapsed ? ' is-collapsed' : ''}`}>
+                <Fragment key={guest.id}>
+                  {index === 0 && (
+                    <h3 className="guest-checkin-group-heading active-guests-heading">
+                      Active Guests ({activeGuestCheckins.length})
+                    </h3>
+                  )}
+                  {isFirstCheckedOut && (
+                    <h3 className="guest-checkin-group-heading checked-out-guests-heading">
+                      Checked-Out Guests ({checkedOutGuestCheckins.length})
+                    </h3>
+                  )}
+                <div className={`item-card guest-checkin-card${isCollapsed ? ' is-collapsed' : ''}${isCheckedOut ? ' checked-out' : ''}`}>
                   <div className="item-header">
                     <div className="guest-card-title-block">
                       <h4>{guest.guestName}</h4>
                       <div className="guest-card-summary">
                         <span>{guest.phoneNumber || 'No phone number'}</span>
-                        <span style={{ fontWeight: 800, color: '#0f172a', background: '#fef3c7', borderRadius: 6, padding: '0.1rem 0.35rem' }}>
+                        <span style={{ fontWeight: 900, color: '#0f172a', background: '#fef3c7', borderRadius: 6, padding: '0.1rem 0.35rem' }}>
                           {guest.visitingRoomNo ? `Room ${guest.visitingRoomNo}` : 'No room assigned'}
                         </span>
                         <span>{isCheckedOut ? 'Checked out' : 'Active'}</span>
@@ -1820,7 +1893,7 @@ export default function GuestCheckinManagement() {
                               <div style={{ position: 'absolute', top: 0, right: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem', textAlign: 'right' }}>
                                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.45rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                                   <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#475569' }}>Room</span>
-                                  <span style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a' }}>{guest.visitingRoomNo || 'N/A'}</span>
+                                  <span style={{ fontSize: '1.3rem', fontWeight: 900, color: '#0f172a' }}>{guest.visitingRoomNo || 'N/A'}</span>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.45rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                                   <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#475569' }}>Check-In</span>
@@ -1864,6 +1937,7 @@ export default function GuestCheckinManagement() {
                     </div>
                   )}
                 </div>
+                </Fragment>
               );
             })}
           </div>
