@@ -425,7 +425,7 @@ export default function GuestCheckinManagement() {
   const [statuses, setStatuses] = useState<DailyStatus[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>('');
-  const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
+  const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [guestCheckins, setGuestCheckins] = useState<GuestCheckIn[]>([]);
   const [previousGuestHistory, setPreviousGuestHistory] = useState<GuestCheckIn[]>([]);
   const [loading, setLoading] = useState(false);
@@ -715,10 +715,6 @@ export default function GuestCheckinManagement() {
         })
       );
       setPreviousGuestHistory(historyResults.flat());
-
-      if (!selectedDate && ordered.length > 0) {
-        setSelectedDate(formatDateForInput(new Date(ordered[0].date)));
-      }
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to load daily statuses'));
     }
