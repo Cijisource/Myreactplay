@@ -425,7 +425,7 @@ export default function GuestCheckinManagement() {
   const [statuses, setStatuses] = useState<DailyStatus[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>('');
-  const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
   const [guestCheckins, setGuestCheckins] = useState<GuestCheckIn[]>([]);
   const [previousGuestHistory, setPreviousGuestHistory] = useState<GuestCheckIn[]>([]);
   const [loading, setLoading] = useState(false);
