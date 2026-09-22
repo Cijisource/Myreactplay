@@ -424,7 +424,13 @@ export default function GuestCheckinManagement() {
 
   const [statuses, setStatuses] = useState<DailyStatus[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
-  const [selectedDate, setSelectedDate] = useState<string>('');
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
   const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [guestCheckins, setGuestCheckins] = useState<GuestCheckIn[]>([]);
   const [previousGuestHistory, setPreviousGuestHistory] = useState<GuestCheckIn[]>([]);
@@ -703,18 +709,6 @@ export default function GuestCheckinManagement() {
       const rows = Array.isArray(response.data) ? response.data : [];
       const ordered = [...rows].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       setStatuses(ordered);
-
-      const historyResults = await Promise.all(
-        ordered.map(async (status) => {
-          try {
-            const guestResponse = await apiService.getDailyGuestCheckins(status.id);
-            return Array.isArray(guestResponse.data) ? guestResponse.data : [];
-          } catch {
-            return [];
-          }
-        })
-      );
-      setPreviousGuestHistory(historyResults.flat());
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to load daily statuses'));
     }
@@ -740,7 +734,12 @@ export default function GuestCheckinManagement() {
       setLoading(true);
       setError(null);
       const response = await apiService.getDailyGuestCheckins(statusId);
-      setGuestCheckins(Array.isArray(response.data) ? response.data : []);
+      const rows = Array.isArray(response.data) ? response.data : [];
+      setGuestCheckins(rows);
+      setPreviousGuestHistory((previous) => {
+        const knownGuestIds = new Set(previous.map((guest) => guest.id));
+        return [...previous, ...rows.filter((guest) => !knownGuestIds.has(guest.id))];
+      });
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to load guest check-ins'));
     } finally {
@@ -844,7 +843,23 @@ export default function GuestCheckinManagement() {
 
   useEffect(() => {
     if (viewMode === 'daily') {
-      fetchGuestCheckins(selectedStatus ? selectedStatus.id : null);
+      if (!selectedDate) {
+        setGuestCheckins([]);
+        return;
+      }
+
+      if (!selectedStatus) {
+        setGuestCheckins([]);
+        setError(null);
+        return;
+      }
+
+      fetchGuestCheckins(selectedStatus.id);
+      return;
+    }
+
+    if (!selectedDate) {
+      setGuestCheckins([]);
       return;
     }
 
@@ -1408,7 +1423,7 @@ export default function GuestCheckinManagement() {
       {success && <div className="success-message">{success}</div>}
 
       <div className="guest-checkin-main-grid">
-        {viewMode === 'daily' && (
+        {viewMode === 'daily' && selectedStatus && (
           <div className="form-container guest-checkin-add-section guest-checkin-panel" style={{ marginBottom: '1rem' }}>
             <div className="guest-checkin-panel-header">
               <h3>Add Guest Check-In</h3>
