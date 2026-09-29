@@ -137,11 +137,6 @@ export const listOracleBlobsFromBucket = async (): Promise<OracleBlobListItem[]>
   const response = await oracleS3Client.send(command);
   const items: OracleBlobListItem[] = [];
 
-  console.log('Listing Oracle blobs from bucket:', config.bucket);
-  console.log('Response from Oracle Object Storage:', response);
-  console.log('Contents of the response:', response.Contents);
-  console.log('Number of items in the response:', response.Contents?.length || 0);
-
   for (const item of response.Contents || []) {
     const key = item.Key;
 

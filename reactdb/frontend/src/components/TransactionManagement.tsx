@@ -67,6 +67,8 @@ export default function TransactionManagement({
   const [selectedExpenseYear, setSelectedExpenseYear] = useState<string>('all');
   const [selectedMonthlyExpenseYear, setSelectedMonthlyExpenseYear] = useState<string>(String(new Date().getFullYear()));
   const [selectedDailyExpenseDate, setSelectedDailyExpenseDate] = useState<string | null>(null);
+  const [showDailyExpenseTooltip, setShowDailyExpenseTooltip] = useState(false);
+  const [dailyExpenseTooltipPosition, setDailyExpenseTooltipPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
 
   const isExpenseType = (transactionType?: string): boolean => {
     const normalized = String(transactionType || '').trim().toLowerCase();
@@ -927,7 +929,49 @@ export default function TransactionManagement({
           ) : (
             <div className="expense-report-content">
               <div className="daily-expense-summary-row">
-                <div className="stat-badge total expense-total">Total: ₹{formatAmount(dailyExpenseTotal)}</div>
+                <div className="daily-expense-total-wrapper">
+                  <button
+                    type="button"
+                    className="stat-badge total expense-total daily-expense-total-trigger"
+                    onClick={(event) => {
+                      const rect = event.currentTarget.getBoundingClientRect();
+                      setDailyExpenseTooltipPosition({
+                        top: rect.bottom + 10,
+                        left: Math.min(rect.left, window.innerWidth - 540)
+                      });
+                      setShowDailyExpenseTooltip((current) => !current);
+                    }}
+                    aria-expanded={showDailyExpenseTooltip}
+                    aria-label="Show total expense details"
+                  >
+                    Total: ₹{formatAmount(dailyExpenseTotal)}
+                  </button>
+                  {showDailyExpenseTooltip && (
+                    <div
+                      className="daily-expense-tooltip"
+                      role="tooltip"
+                      style={{
+                        top: `${dailyExpenseTooltipPosition.top}px`,
+                        left: `${dailyExpenseTooltipPosition.left}px`
+                      }}
+                    >
+                      <div className="daily-expense-tooltip-header">Expense details</div>
+                      <div className="daily-expense-tooltip-body">
+                        {dailyExpenseDescriptionBreakdown.length === 0 ? (
+                          <span>No expense details available.</span>
+                        ) : (
+                          dailyExpenseDescriptionBreakdown.slice(0, 25).map((row) => (
+                            <div key={`${row.date}-${row.description}`} className="daily-expense-tooltip-row">
+                              <span>{row.label}</span>
+                              <span>{row.description}</span>
+                              <strong>₹{formatAmount(row.total)}</strong>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <div className="stat-badge">Days with activity: {dailyExpenseReport.filter((row) => row.transactionCount > 0).length}</div>
               </div>
 

@@ -1,0 +1,42 @@
+services:
+  nginx:
+    image: nginx:latest
+    container_name: nginx_proxy
+    ports:
+      - "80:90"   # host:container mapping
+      - "443:443"
+    volumes:
+      - /home/ubuntu/config/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /home/ubuntu/config/certs:/etc/letsencrypt:ro
+      - /home/ubuntu/config/html:/var/www/html
+    depends_on:
+      - frontend
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"      # Max 50% of a CPU per container
+          memory: 64M     # Max 512 MB RAM per container
+        reservations:
+          cpus: "0.1"     # Reserve 25% of a CPU
+          memory: 32M     # Reserve 256 MB RAM
+    networks:
+      - mansion-network
+
+  #Cerbot for certificates
+  # certbot:
+  #   image: certbot/certbot
+  #   volumes:
+  #     - /home/ubuntu/config/ssl:/etc/letsencrypt
+  #     - /home/ubuntu/config/html:/var/www/html
+  #   command: certonly --webroot --webroot-path=/var/www/html \
+  #            --agree-tos --no-eff-email \
+  #            -d mansion.gnanabi.info -m cijai@gmail.com
+
+networks:
+  mansion-network:
+    driver: bridge
+
+volumes:
+  server-uploads:
+    driver: local
