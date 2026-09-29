@@ -26,7 +26,7 @@ export async function initializeDatabase(): Promise<void> {
     
     pool = new sql.ConnectionPool(config);
     await pool.connect();
-    console.log('✓ Successfully connected to Azure SQL Database');
+    console.log('Database connected');
   } catch (error) {
     console.error('✗ Failed to connect to database:', error);
     console.error('Connection config:', {

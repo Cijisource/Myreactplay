@@ -7885,7 +7885,7 @@ const startServer = async () => {
     });
     
     app.listen(PORT, '0.0.0.0', () => {
-      console.log(`✓ Express server running on port ${PORT}`);
+      console.log(`Port listening: ${PORT}`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);

@@ -94,6 +94,8 @@
   width: 100%;
   max-width: 420px;
   aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 10px;
 }
 
 .ocr-camera-preview {
@@ -193,6 +195,27 @@
   margin: 4px 0 0;
   color: #475569;
   font-size: 12px;
+}
+
+.ocr-zoom-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(100%, 420px);
+  margin-top: 10px;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ocr-zoom-control span {
+  min-width: 64px;
+}
+
+.ocr-zoom-control input {
+  flex: 1;
+  min-width: 0;
+  accent-color: #0f766e;
 }
 
 .ocr-camera-text {

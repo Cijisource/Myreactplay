@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createWorker, PSM } from 'tesseract.js';
 import { apiService } from '../api';
 import LoadingSpinner from './LoadingSpinner';
 import { Scanner } from '@yudiel/react-qr-scanner';
@@ -75,6 +76,7 @@ export default function MonthlyMeterReading(): JSX.Element {
   const [ocrBusy, setOcrBusy] = useState(false);
   const [ocrPreviewUrl, setOcrPreviewUrl] = useState<string | null>(null);
   const [ocrExtractedText, setOcrExtractedText] = useState<string | null>(null);
+  const [ocrZoom, setOcrZoom] = useState(1);
 
   // Ref for auto-focusing on ending meter reading input
   const endingMeterReadingRef = useRef<HTMLInputElement>(null);
@@ -559,9 +561,146 @@ export default function MonthlyMeterReading(): JSX.Element {
         throw new Error('Unable to create a photo from the camera preview.');
       }
 
-      context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+      const sourceWidth = canvas.width / ocrZoom;
+      const sourceHeight = canvas.height / ocrZoom;
+      const sourceX = (canvas.width - sourceWidth) / 2;
+      const sourceY = (canvas.height - sourceHeight) / 2;
+      context.drawImage(videoElement, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height);
       const photoDataUrl = canvas.toDataURL('image/png');
       setOcrPreviewUrl(photoDataUrl);
+
+      let recognizedText = '';
+      let ocrConfidence = 0;
+      try {
+        const worker = await createWorker('eng');
+        try {
+          const scanCanvas = document.createElement('canvas');
+          const scanScale = 3;
+          scanCanvas.width = Math.round(canvas.width * 0.64 * scanScale);
+          scanCanvas.height = Math.round(canvas.height * 0.32 * scanScale);
+          const scanContext = scanCanvas.getContext('2d', { willReadFrequently: true });
+          if (!scanContext) {
+            throw new Error('Unable to prepare the meter area for OCR.');
+          }
+
+          scanContext.imageSmoothingEnabled = true;
+          scanContext.imageSmoothingQuality = 'high';
+          scanContext.drawImage(
+            canvas,
+            canvas.width * 0.18,
+            canvas.height * 0.34,
+            canvas.width * 0.64,
+            canvas.height * 0.32,
+            0,
+            0,
+            scanCanvas.width,
+            scanCanvas.height
+          );
+
+          const imageData = scanContext.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
+          const histogram = new Uint32Array(256);
+          const grayscale = new Uint8Array(imageData.data.length / 4);
+          for (let pixel = 0; pixel < grayscale.length; pixel += 1) {
+            const offset = pixel * 4;
+            const gray = Math.round(
+              imageData.data[offset] * 0.299 +
+              imageData.data[offset + 1] * 0.587 +
+              imageData.data[offset + 2] * 0.114
+            );
+            grayscale[pixel] = gray;
+            histogram[gray] += 1;
+          }
+
+          const totalPixels = grayscale.length;
+          const percentileGray = (percentile: number): number => {
+            const target = Math.floor(totalPixels * percentile);
+            let cumulative = 0;
+            for (let gray = 0; gray < histogram.length; gray += 1) {
+              cumulative += histogram[gray];
+              if (cumulative > target) return gray;
+            }
+            return 255;
+          };
+          const contrastLow = percentileGray(0.02);
+          const contrastHigh = percentileGray(0.98);
+          let backgroundWeight = 0;
+          let backgroundSum = 0;
+          let bestVariance = -1;
+          let threshold = 128;
+          const totalSum = grayscale.reduce((sum, gray) => sum + gray, 0);
+          for (let gray = 0; gray < 256; gray += 1) {
+            backgroundWeight += histogram[gray];
+            backgroundSum += gray * histogram[gray];
+            const foregroundWeight = totalPixels - backgroundWeight;
+            if (!backgroundWeight || !foregroundWeight) continue;
+            const backgroundMean = backgroundSum / backgroundWeight;
+            const foregroundMean = (totalSum - backgroundSum) / foregroundWeight;
+            const variance = backgroundWeight * foregroundWeight * (backgroundMean - foregroundMean) ** 2;
+            if (variance > bestVariance) {
+              bestVariance = variance;
+              threshold = gray;
+            }
+          }
+
+          const thresholdData = new ImageData(scanCanvas.width, scanCanvas.height);
+          for (let pixel = 0; pixel < grayscale.length; pixel += 1) {
+            const offset = pixel * 4;
+            const stretched = contrastHigh > contrastLow
+              ? Math.max(0, Math.min(255, Math.round((grayscale[pixel] - contrastLow) * 255 / (contrastHigh - contrastLow))))
+              : grayscale[pixel];
+            imageData.data[offset] = stretched;
+            imageData.data[offset + 1] = stretched;
+            imageData.data[offset + 2] = stretched;
+            const binary = grayscale[pixel] > threshold ? 255 : 0;
+            thresholdData.data[offset] = binary;
+            thresholdData.data[offset + 1] = binary;
+            thresholdData.data[offset + 2] = binary;
+            thresholdData.data[offset + 3] = 255;
+          }
+          scanContext.putImageData(imageData, 0, 0);
+          const enhancedImage = scanCanvas.toDataURL('image/png');
+          scanContext.putImageData(thresholdData, 0, 0);
+          const thresholdImage = scanCanvas.toDataURL('image/png');
+
+          const passes: Array<{ image: string; pageSegmentationMode: PSM }> = [
+            { image: enhancedImage, pageSegmentationMode: PSM.SINGLE_LINE },
+            { image: thresholdImage, pageSegmentationMode: PSM.SINGLE_LINE },
+            { image: enhancedImage, pageSegmentationMode: PSM.SINGLE_BLOCK },
+            { image: thresholdImage, pageSegmentationMode: PSM.SINGLE_BLOCK }
+          ];
+          let bestCandidate: { text: string; score: number; confidence: number } | null = null;
+          for (const pass of passes) {
+            await worker.setParameters({
+              tessedit_char_whitelist: '0123456789.',
+              tessedit_pageseg_mode: pass.pageSegmentationMode
+            });
+            const { data } = await worker.recognize(pass.image);
+            const candidates = data.text.match(/\d+(?:\.\d+)?/g) || [];
+            for (const candidate of candidates) {
+              const score = data.confidence + Math.min(candidate.length, 8) * 1.5;
+              if (!bestCandidate || score > bestCandidate.score) {
+                bestCandidate = { text: candidate, score, confidence: data.confidence };
+              }
+            }
+          }
+          recognizedText = bestCandidate?.text || '';
+          ocrConfidence = bestCandidate?.confidence || 0;
+        } finally {
+          await worker.terminate();
+        }
+      } catch (ocrError) {
+        console.error('Meter photo OCR failed:', ocrError);
+        setOcrCameraError('OCR could not read this image. The photo will still be uploaded.');
+      }
+      setOcrExtractedText(recognizedText
+        ? `Reading candidate: ${recognizedText} (${Math.round(ocrConfidence)}% confidence)`
+        : 'No reading detected. Adjust zoom and try again.');
+
+      if (recognizedText && ocrConfidence >= 40) {
+        setFormData(previous => ({ ...previous, endingMeterReading: recognizedText }));
+      } else if (recognizedText) {
+        setOcrCameraError('Low OCR confidence. Verify the candidate and enter the reading manually.');
+      }
 
       const roomNumber = (qrGeneratorRoomNumber || allocations.find((alloc) => alloc.id === selectedAllocationId)?.room.number || 'unknown').trim();
       const safeRoomNumber = roomNumber.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'unknown';
@@ -598,7 +737,7 @@ export default function MonthlyMeterReading(): JSX.Element {
     } finally {
       setOcrBusy(false);
     }
-  }, [allocations, qrGeneratorRoomNumber, selectedAllocationId]);
+  }, [allocations, ocrZoom, qrGeneratorRoomNumber, selectedAllocationId]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -970,19 +1109,31 @@ export default function MonthlyMeterReading(): JSX.Element {
                                           </button>
                                           {ocrCameraActive && (
                                             <button type="button" className="btn-ocr-capture" onClick={() => void captureMeterReadingFromCamera()} disabled={ocrBusy}>
-                                              {ocrBusy ? 'Uploading...' : 'Capture & Upload'}
+                                              {ocrBusy ? 'Scanning & Uploading...' : 'Scan & Upload'}
                                             </button>
                                           )}
                                         </div>
                                         {ocrCameraActive && (
                                           <div className="ocr-camera-panel">
                                             <div className="ocr-camera-preview-wrap">
-                                              <video ref={ocrVideoRef} className="ocr-camera-preview" autoPlay muted playsInline />
+                                              <video ref={ocrVideoRef} className="ocr-camera-preview" style={{ transform: `scale(${ocrZoom})` }} autoPlay muted playsInline />
                                               <div className="ocr-focus-overlay" aria-hidden="true">
                                                 <div className="ocr-focus-box" />
                                               </div>
                                             </div>
-                                            <p className="ocr-camera-help">Place only the meter digits inside the box for best results.</p>
+                                            <label className="ocr-zoom-control">
+                                              <span>Zoom: {ocrZoom.toFixed(1)}x</span>
+                                              <input
+                                                type="range"
+                                                min="1"
+                                                max="3"
+                                                step="0.1"
+                                                value={ocrZoom}
+                                                onChange={event => setOcrZoom(Number(event.target.value))}
+                                                aria-label="Camera zoom"
+                                              />
+                                            </label>
+                                            <p className="ocr-camera-help">Center the meter digits in the box, adjust zoom, then scan. The detected reading will be entered for you to verify.</p>
                                             {ocrPreviewUrl && <img src={ocrPreviewUrl} alt="OCR capture preview" className="ocr-camera-preview-image" />}
                                             {ocrCameraError && <p className="ocr-camera-error">{ocrCameraError}</p>}
                                             {ocrExtractedText && <p className="ocr-camera-text">OCR text: {ocrExtractedText}</p>}
