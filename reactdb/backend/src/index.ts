@@ -1,6 +1,9 @@
 import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { initializeDatabase, closeDatabase, getDatabaseConnectionInfo, getPool } from './database';
+import { initializeSqliteDatabase, closeSqliteDatabase, isSqliteTenantStorage } from './sqliteDatabase';
+import * as sqliteTenantRoutes from './tenantSqliteRoutes';
+import { transformPhotoUrlsForResponse, transformPhotoUrlsInArray } from './photoUrlUtils';
 import sql from 'mssql';
 import jwt from 'jsonwebtoken';
 import multer from 'multer';
@@ -424,45 +427,7 @@ console.log('Static file serving enabled at /api/banner and /banner from:', bann
 
 // **HELPER FUNCTION: Transform blob names to Azure URLs**
 // Converts stored blob names to full Azure URLs or local fallback paths
-const transformPhotoUrlsForResponse = (data: any): any => {
-  const azureConfigured = isAzureConfigured();
-  const azureBlobUrl = process.env.AZURE_BLOB_URL || 'https://complexstore.blob.core.windows.net/proofs';
-  
-  // List of photo and proof URL fields
-  const imageFields = [
-    'photoUrl', 'photo2Url', 'photo3Url', 'photo4Url', 'photo5Url',
-    'photo6Url', 'photo7Url', 'photo8Url', 'photo9Url', 'photo10Url',
-    'proof1Url', 'proof2Url', 'proof3Url', 'proof4Url', 'proof5Url',
-    'proof6Url', 'proof7Url', 'proof8Url', 'proof9Url', 'proof10Url'
-  ];
-
-  // Transform each image field
-  for (const field of imageFields) {
-    if (data[field]) {
-      const blobName = data[field];
-      
-      // If already a full URL, keep as-is
-      if (blobName.startsWith('http://') || blobName.startsWith('https://')) {
-        continue;
-      }
-      
-      // If Azure is configured, construct Azure URL
-      if (azureConfigured) {
-        data[field] = `${azureBlobUrl}/${blobName}`;
-      } else {
-        // Fallback to local path
-        data[field] = `/api/tenantphotos/${blobName}`;
-      }
-    }
-  }
-  
-  return data;
-};
-
-// Helper to transform array of records
-const transformPhotoUrlsInArray = (records: any[]): any[] => {
-  return records.map(record => transformPhotoUrlsForResponse({ ...record }));
-};
+// (moved to photoUrlUtils.ts so it can be shared with the SQLite tenant routes)
 
 const normalizeStoredFileName = (value: unknown): string | null => {
   if (typeof value !== 'string') {
@@ -1827,6 +1792,9 @@ app.get('/api/rooms/vacant', async (req: Request, res: Response) => {
 
 // Get all tenants with occupancy details and pending payments
 app.get('/api/tenants/with-occupancy', async (req: Request, res: Response) => {
+  if (isSqliteTenantStorage()) {
+    return sqliteTenantRoutes.getAllTenantsWithOccupancy(req, res);
+  }
   try {
     const pool = getPool();
     const result = await pool.request().query(`
@@ -1908,6 +1876,9 @@ app.get('/api/tenants/with-occupancy', async (req: Request, res: Response) => {
 
 // Get single tenant
 app.get('/api/tenants/:id', async (req: Request, res: Response) => {
+  if (isSqliteTenantStorage()) {
+    return sqliteTenantRoutes.getTenantById(req, res);
+  }
   try {
     const { id } = req.params;
     const pool = getPool();
@@ -1980,6 +1951,10 @@ app.get('/api/tenants/:id/occupancy-history', async (req: Request, res: Response
       return res.status(400).json({ error: 'Invalid tenant ID' });
     }
 
+    if (isSqliteTenantStorage()) {
+      return sqliteTenantRoutes.getTenantOccupancyHistory(req, res);
+    }
+
     const pool = getPool();
     const result = await pool
       .request()
@@ -2017,7 +1992,11 @@ app.get('/api/tenants/check-phone/:phone', async (req: Request, res: Response) =
   try {
     const { phone } = req.params;
     const excludeTenantId = req.query.excludeId ? parseInt(req.query.excludeId as string) : null;
-    
+
+    if (isSqliteTenantStorage()) {
+      return sqliteTenantRoutes.checkPhoneNumber(req, res);
+    }
+
     console.log('[Phone Check] Checking phone:', { phone, excludeTenantId });
     
     const pool = getPool();
@@ -2141,6 +2120,10 @@ app.post('/api/tenants', async (req: Request, res: Response) => {
       return res.status(400).json({
         error: 'Check-out date must be after check-in date'
       });
+    }
+
+    if (isSqliteTenantStorage()) {
+      return sqliteTenantRoutes.createTenant(req, res);
     }
     
     const pool = getPool();
@@ -2463,6 +2446,10 @@ app.put('/api/tenants/:id', async (req: Request, res: Response) => {
         error: 'Invalid phone format',
         details: `Phone number must be exactly 10 digits (received ${phoneDigits.length} digits)`
       });
+    }
+
+    if (isSqliteTenantStorage()) {
+      return sqliteTenantRoutes.updateTenant(req, res);
     }
     
     const pool = getPool();
@@ -2872,6 +2859,9 @@ app.put('/api/tenants/:id', async (req: Request, res: Response) => {
 
 // Delete tenant
 app.delete('/api/tenants/:id', async (req: Request, res: Response) => {
+  if (isSqliteTenantStorage()) {
+    return sqliteTenantRoutes.deleteTenant(req, res);
+  }
   try {
     const { id } = req.params;
     const pool = getPool();
@@ -3429,6 +3419,9 @@ app.get('/api/cities/search', async (req: Request, res: Response) => {
 
 // Search tenants
 app.get('/api/tenants/search', async (req: Request, res: Response) => {
+  if (isSqliteTenantStorage()) {
+    return sqliteTenantRoutes.searchTenants(req, res);
+  }
   try {
     const { field, query } = req.query;
     
@@ -7875,6 +7868,11 @@ app.put('/api/tenant-service-charges/:id/status', async (req: Request, res: Resp
 const startServer = async () => {
   try {
     await initializeDatabase();
+
+    if (isSqliteTenantStorage()) {
+      initializeSqliteDatabase();
+      console.log('[Tenant Management] Using local SQLite storage (TENANT_STORAGE_ENGINE=sqlite)');
+    }
     
     // Initialize Azure Blob Storage if configured
     initializeAzureClient();
@@ -7896,6 +7894,7 @@ const startServer = async () => {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully');
+  closeSqliteDatabase();
   await closeDatabase();
   process.exit(0);
 });

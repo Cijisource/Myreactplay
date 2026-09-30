@@ -3,6 +3,9 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# python3/make/g++ are required to build the better-sqlite3 native addon
+RUN apk add --no-cache python3 make g++
+
 COPY package*.json ./
 
 RUN npm install
@@ -15,6 +18,9 @@ RUN npm run build
 FROM node:20-alpine
 
 WORKDIR /app
+
+# python3/make/g++ are required to build the better-sqlite3 native addon
+RUN apk add --no-cache python3 make g++
 
 COPY package*.json ./
 
@@ -43,12 +49,18 @@ RUN mkdir -p /app/paymentreceipts && \
     chmod 755 /app/banner && \
     chmod 755 /app
 
+# Create data directory for optional SQLite local storage (tenant management)
+RUN mkdir -p /app/data && \
+    chmod 755 /app/data && \
+    chmod 755 /app
+
 # Set environment variable for complains directory
 ENV COMPLAINS_DIR=/app/complains
 ENV DAILY_STATUS_DIR=/app/dailystatus
 ENV TENANT_PHOTOS_DIR=/app/tenantphotos
 ENV PAYMENT_RECEIPTS_DIR=/app/paymentreceipts
 ENV BANNER_DIR=/app/banner
+ENV SQLITE_DB_PATH=/app/data/tenants.sqlite
 
 EXPOSE 5000
 
