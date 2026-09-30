@@ -1,14 +1,19 @@
 .water-tank-monitor-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: clamp(16px, 3vw, 26px);
+  width: 100%;
+  margin: 0;
+  padding: clamp(16px, 2.4vw, 36px);
+  box-sizing: border-box;
+  background: linear-gradient(135deg, #f8fafc 0%, #eaf2ff 100%);
+  min-height: 100vh;
 }
 
 .water-tank-monitor-panel {
+  width: 100%;
+  box-sizing: border-box;
   background: white;
-  border-radius: 18px;
-  padding: 26px;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+  border-radius: 20px;
+  padding: clamp(20px, 2.4vw, 34px);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
   border-top: 6px solid #2563eb;
 }
 
@@ -18,19 +23,63 @@
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
-  margin-bottom: 22px;
+  margin-bottom: 26px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e6edf7;
+}
+
+.water-tank-monitor-header-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.water-tank-monitor-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #2563eb 0%, #60a5fa 100%);
+  color: white;
+  font-size: 20px;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.28);
+  flex-shrink: 0;
 }
 
 .water-tank-monitor-header h2 {
   margin: 0;
-  font-size: clamp(22px, 2.2vw, 28px);
+  font-size: clamp(22px, 1.8vw, 26px);
   color: #1f3f72;
+  letter-spacing: 0.2px;
 }
 
 .water-tank-monitor-header p {
   margin: 6px 0 0;
+  color: #64748b;
+  font-size: 13.5px;
+}
+
+.water-tank-monitor-toolbar {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.water-tank-monitor-toolbar label {
+  font-size: 12px;
   color: #475569;
-  font-size: 14px;
+  font-weight: 600;
+}
+
+.water-tank-monitor-toolbar input[type='number'] {
+  width: 100px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1px solid #d1e3ff;
+  font-size: 13px;
 }
 
 .graph-refresh-btn {
@@ -60,16 +109,22 @@
 
 .meter-graph-summary {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 18px;
-  margin-bottom: 22px;
+  margin-bottom: 24px;
 }
 
 .meter-graph-summary-card {
   background: #f5f9ff;
   border: 1px solid #dbeafb;
   border-radius: 16px;
-  padding: 22px;
+  padding: 20px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.meter-graph-summary-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.1);
 }
 
 .summary-title {
@@ -199,7 +254,10 @@
 
 .v4-gauge-panel {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
+  align-items: stretch;
+  gap: 18px;
   margin: 4px 0 22px;
 }
 
@@ -218,23 +276,49 @@
   box-shadow: 0 16px 34px rgba(15, 23, 42, 0.08);
 }
 
+.tank-visual-card {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.14), transparent 44%),
+    linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  border: 1px solid #dbe7f5;
+  border-radius: 16px;
+  padding: 18px 22px 14px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.08);
+}
+
+.water-tank-visual {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
 .speedometer-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 16px;
-  margin-bottom: 22px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 18px;
+  margin-bottom: 24px;
 }
 
 .speedometer-card {
   background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
   border: 1px solid #e2eaf4;
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 14px 10px 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 184px;
   box-shadow: 0 10px 22px rgba(15, 23, 42, 0.05);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.speedometer-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.09);
 }
 
 .professional-speedometer {
@@ -245,7 +329,8 @@
 }
 
 @media (max-width: 640px) {
-  .v4-gauge-card {
+  .v4-gauge-card,
+  .tank-visual-card {
     max-width: 100%;
     padding: 14px 10px 8px;
   }
@@ -258,5 +343,10 @@
   .speedometer-card {
     min-height: 164px;
     padding: 10px 6px 8px;
+  }
+
+  .water-tank-monitor-toolbar {
+    width: 100%;
+    justify-content: space-between;
   }
 }

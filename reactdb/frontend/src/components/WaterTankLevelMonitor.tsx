@@ -17,13 +17,14 @@ interface MainTankReading {
   timestamp: string;
   v10?: number;
   v14?: number;
+  v13?: number;
 }
 
 // Request the pins we need
 const BLYNK_API_URL = 'https://blynk.cloud/external/api/get?token=2NMuxK5u-e8X0yB7nF0Ye459GIGH21jC&V1&V2&V3&V4&V6&V9';
 
-// Main Tank API (separate token + pins V10 & V14)
-const MAIN_TANK_API_URL = 'https://blynk.cloud/external/api/get?token=w-R8a_nmrqsPSdWhD7WFTKn02G6ptVtu&V10&V14';
+// Main Tank API (separate token + pins V10, V14 & V13)
+const MAIN_TANK_API_URL = 'https://blynk.cloud/external/api/get?token=w-R8a_nmrqsPSdWhD7WFTKn02G6ptVtu&V10&V14&V13';
 
 // Parse Blynk response to a map of pin->value. Supports JSON object, arrays, or simple text.
 const parseBlynkResponse = (text: string): Record<string, number> => {
@@ -95,6 +96,8 @@ const formatPinValue = (pin: string, value?: number | null) => {
     case 'V6':
       return msToDuration(value);
     case 'V9':
+      return `${value} ft`;
+    case 'V14':
       return `${value} ft`;
     default:
       return String(value);
@@ -189,6 +192,88 @@ function Speedometer({ value = 0, max = 100, size = 160, label = '' }: { value?:
   );
 }
 
+// Vertical tank-shaped level indicator (used for V9 water level in feet)
+function WaterTankVisual({ value = 0, max = 3.5, width = 150, height = 220, label = '', unit = '' }: { value?: number; max?: number; width?: number; height?: number; label?: string; unit?: string }) {
+  const safeMax = max > 0 ? max : 1;
+  const safeValue = Math.max(0, Number.isFinite(value) ? value : 0);
+  const ratio = Math.max(0, Math.min(1, safeValue / safeMax));
+  const capHeight = height * 0.08;
+  const wallInset = 6;
+  const bodyTop = capHeight + wallInset;
+  const bodyHeight = height - bodyTop - wallInset;
+  const bodyWidth = width - wallInset * 2;
+  const cornerRadius = bodyWidth * 0.14;
+  const waterHeight = bodyHeight * ratio;
+  const waterTop = bodyTop + (bodyHeight - waterHeight);
+  const percent = Math.round(ratio * 100);
+  const displayValue = Number.isInteger(safeValue) ? String(safeValue) : safeValue.toFixed(2);
+  const status = ratio >= 0.8 ? 'High' : ratio >= 0.3 ? 'Normal' : 'Low';
+  const statusColor = ratio >= 0.8 ? '#dc2626' : ratio >= 0.3 ? '#0f766e' : '#2563eb';
+  const clipId = `tank-clip-${label.replace(/\W/g, '')}-${width}-${height}`;
+  const fillId = `tank-fill-${label.replace(/\W/g, '')}-${width}-${height}`;
+  const ticks = [0, 0.25, 0.5, 0.75, 1];
+
+  return (
+    <svg className="water-tank-visual" width={width + 78} height={height + 30} viewBox={`-32 0 ${width + 78} ${height + 30}`} role="img" aria-label={`${label} ${displayValue}${unit}`}>
+      <defs>
+        <clipPath id={clipId}>
+          <rect x={wallInset} y={bodyTop} width={bodyWidth} height={bodyHeight} rx={cornerRadius} />
+        </clipPath>
+        <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#7dd3fc" />
+          <stop offset="55%" stopColor="#38bdf8" />
+          <stop offset="100%" stopColor="#2563eb" />
+        </linearGradient>
+      </defs>
+
+      <ellipse cx={wallInset + bodyWidth / 2} cy={capHeight} rx={bodyWidth / 2} ry={capHeight * 0.9} fill="#e0f2fe" stroke="#94a3b8" strokeWidth={1.4} />
+
+      <rect x={wallInset} y={bodyTop} width={bodyWidth} height={bodyHeight} rx={cornerRadius} fill="#f8fbff" stroke="#94a3b8" strokeWidth={1.4} />
+
+      <g clipPath={`url(#${clipId})`}>
+        <rect x={wallInset} y={waterTop} width={bodyWidth} height={bodyHeight} fill={`url(#${fillId})`} />
+        <path
+          d={`M ${wallInset} ${waterTop} q ${bodyWidth * 0.25} -7 ${bodyWidth * 0.5} 0 t ${bodyWidth * 0.5} 0 v 12 h ${-bodyWidth} z`}
+          fill="#bae6fd"
+          opacity={0.55}
+        />
+      </g>
+
+      <rect x={wallInset} y={bodyTop} width={bodyWidth} height={bodyHeight} rx={cornerRadius} fill="none" stroke="#94a3b8" strokeWidth={1.4} />
+
+      <text x={wallInset + bodyWidth / 2} y={14} fontSize={12} textAnchor="middle" fill="#1f3f72" fontWeight={800}>
+        {label}
+      </text>
+
+      {ticks.map((tick) => {
+        const y = bodyTop + bodyHeight * (1 - tick);
+        return (
+          <g key={tick}>
+            <line x1={wallInset - 6} y1={y} x2={wallInset} y2={y} stroke="#94a3b8" strokeWidth={1.2} />
+            <text x={wallInset - 9} y={y + 3} fontSize={9} textAnchor="end" fill="#64748b" fontWeight={600}>
+              {(safeMax * tick).toFixed(safeMax >= 10 ? 0 : 1)}
+            </text>
+          </g>
+        );
+      })}
+
+      <text x={wallInset + bodyWidth / 2} y={bodyTop + bodyHeight / 2 - 6} fontSize={width > 130 ? 22 : 17} textAnchor="middle" fill="#0f172a" fontWeight={800}>
+        {displayValue}{unit}
+      </text>
+      <text x={wallInset + bodyWidth / 2} y={bodyTop + bodyHeight / 2 + 16} fontSize={11} textAnchor="middle" fill="#1f3f72" fontWeight={700}>
+        {percent}%
+      </text>
+
+      <g>
+        <rect x={wallInset + bodyWidth / 2 - 31} y={bodyTop + bodyHeight + 6} width={62} height={18} rx={9} fill={statusColor} opacity={0.12} />
+        <text x={wallInset + bodyWidth / 2} y={bodyTop + bodyHeight + 19} fontSize={10} textAnchor="middle" fill={statusColor} fontWeight={800}>
+          {status}
+        </text>
+      </g>
+    </svg>
+  );
+}
+
 export default function WaterTankLevelMonitor(): JSX.Element {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -271,6 +356,7 @@ export default function WaterTankLevelMonitor(): JSX.Element {
           timestamp: new Date().toLocaleString(),
           v10: map['V10'] ?? map['10'] ?? undefined,
           v14: map['V14'] ?? map['14'] ?? undefined,
+          v13: map['V13'] ?? map['13'] ?? undefined,
         };
         setMainTank(reading);
       setMainHistory((prev) => [reading, ...prev].slice(0, 12));
@@ -291,20 +377,70 @@ export default function WaterTankLevelMonitor(): JSX.Element {
 
   return (
     <div className="water-tank-monitor-container">
+      <section className="main-tank-global-section" aria-label="Tank overview">
+        <div className="main-tank-global-heading">
+          <div>
+            <span className="main-tank-global-eyebrow">Live water levels</span>
+            <h2>Tank Overview</h2>
+          </div>
+          <span className="main-tank-global-status"><span aria-hidden="true" />Live readings</span>
+        </div>
+        <div className="main-tank-gauge-corner">
+          <div className="v4-gauge-card">
+            <Speedometer
+              value={mainTank?.v10 ?? 0}
+              max={100}
+              size={210}
+              label="Main Tank %"
+            />
+          </div>
+          <div className="v4-gauge-card">
+            <Speedometer
+              value={latestReading?.v4 ?? 0}
+              max={100}
+              size={210}
+              label="Sintex %"
+            />
+          </div>
+          <div className="tank-visual-card">
+            <WaterTankVisual
+              value={mainTank?.v14 ?? 0}
+              max={3}
+              width={165}
+              height={245}
+              label="Cement Tank"
+              unit=" ft"
+            />
+          </div>
+          <div className="tank-visual-card">
+            <WaterTankVisual
+              value={latestReading?.v9 ?? 0}
+              max={3.5}
+              width={165}
+              height={245}
+              label="Sintex Tank"
+              unit=" ft"
+            />
+          </div>
+        </div>
+      </section>
+
       <div className="water-tank-monitor-panel">
         <div className="water-tank-monitor-header">
-          <div>
-            <h2>Sintex Tank Monitor</h2>
-            <p>Live tank reading values from Blynk pins V1, V2, V3, V4 and V6.</p>
+          <div className="water-tank-monitor-header-title">
+            <span className="water-tank-monitor-icon" aria-hidden="true">💧</span>
+            <div>
+              <h2>Sintex Tank Monitor</h2>
+              <p>Live tank reading values from Blynk pins V1, V2, V3, V4 and V6.</p>
+            </div>
           </div>
-          <div style={{display: 'flex', gap: 8, alignItems: 'center'}}>
-            <label style={{fontSize:12,color:'#475569'}}>Gauge max</label>
+          <div className="water-tank-monitor-toolbar">
+            <label>Gauge max</label>
             <input
               type="number"
               min={1}
               value={speedometerMax}
               onChange={(e) => setSpeedometerMax(Math.max(1, Number(e.target.value) || 1))}
-              style={{width:100,padding:6,borderRadius:8,border:'1px solid #d1e3ff'}}
             />
             <button className="graph-refresh-btn" onClick={fetchMeterValues}>{loading ? 'Refreshing…' : 'Refresh Data'}</button>
           </div>
@@ -320,20 +456,9 @@ export default function WaterTankLevelMonitor(): JSX.Element {
               <div className="meter-graph-summary-card"><div className="summary-title">V1 (cm)</div><div className="summary-value">{formatPinValue('V1', latestReading?.v1 ?? null)}</div><div className="summary-meta">{latestReading?.timestamp ?? 'N/A'}</div></div>
               <div className="meter-graph-summary-card"><div className="summary-title">V2 (L)</div><div className="summary-value">{formatPinValue('V2', latestReading?.v2 ?? null)}</div><div className="summary-meta">{latestReading?.timestamp ?? 'N/A'}</div></div>
               <div className="meter-graph-summary-card"><div className="summary-title">V3 (L)</div><div className="summary-value">{formatPinValue('V3', latestReading?.v3 ?? null)}</div><div className="summary-meta">{latestReading?.timestamp ?? 'N/A'}</div></div>
-              <div className="meter-graph-summary-card"><div className="summary-title">V4 (%)</div><div className="summary-value">{formatPinValue('V4', latestReading?.v4 ?? null)}</div><div className="summary-meta">{latestReading?.timestamp ?? 'N/A'}</div></div>
+              <div className="meter-graph-summary-card"><div className="summary-title">Sintex (%)</div><div className="summary-value">{formatPinValue('V4', latestReading?.v4 ?? null)}</div><div className="summary-meta">{latestReading?.timestamp ?? 'N/A'}</div></div>
               <div className="meter-graph-summary-card"><div className="summary-title">V6 (uptime)</div><div className="summary-value">{formatPinValue('V6', latestReading?.v6 ?? null)}</div><div className="summary-meta">{latestReading?.timestamp ?? 'N/A'}</div></div>
               <div className="meter-graph-summary-card"><div className="summary-title">V9 (ft)</div><div className="summary-value">{formatPinValue('V9', latestReading?.v9 ?? null)}</div><div className="summary-meta">{latestReading?.timestamp ?? 'N/A'}</div></div>
-            </div>
-
-            <div className="v4-gauge-panel">
-              <div className="v4-gauge-card">
-                <Speedometer
-                  value={latestReading?.v4 ?? 0}
-                  max={100}
-                  size={240}
-                  label="V4 (%)"
-                />
-              </div>
             </div>
 
             <div className="speedometer-grid">
@@ -342,7 +467,6 @@ export default function WaterTankLevelMonitor(): JSX.Element {
                 {k: 'V2', v: latestReading?.v2, max: 1000, label: 'Consumed Ltrs', size: 160},
                 {k: 'V3', v: latestReading?.v3, max: 1000, label: 'V3 (L)', size: 160},
                 {k: 'V6', v: latestReading?.v6, max: speedometerMax || chartMaxValue || 100, label: 'V6 (ms)', size: 160},
-                {k: 'V9', v: latestReading?.v9, max: 3.5, label: 'V9 (ft)', size: 160}
               ].map((it) => (
                 <div key={it.k} className="speedometer-card">
                   <Speedometer
@@ -382,42 +506,50 @@ export default function WaterTankLevelMonitor(): JSX.Element {
 
       <div className="main-tank-panel">
         <div className="main-tank-header">
-          <div className="main-tank-title">Main Tank</div>
-          <div style={{display:'flex',gap:8,alignItems:'center'}}>
-            <button className="graph-refresh-btn" onClick={fetchMainTankValues}>{mainLoading ? 'Refreshing…' : 'Refresh Main Tank'}</button>
+          <div className="water-tank-monitor-header-title">
+            <span className="water-tank-monitor-icon" aria-hidden="true">🛢️</span>
+            <div>
+              <h2>Main Tank</h2>
+              <p>Live tank reading values from Blynk pins V10, V14 and V13.</p>
+            </div>
+          </div>
+          <div className="main-tank-header-right">
+            <div className="water-tank-monitor-toolbar">
+              <button className="graph-refresh-btn" onClick={fetchMainTankValues}>{mainLoading ? 'Refreshing…' : 'Refresh Main Tank'}</button>
+            </div>
           </div>
         </div>
 
         {mainError && <div className="message error">{mainError}</div>}
 
-        <div className="main-tank-speedometer">
-          <div>
-            {mainTank ? Speedometer({ value: mainTank.v10 ?? 0, max: 100, size: 260, label: 'Main Tank %' }) : <div className="meter-graph-loading">{mainLoading ? 'Loading…' : 'No data'}</div>}
-          </div>
-          <div className="main-tank-meta">
-            <div style={{fontWeight:700,fontSize:16}}>{mainTank ? formatPinValue('V10', mainTank.v10 ?? null) : '--'}</div>
-            <div style={{fontSize:12,color:'#64748b',marginTop:6}}>V10</div>
-            <div style={{height:12}} />
-            <div style={{fontWeight:600}}>{mainTank ? formatPinValue('V14', mainTank.v14 ?? null) : '--'}</div>
-            <div style={{fontSize:12,color:'#64748b',marginTop:6}}>V14</div>
-          </div>
-        </div>
-
-        {mainHistory.length > 0 && (
-          <div className="main-tank-history">
-            <div className="history-header">Main Tank History</div>
-            <div className="meter-graph-history-list">
-              {mainHistory.map((point) => (
-                <div key={point.timestamp} className="meter-graph-history-item">
-                  <div className="history-label">{point.timestamp}</div>
-                  <div className="history-values">
-                    <span>V10: {formatPinValue('V10', point.v10 ?? null)}</span>
-                    <span>V14: {formatPinValue('V14', point.v14 ?? null)}</span>
-                  </div>
-                </div>
-              ))}
+        {mainLoading && !mainTank ? (
+          <LoadingSpinner text="Loading main tank values" />
+        ) : (
+          <>
+            <div className="meter-graph-summary">
+              <div className="meter-graph-summary-card"><div className="summary-title">V10 (%)</div><div className="summary-value">{formatPinValue('V10', mainTank?.v10 ?? null)}</div><div className="summary-meta">{mainTank?.timestamp ?? 'N/A'}</div></div>
+              <div className="meter-graph-summary-card"><div className="summary-title">V14 (ft)</div><div className="summary-value">{formatPinValue('V14', mainTank?.v14 ?? null)}</div><div className="summary-meta">{mainTank?.timestamp ?? 'N/A'}</div></div>
+              <div className="meter-graph-summary-card"><div className="summary-title">V13</div><div className="summary-value">{formatPinValue('V13', mainTank?.v13 ?? null)}</div><div className="summary-meta">{mainTank?.timestamp ?? 'N/A'}</div></div>
             </div>
-          </div>
+
+            {mainHistory.length > 0 && (
+              <div className="meter-graph-history">
+                <div className="history-header">Main Tank History</div>
+                <div className="meter-graph-history-list">
+                  {mainHistory.map((point) => (
+                    <div key={point.timestamp} className="meter-graph-history-item">
+                      <div className="history-label">{point.timestamp}</div>
+                      <div className="history-values">
+                        <span>V10: {formatPinValue('V10', point.v10 ?? null)}</span>
+                        <span>V14: {formatPinValue('V14', point.v14 ?? null)}</span>
+                        <span>V13: {formatPinValue('V13', point.v13 ?? null)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
