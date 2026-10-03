@@ -217,6 +217,7 @@ export default function RentalCollectionDetails() {
   });
 
   const currentMonthYear = selectedMonthFilter;
+  const isCurrentMonthSelected = selectedMonthFilter === getDefaultMonthValue();
 
   const getEffectiveStatus = (
     payment: Pick<MonthlyPaymentStatus, 'rentFixed' | 'proRataRent' | 'paymentStatus' | 'rentReceived' | 'charges' | 'rentReceivedOn'>
@@ -264,14 +265,29 @@ export default function RentalCollectionDetails() {
   const mergedCount = roomFilteredPayments.filter((item) => getEffectiveStatus(item) === 'merged').length;
   const approvedCount = roomFilteredPayments.filter((item) => getReviewDecision(item) === 'approved').length;
   const rejectedCount = roomFilteredPayments.filter((item) => getReviewDecision(item) === 'rejected').length;
-  const getEffectiveReceived = (rentReceived: number, charges: number, hasPaymentRecord: boolean = true): number => {
+  const isCheckoutPayment = (mode?: string | null): boolean => {
+    const normalizedMode = (mode || '').trim().toLowerCase();
+    return normalizedMode === 'checkout' || normalizedMode === 'check out';
+  };
+  const getEffectiveReceived = (
+    rentReceived: number,
+    charges: number,
+    hasPaymentRecord: boolean = true,
+    mode?: string | null
+  ): number => {
     if (!hasPaymentRecord) return 0;
+    if (isCheckoutPayment(mode)) return 0;
     return Number(rentReceived || 0) + Number(charges || 0);
   };
 
   const totalReceivedAmount = roomFilteredPayments.reduce(
     (sum, item) =>
-      sum + getEffectiveReceived(Number(item.rentReceived || 0), Number(item.charges || 0), Boolean(item.rentReceivedOn) || Number(item.rentReceived || 0) > 0),
+      sum + getEffectiveReceived(
+        Number(item.rentReceived || 0),
+        Number(item.charges || 0),
+        Boolean(item.rentReceivedOn) || Number(item.rentReceived || 0) > 0,
+        item.modeOfPayment
+      ),
     0
   );
   const totalChargesAmount = roomFilteredPayments.reduce((sum, item) => sum + Number(item.charges || 0), 0);
@@ -280,24 +296,13 @@ export default function RentalCollectionDetails() {
       const effectiveReceived = getEffectiveReceived(
         Number(item.rentReceived || 0),
         Number(item.charges || 0),
-        Boolean(item.rentReceivedOn) || Number(item.rentReceived || 0) > 0
+        Boolean(item.rentReceivedOn) || Number(item.rentReceived || 0) > 0,
+        item.modeOfPayment
       );
       const effectiveBalance = item.rentBalance ?? (item.proRataRent + Number(item.charges || 0) - effectiveReceived);
       return sum + Math.max(0, effectiveBalance);
     },
     0
-  );
-  const monthlyPaymentTotals = rentalRecords.reduce<Record<string, { rentReceived: number; charges: number }>>(
-    (totals, record) => {
-      const paymentMonth = record.rentReceivedOn?.slice(0, 7) || '';
-      const monthTotals = totals[paymentMonth] || { rentReceived: 0, charges: 0 };
-
-      monthTotals.rentReceived += Number(record.rentReceived || 0);
-      monthTotals.charges += Number(record.charges || 0);
-      totals[paymentMonth] = monthTotals;
-      return totals;
-    },
-    {}
   );
   const canChangeReviewStatus = hasAnyRole(['admin', 'accountant']) || !hasRole('manager');
 
@@ -971,17 +976,181 @@ export default function RentalCollectionDetails() {
   const getTotalReceived = (rentReceived: number, charges: number): number =>
     Number(rentReceived || 0) + Number(charges || 0);
 
+  const getTotalReceivedForMonth = (monthKey: string): number => {
+    if (!monthKey) {
+      return 0;
+    }
+
+    return rentalRecords.reduce((sum, record) => {
+      const recordMonthKey = record.rentReceivedOn?.slice(0, 7) || '';
+      if (recordMonthKey !== monthKey) {
+        return sum;
+      }
+
+      return sum + getEffectiveReceived(
+        Number(record.rentReceived || 0),
+        Number(record.charges || 0),
+        Boolean(record.rentReceivedOn) || Number(record.rentReceived || 0) > 0,
+        record.modeOfPayment
+      );
+    }, 0);
+  };
+
   const getDisplayBalance = (record: RentalRecord): number => {
-    const paymentMonth = record.rentReceivedOn?.slice(0, 7) || '';
-    const monthlyTotals = monthlyPaymentTotals[paymentMonth] || { rentReceived: 0, charges: 0 };
-    const totalDue = Number(record.rentFixed || 0) + monthlyTotals.charges;
-    const totalReceived = getEffectiveReceived(Number(record.rentReceived || 0), Number(record.charges || 0));
+    if (isCheckoutPayment(record.modeOfPayment)) {
+      return 0;
+    }
+
+    const monthKey = record.rentReceivedOn?.slice(0, 7) || '';
+    const totalDue = Number(record.rentFixed || 0) + Number(record.charges || 0);
+    const totalReceived = getTotalReceivedForMonth(monthKey);
 
     return Math.max(0, totalDue - totalReceived);
   };
 
   const openProofPreview = (url: string, alt: string) => {
     setProofPreview({ url, alt });
+  };
+
+  const handleProofOpen = (event: React.MouseEvent<HTMLElement>, url: string, alt: string) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openProofPreview(url, alt);
+  };
+
+  const renderPaymentHistoryTable = (records: RentalRecord[], options?: { showActions?: boolean }) => {
+    const { showActions = false } = options ?? {};
+
+    const getMonthKeyFromDate = (value: string | null | undefined) => {
+      if (!value) return null;
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return null;
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    };
+
+    const currentMonthKey = selectedMonthFilter || getDefaultMonthValue();
+
+    return (
+      <div className="payment-history-table-wrapper">
+        <table className="payment-history-table">
+          <thead>
+            <tr>
+              <th>Payment Date</th>
+              <th>Mode</th>
+              <th>Fixed Rent</th>
+              <th>Charges</th>
+              <th>EB Charges</th>
+              <th>Received</th>
+              <th>Total Received</th>
+              <th>Balance</th>
+              {showActions && <th>Actions</th>}
+              <th>Proof</th>
+            </tr>
+          </thead>
+          <tbody>
+            {records.map((record) => {
+              const proofUrl = record.screenshotUrl
+                ? getProofUrl(record.screenshotUrl, record.rentReceivedOn, record.folder)
+                : null;
+              const effectiveReceived = getEffectiveReceived(
+                Number(record.rentReceived || 0),
+                Number(record.charges || 0),
+                Boolean(record.rentReceivedOn) || Number(record.rentReceived || 0) > 0,
+                record.modeOfPayment
+              );
+              const monthTotal = getTotalReceivedForMonth(record.rentReceivedOn?.slice(0, 7) || '');
+              const balance = getDisplayBalance(record);
+              const ebCharges = Number(record.charges || 0);
+              const isCurrentMonthRecord = getMonthKeyFromDate(record.rentReceivedOn) === currentMonthKey;
+              const isCheckoutEntry = isCheckoutPayment(record.modeOfPayment);
+
+              return (
+                <tr
+                  key={record.id}
+                  className={`${isCurrentMonthRecord ? 'current-month-payment-row' : ''} ${isCheckoutEntry ? 'checkout-payment-row' : ''}`.trim()}
+                >
+                  <td>{new Date(record.rentReceivedOn).toLocaleDateString('en-IN', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric'
+                  })}</td>
+                  <td>{record.modeOfPayment || '—'}</td>
+                  <td>{formatCurrency(record.rentFixed)}</td>
+                  <td>{formatCurrency(record.charges)}</td>
+                  <td>{formatCurrency(ebCharges)}</td>
+                  <td className="amount-positive">{formatCurrency(effectiveReceived)}</td>
+                  <td>{formatCurrency(monthTotal)}</td>
+                  <td className={isCheckoutEntry ? 'amount-positive checkout-balance' : balance > 0 ? 'amount-negative' : 'amount-positive'}>
+                    {formatCurrency(balance)}
+                  </td>
+                  {showActions && (
+                    <td>
+                      <div className="payment-record-actions compact-actions">
+                        <button
+                          className="payment-record-edit-btn"
+                          title="Edit payment record"
+                          onClick={() => handleEditClick(record)}
+                        >
+                          ✏️ Edit
+                        </button>
+                        <button
+                          className="payment-record-delete-btn"
+                          title="Delete payment record"
+                          onClick={() => handleDeleteRecord(record)}
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
+                    </td>
+                  )}
+                  <td className="payment-proof-cell">
+                    {proofUrl ? (
+                      <button
+                        type="button"
+                        className="payment-proof-thumb-button"
+                        title="Preview payment proof"
+                        aria-label={`Preview payment proof for ${record.tenantName}`}
+                        onClick={(event) =>
+                          handleProofOpen(
+                            event,
+                            proofUrl,
+                            `Payment proof screenshot for ${record.tenantName}`
+                          )
+                        }
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            openProofPreview(
+                              proofUrl,
+                              `Payment proof screenshot for ${record.tenantName}`
+                            );
+                          }
+                        }}
+                      >
+                        <img
+                          src={proofUrl}
+                          alt={`Payment proof screenshot for ${record.tenantName}`}
+                          className="payment-history-thumb"
+                          onClick={(event) =>
+                            handleProofOpen(
+                              event,
+                              proofUrl,
+                              `Payment proof screenshot for ${record.tenantName}`
+                            )
+                          }
+                        />
+                      </button>
+                    ) : (
+                      <span className="no-proof">-</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
   };
 
   const openPaymentHistoryPopup = async (event: React.MouseEvent<HTMLButtonElement>, item: MonthlyPaymentStatus) => {
@@ -1470,90 +1639,7 @@ export default function RentalCollectionDetails() {
           <h3>Payment History & Details Breakdown</h3>
 
           {rentalRecords.length > 0 ? (
-            <div className="payment-records-container">
-              {rentalRecords.map((record) => (
-                <div key={record.id} className="payment-record-card">
-                  <div className="payment-record-header">
-                    <div className="payment-date">
-                      <span className="label">Payment Date</span>
-                      <span className="value">
-                        {new Date(record.rentReceivedOn).toLocaleDateString('en-IN', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric'
-                        })}
-                      </span>
-                    </div>
-                    <div className="payment-mode">
-                      <span className="label">Mode</span>
-                      {record.modeOfPayment ? (
-                        <span className="badge-mode">{record.modeOfPayment}</span>
-                      ) : (
-                        <span className="badge-mode gray">—</span>
-                      )}
-                    </div>
-                    <div className="payment-record-actions">
-                      <button
-                        className="payment-record-edit-btn"
-                        title="Edit payment record"
-                        onClick={() => handleEditClick(record)}
-                      >
-                        ✏️ Edit
-                      </button>
-                      <button
-                        className="payment-record-delete-btn"
-                        title="Delete payment record"
-                        onClick={() => handleDeleteRecord(record)}
-                      >
-                        🗑️ Delete
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="payment-record-details">
-                    <div className="detail-item">
-                      <span className="label">Fixed Rent</span>
-                      <span className="value">{formatCurrency(record.rentFixed)}</span>
-                    </div>
-                    <div className="detail-item">
-                      <span className="label">Charges</span>
-                      <span className="value">{formatCurrency(record.charges)}</span>
-                    </div>
-                    <div className="detail-item">
-                      <span className="label">Received</span>
-                      <span className="value received">{formatCurrency(getEffectiveReceived(Number(record.rentReceived || 0), Number(record.charges || 0)))}</span>
-                    </div>
-                    <div className="detail-item">
-                      <span className="label">Balance</span>
-                      <span className="value balance">{formatCurrency(getDisplayBalance(record))}</span>
-                    </div>
-                  </div>
-
-                  {record.screenshotUrl && (
-                    <div className="payment-screenshot">
-                      <div className="screenshot-label">Payment Proof</div>
-                      <button
-                        type="button"
-                        className="screenshot-link"
-                        onClick={() =>
-                          openProofPreview(
-                            getProofUrl(record.screenshotUrl, record.rentReceivedOn, record.folder),
-                            `Payment proof screenshot for ${record.tenantName}`
-                          )
-                        }
-                        title="Preview payment proof"
-                      >
-                        <img
-                          src={getProofUrl(record.screenshotUrl, record.rentReceivedOn, record.folder)}
-                          alt="Payment proof screenshot"
-                          className="screenshot-thumbnail"
-                        />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+            renderPaymentHistoryTable(rentalRecords, { showActions: true })
           ) : (
             <div className="empty-state">
               <p>No payment records yet. {showForm ? '' : 'Click "Add Payment" to record the first payment.'}</p>
@@ -1562,7 +1648,7 @@ export default function RentalCollectionDetails() {
         </div>
       )}
 
-      <div className="current-month-status-card">
+      <div className={`current-month-status-card ${isCurrentMonthSelected ? 'current-month-highlight' : ''}`}>
         <div className="current-month-header">
           <div>
             <h3>Occupied Rooms Rental Status - {formatMonthTitle(currentMonthYear)}</h3>
@@ -1757,7 +1843,8 @@ export default function RentalCollectionDetails() {
                     const hasPaymentRecord = Boolean(item.rentReceivedOn) || Number(item.rentReceived || 0) > 0;
                     const effectiveReceived = getEffectiveReceived(Number(item.rentReceived || 0), effectiveEbCharges, hasPaymentRecord);
                     const effectiveStatus = getEffectiveStatus(item);
-                    const itemBalance = Math.max(0, totalDue - effectiveReceived);
+                    const isCheckoutEntry = isCheckoutPayment(item.modeOfPayment);
+                    const itemBalance = isCheckoutEntry ? 0 : Math.max(0, totalDue - effectiveReceived);
                     const tenantReviewDecision = getReviewDecision(item);
                     // Check if this is a shop (room numbers like S1, S2, SHOP-1 etc or any number > 100 can be marked as shop)
                     const isShop = /^[Ss]/.test(item.roomNumber) || /[Ss]hop/i.test(item.roomNumber);
@@ -1815,7 +1902,7 @@ export default function RentalCollectionDetails() {
                         </td>
                         <td className="amount total-due">{formatCurrency(totalDue)}</td>
                         <td
-                          className={`amount balance ${itemBalance > 0 ? 'pending' : 'success'}`}
+                          className={`amount balance ${isCheckoutEntry ? 'checkout-balance' : itemBalance > 0 ? 'pending' : 'success'}`}
                           title={getBalanceTooltip(item)}
                         >
                           {formatCurrency(itemBalance)}
@@ -1868,9 +1955,10 @@ export default function RentalCollectionDetails() {
                               <button
                                 type="button"
                                 className="last-proof-link"
-                                title="Preview latest payment proof"
-                                onClick={() =>
-                                  openProofPreview(
+                                title="Preview payment proof"
+                                onClick={(event) =>
+                                  handleProofOpen(
+                                    event,
                                     getProofUrl(item.screenshotUrl, item.rentReceivedOn, item.folder),
                                     `Payment proof ${item.tenantName}`
                                   )
@@ -1880,6 +1968,13 @@ export default function RentalCollectionDetails() {
                                   src={getProofUrl(item.screenshotUrl, item.rentReceivedOn, item.folder)}
                                   alt={`Payment proof ${item.tenantName}`}
                                   className="last-proof-thumb"
+                                  onClick={(event) =>
+                                    handleProofOpen(
+                                      event,
+                                      getProofUrl(item.screenshotUrl, item.rentReceivedOn, item.folder),
+                                      `Payment proof ${item.tenantName}`
+                                    )
+                                  }
                                 />
                               </button>
                             ) : (
@@ -2012,74 +2107,7 @@ export default function RentalCollectionDetails() {
             ) : paymentHistoryPopup.records.length === 0 ? (
               <div className="empty-state compact"><p>No payment records found.</p></div>
             ) : (
-              <div className="payment-records-container popup-payment-records">
-                {paymentHistoryPopup.records.map((record) => (
-                  <div key={record.id} className="payment-record-card">
-                    <div className="payment-record-header">
-                      <div className="payment-date">
-                        <span className="label">Payment Date</span>
-                        <span className="value">
-                          {new Date(record.rentReceivedOn).toLocaleDateString('en-IN', {
-                            day: '2-digit',
-                            month: 'short',
-                            year: 'numeric'
-                          })}
-                        </span>
-                      </div>
-                      <div className="payment-mode">
-                        <span className="label">Mode</span>
-                        {record.modeOfPayment ? (
-                          <span className="badge-mode">{record.modeOfPayment}</span>
-                        ) : (
-                          <span className="badge-mode gray">—</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="payment-record-details">
-                      <div className="detail-item">
-                        <span className="label">Fixed Rent</span>
-                        <span className="value">{formatCurrency(record.rentFixed)}</span>
-                      </div>
-                      <div className="detail-item">
-                        <span className="label">Charges</span>
-                        <span className="value">{formatCurrency(record.charges)}</span>
-                      </div>
-                      <div className="detail-item">
-                        <span className="label">Received</span>
-                        <span className="value received">{formatCurrency(Number(record.rentReceived || 0))}</span>
-                      </div>
-                      <div className="detail-item">
-                        <span className="label">Balance</span>
-                        <span className="value balance">{formatCurrency(getDisplayBalance(record))}</span>
-                      </div>
-                    </div>
-
-                    {record.screenshotUrl && (
-                      <div className="payment-screenshot">
-                        <div className="screenshot-label">Payment Proof</div>
-                        <button
-                          type="button"
-                          className="screenshot-link"
-                          onClick={() =>
-                            openProofPreview(
-                              getProofUrl(record.screenshotUrl, record.rentReceivedOn, record.folder),
-                              `Payment proof screenshot for ${record.tenantName}`
-                            )
-                          }
-                          title="Preview payment proof"
-                        >
-                          <img
-                            src={getProofUrl(record.screenshotUrl, record.rentReceivedOn, record.folder)}
-                            alt="Payment proof screenshot"
-                            className="screenshot-thumbnail"
-                          />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+              renderPaymentHistoryTable(paymentHistoryPopup.records)
             )}
           </div>
         </div>
