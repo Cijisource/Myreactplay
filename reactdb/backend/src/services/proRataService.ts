@@ -592,7 +592,7 @@ export async function getRoomMonthlyEbReport(
           endingReading: row.EndingMeterReading,
           unitsConsumed: row.UnitsConsumed,
           unitRate: row.UnitRate,
-          totalAmount: row.AmountToBeCollected,
+          totalAmount: row.AmountToBeCollected ?? row.TotalCharge ?? 0,
           tenants: [] as any[]
         });
       }
@@ -605,12 +605,31 @@ export async function getRoomMonthlyEbReport(
           tenantPhone: row.TenantPhone,
           splitUnits: row.ProRataUnits,
           splitPercentage: row.ProRataPercentage,
-          splitCharge: row.TotalCharge,
+          splitCharge: row.TotalCharge ?? row.AmountToBeCollected ?? 0,
           checkInDate: row.CheckInDate,
           checkOutDate: row.CheckOutDate,
           occupancyDaysInMonth: row.OccupancyDaysInMonth,
           totalDaysInMonth: row.TotalDaysInMonth,
           status: row.Status
+        });
+      }
+    }
+
+    for (const record of reportMap.values()) {
+      if (record.tenants.length === 0 && Number(record.totalAmount || 0) > 0) {
+        record.tenants.push({
+          tenantChargeId: 0,
+          tenantId: 0,
+          tenantName: 'Consumption Screen',
+          tenantPhone: '',
+          splitUnits: record.unitsConsumed || 0,
+          splitPercentage: 100,
+          splitCharge: Number(record.totalAmount || 0),
+          checkInDate: null,
+          checkOutDate: null,
+          occupancyDaysInMonth: 0,
+          totalDaysInMonth: 0,
+          status: 'consumption'
         });
       }
     }

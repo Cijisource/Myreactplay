@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiService, getRentalPaymentProofUrl } from '../api';
 import { useAuth } from './AuthContext';
-import SearchableDropdown from './SearchableDropdown';
 import LoadingSpinner from './LoadingSpinner';
 import TransactionManagement from './TransactionManagement';
 import PaymentTracking from './PaymentTracking';
@@ -124,6 +123,7 @@ export default function RentalCollectionDetails() {
   const { hasRole, hasAnyRole } = useAuth();
   const [activeTab, setActiveTab] = useState<'collection' | 'tracking'>('collection');
   const [occupancyOptions, setOccupancyOptions] = useState<OccupancyOption[]>([]);
+  const [activeOccupancyIds, setActiveOccupancyIds] = useState<Set<number>>(new Set());
   const [selectedOccupancyId, setSelectedOccupancyId] = useState<number | null>(null);
   const [occupancyInfo, setOccupancyInfo] = useState<OccupancyInfo | null>(null);
   const [rentalRecords, setRentalRecords] = useState<RentalRecord[]>([]);
@@ -219,33 +219,38 @@ export default function RentalCollectionDetails() {
   const currentMonthYear = selectedMonthFilter;
   const isCurrentMonthSelected = selectedMonthFilter === getDefaultMonthValue();
 
+  const toNumber = (value: unknown): number => {
+    const numericValue = Number(value ?? 0);
+    return Number.isFinite(numericValue) ? numericValue : 0;
+  };
+
   const getEffectiveStatus = (
     payment: Pick<MonthlyPaymentStatus, 'rentFixed' | 'proRataRent' | 'paymentStatus' | 'rentReceived' | 'charges' | 'rentReceivedOn'>
   ): 'paid' | 'pending' | 'partial' | 'merged' => {
     if (payment.proRataRent === 0 || payment.rentFixed === 0) return 'merged';
 
-    const hasRecordedPayment = Boolean(payment.rentReceivedOn) || Number(payment.rentReceived || 0) > 0;
-    const totalDue = Number(payment.proRataRent || 0) + Number(payment.charges || 0);
-    const effectiveReceived = hasRecordedPayment ? Number(payment.rentReceived || 0) + Number(payment.charges || 0) : 0;
+    const charges = toNumber(payment.charges);
+    const rentReceived = toNumber(payment.rentReceived);
+    const hasRecordedPayment = Boolean(payment.rentReceivedOn) || rentReceived > 0;
+    const totalDue = toNumber(payment.proRataRent) + charges;
+    const effectiveReceived = hasRecordedPayment ? rentReceived + charges : 0;
 
     if (totalDue > 0 && effectiveReceived >= totalDue) return 'paid';
     if (totalDue > 0 && effectiveReceived > 0) return 'partial';
     return 'pending';
   };
 
-  const paidOccupancyIds = new Set(
-    currentMonthPayments
-      .filter((payment) => getEffectiveStatus(payment) === 'paid')
-      .map((payment) => payment.occupancyId)
-  );
+  const normalizeRoomNumber = (value: unknown): string => String(value ?? '').trim();
 
   const roomFilterOptions = Array.from(
-    new Set(currentMonthPayments.map((payment) => payment.roomNumber))
-  ).sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }));
+    new Set(currentMonthPayments.map((payment) => normalizeRoomNumber(payment.roomNumber)))
+  ).filter((roomNumber) => roomNumber.length > 0)
+    .sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }));
 
-  const roomFilteredPayments = currentMonthPayments.filter((payment) =>
-    selectedRoomFilter === 'all' ? true : payment.roomNumber === selectedRoomFilter
-  );
+  const roomFilteredPayments = currentMonthPayments.filter((payment) => {
+    if (selectedRoomFilter === 'all') return true;
+    return normalizeRoomNumber(payment.roomNumber) === selectedRoomFilter;
+  });
 
   const getReviewDecision = (item: MonthlyPaymentStatus): TenantReviewDecision => {
     return tenantReviews[item.occupancyId]?.decision ?? item.reviewDecision ?? null;
@@ -283,23 +288,23 @@ export default function RentalCollectionDetails() {
   const totalReceivedAmount = roomFilteredPayments.reduce(
     (sum, item) =>
       sum + getEffectiveReceived(
-        Number(item.rentReceived || 0),
-        Number(item.charges || 0),
-        Boolean(item.rentReceivedOn) || Number(item.rentReceived || 0) > 0,
+        toNumber(item.rentReceived),
+        toNumber(item.charges),
+        Boolean(item.rentReceivedOn) || toNumber(item.rentReceived) > 0,
         item.modeOfPayment
       ),
     0
   );
-  const totalChargesAmount = roomFilteredPayments.reduce((sum, item) => sum + Number(item.charges || 0), 0);
+  const totalChargesAmount = roomFilteredPayments.reduce((sum, item) => sum + toNumber(item.charges), 0);
   const totalPendingBalanceAmount = roomFilteredPayments.reduce(
     (sum, item) => {
       const effectiveReceived = getEffectiveReceived(
-        Number(item.rentReceived || 0),
-        Number(item.charges || 0),
-        Boolean(item.rentReceivedOn) || Number(item.rentReceived || 0) > 0,
+        toNumber(item.rentReceived),
+        toNumber(item.charges),
+        Boolean(item.rentReceivedOn) || toNumber(item.rentReceived) > 0,
         item.modeOfPayment
       );
-      const effectiveBalance = item.rentBalance ?? (item.proRataRent + Number(item.charges || 0) - effectiveReceived);
+      const effectiveBalance = item.rentBalance ?? (item.proRataRent + toNumber(item.charges) - effectiveReceived);
       return sum + Math.max(0, effectiveBalance);
     },
     0
@@ -453,8 +458,11 @@ export default function RentalCollectionDetails() {
     return <span className="payment-mode-icon other" title={rawMode || 'Other'} aria-label={rawMode || 'Other'}>{rawMode}</span>;
   };
 
-  const compareRoomNumbers = (left: string, right: string): number =>
-    left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' });
+  const compareRoomNumbers = (left: string | number | null | undefined, right: string | number | null | undefined): number => {
+    const leftValue = String(left ?? '').trim();
+    const rightValue = String(right ?? '').trim();
+    return leftValue.localeCompare(rightValue, undefined, { numeric: true, sensitivity: 'base' });
+  };
 
   const getDaysInMonth = (month: number, year: number): number => {
     return new Date(year, month, 0).getDate();
@@ -537,15 +545,23 @@ export default function RentalCollectionDetails() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
+      const activeOccupancySet = new Set<number>();
+
       const optionsWithDates = occupancies.map((occupancy: any) => {
-        const checkInDate = new Date(occupancy.checkInDate).toLocaleDateString('en-IN', {
-          day: '2-digit',
-          month: 'short',
-          year: '2-digit'
-        });
+        const occupancyId = Number(occupancy.occupancyId || occupancy.id);
+        const tenantName = String(occupancy.tenantName ?? 'Unknown Tenant').trim();
+        const roomNumber = String(occupancy.roomNumber ?? '').trim();
+        const checkInDate = occupancy.checkInDate
+          ? new Date(occupancy.checkInDate).toLocaleDateString('en-IN', {
+              day: '2-digit',
+              month: 'short',
+              year: '2-digit'
+            })
+          : 'N/A';
         
         let checkOutDate = 'Active';
         let checkOutTime = Infinity; // Active tenants sort first (highest value)
+        let isActive = true;
         
         if (occupancy.checkOutDate) {
           const checkOut = new Date(occupancy.checkOutDate);
@@ -558,13 +574,18 @@ export default function RentalCollectionDetails() {
               month: 'short',
               year: '2-digit'
             });
+            isActive = false;
           }
+        }
+
+        if (isActive && Number.isFinite(occupancyId)) {
+          activeOccupancySet.add(occupancyId);
         }
         
         return {
-          id: occupancy.occupancyId,
-          label: `${occupancy.tenantName.trim()} - Room ${occupancy.roomNumber.trim()} (In: ${checkInDate}, Out: ${checkOutDate})`,
-          roomNumber: occupancy.roomNumber.trim(),
+          id: occupancyId,
+          label: `${tenantName} - Room ${roomNumber} (In: ${checkInDate}, Out: ${checkOutDate})`,
+          roomNumber,
           sortKey: checkOutTime
         };
       });
@@ -607,6 +628,7 @@ export default function RentalCollectionDetails() {
       );
 
       setOccupancyOptions(options);
+      setActiveOccupancyIds(activeOccupancySet);
       setOccupancyDetailMap(detailMap);
     } catch (err) {
       console.error('Error fetching occupancies:', err);
@@ -1401,18 +1423,42 @@ export default function RentalCollectionDetails() {
               </button>
             )}
           </div>
-          <SearchableDropdown
+          <select
+            className="form-select"
             value={selectedOccupancyId?.toString() || ''}
-            onChange={(option) => setSelectedOccupancyId(parseInt(option.id.toString()))}
-            options={occupancyOptions.map(opt => ({
-              id: opt.id.toString(),
-              label: opt.label,
-              optionClassName: paidOccupancyIds.has(opt.id) ? 'paid-occupancy-option' : '',
-              optionBadgeText: paidOccupancyIds.has(opt.id) ? 'Paid' : undefined,
-              optionBadgeVariant: paidOccupancyIds.has(opt.id) ? 'success' : undefined
-            }))}
-            placeholder="Search by tenant name or room number..."
-          />
+            onChange={(event) => {
+              const value = event.target.value;
+              setSelectedOccupancyId(value ? parseInt(value) : null);
+            }}
+            aria-label="Select tenant and room"
+          >
+            <option value="">Select tenant and room</option>
+            {occupancyOptions.map((option) => {
+              const isActiveOccupancy = activeOccupancyIds.has(option.id);
+              const optionLabel = isActiveOccupancy
+                ? `${option.label} <<<Active>>>`
+                : option.label;
+
+              return (
+                <option
+                  key={option.id}
+                  value={option.id}
+                  className={isActiveOccupancy ? 'paid-occupancy-option' : ''}
+                  style={
+                    isActiveOccupancy
+                      ? {
+                          backgroundColor: '#dcfce7',
+                          color: '#166534',
+                          fontWeight: 600
+                        }
+                      : undefined
+                  }
+                >
+                  {optionLabel}
+                </option>
+              );
+            })}
+          </select>
         </div>
       </div>
 
@@ -1838,10 +1884,10 @@ export default function RentalCollectionDetails() {
                     const isReviewExpanded = expandedReviewRows[item.occupancyId] || false;
                     const isSavingReview = savingReviewRows[item.occupancyId] || false;
                     const savedReviewDate = formatReviewSavedDate(item.reviewVerifiedOn);
-                    const effectiveEbCharges = Number(item.charges || 0);
-                    const totalDue = Number(item.proRataRent || 0) + effectiveEbCharges;
-                    const hasPaymentRecord = Boolean(item.rentReceivedOn) || Number(item.rentReceived || 0) > 0;
-                    const effectiveReceived = getEffectiveReceived(Number(item.rentReceived || 0), effectiveEbCharges, hasPaymentRecord);
+                    const effectiveEbCharges = toNumber(item.charges);
+                    const totalDue = toNumber(item.proRataRent) + effectiveEbCharges;
+                    const hasPaymentRecord = Boolean(item.rentReceivedOn) || toNumber(item.rentReceived) > 0;
+                    const effectiveReceived = getEffectiveReceived(toNumber(item.rentReceived), effectiveEbCharges, hasPaymentRecord);
                     const effectiveStatus = getEffectiveStatus(item);
                     const isCheckoutEntry = isCheckoutPayment(item.modeOfPayment);
                     const itemBalance = isCheckoutEntry ? 0 : Math.max(0, totalDue - effectiveReceived);
@@ -1886,7 +1932,7 @@ export default function RentalCollectionDetails() {
                         <td className="amount">{formatCurrency(item.proRataRent)}</td>
                         <td className="amount eb-charges">
                           <div className="eb-charge-content">
-                            <span>{effectiveEbCharges > 0 ? formatCurrency(effectiveEbCharges) : '-'}</span>
+                            <span>{formatCurrency(effectiveEbCharges)}</span>
                             {effectiveEbCharges > 0 && (
                               <button
                                 type="button"

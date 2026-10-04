@@ -101,6 +101,20 @@
   border-radius: 8px;
   padding: 12px;
   background: #f8fafc;
+  cursor: pointer;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.eb-report-card:hover {
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+.eb-report-card-collapsed {
+  border-style: dashed;
+}
+
+.eb-report-card-expanded {
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.15);
 }
 
 .eb-report-card-shop {
@@ -125,6 +139,25 @@
   flex-wrap: wrap;
   margin-bottom: 8px;
   color: #0f172a;
+}
+
+.eb-report-card-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  color: #475569;
+}
+
+.eb-report-card-expand-indicator {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #0f172a;
+  font-weight: 700;
 }
 
 .eb-report-vacant-badge {

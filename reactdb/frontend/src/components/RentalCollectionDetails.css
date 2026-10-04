@@ -923,6 +923,12 @@
   text-decoration: underline;
 }
 
+.paid-occupancy-option {
+  background-color: #dcfce7;
+  color: #166534;
+  font-weight: 600;
+}
+
 /* Occupancy Info Card */
 .occupancy-info-card {
   background: white;
