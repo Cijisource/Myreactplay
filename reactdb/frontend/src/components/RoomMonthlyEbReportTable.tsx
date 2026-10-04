@@ -52,6 +52,7 @@ export default function RoomMonthlyEbReportTable({ selectedMonth, roomOptions, r
   const [records, setRecords] = useState<RoomMonthlyEbRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expandedRoomIds, setExpandedRoomIds] = useState<Record<number, boolean>>({});
   const [collapsedCategories, setCollapsedCategories] = useState<{ shop: boolean; residential: boolean }>({
     shop: true,
     residential: true
@@ -163,15 +164,34 @@ export default function RoomMonthlyEbReportTable({ selectedMonth, roomOptions, r
     }));
   };
 
+  const toggleRoomDetails = (roomId: number) => {
+    setExpandedRoomIds((prev) => ({
+      ...prev,
+      [roomId]: !prev[roomId]
+    }));
+  };
+
   const renderRecordCard = (record: RoomMonthlyEbRecord, isShop: boolean): JSX.Element => {
     const activeTenants = getActiveTenants(record.tenants);
-    const activeTenantLabel = activeTenants || 'Vacant';
-    const isVacant = activeTenantLabel === 'Vacant';
+    const hasConsumptionCharge = Number(record.totalAmount || 0) > 0;
+    const activeTenantLabel = activeTenants || (hasConsumptionCharge ? 'Consumption screen' : 'Vacant');
+    const isVacant = !hasConsumptionCharge && activeTenantLabel === 'Vacant';
+    const isExpanded = Boolean(expandedRoomIds[record.serviceConsumptionId]);
 
     return (
       <div
         key={record.serviceConsumptionId}
-        className={`eb-report-card ${isShop ? 'eb-report-card-shop' : 'eb-report-card-residential'} ${record.tenants.length === 0 ? 'eb-report-card-vacant' : ''}`}
+        className={`eb-report-card ${isShop ? 'eb-report-card-shop' : 'eb-report-card-residential'} ${record.tenants.length === 0 ? 'eb-report-card-vacant' : ''} ${isExpanded ? 'eb-report-card-expanded' : 'eb-report-card-collapsed'}`}
+        onClick={() => toggleRoomDetails(record.serviceConsumptionId)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            toggleRoomDetails(record.serviceConsumptionId);
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        aria-expanded={isExpanded}
       >
         <div className="eb-report-card-head">
           <div>
@@ -187,73 +207,80 @@ export default function RoomMonthlyEbReportTable({ selectedMonth, roomOptions, r
               <span className="eb-report-vacant-badge">Vacant</span>
             )}
           </div>
-          <div>Meter: {record.meterNo}</div>
+          <div className="eb-report-card-toggle">
+            <span>Meter: {record.meterNo}</span>
+            <span className="eb-report-card-expand-indicator">{isExpanded ? 'Hide details' : 'View details'}</span>
+          </div>
         </div>
 
-        <div className="eb-report-metrics">
-          <span className="eb-report-metric">
-            <span className="eb-report-metric-label">Reading Date:</span>
-            <strong className="eb-report-metric-value">{new Date(record.readingTakenDate).toLocaleDateString()}</strong>
-          </span>
-          <span className="eb-report-metric">
-            <span className="eb-report-metric-label">Start:</span>
-            <strong className="eb-report-metric-value">{record.startingReading}</strong>
-          </span>
-          <span className="eb-report-metric">
-            <span className="eb-report-metric-label">End:</span>
-            <strong className="eb-report-metric-value">{String(record.endingReading).trim()}</strong>
-          </span>
-          <span className="eb-report-metric">
-            <span className="eb-report-metric-label">Units:</span>
-            <strong className="eb-report-metric-value">{record.unitsConsumed}</strong>
-          </span>
-          <span className="eb-report-metric">
-            <span className="eb-report-metric-label">Rate:</span>
-            <strong className="eb-report-metric-value">₹{Number(record.unitRate || 0).toFixed(2)}/unit</strong>
-          </span>
-          <span className="eb-report-metric">
-            <span className="eb-report-metric-label">Total:</span>
-            <strong className="eb-report-metric-value">₹{Number(record.totalAmount || 0).toFixed(2)}</strong>
-          </span>
-        </div>
+        {isExpanded && (
+          <>
+            <div className="eb-report-metrics">
+              <span className="eb-report-metric">
+                <span className="eb-report-metric-label">Reading Date:</span>
+                <strong className="eb-report-metric-value">{new Date(record.readingTakenDate).toLocaleDateString()}</strong>
+              </span>
+              <span className="eb-report-metric">
+                <span className="eb-report-metric-label">Start:</span>
+                <strong className="eb-report-metric-value">{record.startingReading}</strong>
+              </span>
+              <span className="eb-report-metric">
+                <span className="eb-report-metric-label">End:</span>
+                <strong className="eb-report-metric-value">{String(record.endingReading).trim()}</strong>
+              </span>
+              <span className="eb-report-metric">
+                <span className="eb-report-metric-label">Units:</span>
+                <strong className="eb-report-metric-value">{record.unitsConsumed}</strong>
+              </span>
+              <span className="eb-report-metric">
+                <span className="eb-report-metric-label">Rate:</span>
+                <strong className="eb-report-metric-value">₹{Number(record.unitRate || 0).toFixed(2)}/unit</strong>
+              </span>
+              <span className="eb-report-metric">
+                <span className="eb-report-metric-label">Total:</span>
+                <strong className="eb-report-metric-value">₹{Number(record.totalAmount || 0).toFixed(2)}</strong>
+              </span>
+            </div>
 
-        <div className="eb-report-tenant-title">Tenant Split</div>
-        <div className="eb-report-table-wrap">
-          <table className="eb-report-table">
-            <thead>
-              <tr>
-                <th>Tenant</th>
-                <th>Check-In</th>
-                <th>Check-Out</th>
-                <th>Units</th>
-                <th>Share %</th>
-                <th>Charge</th>
-                <th>Occupancy</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {record.tenants.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="no-tenant-row">Vacant room - no tenant split available.</td>
-                </tr>
-              ) : (
-                record.tenants.map((tenant) => (
-                  <tr key={tenant.tenantChargeId}>
-                    <td>{tenant.tenantName}</td>
-                    <td>{formatDate(tenant.checkInDate)}</td>
-                    <td>{formatDate(tenant.checkOutDate)}</td>
-                    <td>{Number(tenant.splitUnits || 0).toFixed(2)}</td>
-                    <td>{Number(tenant.splitPercentage || 0).toFixed(2)}%</td>
-                    <td>₹{Number(tenant.splitCharge || 0).toFixed(2)}</td>
-                    <td>{tenant.occupancyDaysInMonth}/{tenant.totalDaysInMonth}</td>
-                    <td>{tenant.status}</td>
+            <div className="eb-report-tenant-title">Tenant Split</div>
+            <div className="eb-report-table-wrap">
+              <table className="eb-report-table">
+                <thead>
+                  <tr>
+                    <th>Tenant</th>
+                    <th>Check-In</th>
+                    <th>Check-Out</th>
+                    <th>Units</th>
+                    <th>Share %</th>
+                    <th>Charge</th>
+                    <th>Occupancy</th>
+                    <th>Status</th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody>
+                  {record.tenants.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="no-tenant-row">Vacant room - no tenant split available.</td>
+                    </tr>
+                  ) : (
+                    record.tenants.map((tenant) => (
+                      <tr key={tenant.tenantChargeId}>
+                        <td>{tenant.tenantName}</td>
+                        <td>{formatDate(tenant.checkInDate)}</td>
+                        <td>{formatDate(tenant.checkOutDate)}</td>
+                        <td>{Number(tenant.splitUnits || 0).toFixed(2)}</td>
+                        <td>{Number(tenant.splitPercentage || 0).toFixed(2)}%</td>
+                        <td>₹{Number(tenant.splitCharge || 0).toFixed(2)}</td>
+                        <td>{tenant.occupancyDaysInMonth}/{tenant.totalDaysInMonth}</td>
+                        <td>{tenant.status}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
     );
   };

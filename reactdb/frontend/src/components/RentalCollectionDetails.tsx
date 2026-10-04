@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiService, getRentalPaymentProofUrl } from '../api';
 import { useAuth } from './AuthContext';
-import SearchableDropdown from './SearchableDropdown';
 import LoadingSpinner from './LoadingSpinner';
 import TransactionManagement from './TransactionManagement';
 import PaymentTracking from './PaymentTracking';
@@ -124,6 +123,8 @@ export default function RentalCollectionDetails() {
   const { hasRole, hasAnyRole } = useAuth();
   const [activeTab, setActiveTab] = useState<'collection' | 'tracking'>('collection');
   const [occupancyOptions, setOccupancyOptions] = useState<OccupancyOption[]>([]);
+  const [activeOccupancyIds, setActiveOccupancyIds] = useState<Set<number>>(new Set());
+  const [selectedRoomNumber, setSelectedRoomNumber] = useState<string>('');
   const [selectedOccupancyId, setSelectedOccupancyId] = useState<number | null>(null);
   const [occupancyInfo, setOccupancyInfo] = useState<OccupancyInfo | null>(null);
   const [rentalRecords, setRentalRecords] = useState<RentalRecord[]>([]);
@@ -217,34 +218,76 @@ export default function RentalCollectionDetails() {
   });
 
   const currentMonthYear = selectedMonthFilter;
+  const isCurrentMonthSelected = selectedMonthFilter === getDefaultMonthValue();
+
+  const compareRoomNumbers = (left: string | number | null | undefined, right: string | number | null | undefined): number => {
+    const leftValue = String(left ?? '').trim();
+    const rightValue = String(right ?? '').trim();
+    return leftValue.localeCompare(rightValue, undefined, { numeric: true, sensitivity: 'base' });
+  };
+
+  const roomOptions = Array.from(
+    new Map(
+      occupancyOptions
+        .filter((option) => Boolean(option.roomNumber))
+        .map((option) => [String(option.roomNumber).trim(), String(option.roomNumber).trim()])
+    ).keys()
+  ).sort((left, right) => compareRoomNumbers(left, right));
+
+  const roomTenantOptions = occupancyOptions.filter((option) => {
+    if (!selectedRoomNumber) {
+      return false;
+    }
+
+    return String(option.roomNumber ?? '').trim() === selectedRoomNumber;
+  });
+
+  const getDefaultOccupancyForRoom = (roomNumber: string): number | null => {
+    if (!roomNumber) {
+      return null;
+    }
+
+    const roomOccupancyOptions = occupancyOptions.filter((option) => String(option.roomNumber ?? '').trim() === roomNumber);
+    const activeOccupancyId = roomOccupancyOptions.find((option) => activeOccupancyIds.has(option.id))?.id ?? null;
+    if (activeOccupancyId != null) {
+      return activeOccupancyId;
+    }
+
+    return roomOccupancyOptions[0]?.id ?? null;
+  };
+
+  const toNumber = (value: unknown): number => {
+    const numericValue = Number(value ?? 0);
+    return Number.isFinite(numericValue) ? numericValue : 0;
+  };
 
   const getEffectiveStatus = (
     payment: Pick<MonthlyPaymentStatus, 'rentFixed' | 'proRataRent' | 'paymentStatus' | 'rentReceived' | 'charges' | 'rentReceivedOn'>
   ): 'paid' | 'pending' | 'partial' | 'merged' => {
     if (payment.proRataRent === 0 || payment.rentFixed === 0) return 'merged';
 
-    const hasRecordedPayment = Boolean(payment.rentReceivedOn) || Number(payment.rentReceived || 0) > 0;
-    const totalDue = Number(payment.proRataRent || 0) + Number(payment.charges || 0);
-    const effectiveReceived = hasRecordedPayment ? Number(payment.rentReceived || 0) + Number(payment.charges || 0) : 0;
+    const charges = toNumber(payment.charges);
+    const rentReceived = toNumber(payment.rentReceived);
+    const hasRecordedPayment = Boolean(payment.rentReceivedOn) || rentReceived > 0;
+    const totalDue = toNumber(payment.proRataRent) + charges;
+    const effectiveReceived = hasRecordedPayment ? rentReceived + charges : 0;
 
     if (totalDue > 0 && effectiveReceived >= totalDue) return 'paid';
     if (totalDue > 0 && effectiveReceived > 0) return 'partial';
     return 'pending';
   };
 
-  const paidOccupancyIds = new Set(
-    currentMonthPayments
-      .filter((payment) => getEffectiveStatus(payment) === 'paid')
-      .map((payment) => payment.occupancyId)
-  );
+  const normalizeRoomNumber = (value: unknown): string => String(value ?? '').trim();
 
   const roomFilterOptions = Array.from(
-    new Set(currentMonthPayments.map((payment) => payment.roomNumber))
-  ).sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }));
+    new Set(currentMonthPayments.map((payment) => normalizeRoomNumber(payment.roomNumber)))
+  ).filter((roomNumber) => roomNumber.length > 0)
+    .sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }));
 
-  const roomFilteredPayments = currentMonthPayments.filter((payment) =>
-    selectedRoomFilter === 'all' ? true : payment.roomNumber === selectedRoomFilter
-  );
+  const roomFilteredPayments = currentMonthPayments.filter((payment) => {
+    if (selectedRoomFilter === 'all') return true;
+    return normalizeRoomNumber(payment.roomNumber) === selectedRoomFilter;
+  });
 
   const getReviewDecision = (item: MonthlyPaymentStatus): TenantReviewDecision => {
     return tenantReviews[item.occupancyId]?.decision ?? item.reviewDecision ?? null;
@@ -264,40 +307,44 @@ export default function RentalCollectionDetails() {
   const mergedCount = roomFilteredPayments.filter((item) => getEffectiveStatus(item) === 'merged').length;
   const approvedCount = roomFilteredPayments.filter((item) => getReviewDecision(item) === 'approved').length;
   const rejectedCount = roomFilteredPayments.filter((item) => getReviewDecision(item) === 'rejected').length;
-  const getEffectiveReceived = (rentReceived: number, charges: number, hasPaymentRecord: boolean = true): number => {
+  const isCheckoutPayment = (mode?: string | null): boolean => {
+    const normalizedMode = (mode || '').trim().toLowerCase();
+    return normalizedMode === 'checkout' || normalizedMode === 'check out';
+  };
+  const getEffectiveReceived = (
+    rentReceived: number,
+    charges: number,
+    hasPaymentRecord: boolean = true,
+    mode?: string | null
+  ): number => {
     if (!hasPaymentRecord) return 0;
+    if (isCheckoutPayment(mode)) return 0;
     return Number(rentReceived || 0) + Number(charges || 0);
   };
 
   const totalReceivedAmount = roomFilteredPayments.reduce(
     (sum, item) =>
-      sum + getEffectiveReceived(Number(item.rentReceived || 0), Number(item.charges || 0), Boolean(item.rentReceivedOn) || Number(item.rentReceived || 0) > 0),
+      sum + getEffectiveReceived(
+        toNumber(item.rentReceived),
+        toNumber(item.charges),
+        Boolean(item.rentReceivedOn) || toNumber(item.rentReceived) > 0,
+        item.modeOfPayment
+      ),
     0
   );
-  const totalChargesAmount = roomFilteredPayments.reduce((sum, item) => sum + Number(item.charges || 0), 0);
+  const totalChargesAmount = roomFilteredPayments.reduce((sum, item) => sum + toNumber(item.charges), 0);
   const totalPendingBalanceAmount = roomFilteredPayments.reduce(
     (sum, item) => {
       const effectiveReceived = getEffectiveReceived(
-        Number(item.rentReceived || 0),
-        Number(item.charges || 0),
-        Boolean(item.rentReceivedOn) || Number(item.rentReceived || 0) > 0
+        toNumber(item.rentReceived),
+        toNumber(item.charges),
+        Boolean(item.rentReceivedOn) || toNumber(item.rentReceived) > 0,
+        item.modeOfPayment
       );
-      const effectiveBalance = item.rentBalance ?? (item.proRataRent + Number(item.charges || 0) - effectiveReceived);
+      const effectiveBalance = item.rentBalance ?? (item.proRataRent + toNumber(item.charges) - effectiveReceived);
       return sum + Math.max(0, effectiveBalance);
     },
     0
-  );
-  const monthlyPaymentTotals = rentalRecords.reduce<Record<string, { rentReceived: number; charges: number }>>(
-    (totals, record) => {
-      const paymentMonth = record.rentReceivedOn?.slice(0, 7) || '';
-      const monthTotals = totals[paymentMonth] || { rentReceived: 0, charges: 0 };
-
-      monthTotals.rentReceived += Number(record.rentReceived || 0);
-      monthTotals.charges += Number(record.charges || 0);
-      totals[paymentMonth] = monthTotals;
-      return totals;
-    },
-    {}
   );
   const canChangeReviewStatus = hasAnyRole(['admin', 'accountant']) || !hasRole('manager');
 
@@ -448,9 +495,6 @@ export default function RentalCollectionDetails() {
     return <span className="payment-mode-icon other" title={rawMode || 'Other'} aria-label={rawMode || 'Other'}>{rawMode}</span>;
   };
 
-  const compareRoomNumbers = (left: string, right: string): number =>
-    left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' });
-
   const getDaysInMonth = (month: number, year: number): number => {
     return new Date(year, month, 0).getDate();
   };
@@ -513,6 +557,17 @@ export default function RentalCollectionDetails() {
     fetchCurrentMonthPayments();
   }, []);
 
+  useEffect(() => {
+    if (selectedOccupancyId == null) {
+      return;
+    }
+
+    const matchedOccupancy = occupancyOptions.find((option) => option.id === selectedOccupancyId);
+    if (matchedOccupancy) {
+      setSelectedRoomNumber(String(matchedOccupancy.roomNumber ?? '').trim());
+    }
+  }, [selectedOccupancyId, occupancyOptions]);
+
   // Re-fetch when month filter changes
   useEffect(() => {
     fetchCurrentMonthPayments();
@@ -532,15 +587,23 @@ export default function RentalCollectionDetails() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
+      const activeOccupancySet = new Set<number>();
+
       const optionsWithDates = occupancies.map((occupancy: any) => {
-        const checkInDate = new Date(occupancy.checkInDate).toLocaleDateString('en-IN', {
-          day: '2-digit',
-          month: 'short',
-          year: '2-digit'
-        });
+        const occupancyId = Number(occupancy.occupancyId || occupancy.id);
+        const tenantName = String(occupancy.tenantName ?? 'Unknown Tenant').trim();
+        const roomNumber = String(occupancy.roomNumber ?? '').trim();
+        const checkInDate = occupancy.checkInDate
+          ? new Date(occupancy.checkInDate).toLocaleDateString('en-IN', {
+              day: '2-digit',
+              month: 'short',
+              year: '2-digit'
+            })
+          : 'N/A';
         
         let checkOutDate = 'Active';
         let checkOutTime = Infinity; // Active tenants sort first (highest value)
+        let isActive = true;
         
         if (occupancy.checkOutDate) {
           const checkOut = new Date(occupancy.checkOutDate);
@@ -553,13 +616,18 @@ export default function RentalCollectionDetails() {
               month: 'short',
               year: '2-digit'
             });
+            isActive = false;
           }
+        }
+
+        if (isActive && Number.isFinite(occupancyId)) {
+          activeOccupancySet.add(occupancyId);
         }
         
         return {
-          id: occupancy.occupancyId,
-          label: `${occupancy.tenantName.trim()} - Room ${occupancy.roomNumber.trim()} (In: ${checkInDate}, Out: ${checkOutDate})`,
-          roomNumber: occupancy.roomNumber.trim(),
+          id: occupancyId,
+          label: `${tenantName} - Room ${roomNumber} (In: ${checkInDate}, Out: ${checkOutDate})`,
+          roomNumber,
           sortKey: checkOutTime
         };
       });
@@ -602,6 +670,7 @@ export default function RentalCollectionDetails() {
       );
 
       setOccupancyOptions(options);
+      setActiveOccupancyIds(activeOccupancySet);
       setOccupancyDetailMap(detailMap);
     } catch (err) {
       console.error('Error fetching occupancies:', err);
@@ -660,6 +729,7 @@ export default function RentalCollectionDetails() {
   };
 
   const clearOccupancySelection = () => {
+    setSelectedRoomNumber('');
     setSelectedOccupancyId(null);
     setOccupancyInfo(null);
     setRentalRecords([]);
@@ -971,17 +1041,232 @@ export default function RentalCollectionDetails() {
   const getTotalReceived = (rentReceived: number, charges: number): number =>
     Number(rentReceived || 0) + Number(charges || 0);
 
+  const getTotalReceivedForMonth = (monthKey: string): number => {
+    if (!monthKey) {
+      return 0;
+    }
+
+    return rentalRecords.reduce((sum, record) => {
+      const recordMonthKey = record.rentReceivedOn?.slice(0, 7) || '';
+      if (recordMonthKey !== monthKey) {
+        return sum;
+      }
+
+      return sum + getEffectiveReceived(
+        Number(record.rentReceived || 0),
+        Number(record.charges || 0),
+        Boolean(record.rentReceivedOn) || Number(record.rentReceived || 0) > 0,
+        record.modeOfPayment
+      );
+    }, 0);
+  };
+
   const getDisplayBalance = (record: RentalRecord): number => {
-    const paymentMonth = record.rentReceivedOn?.slice(0, 7) || '';
-    const monthlyTotals = monthlyPaymentTotals[paymentMonth] || { rentReceived: 0, charges: 0 };
-    const totalDue = Number(record.rentFixed || 0) + monthlyTotals.charges;
-    const totalReceived = getEffectiveReceived(Number(record.rentReceived || 0), Number(record.charges || 0));
+    if (isCheckoutPayment(record.modeOfPayment)) {
+      return 0;
+    }
+
+    const monthKey = record.rentReceivedOn?.slice(0, 7) || '';
+    const totalDue = Number(record.rentFixed || 0) + Number(record.charges || 0);
+    const totalReceived = getTotalReceivedForMonth(monthKey);
 
     return Math.max(0, totalDue - totalReceived);
   };
 
   const openProofPreview = (url: string, alt: string) => {
     setProofPreview({ url, alt });
+  };
+
+  const handleProofOpen = (event: React.MouseEvent<HTMLElement>, url: string, alt: string) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openProofPreview(url, alt);
+  };
+
+  const renderPaymentHistoryTable = (records: RentalRecord[], options?: { showActions?: boolean }) => {
+    const { showActions = false } = options ?? {};
+
+    const getMonthKeyFromDate = (value: string | null | undefined) => {
+      if (!value) return null;
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return null;
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    };
+
+    const currentMonthKey = selectedMonthFilter || getDefaultMonthValue();
+    const monthGroups = Array.from(
+      records.reduce((map, record) => {
+        const monthKey = getMonthKeyFromDate(record.rentReceivedOn);
+        if (!monthKey) {
+          return map;
+        }
+
+        const existing = map.get(monthKey) ?? [];
+        existing.push(record);
+        map.set(monthKey, existing);
+        return map;
+      }, new Map<string, RentalRecord[]>())
+    )
+      .sort(([leftKey], [rightKey]) => rightKey.localeCompare(leftKey))
+      .map(([monthKey, monthRecords]) => ({
+        monthKey,
+        monthLabel: new Date(`${monthKey}-01T00:00:00`).toLocaleDateString('en-IN', {
+          month: 'long',
+          year: 'numeric'
+        }),
+        monthRecords: monthRecords.sort((left, right) => new Date(right.rentReceivedOn).getTime() - new Date(left.rentReceivedOn).getTime())
+      }));
+
+    const colSpan = showActions ? 10 : 9;
+
+    return (
+      <div className="payment-history-table-wrapper">
+        <table className="payment-history-table">
+          <thead>
+            <tr>
+              <th>Payment Date</th>
+              <th>Mode</th>
+              <th>Fixed Rent</th>
+              <th>Charges</th>
+              <th>EB Charges</th>
+              <th>Received</th>
+              <th>Total Received</th>
+              <th>Balance</th>
+              {showActions && <th>Actions</th>}
+              <th>Proof</th>
+            </tr>
+          </thead>
+          <tbody>
+            {monthGroups.flatMap(({ monthKey, monthLabel, monthRecords }) => {
+              const monthFixedTotal = monthRecords.reduce((sum, record) => sum + Number(record.rentFixed || 0), 0);
+              const monthChargesTotal = monthRecords.reduce((sum, record) => sum + Number(record.charges || 0), 0);
+              const monthReceivedTotal = monthRecords.reduce((sum, record) => {
+                const effectiveReceived = getEffectiveReceived(
+                  Number(record.rentReceived || 0),
+                  Number(record.charges || 0),
+                  Boolean(record.rentReceivedOn) || Number(record.rentReceived || 0) > 0,
+                  record.modeOfPayment
+                );
+                return sum + effectiveReceived;
+              }, 0);
+
+              const monthSummaryRow = (
+                <tr key={`${monthKey}-summary`} className="month-group-summary">
+                  <td colSpan={colSpan} className="month-summary-cell">
+                    <span className="month-summary-label">{monthLabel}</span>
+                    <span className="month-summary-breakdown">
+                      Fixed: {formatCurrency(monthFixedTotal)} · Charges: {formatCurrency(monthChargesTotal)} · Received: {formatCurrency(monthReceivedTotal)}
+                    </span>
+                  </td>
+                </tr>
+              );
+
+              const detailRows = monthRecords.map((record) => {
+                const proofUrl = record.screenshotUrl
+                  ? getProofUrl(record.screenshotUrl, record.rentReceivedOn, record.folder)
+                  : null;
+                const effectiveReceived = getEffectiveReceived(
+                  Number(record.rentReceived || 0),
+                  Number(record.charges || 0),
+                  Boolean(record.rentReceivedOn) || Number(record.rentReceived || 0) > 0,
+                  record.modeOfPayment
+                );
+                const monthTotal = getTotalReceivedForMonth(record.rentReceivedOn?.slice(0, 7) || '');
+                const balance = getDisplayBalance(record);
+                const ebCharges = Number(record.charges || 0);
+                const isCurrentMonthRecord = getMonthKeyFromDate(record.rentReceivedOn) === currentMonthKey;
+                const isCheckoutEntry = isCheckoutPayment(record.modeOfPayment);
+
+                return (
+                  <tr
+                    key={record.id}
+                    className={`${isCurrentMonthRecord ? 'current-month-payment-row' : ''} ${isCheckoutEntry ? 'checkout-payment-row' : ''}`.trim()}
+                  >
+                    <td>{new Date(record.rentReceivedOn).toLocaleDateString('en-IN', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric'
+                    })}</td>
+                    <td>{record.modeOfPayment || '—'}</td>
+                    <td>{formatCurrency(record.rentFixed)}</td>
+                    <td>{formatCurrency(record.charges)}</td>
+                    <td>{formatCurrency(ebCharges)}</td>
+                    <td className="amount-positive">{formatCurrency(effectiveReceived)}</td>
+                    <td>{formatCurrency(monthTotal)}</td>
+                    <td className={isCheckoutEntry ? 'amount-positive checkout-balance' : balance > 0 ? 'amount-negative' : 'amount-positive'}>
+                      {formatCurrency(balance)}
+                    </td>
+                    {showActions && (
+                      <td>
+                        <div className="payment-record-actions compact-actions">
+                          <button
+                            className="payment-record-edit-btn"
+                            title="Edit payment record"
+                            onClick={() => handleEditClick(record)}
+                          >
+                            ✏️ Edit
+                          </button>
+                          <button
+                            className="payment-record-delete-btn"
+                            title="Delete payment record"
+                            onClick={() => handleDeleteRecord(record)}
+                          >
+                            🗑️ Delete
+                          </button>
+                        </div>
+                      </td>
+                    )}
+                    <td className="payment-proof-cell">
+                      {proofUrl ? (
+                        <button
+                          type="button"
+                          className="payment-proof-thumb-button"
+                          title="Preview payment proof"
+                          aria-label={`Preview payment proof for ${record.tenantName}`}
+                          onClick={(event) =>
+                            handleProofOpen(
+                              event,
+                              proofUrl,
+                              `Payment proof screenshot for ${record.tenantName}`
+                            )
+                          }
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              openProofPreview(
+                                proofUrl,
+                                `Payment proof screenshot for ${record.tenantName}`
+                              );
+                            }
+                          }}
+                        >
+                          <img
+                            src={proofUrl}
+                            alt={`Payment proof screenshot for ${record.tenantName}`}
+                            className="payment-history-thumb"
+                            onClick={(event) =>
+                              handleProofOpen(
+                                event,
+                                proofUrl,
+                                `Payment proof screenshot for ${record.tenantName}`
+                              )
+                            }
+                          />
+                        </button>
+                      ) : (
+                        <span className="no-proof">-</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              });
+
+              return [monthSummaryRow, ...detailRows];
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
   };
 
   const openPaymentHistoryPopup = async (event: React.MouseEvent<HTMLButtonElement>, item: MonthlyPaymentStatus) => {
@@ -1232,18 +1517,77 @@ export default function RentalCollectionDetails() {
               </button>
             )}
           </div>
-          <SearchableDropdown
-            value={selectedOccupancyId?.toString() || ''}
-            onChange={(option) => setSelectedOccupancyId(parseInt(option.id.toString()))}
-            options={occupancyOptions.map(opt => ({
-              id: opt.id.toString(),
-              label: opt.label,
-              optionClassName: paidOccupancyIds.has(opt.id) ? 'paid-occupancy-option' : '',
-              optionBadgeText: paidOccupancyIds.has(opt.id) ? 'Paid' : undefined,
-              optionBadgeVariant: paidOccupancyIds.has(opt.id) ? 'success' : undefined
-            }))}
-            placeholder="Search by tenant name or room number..."
-          />
+
+          <div className="room-tenant-selector-grid">
+            <div className="selector-subfield">
+              <label className="sub-selector-label">Room</label>
+              <select
+                className="form-select"
+                value={selectedRoomNumber}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setSelectedRoomNumber(value);
+
+                  if (!value) {
+                    setSelectedOccupancyId(null);
+                    return;
+                  }
+
+                  const nextOccupancyId = getDefaultOccupancyForRoom(value);
+                  setSelectedOccupancyId(nextOccupancyId);
+                }}
+                aria-label="Select room"
+              >
+                <option value="">Select room</option>
+                {roomOptions.map((roomNumber) => (
+                  <option key={roomNumber} value={roomNumber}>
+                    Room {roomNumber}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="selector-subfield">
+              <label className="sub-selector-label">Tenant</label>
+              <select
+                className="form-select"
+                value={selectedOccupancyId?.toString() || ''}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setSelectedOccupancyId(value ? parseInt(value) : null);
+                }}
+                aria-label="Select tenant"
+                disabled={!selectedRoomNumber}
+              >
+                <option value="">{selectedRoomNumber ? 'Select tenant' : 'Select room first'}</option>
+                {roomTenantOptions.map((option) => {
+                  const isActiveOccupancy = activeOccupancyIds.has(option.id);
+                  const optionLabel = isActiveOccupancy
+                    ? `${option.label} <<<Active>>>`
+                    : option.label;
+
+                  return (
+                    <option
+                      key={option.id}
+                      value={option.id}
+                      className={isActiveOccupancy ? 'paid-occupancy-option' : ''}
+                      style={
+                        isActiveOccupancy
+                          ? {
+                              backgroundColor: '#dcfce7',
+                              color: '#166534',
+                              fontWeight: 600
+                            }
+                          : undefined
+                      }
+                    >
+                      {optionLabel}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1470,90 +1814,7 @@ export default function RentalCollectionDetails() {
           <h3>Payment History & Details Breakdown</h3>
 
           {rentalRecords.length > 0 ? (
-            <div className="payment-records-container">
-              {rentalRecords.map((record) => (
-                <div key={record.id} className="payment-record-card">
-                  <div className="payment-record-header">
-                    <div className="payment-date">
-                      <span className="label">Payment Date</span>
-                      <span className="value">
-                        {new Date(record.rentReceivedOn).toLocaleDateString('en-IN', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric'
-                        })}
-                      </span>
-                    </div>
-                    <div className="payment-mode">
-                      <span className="label">Mode</span>
-                      {record.modeOfPayment ? (
-                        <span className="badge-mode">{record.modeOfPayment}</span>
-                      ) : (
-                        <span className="badge-mode gray">—</span>
-                      )}
-                    </div>
-                    <div className="payment-record-actions">
-                      <button
-                        className="payment-record-edit-btn"
-                        title="Edit payment record"
-                        onClick={() => handleEditClick(record)}
-                      >
-                        ✏️ Edit
-                      </button>
-                      <button
-                        className="payment-record-delete-btn"
-                        title="Delete payment record"
-                        onClick={() => handleDeleteRecord(record)}
-                      >
-                        🗑️ Delete
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="payment-record-details">
-                    <div className="detail-item">
-                      <span className="label">Fixed Rent</span>
-                      <span className="value">{formatCurrency(record.rentFixed)}</span>
-                    </div>
-                    <div className="detail-item">
-                      <span className="label">Charges</span>
-                      <span className="value">{formatCurrency(record.charges)}</span>
-                    </div>
-                    <div className="detail-item">
-                      <span className="label">Received</span>
-                      <span className="value received">{formatCurrency(getEffectiveReceived(Number(record.rentReceived || 0), Number(record.charges || 0)))}</span>
-                    </div>
-                    <div className="detail-item">
-                      <span className="label">Balance</span>
-                      <span className="value balance">{formatCurrency(getDisplayBalance(record))}</span>
-                    </div>
-                  </div>
-
-                  {record.screenshotUrl && (
-                    <div className="payment-screenshot">
-                      <div className="screenshot-label">Payment Proof</div>
-                      <button
-                        type="button"
-                        className="screenshot-link"
-                        onClick={() =>
-                          openProofPreview(
-                            getProofUrl(record.screenshotUrl, record.rentReceivedOn, record.folder),
-                            `Payment proof screenshot for ${record.tenantName}`
-                          )
-                        }
-                        title="Preview payment proof"
-                      >
-                        <img
-                          src={getProofUrl(record.screenshotUrl, record.rentReceivedOn, record.folder)}
-                          alt="Payment proof screenshot"
-                          className="screenshot-thumbnail"
-                        />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+            renderPaymentHistoryTable(rentalRecords, { showActions: true })
           ) : (
             <div className="empty-state">
               <p>No payment records yet. {showForm ? '' : 'Click "Add Payment" to record the first payment.'}</p>
@@ -1562,7 +1823,7 @@ export default function RentalCollectionDetails() {
         </div>
       )}
 
-      <div className="current-month-status-card">
+      <div className={`current-month-status-card ${isCurrentMonthSelected ? 'current-month-highlight' : ''}`}>
         <div className="current-month-header">
           <div>
             <h3>Occupied Rooms Rental Status - {formatMonthTitle(currentMonthYear)}</h3>
@@ -1752,12 +2013,13 @@ export default function RentalCollectionDetails() {
                     const isReviewExpanded = expandedReviewRows[item.occupancyId] || false;
                     const isSavingReview = savingReviewRows[item.occupancyId] || false;
                     const savedReviewDate = formatReviewSavedDate(item.reviewVerifiedOn);
-                    const effectiveEbCharges = Number(item.charges || 0);
-                    const totalDue = Number(item.proRataRent || 0) + effectiveEbCharges;
-                    const hasPaymentRecord = Boolean(item.rentReceivedOn) || Number(item.rentReceived || 0) > 0;
-                    const effectiveReceived = getEffectiveReceived(Number(item.rentReceived || 0), effectiveEbCharges, hasPaymentRecord);
+                    const effectiveEbCharges = toNumber(item.charges);
+                    const totalDue = toNumber(item.proRataRent) + effectiveEbCharges;
+                    const hasPaymentRecord = Boolean(item.rentReceivedOn) || toNumber(item.rentReceived) > 0;
+                    const effectiveReceived = getEffectiveReceived(toNumber(item.rentReceived), effectiveEbCharges, hasPaymentRecord);
                     const effectiveStatus = getEffectiveStatus(item);
-                    const itemBalance = Math.max(0, totalDue - effectiveReceived);
+                    const isCheckoutEntry = isCheckoutPayment(item.modeOfPayment);
+                    const itemBalance = isCheckoutEntry ? 0 : Math.max(0, totalDue - effectiveReceived);
                     const tenantReviewDecision = getReviewDecision(item);
                     // Check if this is a shop (room numbers like S1, S2, SHOP-1 etc or any number > 100 can be marked as shop)
                     const isShop = /^[Ss]/.test(item.roomNumber) || /[Ss]hop/i.test(item.roomNumber);
@@ -1799,7 +2061,7 @@ export default function RentalCollectionDetails() {
                         <td className="amount">{formatCurrency(item.proRataRent)}</td>
                         <td className="amount eb-charges">
                           <div className="eb-charge-content">
-                            <span>{effectiveEbCharges > 0 ? formatCurrency(effectiveEbCharges) : '-'}</span>
+                            <span>{formatCurrency(effectiveEbCharges)}</span>
                             {effectiveEbCharges > 0 && (
                               <button
                                 type="button"
@@ -1815,7 +2077,7 @@ export default function RentalCollectionDetails() {
                         </td>
                         <td className="amount total-due">{formatCurrency(totalDue)}</td>
                         <td
-                          className={`amount balance ${itemBalance > 0 ? 'pending' : 'success'}`}
+                          className={`amount balance ${isCheckoutEntry ? 'checkout-balance' : itemBalance > 0 ? 'pending' : 'success'}`}
                           title={getBalanceTooltip(item)}
                         >
                           {formatCurrency(itemBalance)}
@@ -1868,9 +2130,10 @@ export default function RentalCollectionDetails() {
                               <button
                                 type="button"
                                 className="last-proof-link"
-                                title="Preview latest payment proof"
-                                onClick={() =>
-                                  openProofPreview(
+                                title="Preview payment proof"
+                                onClick={(event) =>
+                                  handleProofOpen(
+                                    event,
                                     getProofUrl(item.screenshotUrl, item.rentReceivedOn, item.folder),
                                     `Payment proof ${item.tenantName}`
                                   )
@@ -1880,6 +2143,13 @@ export default function RentalCollectionDetails() {
                                   src={getProofUrl(item.screenshotUrl, item.rentReceivedOn, item.folder)}
                                   alt={`Payment proof ${item.tenantName}`}
                                   className="last-proof-thumb"
+                                  onClick={(event) =>
+                                    handleProofOpen(
+                                      event,
+                                      getProofUrl(item.screenshotUrl, item.rentReceivedOn, item.folder),
+                                      `Payment proof ${item.tenantName}`
+                                    )
+                                  }
                                 />
                               </button>
                             ) : (
@@ -2012,74 +2282,7 @@ export default function RentalCollectionDetails() {
             ) : paymentHistoryPopup.records.length === 0 ? (
               <div className="empty-state compact"><p>No payment records found.</p></div>
             ) : (
-              <div className="payment-records-container popup-payment-records">
-                {paymentHistoryPopup.records.map((record) => (
-                  <div key={record.id} className="payment-record-card">
-                    <div className="payment-record-header">
-                      <div className="payment-date">
-                        <span className="label">Payment Date</span>
-                        <span className="value">
-                          {new Date(record.rentReceivedOn).toLocaleDateString('en-IN', {
-                            day: '2-digit',
-                            month: 'short',
-                            year: 'numeric'
-                          })}
-                        </span>
-                      </div>
-                      <div className="payment-mode">
-                        <span className="label">Mode</span>
-                        {record.modeOfPayment ? (
-                          <span className="badge-mode">{record.modeOfPayment}</span>
-                        ) : (
-                          <span className="badge-mode gray">—</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="payment-record-details">
-                      <div className="detail-item">
-                        <span className="label">Fixed Rent</span>
-                        <span className="value">{formatCurrency(record.rentFixed)}</span>
-                      </div>
-                      <div className="detail-item">
-                        <span className="label">Charges</span>
-                        <span className="value">{formatCurrency(record.charges)}</span>
-                      </div>
-                      <div className="detail-item">
-                        <span className="label">Received</span>
-                        <span className="value received">{formatCurrency(Number(record.rentReceived || 0))}</span>
-                      </div>
-                      <div className="detail-item">
-                        <span className="label">Balance</span>
-                        <span className="value balance">{formatCurrency(getDisplayBalance(record))}</span>
-                      </div>
-                    </div>
-
-                    {record.screenshotUrl && (
-                      <div className="payment-screenshot">
-                        <div className="screenshot-label">Payment Proof</div>
-                        <button
-                          type="button"
-                          className="screenshot-link"
-                          onClick={() =>
-                            openProofPreview(
-                              getProofUrl(record.screenshotUrl, record.rentReceivedOn, record.folder),
-                              `Payment proof screenshot for ${record.tenantName}`
-                            )
-                          }
-                          title="Preview payment proof"
-                        >
-                          <img
-                            src={getProofUrl(record.screenshotUrl, record.rentReceivedOn, record.folder)}
-                            alt="Payment proof screenshot"
-                            className="screenshot-thumbnail"
-                          />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+              renderPaymentHistoryTable(paymentHistoryPopup.records)
             )}
           </div>
         </div>

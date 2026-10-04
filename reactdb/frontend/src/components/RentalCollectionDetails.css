@@ -63,6 +63,75 @@
   margin-bottom: 24px;
 }
 
+.selector-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.selector-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.selector-label {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1a202c;
+}
+
+.sub-selector-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #475569;
+}
+
+.room-tenant-selector-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.selector-subfield {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1a202c;
+  font-size: 0.95rem;
+}
+
+.form-select:disabled {
+  background: #f8fafc;
+  color: #64748b;
+  cursor: not-allowed;
+}
+
+.clear-selection-button {
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.clear-selection-button:hover {
+  text-decoration: underline;
+}
+
 /* Current Month Occupancy Status */
 .current-month-status-card {
   background: white;
@@ -70,6 +139,17 @@
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   margin-bottom: 24px;
+  border: 1px solid transparent;
+}
+
+.current-month-status-card.current-month-highlight {
+  background: linear-gradient(135deg, rgba(254, 243, 199, 0.65), rgba(255, 255, 255, 1));
+  border-color: #fbbf24;
+  box-shadow: 0 8px 20px rgba(245, 158, 11, 0.18);
+}
+
+.current-month-status-card.current-month-highlight .current-month-header h3 {
+  color: #92400e;
 }
 
 .current-month-header {
@@ -912,6 +992,12 @@
   text-decoration: underline;
 }
 
+.paid-occupancy-option {
+  background-color: #dcfce7;
+  color: #166534;
+  font-weight: 600;
+}
+
 /* Occupancy Info Card */
 .occupancy-info-card {
   background: white;
@@ -1293,6 +1379,87 @@
   gap: 20px;
 }
 
+.payment-history-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.payment-history-table {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.payment-history-table thead th {
+  background: #f8fafc;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 12px 10px;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.payment-history-table tbody td {
+  padding: 12px 10px;
+  border-bottom: 1px solid #edf2f7;
+  vertical-align: middle;
+  color: #1f2937;
+}
+
+.payment-history-table tbody tr:nth-child(even) {
+  background: #fafbff;
+}
+
+.payment-history-table tbody tr:hover {
+  background: #f7faff;
+}
+
+.payment-history-table tbody tr.current-month-payment-row {
+  background: linear-gradient(90deg, rgba(254, 240, 138, 0.9), rgba(255, 255, 255, 0.95));
+  box-shadow: inset 3px 0 0 #facc15;
+}
+
+.payment-history-table tbody tr.checkout-payment-row {
+  background: linear-gradient(90deg, rgba(191, 219, 254, 0.9), rgba(255, 255, 255, 0.95));
+  box-shadow: inset 3px 0 0 #2563eb;
+}
+
+.month-group-summary {
+  background: #eef2ff;
+}
+
+.month-summary-cell {
+  padding: 10px 12px !important;
+  border-top: 1px solid #c7d2fe;
+  border-bottom: 1px solid #c7d2fe;
+}
+
+.month-summary-label {
+  display: inline-block;
+  font-weight: 700;
+  color: #312e81;
+  letter-spacing: 0.02em;
+}
+
+.month-summary-breakdown {
+  display: inline-block;
+  margin-left: 12px;
+  color: #4f46e5;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.checkout-balance {
+  color: #2563eb !important;
+  font-weight: 700;
+}
+
 .payment-record-card {
   background: #f7fafc;
   border: 1px solid #e2e8f0;
@@ -1321,6 +1488,12 @@
   align-items: center;
   gap: 0.5rem;
   margin-left: auto;
+}
+
+.payment-record-actions.compact-actions {
+  margin-left: 0;
+  justify-content: flex-start;
+  flex-wrap: wrap;
 }
 
 .payment-record-edit-btn,
@@ -1442,6 +1615,51 @@
 }
 
 /* Payment Screenshot */
+.payment-proof-cell {
+  width: 92px;
+  text-align: center;
+}
+
+.payment-proof-thumb-button {
+  width: 70px;
+  height: 70px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  padding: 0;
+  cursor: zoom-in;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: all 0.2s;
+}
+
+.payment-proof-thumb-button:hover,
+.payment-proof-thumb-button:focus-visible {
+  border-color: #667eea;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.18);
+  outline: none;
+}
+
+.payment-history-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.amount-positive {
+  color: #22863a;
+  font-weight: 700;
+}
+
+.amount-negative {
+  color: #c53030;
+  font-weight: 700;
+}
+
 .payment-screenshot {
   padding-top: 16px;
   border-top: 1px solid #e2e8f0;

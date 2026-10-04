@@ -1354,7 +1354,7 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
           latestPayment.folder as folder,
           latestPayment.modeOfPayment as modeOfPayment,
           ISNULL(CAST(monthlyTotals.totalRentReceived AS FLOAT), 0) as rentReceived,
-          ISNULL(CAST(monthlyTotals.totalCharges AS FLOAT), 0) as charges,
+          ISNULL(CAST(tenantServiceCharges.totalEbCharges AS FLOAT), 0) as charges,
           ISNULL(CAST(tenantServiceCharges.totalEbCharges AS FLOAT), 0) as tenantServiceCharges,
           CASE
             WHEN latestReview.IsVerified = 1 THEN 'approved'
@@ -1370,7 +1370,7 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
           CAST(o.CheckOutDate AS NVARCHAR) as checkOutDate,
           CASE 
             WHEN ISNULL(monthlyTotals.totalRentReceived, 0) <= 0
-              AND ISNULL(CASE WHEN monthlyTotals.totalCharges > 0 THEN monthlyTotals.totalCharges ELSE tenantServiceCharges.totalEbCharges END, 0) <= 0 THEN 'pending'
+              AND ISNULL(CAST(tenantServiceCharges.totalEbCharges AS FLOAT), 0) <= 0 THEN 'pending'
             WHEN ISNULL(monthlyTotals.totalRentReceived, 0) > 0
               AND ISNULL(CAST(o.RentFixed AS FLOAT), rd.Rent) > 0 THEN 'partial'
             ELSE 'pending'
@@ -1388,11 +1388,26 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
             AND MONTH(CAST(rcMonth.RentReceivedOn AS DATE)) = @month
         ) monthlyTotals
         OUTER APPLY (
-          SELECT SUM(ISNULL(CAST(tsc.TotalCharge AS FLOAT), 0)) as totalEbCharges
-          FROM [dbo].[TenantServiceCharges] tsc
-          WHERE tsc.TenantId = o.TenantId
-            AND tsc.BillingYear = YEAR(DATEADD(month, -1, DATEFROMPARTS(@year, @month, 1)))
-            AND tsc.BillingMonth = MONTH(DATEADD(month, -1, DATEFROMPARTS(@year, @month, 1)))
+          SELECT COALESCE(
+            (
+              SELECT SUM(ISNULL(CAST(tscPrev.TotalCharge AS FLOAT), 0))
+              FROM [dbo].[TenantServiceCharges] tscPrev
+              WHERE tscPrev.TenantId = o.TenantId
+                AND tscPrev.RoomId = o.RoomId
+                AND tscPrev.BillingYear = YEAR(DATEADD(month, -1, DATEFROMPARTS(@year, @month, 1)))
+                AND tscPrev.BillingMonth = MONTH(DATEADD(month, -1, DATEFROMPARTS(@year, @month, 1)))
+            ),
+            (
+              SELECT SUM(ISNULL(CAST(scdPrev.AmountToBeCollected AS FLOAT), 0))
+              FROM [dbo].[ServiceRoomAllocation] sraPrev
+              INNER JOIN [dbo].[ServiceConsumptionDetails] scdPrev
+                ON scdPrev.ServiceAllocId = sraPrev.Id
+              WHERE sraPrev.RoomId = o.RoomId
+                AND YEAR(CAST(scdPrev.ReadingTakenDate AS DATE)) = YEAR(DATEADD(month, -1, DATEFROMPARTS(@year, @month, 1)))
+                AND MONTH(CAST(scdPrev.ReadingTakenDate AS DATE)) = MONTH(DATEADD(month, -1, DATEFROMPARTS(@year, @month, 1)))
+            ),
+            0
+          ) as totalEbCharges
         ) tenantServiceCharges
         OUTER APPLY (
           SELECT TOP 1
@@ -1422,7 +1437,13 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
           -- Occupancy is active during this month
           CAST(o.CheckInDate AS DATE) <= EOMONTH(DATEFROMPARTS(@year, @month, 1))
           AND (o.CheckOutDate IS NULL OR CAST(o.CheckOutDate AS DATE) > DATEFROMPARTS(@year, @month, 1))
-        ORDER BY t.Name ASC
+        ORDER BY
+          CASE 
+            WHEN TRY_CAST(rd.Number AS INT) IS NOT NULL THEN TRY_CAST(rd.Number AS INT)
+            ELSE 2147483647
+          END,
+          rd.Number,
+          t.Name ASC
       `);
     
     // Calculate pro-rata rent balance for each record
@@ -1431,8 +1452,8 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
       const rentReceived = record.rentReceived || 0;
       const recordedCharges = Number(record.charges || 0);
       const serviceCharges = Number(record.tenantServiceCharges || 0);
-      const charges = recordedCharges > 0 ? recordedCharges : serviceCharges;
-      
+      const charges = recordedCharges || serviceCharges;
+
       // Calculate pro-rata rent for this specific month based on check-in/check-out dates
       const proRataRent = calculateProRataRentForMonth(
         record.checkInDate,
