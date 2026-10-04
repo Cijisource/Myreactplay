@@ -63,6 +63,75 @@
   margin-bottom: 24px;
 }
 
+.selector-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.selector-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.selector-label {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1a202c;
+}
+
+.sub-selector-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #475569;
+}
+
+.room-tenant-selector-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.selector-subfield {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1a202c;
+  font-size: 0.95rem;
+}
+
+.form-select:disabled {
+  background: #f8fafc;
+  color: #64748b;
+  cursor: not-allowed;
+}
+
+.clear-selection-button {
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.clear-selection-button:hover {
+  text-decoration: underline;
+}
+
 /* Current Month Occupancy Status */
 .current-month-status-card {
   background: white;
@@ -1359,6 +1428,31 @@
 .payment-history-table tbody tr.checkout-payment-row {
   background: linear-gradient(90deg, rgba(191, 219, 254, 0.9), rgba(255, 255, 255, 0.95));
   box-shadow: inset 3px 0 0 #2563eb;
+}
+
+.month-group-summary {
+  background: #eef2ff;
+}
+
+.month-summary-cell {
+  padding: 10px 12px !important;
+  border-top: 1px solid #c7d2fe;
+  border-bottom: 1px solid #c7d2fe;
+}
+
+.month-summary-label {
+  display: inline-block;
+  font-weight: 700;
+  color: #312e81;
+  letter-spacing: 0.02em;
+}
+
+.month-summary-breakdown {
+  display: inline-block;
+  margin-left: 12px;
+  color: #4f46e5;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .checkout-balance {

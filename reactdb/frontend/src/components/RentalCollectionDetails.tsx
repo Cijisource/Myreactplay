@@ -124,6 +124,7 @@ export default function RentalCollectionDetails() {
   const [activeTab, setActiveTab] = useState<'collection' | 'tracking'>('collection');
   const [occupancyOptions, setOccupancyOptions] = useState<OccupancyOption[]>([]);
   const [activeOccupancyIds, setActiveOccupancyIds] = useState<Set<number>>(new Set());
+  const [selectedRoomNumber, setSelectedRoomNumber] = useState<string>('');
   const [selectedOccupancyId, setSelectedOccupancyId] = useState<number | null>(null);
   const [occupancyInfo, setOccupancyInfo] = useState<OccupancyInfo | null>(null);
   const [rentalRecords, setRentalRecords] = useState<RentalRecord[]>([]);
@@ -218,6 +219,42 @@ export default function RentalCollectionDetails() {
 
   const currentMonthYear = selectedMonthFilter;
   const isCurrentMonthSelected = selectedMonthFilter === getDefaultMonthValue();
+
+  const compareRoomNumbers = (left: string | number | null | undefined, right: string | number | null | undefined): number => {
+    const leftValue = String(left ?? '').trim();
+    const rightValue = String(right ?? '').trim();
+    return leftValue.localeCompare(rightValue, undefined, { numeric: true, sensitivity: 'base' });
+  };
+
+  const roomOptions = Array.from(
+    new Map(
+      occupancyOptions
+        .filter((option) => Boolean(option.roomNumber))
+        .map((option) => [String(option.roomNumber).trim(), String(option.roomNumber).trim()])
+    ).keys()
+  ).sort((left, right) => compareRoomNumbers(left, right));
+
+  const roomTenantOptions = occupancyOptions.filter((option) => {
+    if (!selectedRoomNumber) {
+      return false;
+    }
+
+    return String(option.roomNumber ?? '').trim() === selectedRoomNumber;
+  });
+
+  const getDefaultOccupancyForRoom = (roomNumber: string): number | null => {
+    if (!roomNumber) {
+      return null;
+    }
+
+    const roomOccupancyOptions = occupancyOptions.filter((option) => String(option.roomNumber ?? '').trim() === roomNumber);
+    const activeOccupancyId = roomOccupancyOptions.find((option) => activeOccupancyIds.has(option.id))?.id ?? null;
+    if (activeOccupancyId != null) {
+      return activeOccupancyId;
+    }
+
+    return roomOccupancyOptions[0]?.id ?? null;
+  };
 
   const toNumber = (value: unknown): number => {
     const numericValue = Number(value ?? 0);
@@ -458,12 +495,6 @@ export default function RentalCollectionDetails() {
     return <span className="payment-mode-icon other" title={rawMode || 'Other'} aria-label={rawMode || 'Other'}>{rawMode}</span>;
   };
 
-  const compareRoomNumbers = (left: string | number | null | undefined, right: string | number | null | undefined): number => {
-    const leftValue = String(left ?? '').trim();
-    const rightValue = String(right ?? '').trim();
-    return leftValue.localeCompare(rightValue, undefined, { numeric: true, sensitivity: 'base' });
-  };
-
   const getDaysInMonth = (month: number, year: number): number => {
     return new Date(year, month, 0).getDate();
   };
@@ -525,6 +556,17 @@ export default function RentalCollectionDetails() {
     fetchOccupancies();
     fetchCurrentMonthPayments();
   }, []);
+
+  useEffect(() => {
+    if (selectedOccupancyId == null) {
+      return;
+    }
+
+    const matchedOccupancy = occupancyOptions.find((option) => option.id === selectedOccupancyId);
+    if (matchedOccupancy) {
+      setSelectedRoomNumber(String(matchedOccupancy.roomNumber ?? '').trim());
+    }
+  }, [selectedOccupancyId, occupancyOptions]);
 
   // Re-fetch when month filter changes
   useEffect(() => {
@@ -687,6 +729,7 @@ export default function RentalCollectionDetails() {
   };
 
   const clearOccupancySelection = () => {
+    setSelectedRoomNumber('');
     setSelectedOccupancyId(null);
     setOccupancyInfo(null);
     setRentalRecords([]);
@@ -1051,6 +1094,30 @@ export default function RentalCollectionDetails() {
     };
 
     const currentMonthKey = selectedMonthFilter || getDefaultMonthValue();
+    const monthGroups = Array.from(
+      records.reduce((map, record) => {
+        const monthKey = getMonthKeyFromDate(record.rentReceivedOn);
+        if (!monthKey) {
+          return map;
+        }
+
+        const existing = map.get(monthKey) ?? [];
+        existing.push(record);
+        map.set(monthKey, existing);
+        return map;
+      }, new Map<string, RentalRecord[]>())
+    )
+      .sort(([leftKey], [rightKey]) => rightKey.localeCompare(leftKey))
+      .map(([monthKey, monthRecords]) => ({
+        monthKey,
+        monthLabel: new Date(`${monthKey}-01T00:00:00`).toLocaleDateString('en-IN', {
+          month: 'long',
+          year: 'numeric'
+        }),
+        monthRecords: monthRecords.sort((left, right) => new Date(right.rentReceivedOn).getTime() - new Date(left.rentReceivedOn).getTime())
+      }));
+
+    const colSpan = showActions ? 10 : 9;
 
     return (
       <div className="payment-history-table-wrapper">
@@ -1070,89 +1137,92 @@ export default function RentalCollectionDetails() {
             </tr>
           </thead>
           <tbody>
-            {records.map((record) => {
-              const proofUrl = record.screenshotUrl
-                ? getProofUrl(record.screenshotUrl, record.rentReceivedOn, record.folder)
-                : null;
-              const effectiveReceived = getEffectiveReceived(
-                Number(record.rentReceived || 0),
-                Number(record.charges || 0),
-                Boolean(record.rentReceivedOn) || Number(record.rentReceived || 0) > 0,
-                record.modeOfPayment
-              );
-              const monthTotal = getTotalReceivedForMonth(record.rentReceivedOn?.slice(0, 7) || '');
-              const balance = getDisplayBalance(record);
-              const ebCharges = Number(record.charges || 0);
-              const isCurrentMonthRecord = getMonthKeyFromDate(record.rentReceivedOn) === currentMonthKey;
-              const isCheckoutEntry = isCheckoutPayment(record.modeOfPayment);
+            {monthGroups.flatMap(({ monthKey, monthLabel, monthRecords }) => {
+              const monthFixedTotal = monthRecords.reduce((sum, record) => sum + Number(record.rentFixed || 0), 0);
+              const monthChargesTotal = monthRecords.reduce((sum, record) => sum + Number(record.charges || 0), 0);
+              const monthReceivedTotal = monthRecords.reduce((sum, record) => {
+                const effectiveReceived = getEffectiveReceived(
+                  Number(record.rentReceived || 0),
+                  Number(record.charges || 0),
+                  Boolean(record.rentReceivedOn) || Number(record.rentReceived || 0) > 0,
+                  record.modeOfPayment
+                );
+                return sum + effectiveReceived;
+              }, 0);
 
-              return (
-                <tr
-                  key={record.id}
-                  className={`${isCurrentMonthRecord ? 'current-month-payment-row' : ''} ${isCheckoutEntry ? 'checkout-payment-row' : ''}`.trim()}
-                >
-                  <td>{new Date(record.rentReceivedOn).toLocaleDateString('en-IN', {
-                    day: '2-digit',
-                    month: 'short',
-                    year: 'numeric'
-                  })}</td>
-                  <td>{record.modeOfPayment || '—'}</td>
-                  <td>{formatCurrency(record.rentFixed)}</td>
-                  <td>{formatCurrency(record.charges)}</td>
-                  <td>{formatCurrency(ebCharges)}</td>
-                  <td className="amount-positive">{formatCurrency(effectiveReceived)}</td>
-                  <td>{formatCurrency(monthTotal)}</td>
-                  <td className={isCheckoutEntry ? 'amount-positive checkout-balance' : balance > 0 ? 'amount-negative' : 'amount-positive'}>
-                    {formatCurrency(balance)}
+              const monthSummaryRow = (
+                <tr key={`${monthKey}-summary`} className="month-group-summary">
+                  <td colSpan={colSpan} className="month-summary-cell">
+                    <span className="month-summary-label">{monthLabel}</span>
+                    <span className="month-summary-breakdown">
+                      Fixed: {formatCurrency(monthFixedTotal)} · Charges: {formatCurrency(monthChargesTotal)} · Received: {formatCurrency(monthReceivedTotal)}
+                    </span>
                   </td>
-                  {showActions && (
-                    <td>
-                      <div className="payment-record-actions compact-actions">
-                        <button
-                          className="payment-record-edit-btn"
-                          title="Edit payment record"
-                          onClick={() => handleEditClick(record)}
-                        >
-                          ✏️ Edit
-                        </button>
-                        <button
-                          className="payment-record-delete-btn"
-                          title="Delete payment record"
-                          onClick={() => handleDeleteRecord(record)}
-                        >
-                          🗑️ Delete
-                        </button>
-                      </div>
+                </tr>
+              );
+
+              const detailRows = monthRecords.map((record) => {
+                const proofUrl = record.screenshotUrl
+                  ? getProofUrl(record.screenshotUrl, record.rentReceivedOn, record.folder)
+                  : null;
+                const effectiveReceived = getEffectiveReceived(
+                  Number(record.rentReceived || 0),
+                  Number(record.charges || 0),
+                  Boolean(record.rentReceivedOn) || Number(record.rentReceived || 0) > 0,
+                  record.modeOfPayment
+                );
+                const monthTotal = getTotalReceivedForMonth(record.rentReceivedOn?.slice(0, 7) || '');
+                const balance = getDisplayBalance(record);
+                const ebCharges = Number(record.charges || 0);
+                const isCurrentMonthRecord = getMonthKeyFromDate(record.rentReceivedOn) === currentMonthKey;
+                const isCheckoutEntry = isCheckoutPayment(record.modeOfPayment);
+
+                return (
+                  <tr
+                    key={record.id}
+                    className={`${isCurrentMonthRecord ? 'current-month-payment-row' : ''} ${isCheckoutEntry ? 'checkout-payment-row' : ''}`.trim()}
+                  >
+                    <td>{new Date(record.rentReceivedOn).toLocaleDateString('en-IN', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric'
+                    })}</td>
+                    <td>{record.modeOfPayment || '—'}</td>
+                    <td>{formatCurrency(record.rentFixed)}</td>
+                    <td>{formatCurrency(record.charges)}</td>
+                    <td>{formatCurrency(ebCharges)}</td>
+                    <td className="amount-positive">{formatCurrency(effectiveReceived)}</td>
+                    <td>{formatCurrency(monthTotal)}</td>
+                    <td className={isCheckoutEntry ? 'amount-positive checkout-balance' : balance > 0 ? 'amount-negative' : 'amount-positive'}>
+                      {formatCurrency(balance)}
                     </td>
-                  )}
-                  <td className="payment-proof-cell">
-                    {proofUrl ? (
-                      <button
-                        type="button"
-                        className="payment-proof-thumb-button"
-                        title="Preview payment proof"
-                        aria-label={`Preview payment proof for ${record.tenantName}`}
-                        onClick={(event) =>
-                          handleProofOpen(
-                            event,
-                            proofUrl,
-                            `Payment proof screenshot for ${record.tenantName}`
-                          )
-                        }
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault();
-                            openProofPreview(
-                              proofUrl,
-                              `Payment proof screenshot for ${record.tenantName}`
-                            );
-                          }
-                        }}
-                      >
-                        <img
-                          src={proofUrl}
-                          alt={`Payment proof screenshot for ${record.tenantName}`}
-                          className="payment-history-thumb"
+                    {showActions && (
+                      <td>
+                        <div className="payment-record-actions compact-actions">
+                          <button
+                            className="payment-record-edit-btn"
+                            title="Edit payment record"
+                            onClick={() => handleEditClick(record)}
+                          >
+                            ✏️ Edit
+                          </button>
+                          <button
+                            className="payment-record-delete-btn"
+                            title="Delete payment record"
+                            onClick={() => handleDeleteRecord(record)}
+                          >
+                            🗑️ Delete
+                          </button>
+                        </div>
+                      </td>
+                    )}
+                    <td className="payment-proof-cell">
+                      {proofUrl ? (
+                        <button
+                          type="button"
+                          className="payment-proof-thumb-button"
+                          title="Preview payment proof"
+                          aria-label={`Preview payment proof for ${record.tenantName}`}
                           onClick={(event) =>
                             handleProofOpen(
                               event,
@@ -1160,14 +1230,38 @@ export default function RentalCollectionDetails() {
                               `Payment proof screenshot for ${record.tenantName}`
                             )
                           }
-                        />
-                      </button>
-                    ) : (
-                      <span className="no-proof">-</span>
-                    )}
-                  </td>
-                </tr>
-              );
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              openProofPreview(
+                                proofUrl,
+                                `Payment proof screenshot for ${record.tenantName}`
+                              );
+                            }
+                          }}
+                        >
+                          <img
+                            src={proofUrl}
+                            alt={`Payment proof screenshot for ${record.tenantName}`}
+                            className="payment-history-thumb"
+                            onClick={(event) =>
+                              handleProofOpen(
+                                event,
+                                proofUrl,
+                                `Payment proof screenshot for ${record.tenantName}`
+                              )
+                            }
+                          />
+                        </button>
+                      ) : (
+                        <span className="no-proof">-</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              });
+
+              return [monthSummaryRow, ...detailRows];
             })}
           </tbody>
         </table>
@@ -1423,42 +1517,77 @@ export default function RentalCollectionDetails() {
               </button>
             )}
           </div>
-          <select
-            className="form-select"
-            value={selectedOccupancyId?.toString() || ''}
-            onChange={(event) => {
-              const value = event.target.value;
-              setSelectedOccupancyId(value ? parseInt(value) : null);
-            }}
-            aria-label="Select tenant and room"
-          >
-            <option value="">Select tenant and room</option>
-            {occupancyOptions.map((option) => {
-              const isActiveOccupancy = activeOccupancyIds.has(option.id);
-              const optionLabel = isActiveOccupancy
-                ? `${option.label} <<<Active>>>`
-                : option.label;
 
-              return (
-                <option
-                  key={option.id}
-                  value={option.id}
-                  className={isActiveOccupancy ? 'paid-occupancy-option' : ''}
-                  style={
-                    isActiveOccupancy
-                      ? {
-                          backgroundColor: '#dcfce7',
-                          color: '#166534',
-                          fontWeight: 600
-                        }
-                      : undefined
+          <div className="room-tenant-selector-grid">
+            <div className="selector-subfield">
+              <label className="sub-selector-label">Room</label>
+              <select
+                className="form-select"
+                value={selectedRoomNumber}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setSelectedRoomNumber(value);
+
+                  if (!value) {
+                    setSelectedOccupancyId(null);
+                    return;
                   }
-                >
-                  {optionLabel}
-                </option>
-              );
-            })}
-          </select>
+
+                  const nextOccupancyId = getDefaultOccupancyForRoom(value);
+                  setSelectedOccupancyId(nextOccupancyId);
+                }}
+                aria-label="Select room"
+              >
+                <option value="">Select room</option>
+                {roomOptions.map((roomNumber) => (
+                  <option key={roomNumber} value={roomNumber}>
+                    Room {roomNumber}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="selector-subfield">
+              <label className="sub-selector-label">Tenant</label>
+              <select
+                className="form-select"
+                value={selectedOccupancyId?.toString() || ''}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setSelectedOccupancyId(value ? parseInt(value) : null);
+                }}
+                aria-label="Select tenant"
+                disabled={!selectedRoomNumber}
+              >
+                <option value="">{selectedRoomNumber ? 'Select tenant' : 'Select room first'}</option>
+                {roomTenantOptions.map((option) => {
+                  const isActiveOccupancy = activeOccupancyIds.has(option.id);
+                  const optionLabel = isActiveOccupancy
+                    ? `${option.label} <<<Active>>>`
+                    : option.label;
+
+                  return (
+                    <option
+                      key={option.id}
+                      value={option.id}
+                      className={isActiveOccupancy ? 'paid-occupancy-option' : ''}
+                      style={
+                        isActiveOccupancy
+                          ? {
+                              backgroundColor: '#dcfce7',
+                              color: '#166534',
+                              fontWeight: 600
+                            }
+                          : undefined
+                      }
+                    >
+                      {optionLabel}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          </div>
         </div>
       </div>
 
