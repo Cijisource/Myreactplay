@@ -56,6 +56,27 @@ export default function LoginScreen() {
         />
       </div>
 
+      <aside className="seo-landing-panel" aria-label="Affordable bachelors accommodation in Madurai">
+        <span className="seo-badge">Madurai rent leads</span>
+        <h2>Affordable bachelors accommodation in Madurai</h2>
+        <p>
+          Gnanabi Mansion offers budget-friendly rooms, PG stays, and shared accommodation for
+          students and working professionals looking for a mansion in Madurai with affordable monthly rent.
+        </p>
+        <ul className="seo-points">
+          <li>Budget rooms and affordable bachelors stays</li>
+          <li>Monthly rent and verified room leads</li>
+          <li>Trusted accommodation options in Madurai city</li>
+        </ul>
+        <div className="seo-tags">
+          <span>Mansion in Madurai</span>
+          <span>Bachelors accommodation</span>
+          <span>Affordable rent</span>
+          <span>Room rent</span>
+          <span>PG in Madurai</span>
+        </div>
+      </aside>
+
       {/* Login Form Floating Over */}
       <div className="login-content">
         <div className="login-card">
