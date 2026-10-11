@@ -31,6 +31,7 @@ interface ServiceAllocation {
     beds: number;
   };
   lastPayment?: LastPayment | null;
+  lastMonthPayment?: LastPayment | null;
 }
 
 interface Service {
@@ -168,11 +169,19 @@ export default function ServiceAllocationManagement() {
   const uniqueRooms = (Array.from(new Set(allocations.map(a => a.room?.number))).filter(Boolean) as (string | number)[]).sort();
 
   const filteredAllocations = allocations.filter(a => {
-    // Search filter
-    const searchMatch = !searchQuery ||
-      a.service?.consumerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      a.service?.serviceCategory.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      a.room?.number.toLowerCase().includes(searchQuery.toLowerCase());
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    const consumerNo = a.service?.consumerNo?.toLowerCase() || '';
+    const consumerName = a.service?.consumerName?.toLowerCase() || '';
+    const serviceCategory = a.service?.serviceCategory?.toLowerCase() || '';
+    const roomNumber = a.room?.number?.toLowerCase() || '';
+    const meterNo = a.service?.meterNo?.toString().toLowerCase() || '';
+
+    const searchMatch = !normalizedQuery ||
+      consumerNo.includes(normalizedQuery) ||
+      consumerName.includes(normalizedQuery) ||
+      serviceCategory.includes(normalizedQuery) ||
+      roomNumber.includes(normalizedQuery) ||
+      meterNo.includes(normalizedQuery);
     
     // Category filter
     const categoryMatch = !filterCategory || a.service?.serviceCategory === filterCategory;
@@ -195,7 +204,7 @@ export default function ServiceAllocationManagement() {
   });
 
   // Group allocations by consumer number
-  const groupedByConsumer = filteredAllocations.reduce((groups: { [key: string]: { allocations: typeof filteredAllocations; consumerName?: string; serviceCategory?: string; load?: string; lastPayment?: LastPayment | null } }, allocation) => {
+  const groupedByConsumer = filteredAllocations.reduce((groups: { [key: string]: { allocations: typeof filteredAllocations; consumerName?: string; serviceCategory?: string; load?: string; lastPayment?: LastPayment | null; lastMonthPayment?: LastPayment | null } }, allocation) => {
     const consumerNo = allocation.service?.consumerNo || 'Unassigned';
     if (!groups[consumerNo]) {
       groups[consumerNo] = {
@@ -203,7 +212,8 @@ export default function ServiceAllocationManagement() {
         consumerName: allocation.service?.consumerName,
         serviceCategory: allocation.service?.serviceCategory,
         load: allocation.service?.load,
-        lastPayment: allocation.lastPayment || null
+        lastPayment: allocation.lastPayment || null,
+        lastMonthPayment: allocation.lastMonthPayment || allocation.lastPayment || null
       };
     }
     groups[consumerNo].allocations.push(allocation);
@@ -221,7 +231,7 @@ export default function ServiceAllocationManagement() {
       <div className="toolbar">
         <input
           type="text"
-          placeholder="Search allocations..."
+          placeholder="Search by consumer, room, category..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="search-input"
@@ -326,81 +336,92 @@ export default function ServiceAllocationManagement() {
         </div>
       ) : (
         <div>
-          {sortedConsumers.map((consumerNo) => (
-            <div key={consumerNo} className="consumer-section">
-              <div className="consumer-header">
-                <div>
-                  <h3 className="consumer-title">
-                    👤 {groupedByConsumer[consumerNo].consumerName || 'Unknown Service'}
-                  </h3>
-                  <p className="consumer-meta">
-                    <span className="consumer-no">Consumer No: {consumerNo}</span>
-                    {groupedByConsumer[consumerNo].lastPayment && (
-                      <>
-                        <span className="consumer-payment-date">
-                          Last Payment: {new Date(groupedByConsumer[consumerNo].lastPayment!.billDate).toLocaleDateString()}
-                        </span>
-                        <span className="consumer-bill-amount">
-                          Amount: ₹{parseFloat(groupedByConsumer[consumerNo].lastPayment!.billAmount.toString()).toFixed(2)}
-                        </span>
-                      </>
-                    )}
-                    {groupedByConsumer[consumerNo].serviceCategory && (
-                      <span className="consumer-category">Category: {groupedByConsumer[consumerNo].serviceCategory}</span>
-                    )}
-                    {groupedByConsumer[consumerNo].load && (
-                      <span className="consumer-load">Load: {groupedByConsumer[consumerNo].load}</span>
-                    )}
-                  </p>
-                </div>
-                <span className="consumer-count">({groupedByConsumer[consumerNo].allocations.length})</span>
-              </div>
-              <div className="table-responsive">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Service</th>
-                      <th>Category</th>
-                      <th>Room</th>
-                      <th>Meter No</th>
-                      <th>Billed Units</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {groupedByConsumer[consumerNo].allocations.map((allocation) => (
-                      <tr key={allocation.id}>
-                        <td>{allocation.service?.consumerName || 'N/A'}</td>
-                        <td>{allocation.service?.serviceCategory || 'N/A'}</td>
-                        <td>Room {allocation.room?.number || 'N/A'}</td>
-                        <td>{allocation.service?.meterNo || 'N/A'}</td>
-                        <td>
-                          {allocation.lastPayment?.billedUnits ? (
-                            <span className="billed-units">
-                              {allocation.lastPayment.billedUnits} units
+          {sortedConsumers.map((consumerNo) => {
+            const consumerGroup = groupedByConsumer[consumerNo];
+            const billingRecord = consumerGroup.lastMonthPayment || consumerGroup.lastPayment;
+
+            return (
+              <div key={consumerNo} className="consumer-section">
+                <div className="consumer-header">
+                  <div>
+                    <h3 className="consumer-title">
+                      👤 {consumerGroup.consumerName || 'Unknown Service'}
+                    </h3>
+                    <p className="consumer-meta">
+                      <span className="consumer-no">Consumer No: {consumerNo}</span>
+                      {billingRecord && (
+                        <>
+                          <span className="consumer-payment-date">
+                            Last Bill: {new Date(billingRecord.billDate).toLocaleDateString()}
+                          </span>
+                          <span className="consumer-bill-amount">
+                            Amount: ₹{parseFloat(billingRecord.billAmount?.toString() || '0').toFixed(2)}
+                          </span>
+                          {billingRecord.billedUnits !== undefined && billingRecord.billedUnits !== null && (
+                            <span className="consumer-billed-units">
+                              Billed Units: {billingRecord.billedUnits} units
                             </span>
-                          ) : (
-                            <span className="no-payment">-</span>
                           )}
-                        </td>
-                        <td className="actions">
-                          <button className="btn btn-sm btn-info" onClick={() => handleEdit(allocation)}>
-                            Edit
-                          </button>
-                          <button
-                            className="btn btn-sm btn-danger"
-                            onClick={() => setShowDeleteConfirm(allocation.id)}
-                          >
-                            Delete
-                          </button>
-                        </td>
+                        </>
+                      )}
+                      {consumerGroup.serviceCategory && (
+                        <span className="consumer-category">Category: {consumerGroup.serviceCategory}</span>
+                      )}
+                      {consumerGroup.load && (
+                        <span className="consumer-load">Load: {consumerGroup.load}</span>
+                      )}
+                    </p>
+                  </div>
+                  <span className="consumer-count">({consumerGroup.allocations.length})</span>
+                </div>
+                <div className="table-responsive">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Service</th>
+                        <th>Category</th>
+                        <th>Room</th>
+                        <th>Meter No</th>
+                        <th>Billed Units</th>
+                        <th>Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {consumerGroup.allocations.map((allocation) => (
+                        <tr key={allocation.id}>
+                          <td>{allocation.service?.consumerName || 'N/A'}</td>
+                          <td>{allocation.service?.serviceCategory || 'N/A'}</td>
+                          <td>Room {allocation.room?.number || 'N/A'}</td>
+                          <td>{allocation.service?.meterNo || 'N/A'}</td>
+                          <td>
+                            {(allocation.lastMonthPayment?.billedUnits ?? allocation.lastPayment?.billedUnits) !== undefined &&
+                              (allocation.lastMonthPayment?.billedUnits ?? allocation.lastPayment?.billedUnits) !== null ? (
+                              <span className="billed-units">
+                                {(allocation.lastMonthPayment?.billedUnits ?? allocation.lastPayment?.billedUnits)} units
+                              </span>
+                            ) : (
+                              <span className="no-payment">-</span>
+                            )}
+                          </td>
+                          <td className="actions">
+                            <button className="btn btn-sm btn-info" onClick={() => handleEdit(allocation)}>
+                              Edit
+                            </button>
+                            <button
+                              className="btn btn-sm btn-danger"
+                              onClick={() => setShowDeleteConfirm(allocation.id)}
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
