@@ -64,13 +64,20 @@ interface TenantSelectionRequest {
   requestId: number;
 }
 
+interface TenantSearchRequest {
+  field: SearchField;
+  query: string;
+  requestId: number;
+}
+
 interface TenantManagementProps {
   tenantSelectionRequest?: TenantSelectionRequest | null;
+  tenantSearchRequest?: TenantSearchRequest | null;
 }
 
 type TenantManagementTab = 'tenants' | 'occupancy-history';
 
-export default function TenantManagement({ tenantSelectionRequest = null }: TenantManagementProps) {
+export default function TenantManagement({ tenantSelectionRequest = null, tenantSearchRequest = null }: TenantManagementProps) {
   const { hasAnyRole } = useAuth();
   const [activeTab, setActiveTab] = useState<TenantManagementTab>('tenants');
   const [filteredTenants, setFilteredTenants] = useState<TenantWithOccupancy[]>([]);
@@ -99,6 +106,7 @@ export default function TenantManagement({ tenantSelectionRequest = null }: Tena
   const [showFilters, setShowFilters] = useState(false);
   const [allUniqueTenants, setAllUniqueTenants] = useState<TenantWithOccupancy[]>([]); // Store all tenants
   const [lastHandledSelectionRequestId, setLastHandledSelectionRequestId] = useState<number | null>(null);
+  const [lastHandledSearchRequestId, setLastHandledSearchRequestId] = useState<number | null>(null);
 
   // Scroll to edit form when editing is triggered
   useEffect(() => {
@@ -479,6 +487,24 @@ export default function TenantManagement({ tenantSelectionRequest = null }: Tena
     handleViewTenant(selectedTenant);
     setLastHandledSelectionRequestId(tenantSelectionRequest.requestId);
   }, [tenantSelectionRequest, allUniqueTenants, lastHandledSelectionRequestId]);
+
+  useEffect(() => {
+    if (!tenantSearchRequest?.requestId) {
+      return;
+    }
+
+    if (lastHandledSearchRequestId === tenantSearchRequest.requestId) {
+      return;
+    }
+
+    setActiveTab('tenants');
+    setShowFilters(true);
+    setSearchField(tenantSearchRequest.field || 'all');
+    setSearchQuery(tenantSearchRequest.query || '');
+    setSelectedRoom('');
+    setOccupancyFilter('all');
+    setLastHandledSearchRequestId(tenantSearchRequest.requestId);
+  }, [tenantSearchRequest, lastHandledSearchRequestId]);
 
   const handleCheckoutSuccess = async () => {
     // Refresh tenants list after successful checkout

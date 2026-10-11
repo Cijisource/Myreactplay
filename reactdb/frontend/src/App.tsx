@@ -23,6 +23,7 @@ import DailyStatusManagement from './components/DailyStatusManagement';
 import ActiveSessionsManagement from './components/ActiveSessionsManagement';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import type { SearchField } from './components/TenantSearchFilters';
 
 type Page = 'home' | 'diagnostic' | 'rental-collection' | 'tenants' | 'occupancy' | 'daily-status' | 'room-management' | 'complaints' | 'active-sessions' | 'users' | 'roles' | 'transactions' | 'stock' | 'guest-checkin' | 'misc-uploads' | 'consumption' | 'water-tank-monitor' | 'electricity-charges';
 
@@ -117,8 +118,15 @@ const getGroupKeyForPage = (page: Page): string | null => {
   return group?.key ?? null;
 };
 
+type TenantSearchRequest = {
+  field: SearchField;
+  query: string;
+  requestId: number;
+};
+
 function AppContent() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
+  const [tenantSearchRequest, setTenantSearchRequest] = useState<TenantSearchRequest | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeGroupKey, setActiveGroupKey] = useState<string | null>(() => getGroupKeyForPage('home'));
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -206,6 +214,41 @@ function AppContent() {
 
     setActiveGroupKey(pageGroupKey);
   }, [currentPage]);
+
+  useEffect(() => {
+    const handleTenantSearchNavigation = (event: Event) => {
+      const customEvent = event as CustomEvent<{ page?: Page; searchField?: string; searchQuery?: string }>;
+      const { page, searchField, searchQuery } = customEvent.detail || {};
+
+      if (page !== 'tenants') {
+        return;
+      }
+
+      const normalizedQuery = typeof searchQuery === 'string' ? searchQuery.trim() : '';
+      if (!normalizedQuery) {
+        return;
+      }
+
+      const validFields: SearchField[] = ['all', 'name', 'phone', 'city', 'address', 'room'];
+      const normalizedField: SearchField =
+        typeof searchField === 'string' && validFields.includes(searchField as SearchField)
+          ? (searchField as SearchField)
+          : 'phone';
+
+      setCurrentPage('tenants');
+      setActiveGroupKey(getGroupKeyForPage('tenants'));
+      setTenantSearchRequest({
+        field: normalizedField,
+        query: normalizedQuery,
+        requestId: Date.now() + Math.round(Math.random() * 1000),
+      });
+    };
+
+    window.addEventListener('app:navigate-to-tenant-search', handleTenantSearchNavigation);
+    return () => {
+      window.removeEventListener('app:navigate-to-tenant-search', handleTenantSearchNavigation);
+    };
+  }, []);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -334,7 +377,7 @@ function AppContent() {
     if (currentPage === 'tenants') {
       return (
         <ProtectedRoute requiredRoles={SCREEN_ROLES.tenants}>
-          <TenantManagement />
+          <TenantManagement tenantSearchRequest={tenantSearchRequest} />
         </ProtectedRoute>
       );
     }
