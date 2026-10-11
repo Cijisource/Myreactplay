@@ -6300,7 +6300,12 @@ app.get('/api/service-allocations-with-payments', verifyToken, requireRole(['adm
         esp.BillAmount as 'lastPayment.billAmount',
         esp.BillDate as 'lastPayment.billDate',
         esp.BilledUnits as 'lastPayment.billedUnits',
-        esp.CreatedDate as 'lastPayment.createdDate'
+        esp.CreatedDate as 'lastPayment.createdDate',
+        lmp.Id as 'lastMonthPayment.id',
+        lmp.BillAmount as 'lastMonthPayment.billAmount',
+        lmp.BillDate as 'lastMonthPayment.billDate',
+        lmp.BilledUnits as 'lastMonthPayment.billedUnits',
+        lmp.CreatedDate as 'lastMonthPayment.createdDate'
       FROM ServiceRoomAllocation sa
       LEFT JOIN ServiceDetails sd ON sa.ServiceId = sd.Id
       LEFT JOIN RoomDetail rd ON sa.RoomId = rd.Id
@@ -6309,6 +6314,13 @@ app.get('/api/service-allocations-with-payments', verifyToken, requireRole(['adm
                ROW_NUMBER() OVER (PARTITION BY ServiceId ORDER BY BillDate DESC) as rn
         FROM EBServicePayments
       ) esp ON sa.ServiceId = esp.ServiceId AND esp.rn = 1
+      LEFT JOIN (
+        SELECT Id, ServiceId, BillAmount, BillDate, BilledUnits, CreatedDate,
+               ROW_NUMBER() OVER (PARTITION BY ServiceId ORDER BY BillDate DESC) as rn
+        FROM EBServicePayments
+        WHERE BillDate >= DATEADD(month, DATEDIFF(month, 0, GETDATE()) - 1, 0)
+          AND BillDate < DATEADD(month, DATEDIFF(month, 0, GETDATE()), 0)
+      ) lmp ON sa.ServiceId = lmp.ServiceId AND lmp.rn = 1
       ORDER BY sd.ConsumerName, rd.Number ASC
     `);
     const formattedResult = result.recordset.map(row => ({
@@ -6335,6 +6347,13 @@ app.get('/api/service-allocations-with-payments', verifyToken, requireRole(['adm
         billDate: row['lastPayment.billDate'],
         billedUnits: row['lastPayment.billedUnits'],
         createdDate: row['lastPayment.createdDate']
+      } : null,
+      lastMonthPayment: row['lastMonthPayment.id'] ? {
+        id: row['lastMonthPayment.id'],
+        billAmount: row['lastMonthPayment.billAmount'],
+        billDate: row['lastMonthPayment.billDate'],
+        billedUnits: row['lastMonthPayment.billedUnits'],
+        createdDate: row['lastMonthPayment.createdDate']
       } : null
     }));
     res.json(formattedResult);
@@ -6375,7 +6394,19 @@ app.get('/api/service-allocations-for-reading', verifyToken, requireRole(['admin
         (SELECT TOP 1 scd.AmountToBeCollected 
          FROM ServiceConsumptionDetails scd 
          WHERE scd.ServiceAllocId = sra.Id 
-         ORDER BY scd.ReadingTakenDate DESC) as lastCharge
+         ORDER BY scd.ReadingTakenDate DESC) as lastCharge,
+        (SELECT TOP 1 ebp.BillDate
+         FROM EBServicePayments ebp
+         WHERE ebp.ServiceId = sra.ServiceId
+         ORDER BY ebp.BillDate DESC) as lastPaymentDate,
+        (SELECT TOP 1 ebp.BillAmount
+         FROM EBServicePayments ebp
+         WHERE ebp.ServiceId = sra.ServiceId
+         ORDER BY ebp.BillDate DESC) as lastBillAmount,
+        (SELECT TOP 1 ebp.BilledUnits
+         FROM EBServicePayments ebp
+         WHERE ebp.ServiceId = sra.ServiceId
+         ORDER BY ebp.BillDate DESC) as lastBilledUnits
       FROM ServiceRoomAllocation sra
       INNER JOIN ServiceDetails sd ON sra.ServiceId = sd.Id
       INNER JOIN RoomDetail rd ON sra.RoomId = rd.Id
@@ -6402,6 +6433,11 @@ app.get('/api/service-allocations-for-reading', verifyToken, requireRole(['admin
       lastReadingDate: row.lastReadingDate,
       lastEndingReading: row.lastEndingReading,
       lastCharge: row.lastCharge != null ? Number(row.lastCharge) : null,
+      lastPayment: row.lastPaymentDate || row.lastBillAmount || row.lastBilledUnits ? {
+        billDate: row.lastPaymentDate,
+        billAmount: row.lastBillAmount != null ? Number(row.lastBillAmount) : null,
+        billedUnits: row.lastBilledUnits != null ? Number(row.lastBilledUnits) : null,
+      } : null,
       service: {
         id: row['service.id'],
         consumerNo: row['service.consumerNo'],

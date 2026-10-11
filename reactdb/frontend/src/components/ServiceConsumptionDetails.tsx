@@ -57,12 +57,15 @@ interface PaymentData {
   consumerName: string;
   lastPaymentDate: string | null;
   billAmount: number | null;
+  billedUnits: number | null;
 }
 
 interface CategoryGroup {
   consumerNo: string;
   consumerName: string;
   lastPaymentDate: string | null;
+  billAmount: number | null;
+  billedUnits: number | null;
   details: ConsumptionDetail[];
   totalUnits: number;
   totalAmount: number;
@@ -212,11 +215,13 @@ export default function ServiceConsumptionDetails() {
       response.data.forEach((item: any) => {
         const consumerNo = item.service?.consumerNo;
         if (consumerNo && !paymentMap.has(consumerNo)) {
+          const lastPayment = item.lastPayment || null;
           paymentMap.set(consumerNo, {
             consumerNo: consumerNo,
             consumerName: item.service?.consumerName || 'N/A',
-            lastPaymentDate: null,
-            billAmount: null,
+            lastPaymentDate: lastPayment?.billDate || null,
+            billAmount: lastPayment?.billAmount != null ? Number(lastPayment.billAmount) : null,
+            billedUnits: lastPayment?.billedUnits != null ? Number(lastPayment.billedUnits) : null,
           });
         }
       });
@@ -353,6 +358,8 @@ export default function ServiceConsumptionDetails() {
           consumerNo: consumerNo,
           consumerName: detail.consumerName || paymentInfo?.consumerName || 'N/A',
           lastPaymentDate: paymentInfo?.lastPaymentDate || null,
+          billAmount: paymentInfo?.billAmount ?? null,
+          billedUnits: paymentInfo?.billedUnits ?? null,
           details: [],
           totalUnits: 0,
           totalAmount: 0,
@@ -720,9 +727,13 @@ export default function ServiceConsumptionDetails() {
                     <span className="consumer-badge">{group.consumerNo}</span>
                     <div className="consumer-details">
                       <span className="consumer-name">{group.consumerName}</span>
-                      {group.lastPaymentDate && (
+                      <span className="last-payment">
+                        {group.lastPaymentDate ? `Last bill: ${new Date(group.lastPaymentDate).toLocaleDateString()}` : 'Last bill: N/A'}
+                      </span>
+                      {(group.billedUnits !== null || group.billAmount !== null) && (
                         <span className="last-payment">
-                          Last Payment: {new Date(group.lastPaymentDate).toLocaleDateString()}
+                          {group.billedUnits !== null && group.billedUnits !== undefined ? `${group.billedUnits} units` : '—'}
+                          {group.billAmount !== null && group.billAmount !== undefined ? ` • ₹${Number(group.billAmount).toFixed(2)}` : ''}
                         </span>
                       )}
                     </div>
