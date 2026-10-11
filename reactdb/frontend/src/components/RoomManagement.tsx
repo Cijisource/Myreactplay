@@ -66,7 +66,7 @@ export default function RoomManagement(): JSX.Element {
   const [selectedReceiptImage, setSelectedReceiptImage] = useState<string | null>(null);
   const [tenantModalLoading] = useState(false);
   const [tenantModalError, setTenantModalError] = useState<string | null>(null);
-  const [tenantDetailTabs, setTenantDetailTabs] = useState<Record<number, 'overview' | 'rental' | 'deposit' | 'eb'>>({});
+  const [tenantDetailTabs, setTenantDetailTabs] = useState<Record<number, 'overview' | 'rental' | 'deposit' | 'eb' | 'tenant' | 'photos'>>({});
   const [tenantDetailData, setTenantDetailData] = useState<Record<number, TenantDetailTabState>>({});
   const [editingRoomValues, setEditingRoomValues] = useState<Record<number, { rent: string; advance: string }>>({});
   const [savingRoomDetails, setSavingRoomDetails] = useState<Record<number, boolean>>({});
@@ -333,6 +333,21 @@ export default function RoomManagement(): JSX.Element {
     setSelectedTenantOccupancyId(occupancyId);
   };
 
+  const navigateToTenantPhoneSearch = (phone: string) => {
+    const normalizedPhone = phone?.trim();
+    if (!normalizedPhone) {
+      return;
+    }
+
+    window.dispatchEvent(new CustomEvent('app:navigate-to-tenant-search', {
+      detail: {
+        page: 'tenants',
+        searchField: 'phone',
+        searchQuery: normalizedPhone,
+      }
+    }));
+  };
+
   const startEditingRoomValues = (room: RoomWithHistory) => {
     const targetTenant = room.tenantHistory.find((tenant) => tenant.occupancyId === selectedTenantOccupancyId)
       ?? room.tenantHistory.find((tenant) => tenant.isActive)
@@ -429,7 +444,7 @@ export default function RoomManagement(): JSX.Element {
     setSelectedReceiptImage(null);
   };
 
-  const handleTenantDetailTab = async (occupancyId: number, roomId: number, tab: 'overview' | 'rental' | 'deposit' | 'eb') => {
+  const handleTenantDetailTab = async (occupancyId: number, roomId: number, tab: 'overview' | 'rental' | 'deposit' | 'eb' | 'tenant' | 'photos') => {
     setTenantDetailTabs(prev => ({ ...prev, [occupancyId]: tab }));
 
     if (tab === 'overview') {
@@ -535,14 +550,14 @@ export default function RoomManagement(): JSX.Element {
         </div>
 
         <div className="tenant-detail-tabs">
-          {(['overview', 'rental', 'deposit', 'eb'] as const).map((tab) => (
+          {(['overview', 'rental', 'deposit', 'eb', 'tenant', 'photos'] as const).map((tab) => (
             <button
               key={tab}
               type="button"
               className={`tenant-detail-tab ${activeTab === tab ? 'active' : ''}`}
               onClick={() => handleTenantDetailTab(tenant.occupancyId, room.id, tab)}
             >
-              {tab === 'overview' ? 'Overview' : tab === 'rental' ? 'Rental' : tab === 'deposit' ? 'Deposit' : 'EB'}
+              {tab === 'overview' ? 'Overview' : tab === 'rental' ? 'Rental' : tab === 'deposit' ? 'Deposit' : tab === 'eb' ? 'EB' : tab === 'tenant' ? 'Tenant' : 'Photos & Proofs'}
             </button>
           ))}
         </div>
@@ -553,7 +568,17 @@ export default function RoomManagement(): JSX.Element {
               <div className="tenant-overview-grid">
                 <div className="tenant-detail-field">
                   <span>Phone</span>
-                  <strong>{tenant.tenantPhone || '-'}</strong>
+                  {tenant.tenantPhone ? (
+                    <button
+                      type="button"
+                      className="tenant-detail-phone-button"
+                      onClick={() => navigateToTenantPhoneSearch(tenant.tenantPhone)}
+                    >
+                      {tenant.tenantPhone}
+                    </button>
+                  ) : (
+                    <strong>-</strong>
+                  )}
                 </div>
                 <div className="tenant-detail-field">
                   <span>Address</span>
@@ -725,6 +750,80 @@ export default function RoomManagement(): JSX.Element {
               <div className="tenant-detail-receipt-wrap tenant-deposit-photo-wrap">
                 <div className="tenant-detail-receipt-placeholder tenant-deposit-placeholder">No deposit receipt photo available for this tenant.</div>
               </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'tenant' && (
+          <div className="tenant-detail-body tenant-overview-layout">
+            <div className="tenant-overview-content">
+              <div className="tenant-overview-grid">
+                <div className="tenant-detail-field">
+                  <span>Tenant name</span>
+                  <strong>{tenant.tenantName || 'Unknown'}</strong>
+                </div>
+                <div className="tenant-detail-field">
+                  <span>Phone</span>
+                  <strong>{tenant.tenantPhone || '-'}</strong>
+                </div>
+                <div className="tenant-detail-field">
+                  <span>City</span>
+                  <strong>{tenant.tenantCity || '-'}</strong>
+                </div>
+                <div className="tenant-detail-field">
+                  <span>Address</span>
+                  <strong>{tenant.tenantAddress || 'Not available'}</strong>
+                </div>
+                <div className="tenant-detail-field">
+                  <span>Current room</span>
+                  <strong>{room.roomNumber || '-'}</strong>
+                </div>
+                <div className="tenant-detail-field">
+                  <span>Check-in</span>
+                  <strong>{formatDate(tenant.checkInDate)}</strong>
+                </div>
+                <div className="tenant-detail-field">
+                  <span>Check-out</span>
+                  <strong>{tenant.checkOutDate ? formatDate(tenant.checkOutDate) : 'Ongoing'}</strong>
+                </div>
+                <div className="tenant-detail-field">
+                  <span>Fixed rent</span>
+                  <strong>{formatCurrency(tenant.rentFixed)}</strong>
+                </div>
+                <div className="tenant-detail-field">
+                  <span>Advance</span>
+                  <strong>{formatCurrency(tenant.advanceCollected)}</strong>
+                </div>
+              </div>
+            </div>
+
+            {tenantPhoto && (
+              <div className="tenant-overview-photo-wrap">
+                <img
+                  src={getFileUrl(tenantPhoto)}
+                  alt={tenant.tenantName || 'Tenant'}
+                  className="tenant-overview-photo"
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'photos' && (
+          <div className="tenant-detail-body">
+            {tenantPhoto ? (
+              <div className="tenant-detail-photo-gallery">
+                <div className="tenant-detail-photo-card">
+                  <span>Primary photo</span>
+                  <img
+                    src={getFileUrl(tenantPhoto)}
+                    alt={`${tenant.tenantName || 'Tenant'} primary`} 
+                    className="tenant-detail-gallery-image"
+                  />
+                </div>
+              </div>
+            ) : (
+              <p className="tenant-detail-empty">No photos or proof images available for this tenant in this view.</p>
             )}
           </div>
         )}

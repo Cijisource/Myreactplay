@@ -119,6 +119,7 @@ const getGroupKeyForPage = (page: Page): string | null => {
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
+  const [tenantSearchRequest, setTenantSearchRequest] = useState<{ field: string; query: string; requestId: number } | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeGroupKey, setActiveGroupKey] = useState<string | null>(() => getGroupKeyForPage('home'));
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -206,6 +207,35 @@ function AppContent() {
 
     setActiveGroupKey(pageGroupKey);
   }, [currentPage]);
+
+  useEffect(() => {
+    const handleTenantSearchNavigation = (event: Event) => {
+      const customEvent = event as CustomEvent<{ page?: Page; searchField?: string; searchQuery?: string }>;
+      const { page, searchField, searchQuery } = customEvent.detail || {};
+
+      if (page !== 'tenants') {
+        return;
+      }
+
+      const normalizedQuery = typeof searchQuery === 'string' ? searchQuery.trim() : '';
+      if (!normalizedQuery) {
+        return;
+      }
+
+      setCurrentPage('tenants');
+      setActiveGroupKey(getGroupKeyForPage('tenants'));
+      setTenantSearchRequest({
+        field: searchField || 'phone',
+        query: normalizedQuery,
+        requestId: Date.now() + Math.round(Math.random() * 1000),
+      });
+    };
+
+    window.addEventListener('app:navigate-to-tenant-search', handleTenantSearchNavigation);
+    return () => {
+      window.removeEventListener('app:navigate-to-tenant-search', handleTenantSearchNavigation);
+    };
+  }, []);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -334,7 +364,7 @@ function AppContent() {
     if (currentPage === 'tenants') {
       return (
         <ProtectedRoute requiredRoles={SCREEN_ROLES.tenants}>
-          <TenantManagement />
+          <TenantManagement tenantSearchRequest={tenantSearchRequest} />
         </ProtectedRoute>
       );
     }
