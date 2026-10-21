@@ -68,6 +68,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Overview',
     items: [
       { page: 'home', label: 'Home', roles: SCREEN_ROLES.home },
+      { page: 'occupancy', label: 'Room Vacancy Status', roles: SCREEN_ROLES.occupancy },
       { page: 'daily-status', label: 'Daily Status', roles: SCREEN_ROLES['daily-status'] },
       { page: 'water-tank-monitor', label: 'Sintex Tank Monitor', roles: SCREEN_ROLES['water-tank-monitor'] }
     ]
