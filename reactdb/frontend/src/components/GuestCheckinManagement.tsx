@@ -453,11 +453,17 @@ export default function GuestCheckinManagement() {
   const isAdmin = hasRole('admin');
   const guestPhoneFilterListId = 'guest-checkin-phone-filter-options';
 
-  const initialDate = getDateInputValue(new Date());
+  const getFirstDayOfMonthForDate = (value: Date): string => {
+    const date = new Date(value.getFullYear(), value.getMonth(), 1);
+    return getDateInputValue(date);
+  };
+
+  const initialDate = getFirstDayOfMonthForDate(new Date());
   const [statuses, setStatuses] = useState<DailyStatus[]>(() => readGuestCheckinCache<DailyStatus[]>(guestCheckinStatusesCacheKey) || []);
   const [rooms, setRooms] = useState<Room[]>(() => readGuestCheckinCache<Room[]>(guestCheckinRoomsCacheKey) || []);
   const [selectedDate, setSelectedDate] = useState<string>(initialDate);
   const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
+  const [showAddGuestForm, setShowAddGuestForm] = useState(false);
   const [guestCheckins, setGuestCheckins] = useState<GuestCheckIn[]>(() =>
     readGuestCheckinCache<GuestCheckIn[]>(getGuestCheckinCacheKey('monthly', initialDate)) || []
   );
@@ -885,12 +891,17 @@ export default function GuestCheckinManagement() {
   }, []);
 
   useEffect(() => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date();
+    const todayValue = getDateInputValue(today);
+    const firstOfMonth = getFirstDayOfMonthForDate(today);
+
     if (viewMode === 'daily') {
-      setSelectedDate((prev) => prev || '');
-      setFormData((prev) => ({ ...prev, checkInDate: prev.checkInDate || today }));
-    } else if (viewMode === 'weekly' || viewMode === 'monthly') {
-      setSelectedDate((prev) => prev || today);
+      setSelectedDate((prev) => prev || todayValue);
+      setFormData((prev) => ({ ...prev, checkInDate: prev.checkInDate || todayValue }));
+    } else if (viewMode === 'weekly') {
+      setSelectedDate((prev) => prev || todayValue);
+    } else if (viewMode === 'monthly') {
+      setSelectedDate((prev) => prev || firstOfMonth);
     }
   }, [viewMode]);
 
@@ -1451,6 +1462,23 @@ export default function GuestCheckinManagement() {
         </div>
       )}
 
+      {!showAddGuestForm && viewMode !== 'daily' && (
+        <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'flex-end' }}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => {
+              setShowAddGuestForm(true);
+              const today = getDateInputValue(new Date());
+              setSelectedDate((prev) => prev || today);
+              setFormData((prev) => ({ ...prev, checkInDate: today }));
+            }}
+          >
+            + Add Guest Check-In
+          </button>
+        </div>
+      )}
+
       <div className="items-grid guest-checkin-stats-grid" style={{ marginBottom: '1rem' }}>
         <div className="item-card guest-checkin-stat-card">
           <span className="guest-stat-label">Total Guests</span>
@@ -1484,7 +1512,7 @@ export default function GuestCheckinManagement() {
       {success && <div className="success-message">{success}</div>}
 
       <div className="guest-checkin-main-grid">
-        {viewMode === 'daily' && selectedStatus && (
+        {(viewMode === 'daily' || showAddGuestForm) && (
           <div className="form-container guest-checkin-add-section guest-checkin-panel" style={{ marginBottom: '1rem' }}>
             <div className="guest-checkin-panel-header">
               <h3>Add Guest Check-In</h3>
@@ -1648,6 +1676,9 @@ export default function GuestCheckinManagement() {
                 </div>
               </div>
               <div className="form-buttons">
+                <button type="button" className="btn btn-secondary" style={{ marginRight: '0.5rem' }} onClick={() => setShowAddGuestForm(false)}>
+                  Cancel
+                </button>
                 <button type="submit" className="btn btn-success" disabled={saving || !formData.checkInDate || !isFormValid}>
                   {saving ? 'Saving...' : 'Check In Guest'}
                 </button>
