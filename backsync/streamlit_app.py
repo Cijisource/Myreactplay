@@ -121,6 +121,63 @@ def get_latest_readings() -> pd.DataFrame:
         )
 
 
+HISTORY_RANGES = {
+    "1 hour": (1, "1min"),
+    "2 hours": (2, "2min"),
+    "6 hours": (6, "5min"),
+    "1 day": (24, "15min"),
+    "1 week": (168, "1h"),
+    "1 month": (720, "6h"),
+}
+
+
+@st.cache_data(ttl=30)
+def get_history(device_name: str, hours: int) -> pd.DataFrame:
+    if db.is_azure():
+        cutoff = f"DATEADD(hour, -{int(hours)}, SYSUTCDATETIME())"
+    else:
+        cutoff = f"NOW() - INTERVAL '{int(hours)} hours'"
+    with get_db_connection() as conn:
+        return pd.read_sql(
+            f"""
+            SELECT r.pin_name, r.value_numeric, r.fetched_at
+            FROM blynk_readings r
+            INNER JOIN blynk_devices d ON d.id = r.device_id
+            WHERE d.device_name = %s
+              AND r.value_numeric IS NOT NULL
+              AND r.fetched_at >= {cutoff}
+            ORDER BY r.fetched_at
+            """,
+            conn,
+            params=(device_name,),
+        )
+
+
+def render_history(devices_list):
+    st.subheader("History")
+    c1, c2 = st.columns(2)
+    device_name = c1.selectbox("Device", list(devices_list), key="hist_device")
+    range_label = c2.radio("Range", list(HISTORY_RANGES), horizontal=True, index=3, key="hist_range")
+    hours, freq = HISTORY_RANGES[range_label]
+    try:
+        df = get_history(device_name, hours)
+    except Exception as exc:
+        st.error(f"Unable to load history: {exc}")
+        return
+    if df.empty:
+        st.info("No readings in this range.")
+        return
+    df["fetched_at"] = pd.to_datetime(df["fetched_at"], utc=True)
+    df["value_numeric"] = df["value_numeric"].astype(float)
+    df["pin"] = df["pin_name"].map(lambda p: f"{p} {PIN_LABELS.get(p, '')}".strip())
+    wide = df.pivot_table(index="fetched_at", columns="pin", values="value_numeric", aggfunc="mean")
+    wide = wide.resample(freq).mean().dropna(how="all")
+    pins = st.multiselect("Pins", list(wide.columns), default=list(wide.columns), key=f"hist_pins_{device_name}")
+    if pins:
+        st.line_chart(wide[pins])
+        st.caption(f"{len(df)} readings, averaged per {freq}")
+
+
 def clamp(value, minimum=0.0, maximum=100.0):
     return max(minimum, min(maximum, value))
 
@@ -666,6 +723,8 @@ st.subheader("Tank overview")
 for device_name in ["Sintex Tank", "Main Tank"]:
     if device_name in latest["device_name"].unique():
         components.html(build_tank_dashboard(device_name, latest), height=480, scrolling=False)
+
+render_history(devices["device_name"])
 
 st.subheader("Last fetch values")
 value_tiles = ""
