@@ -24,7 +24,7 @@ services:
       DB_NAME: blynkdb
       DB_USER: blynk
       DB_PASSWORD: blynkpass
-      FETCH_INTERVAL_SECONDS: 600
+      FETCH_INTERVAL_SECONDS: 60
     env_file:
       - .env
     volumes:
