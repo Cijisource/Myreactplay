@@ -1,0 +1,57 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: blynk-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: blynkdb
+      POSTGRES_USER: blynk
+      POSTGRES_PASSWORD: blynkpass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    container_name: blynk-fetcher
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: blynkdb
+      DB_USER: blynk
+      DB_PASSWORD: blynkpass
+      FETCH_INTERVAL_SECONDS: 600
+    env_file:
+      - .env
+    volumes:
+      - app_config:/data
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    container_name: blynk-dashboard
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: blynkdb
+      DB_USER: blynk
+      DB_PASSWORD: blynkpass
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    volumes:
+      - app_config:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  postgres_data:
+  app_config:
