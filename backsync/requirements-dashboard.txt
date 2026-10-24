@@ -1,0 +1,6 @@
+psycopg2-binary==2.9.9
+pymssql==2.3.2
+docker==7.1.0
+python-dotenv==1.1.0
+streamlit
+pandas
