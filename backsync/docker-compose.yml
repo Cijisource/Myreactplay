@@ -3,6 +3,8 @@ services:
     image: postgres:16-alpine
     container_name: blynk-db
     restart: unless-stopped
+    cpus: 0.2
+    mem_limit: 100m
     environment:
       POSTGRES_DB: blynkdb
       POSTGRES_USER: blynk
@@ -13,9 +15,12 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
   app:
-    build: .
+    # build: .
+    image: 555cijaiz555/backsync:v1
     container_name: blynk-fetcher
     restart: unless-stopped
+    cpus: 0.2
+    mem_limit: 100m
     depends_on:
       - db
     environment:
@@ -24,18 +29,21 @@ services:
       DB_NAME: blynkdb
       DB_USER: blynk
       DB_PASSWORD: blynkpass
-      FETCH_INTERVAL_SECONDS: 600
+      FETCH_INTERVAL_SECONDS: 60
     env_file:
       - .env
     volumes:
       - app_config:/data
 
   dashboard:
-    build:
-      context: .
-      dockerfile: Dockerfile.streamlit
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile.streamlit
+    image: 555cijaiz555/backsyncdash:v1
     container_name: blynk-dashboard
     restart: unless-stopped
+    cpus: 0.2
+    mem_limit: 100m
     depends_on:
       - db
     environment:
