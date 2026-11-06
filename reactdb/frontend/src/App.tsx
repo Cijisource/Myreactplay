@@ -20,12 +20,13 @@ import WaterTankLevelMonitor from './components/WaterTankLevelMonitor';
 import TenantElectricityCharges from './components/TenantElectricityCharges';
 import MiscUploads from './components/MiscUploads';
 import DailyStatusManagement from './components/DailyStatusManagement';
+import CleaningStatusManagement from './components/CleaningStatusManagement';
 import ActiveSessionsManagement from './components/ActiveSessionsManagement';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import type { SearchField } from './components/TenantSearchFilters';
 
-type Page = 'home' | 'diagnostic' | 'rental-collection' | 'tenants' | 'occupancy' | 'daily-status' | 'room-management' | 'complaints' | 'active-sessions' | 'users' | 'roles' | 'transactions' | 'stock' | 'guest-checkin' | 'misc-uploads' | 'consumption' | 'water-tank-monitor' | 'electricity-charges';
+type Page = 'home' | 'diagnostic' | 'rental-collection' | 'tenants' | 'occupancy' | 'daily-status' | 'cleaning-status' | 'room-management' | 'complaints' | 'active-sessions' | 'users' | 'roles' | 'transactions' | 'stock' | 'guest-checkin' | 'misc-uploads' | 'consumption' | 'water-tank-monitor' | 'electricity-charges';
 
 type NavItem = {
   page: Page;
@@ -47,6 +48,7 @@ const SCREEN_ROLES: Record<Page, string[]> = {
   tenants: ['admin', 'manager', 'property_manager', 'accountant'],
   occupancy: ['admin', 'manager', 'property_manager', 'utilities_manager'],
   'daily-status': ['admin', 'manager', 'maintenance', 'property_manager', 'utilities_manager'],
+  'cleaning-status': ['admin', 'manager', 'maintenance', 'property_manager'],
   'room-management': ['admin', 'manager', 'property_manager', 'accountant'],
   complaints: ['admin', 'manager', 'maintenance', 'utilities_manager'],
   'active-sessions': ['admin'],
@@ -70,6 +72,7 @@ const NAV_GROUPS: NavGroup[] = [
       { page: 'home', label: 'Home', roles: SCREEN_ROLES.home },
       { page: 'occupancy', label: 'Room Vacancy Status', roles: SCREEN_ROLES.occupancy },
       { page: 'daily-status', label: 'Daily Status', roles: SCREEN_ROLES['daily-status'] },
+      { page: 'cleaning-status', label: 'Cleaning Status', roles: SCREEN_ROLES['cleaning-status'] },
       { page: 'water-tank-monitor', label: 'Sintex Tank Monitor', roles: SCREEN_ROLES['water-tank-monitor'] }
     ]
   },
@@ -395,6 +398,14 @@ function AppContent() {
       return (
         <ProtectedRoute requiredRoles={SCREEN_ROLES['daily-status']}>
           <DailyStatusManagement />
+        </ProtectedRoute>
+      );
+    }
+
+    if (currentPage === 'cleaning-status') {
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES['cleaning-status']}>
+          <CleaningStatusManagement />
         </ProtectedRoute>
       );
     }
