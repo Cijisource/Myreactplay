@@ -4296,7 +4296,9 @@ app.get('/api/room-cleaning', async (req: Request, res: Response) => {
         OUTER APPLY (
           SELECT MAX(CleaningDate) as CleaningDate
           FROM RoomCleaningStatus
-          WHERE RoomId = r.Id AND [Status] = 'cleaned'
+          WHERE RoomId = r.Id
+            AND [Status] = 'cleaned'
+            AND CleaningDate <= CONVERT(date, GETDATE())
         ) lastCleaned
         ORDER BY TRY_CONVERT(int, r.Number), r.Number
       `);
@@ -4305,6 +4307,67 @@ app.get('/api/room-cleaning', async (req: Request, res: Response) => {
     console.error('Get room cleaning statuses error:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     res.status(500).json({ error: 'Failed to retrieve room cleaning statuses', details: errorMessage });
+  }
+});
+
+// Count recorded cleaned and pending statuses over the last 30 days
+app.get('/api/room-cleaning/frequency', async (_req: Request, res: Response) => {
+  try {
+    const pool = getPool();
+    const result = await pool.request().query(`
+      SELECT
+        COUNT(CASE WHEN [Status] = 'cleaned' THEN 1 END) as cleaned,
+        COUNT(CASE WHEN [Status] = 'pending' THEN 1 END) as pending
+      FROM RoomCleaningStatus
+      WHERE CleaningDate >= DATEADD(day, -29, CONVERT(date, GETDATE()))
+        AND CleaningDate <= CONVERT(date, GETDATE())
+    `);
+    const cleanedRoomsResult = await pool.request().query(`
+      SELECT cleanedRooms.roomId, cleanedRooms.roomNumber
+      FROM (
+        SELECT DISTINCT r.Id as roomId, r.Number as roomNumber
+        FROM RoomCleaningStatus s
+        INNER JOIN RoomDetail r ON r.Id = s.RoomId
+        WHERE s.[Status] = 'cleaned'
+          AND s.CleaningDate >= DATEADD(day, -29, CONVERT(date, GETDATE()))
+          AND s.CleaningDate <= CONVERT(date, GETDATE())
+      ) cleanedRooms
+      ORDER BY TRY_CONVERT(int, cleanedRooms.roomNumber), cleanedRooms.roomNumber;
+    `);
+    res.json({
+      ...result.recordset[0],
+      cleanedRooms: cleanedRoomsResult.recordset,
+    });
+  } catch (error) {
+    console.error('Get room cleaning frequency error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: 'Failed to retrieve room cleaning frequency', details: errorMessage });
+  }
+});
+
+// Get all dates a room was marked cleaned
+app.get('/api/room-cleaning/:roomId/history', async (req: Request, res: Response) => {
+  const roomId = Number(req.params.roomId);
+  if (!Number.isInteger(roomId) || roomId <= 0) {
+    return res.status(400).json({ error: 'A valid room ID is required' });
+  }
+
+  try {
+    const result = await getPool().request()
+      .input('roomId', sql.Int, roomId)
+      .query(`
+        SELECT CONVERT(char(10), CleaningDate, 23) as date
+        FROM RoomCleaningStatus
+        WHERE RoomId = @roomId
+          AND [Status] = 'cleaned'
+          AND CleaningDate <= CONVERT(date, GETDATE())
+        ORDER BY CleaningDate DESC
+      `);
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Get room cleaning history error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: 'Failed to retrieve room cleaning history', details: errorMessage });
   }
 });
 
@@ -4354,7 +4417,9 @@ app.put('/api/room-cleaning/:roomId', async (req: Request, res: Response) => {
             CONVERT(char(10), (
               SELECT MAX(CleaningDate)
               FROM RoomCleaningStatus
-              WHERE RoomId = @roomId AND [Status] = 'cleaned'
+              WHERE RoomId = @roomId
+                AND [Status] = 'cleaned'
+                AND CleaningDate <= CONVERT(date, GETDATE())
             ), 23) as lastCleanedDate
           FROM RoomCleaningStatus
           WHERE RoomId = @roomId AND CleaningDate = @cleaningDate;
