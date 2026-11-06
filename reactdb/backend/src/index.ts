@@ -4260,6 +4260,118 @@ app.get('/api/rooms', async (req: Request, res: Response) => {
   }
 });
 
+const isValidDateOnly = (value: unknown): value is string => {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const [year, month, day] = value.split('-').map(Number);
+  const parsedDate = new Date(Date.UTC(year, month - 1, day));
+  return parsedDate.getUTCFullYear() === year &&
+    parsedDate.getUTCMonth() === month - 1 &&
+    parsedDate.getUTCDate() === day;
+};
+
+// Get cleaning status for every room on a selected date
+app.get('/api/room-cleaning', async (req: Request, res: Response) => {
+  const date = req.query.date;
+  if (!isValidDateOnly(date)) {
+    return res.status(400).json({ error: 'A valid date in YYYY-MM-DD format is required' });
+  }
+
+  try {
+    const pool = getPool();
+    const result = await pool.request()
+      .input('cleaningDate', sql.Date, date)
+      .query(`
+        SELECT
+          r.Id as roomId,
+          r.Number as roomNumber,
+          ISNULL(s.Status, 'pending') as status,
+          s.UpdatedAt as updatedAt,
+          CONVERT(char(10), lastCleaned.CleaningDate, 23) as lastCleanedDate
+        FROM RoomDetail r
+        LEFT JOIN RoomCleaningStatus s
+          ON s.RoomId = r.Id AND s.CleaningDate = @cleaningDate
+        OUTER APPLY (
+          SELECT MAX(CleaningDate) as CleaningDate
+          FROM RoomCleaningStatus
+          WHERE RoomId = r.Id AND [Status] = 'cleaned'
+        ) lastCleaned
+        ORDER BY TRY_CONVERT(int, r.Number), r.Number
+      `);
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Get room cleaning statuses error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: 'Failed to retrieve room cleaning statuses', details: errorMessage });
+  }
+});
+
+// Record a room's cleaning status for a selected date
+app.put('/api/room-cleaning/:roomId', async (req: Request, res: Response) => {
+  const roomId = Number(req.params.roomId);
+  const { date, status } = req.body as { date?: unknown; status?: unknown };
+
+  if (!Number.isInteger(roomId) || roomId <= 0) {
+    return res.status(400).json({ error: 'A valid room ID is required' });
+  }
+  if (!isValidDateOnly(date)) {
+    return res.status(400).json({ error: 'A valid date in YYYY-MM-DD format is required' });
+  }
+  if (status !== 'cleaned' && status !== 'pending') {
+    return res.status(400).json({ error: 'Status must be cleaned or pending' });
+  }
+
+  try {
+    const pool = getPool();
+    const result = await pool.request()
+      .input('roomId', sql.Int, roomId)
+      .input('cleaningDate', sql.Date, date)
+      .input('status', sql.VarChar(20), status)
+      .query(`
+        IF NOT EXISTS (SELECT 1 FROM RoomDetail WHERE Id = @roomId)
+        BEGIN
+          SELECT CAST(0 AS bit) as roomExists;
+        END
+        ELSE
+        BEGIN
+          MERGE RoomCleaningStatus WITH (HOLDLOCK) AS target
+          USING (SELECT @roomId AS RoomId, @cleaningDate AS CleaningDate) AS source
+            ON target.RoomId = source.RoomId AND target.CleaningDate = source.CleaningDate
+          WHEN MATCHED THEN
+            UPDATE SET [Status] = @status, UpdatedAt = GETDATE()
+          WHEN NOT MATCHED THEN
+            INSERT (RoomId, CleaningDate, [Status], UpdatedAt)
+            VALUES (@roomId, @cleaningDate, @status, GETDATE());
+
+          SELECT
+            CAST(1 AS bit) as roomExists,
+            @roomId as roomId,
+            CONVERT(char(10), @cleaningDate, 23) as date,
+            @status as status,
+            UpdatedAt as updatedAt,
+            CONVERT(char(10), (
+              SELECT MAX(CleaningDate)
+              FROM RoomCleaningStatus
+              WHERE RoomId = @roomId AND [Status] = 'cleaned'
+            ), 23) as lastCleanedDate
+          FROM RoomCleaningStatus
+          WHERE RoomId = @roomId AND CleaningDate = @cleaningDate;
+        END
+      `);
+
+    if (!result.recordset[0]?.roomExists) {
+      return res.status(404).json({ error: 'Room not found' });
+    }
+    res.json(result.recordset[0]);
+  } catch (error) {
+    console.error('Update room cleaning status error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: 'Failed to update room cleaning status', details: errorMessage });
+  }
+});
+
 // Update room rent
 app.put('/api/rooms/:id', async (req: Request, res: Response) => {
   try {
