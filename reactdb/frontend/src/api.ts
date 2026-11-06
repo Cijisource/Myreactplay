@@ -497,6 +497,8 @@ export const apiService = {
   // Room Occupancy APIs
   getRoomOccupancyData: () => api.get('/rooms/occupancy'),
   getRoomCleaningStatuses: (date: string) => api.get(`/room-cleaning?date=${encodeURIComponent(date)}`),
+  getRoomCleaningFrequency: () => api.get('/room-cleaning/frequency'),
+  getRoomCleaningHistory: (roomId: number) => api.get(`/room-cleaning/${roomId}/history`),
   updateRoomCleaningStatus: (roomId: number, data: { date: string; status: 'cleaned' | 'pending' }) =>
     api.put(`/room-cleaning/${roomId}`, data),
   getOccupancyLinks: () => api.get('/occupancy/links'),  // Explicit room-tenant linking
