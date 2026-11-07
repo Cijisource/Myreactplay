@@ -251,6 +251,35 @@
   font-size: 1rem;
 }
 
+.room-cleaning-floor-frequency {
+  display: grid;
+  gap: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.room-cleaning-floor-frequency h3 {
+  margin: 0;
+  color: #334155;
+  font-size: 1rem;
+}
+
+.room-cleaning-floor-frequency-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 160px) minmax(0, 1fr);
+  align-items: center;
+  gap: 1rem;
+  color: #334155;
+}
+
+.room-cleaning-floor-frequency-metrics {
+  display: grid;
+  grid-template-columns: max-content minmax(70px, 1fr) max-content minmax(70px, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
 .room-cleaning-frequency-rooms ul {
   display: flex;
   flex-wrap: wrap;
@@ -429,6 +458,10 @@
   gap: 0.9rem;
 }
 
+.room-cleaning-grid[aria-label="Floor cleaning status"] {
+  grid-template-columns: repeat(auto-fit, minmax(245px, 1fr));
+}
+
 .room-cleaning-card {
   display: flex;
   justify-content: space-between;
@@ -589,6 +622,15 @@
   .room-cleaning-frequency-row > strong {
     grid-column: 2;
     grid-row: 1;
+  }
+
+  .room-cleaning-floor-frequency-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem;
+  }
+
+  .room-cleaning-floor-frequency-metrics {
+    grid-template-columns: max-content minmax(0, 1fr);
   }
 
   .room-cleaning-frequency-track {

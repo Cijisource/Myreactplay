@@ -4272,6 +4272,154 @@ const isValidDateOnly = (value: unknown): value is string => {
     parsedDate.getUTCDate() === day;
 };
 
+const FLOOR_CLEANING_NAMES: Record<string, string> = {
+  ground: 'Ground Floor',
+  first: 'First Floor',
+  second: 'Second Floor',
+  third: 'Third Floor',
+};
+
+app.get('/api/floor-cleaning', async (req: Request, res: Response) => {
+  const date = req.query.date;
+  if (!isValidDateOnly(date)) {
+    return res.status(400).json({ error: 'A valid date in YYYY-MM-DD format is required' });
+  }
+
+  try {
+    const result = await getPool().request()
+      .input('cleaningDate', sql.Date, date)
+      .query(`
+        SELECT
+          floors.FloorId as floorId,
+          floors.FloorName as floorName,
+          ISNULL(statuses.[Status], 'pending') as status,
+          statuses.UpdatedAt as updatedAt
+        FROM (VALUES
+          ('ground', 'Ground Floor'),
+          ('first', 'First Floor'),
+          ('second', 'Second Floor'),
+          ('third', 'Third Floor')
+        ) floors(FloorId, FloorName)
+        LEFT JOIN FloorCleaningStatus statuses
+          ON statuses.FloorId = floors.FloorId AND statuses.CleaningDate = @cleaningDate
+        ORDER BY CASE floors.FloorId
+          WHEN 'ground' THEN 0
+          WHEN 'first' THEN 1
+          WHEN 'second' THEN 2
+          ELSE 3
+        END
+      `);
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Get floor cleaning statuses error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: 'Failed to retrieve floor cleaning statuses', details: errorMessage });
+  }
+});
+
+app.get('/api/floor-cleaning/frequency', async (_req: Request, res: Response) => {
+  try {
+    const result = await getPool().request().query(`
+      SELECT
+        floors.FloorId as floorId,
+        floors.FloorName as floorName,
+        COUNT(CASE WHEN statuses.[Status] = 'cleaned' THEN 1 END) as cleaned,
+        COUNT(CASE WHEN statuses.[Status] = 'pending' THEN 1 END) as pending
+      FROM (VALUES
+        ('ground', 'Ground Floor'),
+        ('first', 'First Floor'),
+        ('second', 'Second Floor'),
+        ('third', 'Third Floor')
+      ) floors(FloorId, FloorName)
+      LEFT JOIN FloorCleaningStatus statuses
+        ON statuses.FloorId = floors.FloorId
+        AND statuses.CleaningDate >= DATEADD(day, -29, CONVERT(date, GETDATE()))
+        AND statuses.CleaningDate <= CONVERT(date, GETDATE())
+      GROUP BY floors.FloorId, floors.FloorName
+      ORDER BY CASE floors.FloorId
+        WHEN 'ground' THEN 0
+        WHEN 'first' THEN 1
+        WHEN 'second' THEN 2
+        ELSE 3
+      END
+    `);
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Get floor cleaning frequency error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: 'Failed to retrieve floor cleaning frequency', details: errorMessage });
+  }
+});
+
+app.get('/api/floor-cleaning/:floorId/history', async (req: Request, res: Response) => {
+  const { floorId } = req.params;
+  if (!Object.prototype.hasOwnProperty.call(FLOOR_CLEANING_NAMES, floorId)) {
+    return res.status(400).json({ error: 'A valid floor ID is required' });
+  }
+
+  try {
+    const result = await getPool().request()
+      .input('floorId', sql.VarChar(20), floorId)
+      .query(`
+        SELECT CONVERT(char(10), CleaningDate, 23) as date
+        FROM FloorCleaningStatus
+        WHERE FloorId = @floorId
+          AND [Status] = 'cleaned'
+          AND CleaningDate <= CONVERT(date, GETDATE())
+        ORDER BY CleaningDate DESC
+      `);
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Get floor cleaning history error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: 'Failed to retrieve floor cleaning history', details: errorMessage });
+  }
+});
+
+app.put('/api/floor-cleaning/:floorId', async (req: Request, res: Response) => {
+  const { floorId } = req.params;
+  const { date, status } = req.body as { date?: unknown; status?: unknown };
+
+  if (!Object.prototype.hasOwnProperty.call(FLOOR_CLEANING_NAMES, floorId)) {
+    return res.status(400).json({ error: 'A valid floor ID is required' });
+  }
+  if (!isValidDateOnly(date)) {
+    return res.status(400).json({ error: 'A valid date in YYYY-MM-DD format is required' });
+  }
+  if (status !== 'cleaned' && status !== 'pending') {
+    return res.status(400).json({ error: 'Status must be cleaned or pending' });
+  }
+
+  try {
+    const result = await getPool().request()
+      .input('floorId', sql.VarChar(20), floorId)
+      .input('cleaningDate', sql.Date, date)
+      .input('status', sql.VarChar(20), status)
+      .query(`
+        MERGE FloorCleaningStatus WITH (HOLDLOCK) AS target
+        USING (SELECT @floorId AS FloorId, @cleaningDate AS CleaningDate) AS source
+          ON target.FloorId = source.FloorId AND target.CleaningDate = source.CleaningDate
+        WHEN MATCHED THEN
+          UPDATE SET [Status] = @status, UpdatedAt = GETDATE()
+        WHEN NOT MATCHED THEN
+          INSERT (FloorId, CleaningDate, [Status], UpdatedAt)
+          VALUES (@floorId, @cleaningDate, @status, GETDATE());
+
+        SELECT
+          @floorId as floorId,
+          @status as status,
+          UpdatedAt as updatedAt
+        FROM FloorCleaningStatus
+        WHERE FloorId = @floorId AND CleaningDate = @cleaningDate;
+      `);
+    res.json({ ...result.recordset[0], floorName: FLOOR_CLEANING_NAMES[floorId] });
+  } catch (error) {
+    console.error('Update floor cleaning status error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: 'Failed to update floor cleaning status', details: errorMessage });
+  }
+});
+
 // Get cleaning status for every room on a selected date
 app.get('/api/room-cleaning', async (req: Request, res: Response) => {
   const date = req.query.date;

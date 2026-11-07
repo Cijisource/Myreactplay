@@ -4,12 +4,34 @@ import LoadingSpinner from './LoadingSpinner';
 import './CleaningStatusManagement.css';
 
 type CleaningStatus = 'cleaned' | 'pending';
-type CleaningView = 'daily-status' | 'cleaned-age' | 'status-graph' | 'frequency-graph';
+type CleaningView = 'daily-status' | 'floor-status' | 'cleaned-age' | 'status-graph' | 'frequency-graph';
+type FloorId = 'ground' | 'first' | 'second' | 'third';
+
+interface FloorCleaningRecord {
+  floorId: FloorId;
+  floorName: string;
+  status: CleaningStatus;
+  updatedAt: string | null;
+}
+
+const FLOOR_NAMES: Record<FloorId, string> = {
+  ground: 'Ground Floor',
+  first: 'First Floor',
+  second: 'Second Floor',
+  third: 'Third Floor',
+};
 
 interface CleaningFrequency {
   cleaned: number;
   pending: number;
   cleanedRooms: Array<{ roomId: number; roomNumber: string }>;
+}
+
+interface FloorCleaningFrequency {
+  floorId: FloorId;
+  floorName: string;
+  cleaned: number;
+  pending: number;
 }
 
 interface CleaningHistoryRecord {
@@ -50,21 +72,33 @@ export default function CleaningStatusManagement(): JSX.Element {
   const [selectedDate, setSelectedDate] = useState(getLocalDateInputValue);
   const [activeView, setActiveView] = useState<CleaningView>('daily-status');
   const [rooms, setRooms] = useState<RoomCleaningRecord[]>([]);
+  const [floors, setFloors] = useState<FloorCleaningRecord[]>([]);
   const [cleaningFrequency, setCleaningFrequency] = useState<CleaningFrequency | null>(null);
+  const [floorCleaningFrequency, setFloorCleaningFrequency] = useState<FloorCleaningFrequency[]>([]);
+  const [selectedHistoryFloor, setSelectedHistoryFloor] = useState<FloorId | null>(null);
+  const [floorCleaningHistory, setFloorCleaningHistory] = useState<CleaningHistoryRecord[]>([]);
+  const [floorHistoryLoading, setFloorHistoryLoading] = useState(false);
+  const [floorHistoryError, setFloorHistoryError] = useState<string | null>(null);
   const [selectedHistoryRoom, setSelectedHistoryRoom] = useState<{ roomId: number; roomNumber: string } | null>(null);
   const [cleaningHistory, setCleaningHistory] = useState<CleaningHistoryRecord[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [frequencyLoading, setFrequencyLoading] = useState(false);
+  const [floorLoading, setFloorLoading] = useState(false);
   const [savingRoomId, setSavingRoomId] = useState<number | null>(null);
+  const [savingFloorId, setSavingFloorId] = useState<FloorId | null>(null);
   const [showCleanedOnly, setShowCleanedOnly] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [frequencyError, setFrequencyError] = useState<string | null>(null);
+  const [floorError, setFloorError] = useState<string | null>(null);
+  const [floorSuccessMessage, setFloorSuccessMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const loadRequestId = useRef(0);
   const frequencyRequestId = useRef(0);
   const historyRequestId = useRef(0);
+  const floorHistoryRequestId = useRef(0);
+  const floorRequestId = useRef(0);
 
   const loadStatuses = useCallback(async () => {
     const requestId = ++loadRequestId.current;
@@ -92,9 +126,13 @@ export default function CleaningStatusManagement(): JSX.Element {
     setFrequencyLoading(true);
     setFrequencyError(null);
     try {
-      const response = await apiService.getRoomCleaningFrequency();
+      const [roomResponse, floorResponse] = await Promise.all([
+        apiService.getRoomCleaningFrequency(),
+        apiService.getFloorCleaningFrequency(),
+      ]);
       if (requestId === frequencyRequestId.current) {
-        setCleaningFrequency(response.data);
+        setCleaningFrequency(roomResponse.data);
+        setFloorCleaningFrequency(floorResponse.data);
       }
     } catch (err) {
       if (requestId === frequencyRequestId.current) {
@@ -106,6 +144,27 @@ export default function CleaningStatusManagement(): JSX.Element {
       }
     }
   }, []);
+
+  const loadFloorStatuses = useCallback(async () => {
+    const requestId = ++floorRequestId.current;
+    setFloorLoading(true);
+    setFloorError(null);
+    setFloorSuccessMessage(null);
+    try {
+      const response = await apiService.getFloorCleaningStatuses(selectedDate);
+      if (requestId === floorRequestId.current) {
+        setFloors(response.data);
+      }
+    } catch (err) {
+      if (requestId === floorRequestId.current) {
+        setFloorError(err instanceof Error ? err.message : 'Failed to load floor cleaning statuses');
+      }
+    } finally {
+      if (requestId === floorRequestId.current) {
+        setFloorLoading(false);
+      }
+    }
+  }, [selectedDate]);
 
   const toggleRoomHistory = async (room: { roomId: number; roomNumber: string }) => {
     if (selectedHistoryRoom?.roomId === room.roomId) {
@@ -138,6 +197,37 @@ export default function CleaningStatusManagement(): JSX.Element {
     }
   };
 
+  const toggleFloorHistory = async (floorId: FloorId) => {
+    if (selectedHistoryFloor === floorId) {
+      floorHistoryRequestId.current += 1;
+      setSelectedHistoryFloor(null);
+      setFloorCleaningHistory([]);
+      setFloorHistoryLoading(false);
+      setFloorHistoryError(null);
+      return;
+    }
+
+    const requestId = ++floorHistoryRequestId.current;
+    setSelectedHistoryFloor(floorId);
+    setFloorCleaningHistory([]);
+    setFloorHistoryLoading(true);
+    setFloorHistoryError(null);
+    try {
+      const response = await apiService.getFloorCleaningHistory(floorId);
+      if (requestId === floorHistoryRequestId.current) {
+        setFloorCleaningHistory(response.data);
+      }
+    } catch (err) {
+      if (requestId === floorHistoryRequestId.current) {
+        setFloorHistoryError(err instanceof Error ? err.message : 'Failed to load floor cleaning history');
+      }
+    } finally {
+      if (requestId === floorHistoryRequestId.current) {
+        setFloorHistoryLoading(false);
+      }
+    }
+  };
+
   useEffect(() => {
     void loadStatuses();
     return () => {
@@ -154,12 +244,25 @@ export default function CleaningStatusManagement(): JSX.Element {
   }, [activeView, loadCleaningFrequency]);
 
   useEffect(() => {
+    if (activeView !== 'floor-status') return;
+    void loadFloorStatuses();
+    return () => {
+      floorRequestId.current += 1;
+    };
+  }, [activeView, loadFloorStatuses]);
+
+  useEffect(() => {
     if (activeView === 'frequency-graph') return;
     historyRequestId.current += 1;
     setSelectedHistoryRoom(null);
     setCleaningHistory([]);
     setHistoryError(null);
     setHistoryLoading(false);
+    floorHistoryRequestId.current += 1;
+    setSelectedHistoryFloor(null);
+    setFloorCleaningHistory([]);
+    setFloorHistoryError(null);
+    setFloorHistoryLoading(false);
   }, [activeView]);
 
   const totals = useMemo(() => ({
@@ -226,6 +329,30 @@ export default function CleaningStatusManagement(): JSX.Element {
     }
   };
 
+  const updateFloorStatus = async (floor: FloorCleaningRecord) => {
+    const nextStatus: CleaningStatus = floor.status === 'cleaned' ? 'pending' : 'cleaned';
+    setSavingFloorId(floor.floorId);
+    setFloorError(null);
+    setFloorSuccessMessage(null);
+
+    try {
+      const response = await apiService.updateFloorCleaningStatus(floor.floorId, {
+        date: selectedDate,
+        status: nextStatus,
+      });
+      setFloors(currentFloors => currentFloors.map(currentFloor =>
+        currentFloor.floorId === floor.floorId
+          ? { ...currentFloor, status: response.data.status, updatedAt: response.data.updatedAt }
+          : currentFloor
+      ));
+      setFloorSuccessMessage(`${floor.floorName} marked ${nextStatus === 'cleaned' ? 'cleaned' : 'as needing cleaning'}.`);
+    } catch (err) {
+      setFloorError(err instanceof Error ? err.message : 'Failed to update floor cleaning status');
+    } finally {
+      setSavingFloorId(null);
+    }
+  };
+
   const formatUpdatedAt = (value: string | null): string => {
     if (!value) {
       return 'Not updated';
@@ -267,6 +394,15 @@ export default function CleaningStatusManagement(): JSX.Element {
         </button>
         <button
           type="button"
+          className={`room-cleaning-tab ${activeView === 'floor-status' ? 'active' : ''}`}
+          onClick={() => setActiveView('floor-status')}
+          role="tab"
+          aria-selected={activeView === 'floor-status'}
+        >
+          Floor status
+        </button>
+        <button
+          type="button"
           className={`room-cleaning-tab ${activeView === 'cleaned-age' ? 'active' : ''}`}
           onClick={() => setActiveView('cleaned-age')}
           role="tab"
@@ -294,7 +430,27 @@ export default function CleaningStatusManagement(): JSX.Element {
         </button>
       </div>
 
-      {activeView === 'daily-status' ? (
+      {activeView === 'floor-status' ? (
+        <div className="room-cleaning-report-toolbar">
+          <label className="room-cleaning-date">
+            <span>Status date</span>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={event => setSelectedDate(event.target.value)}
+              disabled={savingFloorId !== null}
+            />
+          </label>
+          <button
+            className="room-cleaning-refresh"
+            type="button"
+            onClick={() => void loadFloorStatuses()}
+            disabled={floorLoading || savingFloorId !== null}
+          >
+            Refresh
+          </button>
+        </div>
+      ) : activeView === 'daily-status' ? (
         <>
           <div className="room-cleaning-toolbar">
             <label className="room-cleaning-date">
@@ -357,14 +513,53 @@ export default function CleaningStatusManagement(): JSX.Element {
       )}
 
       {error && <div className="room-cleaning-message error" role="alert">{error}</div>}
+      {activeView === 'floor-status' && floorError && (
+        <div className="room-cleaning-message error" role="alert">{floorError}</div>
+      )}
+      {activeView === 'floor-status' && floorSuccessMessage && (
+        <div className="room-cleaning-message success" role="status">{floorSuccessMessage}</div>
+      )}
       {activeView === 'frequency-graph' && frequencyError && (
         <div className="room-cleaning-message error" role="alert">{frequencyError}</div>
       )}
       {successMessage && <div className="room-cleaning-message success" role="status">{successMessage}</div>}
 
-      {loading || (activeView === 'frequency-graph' && frequencyLoading) ? (
+      {activeView === 'floor-status' ? (
+        floorLoading ? (
+          <LoadingSpinner />
+        ) : floors.length === 0 ? (
+          <div className="room-cleaning-empty">No floor statuses found.</div>
+        ) : (
+          <section className="room-cleaning-grid" aria-label="Floor cleaning status">
+            {floors.map(floor => (
+              <article className={`room-cleaning-card ${floor.status}`} key={floor.floorId}>
+                <div className="room-cleaning-card-details">
+                  <span className="room-cleaning-label">Floor</span>
+                  <h2>{FLOOR_NAMES[floor.floorId] || floor.floorName}</h2>
+                  <span className={`room-cleaning-badge ${floor.status}`}>
+                    {floor.status === 'cleaned' ? 'Cleaned' : 'Needs cleaning'}
+                  </span>
+                  <small>{floor.updatedAt ? formatUpdatedAt(floor.updatedAt) : 'Not updated'}</small>
+                </div>
+                <button
+                  type="button"
+                  className={`room-cleaning-action ${floor.status === 'cleaned' ? 'mark-pending' : ''}`}
+                  onClick={() => void updateFloorStatus(floor)}
+                  disabled={savingFloorId !== null}
+                >
+                  {savingFloorId === floor.floorId
+                    ? 'Saving...'
+                    : floor.status === 'cleaned'
+                      ? 'Mark needs cleaning'
+                      : 'Mark cleaned'}
+                </button>
+              </article>
+            ))}
+          </section>
+        )
+      ) : loading || (activeView === 'frequency-graph' && frequencyLoading) ? (
         <LoadingSpinner />
-      ) : rooms.length === 0 ? (
+      ) : rooms.length === 0 && activeView !== 'frequency-graph' ? (
         <div className="room-cleaning-empty">No rooms found.</div>
       ) : activeView === 'cleaned-age' ? (
         <div className="room-cleaning-report-scroll">
@@ -474,6 +669,54 @@ export default function CleaningStatusManagement(): JSX.Element {
                       ) : cleaningHistory.length > 0 ? (
                         <ul>
                           {cleaningHistory.map(record => (
+                            <li key={record.date}>{new Date(`${record.date}T00:00:00`).toLocaleDateString()}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p>No cleaned dates found.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="room-cleaning-floor-frequency">
+                  <h3>Floor cleaning frequency</h3>
+                  {floorCleaningFrequency.map(floor => {
+                    const floorTotal = floor.cleaned + floor.pending;
+                    const floorCleanedPercent = floorTotal === 0 ? 0 : (floor.cleaned / floorTotal) * 100;
+                    const floorPendingPercent = floorTotal === 0 ? 0 : (floor.pending / floorTotal) * 100;
+                    return (
+                      <div className="room-cleaning-floor-frequency-row" key={floor.floorId}>
+                        <button
+                          type="button"
+                          className="room-cleaning-frequency-room-button"
+                          onClick={() => void toggleFloorHistory(floor.floorId)}
+                          aria-expanded={selectedHistoryFloor === floor.floorId}
+                        >
+                          {FLOOR_NAMES[floor.floorId] || floor.floorName}
+                        </button>
+                        <div className="room-cleaning-floor-frequency-metrics">
+                          <span>Cleaned: {floor.cleaned}</span>
+                          <div className="room-cleaning-frequency-track" aria-label={`${floor.cleaned} cleaned`}>
+                            <div className="cleaned" style={{ width: `${floorCleanedPercent}%` }} />
+                          </div>
+                          <span>Needs cleaning: {floor.pending}</span>
+                          <div className="room-cleaning-frequency-track" aria-label={`${floor.pending} need cleaning`}>
+                            <div className="pending" style={{ width: `${floorPendingPercent}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {selectedHistoryFloor && (
+                    <div className="room-cleaning-history" aria-live="polite">
+                      <h4>{FLOOR_NAMES[selectedHistoryFloor]} cleaning history</h4>
+                      {floorHistoryLoading ? (
+                        <p>Loading cleaning dates...</p>
+                      ) : floorHistoryError ? (
+                        <p className="room-cleaning-history-error" role="alert">{floorHistoryError}</p>
+                      ) : floorCleaningHistory.length > 0 ? (
+                        <ul>
+                          {floorCleaningHistory.map(record => (
                             <li key={record.date}>{new Date(`${record.date}T00:00:00`).toLocaleDateString()}</li>
                           ))}
                         </ul>
