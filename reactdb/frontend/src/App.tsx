@@ -7,6 +7,7 @@ import Diagnostic from './components/Diagnostic';
 import TenantManagement from './components/TenantManagement';
 import RoomOccupancy from './components/RoomOccupancy';
 import RoomManagement from './components/RoomManagement';
+import RoomRegister from './components/RoomRegister';
 import ComplaintsManagement from './components/ComplaintsManagement';
 import LoginScreen from './components/LoginScreen';
 import UserManagement from './components/UserManagement';
@@ -26,7 +27,7 @@ import { AuthProvider, useAuth } from './components/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import type { SearchField } from './components/TenantSearchFilters';
 
-type Page = 'home' | 'diagnostic' | 'rental-collection' | 'tenants' | 'occupancy' | 'daily-status' | 'cleaning-status' | 'room-management' | 'complaints' | 'active-sessions' | 'users' | 'roles' | 'transactions' | 'stock' | 'guest-checkin' | 'misc-uploads' | 'consumption' | 'water-tank-monitor' | 'electricity-charges';
+type Page = 'home' | 'diagnostic' | 'rental-collection' | 'tenants' | 'occupancy' | 'daily-status' | 'cleaning-status' | 'room-management' | 'room-register' | 'complaints' | 'active-sessions' | 'users' | 'roles' | 'transactions' | 'stock' | 'guest-checkin' | 'misc-uploads' | 'consumption' | 'water-tank-monitor' | 'electricity-charges';
 
 type NavItem = {
   page: Page;
@@ -48,8 +49,9 @@ const SCREEN_ROLES: Record<Page, string[]> = {
   tenants: ['admin', 'manager', 'property_manager', 'accountant'],
   occupancy: ['admin', 'manager', 'property_manager', 'utilities_manager'],
   'daily-status': ['admin', 'manager', 'maintenance', 'property_manager', 'utilities_manager'],
-  'cleaning-status': ['admin', 'manager', 'maintenance', 'property_manager'],
+  'cleaning-status': [],
   'room-management': ['admin', 'manager', 'property_manager', 'accountant'],
+  'room-register': [],
   complaints: ['admin', 'manager', 'maintenance', 'utilities_manager'],
   'active-sessions': ['admin'],
   users: ['admin'],
@@ -81,6 +83,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Occupancy & Tenants',
     items: [
       { page: 'guest-checkin', label: 'Guest Check-In', roles: SCREEN_ROLES['guest-checkin'] },
+      { page: 'room-register', label: 'Room Register', roles: SCREEN_ROLES['room-register'] },
       { page: 'room-management', label: 'Room Management', roles: SCREEN_ROLES['room-management'] },
       { page: 'tenants', label: 'Tenant Management', roles: SCREEN_ROLES.tenants }
     ]
@@ -414,6 +417,14 @@ function AppContent() {
       return (
         <ProtectedRoute requiredRoles={SCREEN_ROLES['room-management']}>
           <RoomManagement />
+        </ProtectedRoute>
+      );
+    }
+
+    if (currentPage === 'room-register') {
+      return (
+        <ProtectedRoute requiredRoles={SCREEN_ROLES['room-register']}>
+          <RoomRegister />
         </ProtectedRoute>
       );
     }

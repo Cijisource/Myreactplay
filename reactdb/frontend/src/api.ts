@@ -497,6 +497,14 @@ export const apiService = {
   // Room Occupancy APIs
   getRoomOccupancyData: () => api.get('/rooms/occupancy'),
   getRoomCleaningStatuses: (date: string) => api.get(`/room-cleaning?date=${encodeURIComponent(date)}`),
+  getFloorCleaningStatuses: (date: string) => api.get(`/floor-cleaning?date=${encodeURIComponent(date)}`),
+  getFloorCleaningFrequency: () => api.get('/floor-cleaning/frequency'),
+  getFloorCleaningHistory: (floorId: 'ground' | 'first' | 'second' | 'third') =>
+    api.get(`/floor-cleaning/${encodeURIComponent(floorId)}/history`),
+  updateFloorCleaningStatus: (
+    floorId: 'ground' | 'first' | 'second' | 'third',
+    data: { date: string; status: 'cleaned' | 'pending' }
+  ) => api.put(`/floor-cleaning/${encodeURIComponent(floorId)}`, data),
   getRoomCleaningFrequency: () => api.get('/room-cleaning/frequency'),
   getRoomCleaningHistory: (roomId: number) => api.get(`/room-cleaning/${roomId}/history`),
   updateRoomCleaningStatus: (roomId: number, data: { date: string; status: 'cleaned' | 'pending' }) =>
