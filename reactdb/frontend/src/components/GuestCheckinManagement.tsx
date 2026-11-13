@@ -487,7 +487,7 @@ export default function GuestCheckinManagement() {
     visitingRoomNo: '',
     rentAmount: '',
     depositAmount: '',
-    checkInDate: new Date().toISOString().split('T')[0]
+    checkInDate: getDateInputValue(new Date())
   });
 
   const [formFiles, setFormFiles] = useState<{ proof: File | null; photo: File | null }>({
@@ -1000,7 +1000,7 @@ export default function GuestCheckinManagement() {
       // Find or auto-create a DailyStatus for the chosen check-in date
       let statusId: number;
       const existingStatus = statuses.find(
-        s => new Date(s.date).toISOString().split('T')[0] === formData.checkInDate
+        s => parseDateOnly(s.date).getTime() === parseDateOnly(formData.checkInDate).getTime()
       );
       if (existingStatus) {
         statusId = existingStatus.id;
@@ -1046,7 +1046,7 @@ export default function GuestCheckinManagement() {
         visitingRoomNo: '',
         rentAmount: '',
         depositAmount: '',
-        checkInDate: new Date().toISOString().split('T')[0]
+        checkInDate: getDateInputValue(new Date())
       });
       setFormFiles({ proof: null, photo: null });
       setPhoneValidationTriggered(false);
@@ -1071,7 +1071,7 @@ export default function GuestCheckinManagement() {
 
   const buildCheckInTimestamp = (dateValue?: string, fallbackDate?: Date): string => {
     const baseDate = fallbackDate ?? new Date();
-    const dateOnly = dateValue ? new Date(dateValue) : new Date(baseDate);
+    const dateOnly = parseDateOnly(dateValue || baseDate);
 
     if (isNaN(dateOnly.getTime())) {
       return baseDate.toISOString();
@@ -1096,7 +1096,18 @@ export default function GuestCheckinManagement() {
   };
 
   const getSelectedCheckoutDate = (guest: GuestCheckIn): string => {
-    return checkoutDates[guest.id] || formatDateForInput(new Date());
+    if (checkoutDates[guest.id]) {
+      return checkoutDates[guest.id];
+    }
+
+    const selectedCalendarDate = parseDateOnly(selectedDate);
+    const checkInDate = parseDateOnly(guest.checkInTime);
+    const today = parseDateOnly(new Date());
+    if (selectedCalendarDate >= checkInDate && selectedCalendarDate <= today) {
+      return selectedDate;
+    }
+
+    return formatDateForInput(today);
   };
 
   const calculateStayDays = (checkInTime: string, checkoutDate: string): number => {
@@ -1131,7 +1142,12 @@ export default function GuestCheckinManagement() {
   };
 
   const buildCheckoutDateTimeIso = (checkoutDate: string): string => {
-    const date = new Date(checkoutDate);
+    const date = parseDateOnly(checkoutDate);
+    const today = parseDateOnly(new Date());
+    if (date.getTime() === today.getTime()) {
+      return new Date().toISOString();
+    }
+
     date.setHours(23, 59, 59, 999);
     return date.toISOString();
   };
@@ -1146,8 +1162,6 @@ export default function GuestCheckinManagement() {
   };
 
   const handleCheckout = async (guest: GuestCheckIn) => {
-    if (!selectedStatus) return;
-
     if (!guest.dailyStatusId) {
       setError('Missing daily status for this guest check-in');
       return;
@@ -1321,8 +1335,8 @@ export default function GuestCheckinManagement() {
       visitingRoomNo: (guest.visitingRoomNo || '').trim(),
       rentAmount: String(guest.rentAmount ?? ''),
       depositAmount: String(guest.depositAmount ?? ''),
-      checkInDate: new Date(guest.checkInTime).toISOString().split('T')[0],
-      checkOutDate: guest.checkOutTime ? new Date(guest.checkOutTime).toISOString().split('T')[0] : ''
+      checkInDate: formatDateForInput(guest.checkInTime),
+      checkOutDate: guest.checkOutTime ? formatDateForInput(guest.checkOutTime) : ''
     });
     setCollapsedGuestIds(prev => ({ ...prev, [guest.id]: false }));
   };
@@ -1533,7 +1547,7 @@ export default function GuestCheckinManagement() {
                 <input
                   type="date"
                   value={formData.checkInDate}
-                  max={new Date().toISOString().split('T')[0]}
+                  max={formatDateForInput(new Date())}
                   onChange={(e) => setFormData(prev => ({ ...prev, checkInDate: e.target.value }))}
                   required
                   style={{ width: '100%' }}
@@ -1755,6 +1769,8 @@ export default function GuestCheckinManagement() {
                           type="date"
                           className="sort-select"
                           value={getSelectedCheckoutDate(guest)}
+                          aria-label={`Check-out date for ${guest.guestName}`}
+                          title="Check-out date (defaults to the selected calendar date)"
                           min={formatDateForInput(guest.checkInTime)}
                           max={formatDateForInput(new Date())}
                           onChange={(e) => {
@@ -1818,7 +1834,7 @@ export default function GuestCheckinManagement() {
                           <input
                             type="date"
                             value={editFormData.checkInDate}
-                            max={new Date().toISOString().split('T')[0]}
+                            max={formatDateForInput(new Date())}
                             onChange={(e) => setEditFormData(prev => prev ? { ...prev, checkInDate: e.target.value } : prev)}
                           />
                           <input
@@ -1878,7 +1894,7 @@ export default function GuestCheckinManagement() {
                             type="date"
                             value={editFormData.checkOutDate}
                             min={editFormData.checkInDate}
-                            max={new Date().toISOString().split('T')[0]}
+                            max={formatDateForInput(new Date())}
                             onChange={(e) => setEditFormData(prev => prev ? { ...prev, checkOutDate: e.target.value } : prev)}
                           />
                           <div style={{ display: 'flex', gap: '0.5rem' }}>
