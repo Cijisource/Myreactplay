@@ -1926,6 +1926,19 @@
   flex-wrap: wrap;
 }
 
+.tenant-activity-icon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+
+.checkout-cell-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .current-month-table tbody tr.review-approved {
   background: rgba(220, 252, 231, 0.52);
   box-shadow: inset 2px 0 0 #22c55e;

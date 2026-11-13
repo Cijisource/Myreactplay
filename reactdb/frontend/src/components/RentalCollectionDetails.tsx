@@ -219,6 +219,10 @@ export default function RentalCollectionDetails() {
 
   const currentMonthYear = selectedMonthFilter;
   const isCurrentMonthSelected = selectedMonthFilter === getDefaultMonthValue();
+  const isDateInCurrentMonth = (date: string | null): boolean => {
+    const dateMonth = date?.match(/^(\d{4}-\d{2})/);
+    return dateMonth?.[1] === getDefaultMonthValue();
+  };
 
   const compareRoomNumbers = (left: string | number | null | undefined, right: string | number | null | undefined): number => {
     const leftValue = String(left ?? '').trim();
@@ -2053,10 +2057,28 @@ export default function RentalCollectionDetails() {
                           </div>
                         </td>
                         <td className={isShop ? 'shop-cell' : ''}><strong>{item.roomNumber}</strong></td>
-                        <td>
-                          {item.checkOutDate
-                            ? new Date(item.checkOutDate).toLocaleDateString('en-IN')
-                            : '—'}
+                        <td className="checkout-cell">
+                          <div className="checkout-cell-content">
+                            {item.checkOutDate
+                              ? new Date(item.checkOutDate).toLocaleDateString('en-IN')
+                              : '—'}
+                            {isDateInCurrentMonth(item.checkInDate) && (
+                              <img
+                                className="tenant-activity-icon"
+                                src="/Tenant_New.png"
+                                alt="New check-in this month"
+                                title="New check-in this month"
+                              />
+                            )}
+                            {isDateInCurrentMonth(item.checkOutDate) && (
+                              <img
+                                className="tenant-activity-icon"
+                                src="/tenant_Checkout.png"
+                                alt="Checked out this month"
+                                title="Checked out this month"
+                              />
+                            )}
+                          </div>
                         </td>
                         <td className="amount">{formatCurrency(item.proRataRent)}</td>
                         <td className="amount eb-charges">
