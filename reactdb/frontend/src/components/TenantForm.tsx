@@ -32,6 +32,11 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
     date.setMonth(date.getMonth() + 3);
     return date.toISOString().split('T')[0];
   };
+  const tenantRoomIds = tenant?.roomIds?.length
+    ? tenant.roomIds.map(String)
+    : tenant?.roomId
+      ? [String(tenant.roomId)]
+      : [];
 
   const [formData, setFormData] = useState({
     name: tenant?.name || '',
@@ -39,12 +44,16 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
     address: tenant?.address || '',
     city: tenant?.city || '',
     roomId: '',
-    roomIds: [] as string[],
+    roomIds: tenantRoomIds,
     roomRent: '',
     advanceAmount: '',
     checkInDate: '',
     checkOutDate: tenant?.checkOutDate ?? (!tenant ? getDefaultCheckoutDate() : ''),
   });
+  const roomSelectionChanged = Boolean(tenant?.id) && (
+    formData.roomIds.length !== tenantRoomIds.length ||
+    formData.roomIds.some((roomId) => !tenantRoomIds.includes(roomId))
+  );
 
   const [photos, setPhotos] = useState<FilePreview[]>([]);
   const [proofs, setProofs] = useState<FilePreview[]>([]);
@@ -123,7 +132,7 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
       address: tenant?.address || '',
       city: tenant?.city || '',
       roomId: tenant?.roomId ? String(tenant.roomId) : '',
-      roomIds: tenant?.roomId ? [String(tenant.roomId)] : [],
+      roomIds: tenantRoomIds,
       roomRent: tenant?.rentFixed ? String(tenant.rentFixed) : '',
       advanceAmount: tenant?.depositReceived ? String(tenant.depositReceived) : '',
       checkInDate: tenant?.checkInDate || '',
@@ -636,8 +645,8 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
       setError('Check-in date is required when selecting a room for a new tenant');
       return false;
     }
-    // For EXISTING tenants: if assigning rooms, require check-in date
-    if (tenant?.id && formData.roomIds.length > 0 && !formData.checkInDate) {
+    // For EXISTING tenants: require dates only when assigning different rooms
+    if (tenant?.id && roomSelectionChanged && formData.roomIds.length > 0 && !formData.checkInDate) {
       setError('Check-in date is required when assigning room(s)');
       return false;
     }
@@ -646,9 +655,12 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
       setError('Room is required when setting a check-in date');
       return false;
     }
-    if (formData.checkInDate && !formData.checkOutDate) {
-      setError('Checkout date is required when a check-in date is set');
-      return false;
+    if ((!tenant?.id && formData.checkInDate) ||
+      (tenant?.id && roomSelectionChanged && formData.roomIds.length > 0)) {
+      if (!formData.checkOutDate) {
+        setError('Checkout date is required when a check-in date is set');
+        return false;
+      }
     }
     if (formData.checkInDate && formData.checkOutDate) {
       const checkIn = new Date(formData.checkInDate);
@@ -873,11 +885,16 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
         address: formData.address.trim(),
         city: formData.city.trim(),
         roomId: !tenant?.id && formData.roomId ? parseInt(formData.roomId) : undefined,
-        roomIds: tenant?.id ? formData.roomIds.map((roomId) => parseInt(roomId, 10)).filter((roomId) => Number.isInteger(roomId) && roomId > 0) : undefined,
+        roomIds: tenant?.id && roomSelectionChanged
+          ? formData.roomIds.map((roomId) => parseInt(roomId, 10)).filter((roomId) => Number.isInteger(roomId) && roomId > 0)
+          : undefined,
         roomRent: formData.roomRent && !Number.isNaN(Number(formData.roomRent)) ? Number(formData.roomRent) : undefined,
         depositReceived: formData.advanceAmount && !Number.isNaN(Number(formData.advanceAmount)) ? Number(formData.advanceAmount) : 0,
         checkInDate: formData.checkInDate || undefined,
-        checkOutDate: formData.checkOutDate ? formData.checkOutDate : undefined,
+        checkOutDate: formData.checkOutDate &&
+          (!tenant?.id || roomSelectionChanged || formData.checkOutDate !== (tenant?.checkOutDate || ''))
+          ? formData.checkOutDate
+          : undefined,
         photoUrl: photoUrls[0],
         photo2Url: photoUrls[1],
         photo3Url: photoUrls[2],
@@ -1192,16 +1209,15 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
                   disabled={loading}
                   min={formData.checkInDate || undefined}
                   required={Boolean(
-                    formData.checkInDate ||
                     (!tenant?.id && formData.roomId) ||
-                    (tenant?.id && (tenant.isCurrentlyOccupied || formData.roomIds.length > 0))
+                    (tenant?.id && roomSelectionChanged && formData.roomIds.length > 0)
                   )}
                 />
                 <p className="field-hint">
                   {tenant?.id
-                    ? tenant.isCurrentlyOccupied
-                      ? 'This tenant is currently occupied. A checkout date is required to save occupancy changes.'
-                      : 'Include a checkout date when assigning room(s) or updating this tenant.'
+                    ? roomSelectionChanged && formData.roomIds.length > 0
+                      ? 'A checkout date is required when assigning room(s).'
+                      : 'Leave unchanged to keep the current occupancy dates.'
                     : 'Defaults to 3 months from today for new tenants.'}
                 </p>
               </div>

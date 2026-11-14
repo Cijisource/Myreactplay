@@ -2496,7 +2496,13 @@ app.put('/api/tenants/:id', async (req: Request, res: Response) => {
       .request()
       .input('phone', sql.NChar(15), phone)
       .input('id', sql.Int, tenantId)
-      .query(`SELECT COUNT(*) as count FROM Tenant WHERE TRIM(Phone) = TRIM(@phone) AND Id != @id`);
+      .query(`
+        SELECT COUNT(*) as count
+        FROM Tenant
+        WHERE TRIM(Phone) = TRIM(@phone)
+          AND Id != @id
+          AND TRIM(@phone) <> (SELECT TRIM(Phone) FROM Tenant WHERE Id = @id)
+      `);
     
     if (phoneCheckResult.recordset[0].count > 0) {
       return res.status(400).json({ 
