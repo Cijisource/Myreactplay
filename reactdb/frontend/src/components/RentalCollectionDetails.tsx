@@ -30,6 +30,7 @@ interface MonthlyPaymentStatus {
   rentReceivedOn: string | null;
   rentReceived: number;
   charges: number;
+  receivedCharges: number;
   month: number;
   year: number;
   checkInDate: string;
@@ -266,16 +267,16 @@ export default function RentalCollectionDetails() {
   };
 
   const getEffectiveStatus = (
-    payment: Pick<MonthlyPaymentStatus, 'rentFixed' | 'proRataRent' | 'paymentStatus' | 'rentReceived' | 'charges' | 'rentReceivedOn'>
+    payment: Pick<MonthlyPaymentStatus, 'rentFixed' | 'proRataRent' | 'paymentStatus' | 'rentReceived' | 'charges' | 'receivedCharges' | 'rentReceivedOn'>
   ): 'paid' | 'pending' | 'partial' | 'merged' => {
-    if (payment.proRataRent === 0 || payment.rentFixed === 0) return 'merged';
-
     const charges = toNumber(payment.charges);
     const rentReceived = toNumber(payment.rentReceived);
-    const hasRecordedPayment = Boolean(payment.rentReceivedOn) || rentReceived > 0;
+    const receivedCharges = toNumber(payment.receivedCharges);
+    const hasRecordedPayment = Boolean(payment.rentReceivedOn) || rentReceived > 0 || receivedCharges > 0;
     const totalDue = toNumber(payment.proRataRent) + charges;
-    const effectiveReceived = hasRecordedPayment ? rentReceived + charges : 0;
+    const effectiveReceived = hasRecordedPayment ? rentReceived + receivedCharges : 0;
 
+    if (totalDue <= 0) return 'merged';
     if (totalDue > 0 && effectiveReceived >= totalDue) return 'paid';
     if (totalDue > 0 && effectiveReceived > 0) return 'partial';
     return 'pending';
@@ -317,39 +318,48 @@ export default function RentalCollectionDetails() {
   };
   const getEffectiveReceived = (
     rentReceived: number,
-    charges: number,
     hasPaymentRecord: boolean = true,
-    mode?: string | null
+    receivedCharges: number = 0
   ): number => {
     if (!hasPaymentRecord) return 0;
-    if (isCheckoutPayment(mode)) return 0;
-    return Number(rentReceived || 0) + Number(charges || 0);
+    return toNumber(rentReceived) + toNumber(receivedCharges);
   };
 
-  const totalReceivedAmount = roomFilteredPayments.reduce(
+  const totalReceivedAmount = filteredCurrentMonthPayments.reduce(
     (sum, item) =>
       sum + getEffectiveReceived(
         toNumber(item.rentReceived),
-        toNumber(item.charges),
-        Boolean(item.rentReceivedOn) || toNumber(item.rentReceived) > 0,
-        item.modeOfPayment
+        Boolean(item.rentReceivedOn) || toNumber(item.rentReceived) > 0 || toNumber(item.receivedCharges) > 0,
+        toNumber(item.receivedCharges)
       ),
     0
   );
-  const totalChargesAmount = roomFilteredPayments.reduce((sum, item) => sum + toNumber(item.charges), 0);
-  const totalPendingBalanceAmount = roomFilteredPayments.reduce(
+  const totalChargesAmount = filteredCurrentMonthPayments.reduce((sum, item) => sum + toNumber(item.charges), 0);
+  const totalPendingBalanceAmount = filteredCurrentMonthPayments.reduce(
     (sum, item) => {
       const effectiveReceived = getEffectiveReceived(
         toNumber(item.rentReceived),
-        toNumber(item.charges),
-        Boolean(item.rentReceivedOn) || toNumber(item.rentReceived) > 0,
-        item.modeOfPayment
+        Boolean(item.rentReceivedOn) || toNumber(item.rentReceived) > 0 || toNumber(item.receivedCharges) > 0,
+        toNumber(item.receivedCharges)
       );
-      const effectiveBalance = item.rentBalance ?? (item.proRataRent + toNumber(item.charges) - effectiveReceived);
+      const effectiveBalance = toNumber(item.proRataRent) + toNumber(item.charges) - effectiveReceived;
       return sum + Math.max(0, effectiveBalance);
     },
     0
   );
+  const selectedOccupancyMonthlyPayment = currentMonthPayments.find(
+    (payment) => payment.occupancyId === selectedOccupancyId
+  );
+  const selectedMonthReceivable = selectedOccupancyMonthlyPayment
+    ? toNumber(selectedOccupancyMonthlyPayment.proRataRent)
+      + toNumber(selectedOccupancyMonthlyPayment.charges)
+    : 0;
+  const selectedMonthReceived = toNumber(selectedOccupancyMonthlyPayment?.rentReceived)
+    + toNumber(selectedOccupancyMonthlyPayment?.receivedCharges);
+  const selectedMonthOutstanding = Math.max(0, selectedMonthReceivable - selectedMonthReceived);
+  const selectedMonthPaymentCount = rentalRecords.filter(
+    (record) => record.rentReceivedOn?.slice(0, 7) === currentMonthYear
+  ).length;
   const canChangeReviewStatus = hasAnyRole(['admin', 'accountant']) || !hasRole('manager');
 
   const getProofUrl = (
@@ -713,11 +723,11 @@ export default function RentalCollectionDetails() {
       try {
         const chargesRes = await apiService.getPreviousMonthCharges(selectedOccupancyId, currentMonthYear);
         const previousMonthCharges = chargesRes.data || chargesRes;
-        chargesAmount = previousMonthCharges?.totalCharges || 0;
+        chargesAmount = toNumber(previousMonthCharges?.totalCharges);
       } catch (chargeError) {
         console.warn('Previous month charges lookup failed; continuing without it.', chargeError);
       }
-      
+
       setFormData(prev => ({
         ...prev,
         rentFixed: summaryData?.rentFixed != null ? String(summaryData.rentFixed) : prev.rentFixed,
@@ -787,6 +797,17 @@ export default function RentalCollectionDetails() {
       return;
     }
 
+    const rentReceivedAmount = Number(formData.rentReceived);
+    const chargesAmount = formData.charges.trim() === '' ? 0 : Number(formData.charges);
+    if (!Number.isFinite(rentReceivedAmount) || rentReceivedAmount < 0) {
+      setError('Rent received must be a non-negative amount');
+      return;
+    }
+    if (!Number.isFinite(chargesAmount) || chargesAmount < 0) {
+      setError('Charges must be a non-negative amount');
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -809,8 +830,8 @@ export default function RentalCollectionDetails() {
       const formDataToSend = new FormData();
       formDataToSend.append('occupancyId', selectedOccupancyId.toString());
       formDataToSend.append('rentFixed', formData.rentFixed || String(occupancyInfo?.rentFixed || 0));
-      formDataToSend.append('rentReceived', formData.rentReceived);
-      formDataToSend.append('charges', formData.charges || '0');
+      formDataToSend.append('rentReceived', String(rentReceivedAmount));
+      formDataToSend.append('charges', String(chargesAmount));
       formDataToSend.append('modeOfPayment', selectedPaymentMode);
       formDataToSend.append('rentReceivedOn', paymentDate);
       
@@ -826,12 +847,11 @@ export default function RentalCollectionDetails() {
       let checkoutWarning: string | null = null;
       if (selectedPaymentMode === 'checkout') {
         try {
-          const parsedCharges = formData.charges ? parseFloat(formData.charges) : 0;
           await apiService.checkoutOccupancy(
             selectedOccupancyId,
             paymentDate,
             undefined,
-            Number.isFinite(parsedCharges) ? parsedCharges : 0
+            chargesAmount
           );
         } catch (checkoutError) {
           checkoutWarning = checkoutError instanceof Error
@@ -972,6 +992,7 @@ export default function RentalCollectionDetails() {
       
       // Create FormData for update
       const updateData = new FormData();
+      updateData.append('recordId', editingRecord.id.toString());
       updateData.append('occupancyId', editingRecord.occupancyId.toString());
       updateData.append('rentFixed', editFormData.rentFixed?.toString() || String(editingRecord.rentFixed || 0));
       updateData.append('rentReceived', editFormData.rentReceived?.toString() || '0');
@@ -1042,36 +1063,41 @@ export default function RentalCollectionDetails() {
     }).format(num);
   };
 
-  const getTotalReceived = (rentReceived: number, charges: number): number =>
-    Number(rentReceived || 0) + Number(charges || 0);
-
   const getTotalReceivedForMonth = (monthKey: string): number => {
     if (!monthKey) {
       return 0;
     }
 
-    return rentalRecords.reduce((sum, record) => {
-      const recordMonthKey = record.rentReceivedOn?.slice(0, 7) || '';
-      if (recordMonthKey !== monthKey) {
-        return sum;
-      }
+    const monthRecords = rentalRecords.filter(
+      (record) => record.rentReceivedOn?.slice(0, 7) === monthKey
+    );
+    const rentReceived = monthRecords.reduce((sum, record) => sum + Number(record.rentReceived || 0), 0);
+    const receivedCharges = monthRecords.reduce(
+      (maximum, record) => Math.max(maximum, Number(record.charges || 0)),
+      0
+    );
 
-      return sum + getEffectiveReceived(
-        Number(record.rentReceived || 0),
-        Number(record.charges || 0),
-        Boolean(record.rentReceivedOn) || Number(record.rentReceived || 0) > 0,
-        record.modeOfPayment
-      );
-    }, 0);
+    return rentReceived + receivedCharges;
   };
 
   const getDisplayBalance = (record: RentalRecord): number => {
-    if (isCheckoutPayment(record.modeOfPayment)) {
-      return 0;
-    }
-
     const monthKey = record.rentReceivedOn?.slice(0, 7) || '';
-    const totalDue = Number(record.rentFixed || 0) + Number(record.charges || 0);
+    const monthRecords = rentalRecords.filter(
+      (monthRecord) => monthRecord.rentReceivedOn?.slice(0, 7) === monthKey
+    );
+    const monthlyPayment = currentMonthPayments.find(
+      (payment) => payment.occupancyId === record.occupancyId && monthKey === currentMonthYear
+    );
+    const totalDue = monthlyPayment
+      ? toNumber(monthlyPayment.proRataRent)
+        + toNumber(monthlyPayment.charges)
+      : monthRecords.reduce(
+        (maximum, monthRecord) => Math.max(maximum, Number(monthRecord.rentFixed || 0)),
+        0
+      ) + monthRecords.reduce(
+        (sum, monthRecord) => sum + Number(monthRecord.charges || 0),
+        0
+      );
     const totalReceived = getTotalReceivedForMonth(monthKey);
 
     return Math.max(0, totalDue - totalReceived);
@@ -1121,7 +1147,7 @@ export default function RentalCollectionDetails() {
         monthRecords: monthRecords.sort((left, right) => new Date(right.rentReceivedOn).getTime() - new Date(left.rentReceivedOn).getTime())
       }));
 
-    const colSpan = showActions ? 10 : 9;
+    const colSpan = showActions ? 9 : 8;
 
     return (
       <div className="payment-history-table-wrapper">
@@ -1131,10 +1157,9 @@ export default function RentalCollectionDetails() {
               <th>Payment Date</th>
               <th>Mode</th>
               <th>Fixed Rent</th>
-              <th>Charges</th>
-              <th>EB Charges</th>
+              <th>Charges (EB)</th>
               <th>Received</th>
-              <th>Total Received</th>
+              <th>Total Receivable</th>
               <th>Balance</th>
               {showActions && <th>Actions</th>}
               <th>Proof</th>
@@ -1142,42 +1167,52 @@ export default function RentalCollectionDetails() {
           </thead>
           <tbody>
             {monthGroups.flatMap(({ monthKey, monthLabel, monthRecords }) => {
-              const monthFixedTotal = monthRecords.reduce((sum, record) => sum + Number(record.rentFixed || 0), 0);
-              const monthChargesTotal = monthRecords.reduce((sum, record) => sum + Number(record.charges || 0), 0);
-              const monthReceivedTotal = monthRecords.reduce((sum, record) => {
-                const effectiveReceived = getEffectiveReceived(
-                  Number(record.rentReceived || 0),
-                  Number(record.charges || 0),
-                  Boolean(record.rentReceivedOn) || Number(record.rentReceived || 0) > 0,
-                  record.modeOfPayment
+              const monthFixedTotal = monthRecords.reduce(
+                (maximum, record) => Math.max(maximum, Number(record.rentFixed || 0)),
+                0
+              );
+              const currentMonthPayment = monthKey === currentMonthKey && monthRecords.length > 0
+                ? currentMonthPayments.find((payment) => payment.occupancyId === monthRecords[0].occupancyId)
+                : undefined;
+              const monthChargesTotal = currentMonthPayment
+                ? toNumber(currentMonthPayment.charges)
+                : monthRecords.reduce(
+                  (maximum, record) => Math.max(maximum, Number(record.charges || 0)),
+                  0
                 );
-                return sum + effectiveReceived;
-              }, 0);
+              const monthReceivableTotal = currentMonthPayment
+                ? toNumber(currentMonthPayment.proRataRent) + monthChargesTotal
+                : monthFixedTotal + monthChargesTotal;
+              const monthReceivedTotal = getTotalReceivedForMonth(monthKey);
 
               const monthSummaryRow = (
                 <tr key={`${monthKey}-summary`} className="month-group-summary">
                   <td colSpan={colSpan} className="month-summary-cell">
                     <span className="month-summary-label">{monthLabel}</span>
                     <span className="month-summary-breakdown">
-                      Fixed: {formatCurrency(monthFixedTotal)} · Charges: {formatCurrency(monthChargesTotal)} · Received: {formatCurrency(monthReceivedTotal)}
+                      Fixed: {formatCurrency(monthFixedTotal)} · Charges (EB): {formatCurrency(monthChargesTotal)} · Received: {formatCurrency(monthReceivedTotal)}
                     </span>
                   </td>
                 </tr>
               );
 
-              const detailRows = monthRecords.map((record) => {
+              const monthReceivedCharges = monthRecords.reduce(
+                (maximum, record) => Math.max(maximum, Number(record.charges || 0)),
+                0
+              );
+              const detailRows = monthRecords.map((record, recordIndex) => {
                 const proofUrl = record.screenshotUrl
                   ? getProofUrl(record.screenshotUrl, record.rentReceivedOn, record.folder)
                   : null;
                 const effectiveReceived = getEffectiveReceived(
                   Number(record.rentReceived || 0),
-                  Number(record.charges || 0),
                   Boolean(record.rentReceivedOn) || Number(record.rentReceived || 0) > 0,
-                  record.modeOfPayment
+                  recordIndex === 0 ? monthReceivedCharges : 0
                 );
-                const monthTotal = getTotalReceivedForMonth(record.rentReceivedOn?.slice(0, 7) || '');
                 const balance = getDisplayBalance(record);
-                const ebCharges = Number(record.charges || 0);
+                const displayCharges = monthKey === currentMonthKey && currentMonthPayment
+                  ? record.id === monthRecords[0]?.id ? toNumber(currentMonthPayment.charges) : 0
+                  : Number(record.charges || 0);
                 const isCurrentMonthRecord = getMonthKeyFromDate(record.rentReceivedOn) === currentMonthKey;
                 const isCheckoutEntry = isCheckoutPayment(record.modeOfPayment);
 
@@ -1193,11 +1228,10 @@ export default function RentalCollectionDetails() {
                     })}</td>
                     <td>{record.modeOfPayment || '—'}</td>
                     <td>{formatCurrency(record.rentFixed)}</td>
-                    <td>{formatCurrency(record.charges)}</td>
-                    <td>{formatCurrency(ebCharges)}</td>
+                    <td>{formatCurrency(displayCharges)}</td>
                     <td className="amount-positive">{formatCurrency(effectiveReceived)}</td>
-                    <td>{formatCurrency(monthTotal)}</td>
-                    <td className={isCheckoutEntry ? 'amount-positive checkout-balance' : balance > 0 ? 'amount-negative' : 'amount-positive'}>
+                    <td>{formatCurrency(monthReceivableTotal)}</td>
+                    <td className={balance > 0 ? 'amount-negative' : 'amount-positive'}>
                       {formatCurrency(balance)}
                     </td>
                     {showActions && (
@@ -1627,21 +1661,24 @@ export default function RentalCollectionDetails() {
           {/* Financial Summary Cards */}
           <div className="summary-cards-grid">
             <div className="summary-card">
-              <div className="card-label">Total Received (Rent + Charges)</div>
-              <div className="card-value received">{formatCurrency(getTotalReceived(occupancyInfo.totalRentReceived, occupancyInfo.totalCharges))}</div>
-              <div className="card-subtext">{occupancyInfo.paymentRecordsCount} payment(s)</div>
+              <div className="card-label">{formatMonthTitle(currentMonthYear)} Received (Payments)</div>
+              <div className="card-value received">{formatCurrency(selectedMonthReceived)}</div>
+              <div className="card-subtext">{selectedMonthPaymentCount} payment(s)</div>
             </div>
 
             <div className="summary-card">
-              <div className="card-label">Total Charges</div>
-              <div className="card-value charges">{formatCurrency(occupancyInfo.totalCharges)}</div>
+              <div className="card-label">{formatMonthTitle(currentMonthYear)} Charges (EB)</div>
+              <div className="card-value charges">{formatCurrency(toNumber(selectedOccupancyMonthlyPayment?.charges))}</div>
             </div>
 
             <div className="summary-card">
-              <div className="card-label">Outstanding Balance (Est.)</div>
-              <div className="card-value balance">
-                {formatCurrency(Math.max(0, occupancyInfo.proRataRent + occupancyInfo.totalCharges - occupancyInfo.totalRentReceived))}
-              </div>
+              <div className="card-label">{formatMonthTitle(currentMonthYear)} Receivable (Rent + Charges/EB)</div>
+              <div className="card-value">{formatCurrency(selectedMonthReceivable)}</div>
+            </div>
+
+            <div className="summary-card">
+              <div className="card-label">{formatMonthTitle(currentMonthYear)} Outstanding</div>
+              <div className="card-value balance">{formatCurrency(selectedMonthOutstanding)}</div>
             </div>
           </div>
 
@@ -1698,6 +1735,7 @@ export default function RentalCollectionDetails() {
                       value={formData.rentReceived}
                       onChange={handleInputChange}
                       placeholder="0.00"
+                      min="0"
                       step="0.01"
                       required
                     />
@@ -1706,7 +1744,7 @@ export default function RentalCollectionDetails() {
 
                 <div className="form-row">
                   <div className="form-group">
-                    <label htmlFor="charges">Charges/Adjustments (₹)</label>
+                    <label htmlFor="charges">Charges (EB) (₹)</label>
                     <input
                       type="number"
                       id="charges"
@@ -1714,6 +1752,7 @@ export default function RentalCollectionDetails() {
                       value={formData.charges}
                       onChange={handleInputChange}
                       placeholder="0.00"
+                      min="0"
                       step="0.01"
                     />
                   </div>
@@ -1976,15 +2015,11 @@ export default function RentalCollectionDetails() {
                 <strong>{filteredCurrentMonthPayments.length}</strong>
               </div>
               <div className="current-month-summary-item highlight-received">
-                <span>Total Received</span>
+                <span>Total Received (Rent + EB)</span>
                 <strong>{formatCurrency(totalReceivedAmount)}</strong>
               </div>
               <div className="current-month-summary-item highlight-charges">
                 <span>Total Charges</span>
-                <strong>{formatCurrency(totalChargesAmount)}</strong>
-              </div>
-              <div className="current-month-summary-item highlight-eb">
-                <span>Total EB Charges</span>
                 <strong>{formatCurrency(totalChargesAmount)}</strong>
               </div>
               <div className="current-month-summary-item highlight-pending-balance">
@@ -2001,7 +2036,7 @@ export default function RentalCollectionDetails() {
                     <th>Room</th>
                     <th>Check-Out</th>
                     <th>Pro-Rata Rent</th>
-                    <th>EB Charges</th>
+                    <th>Charges (EB)</th>
                     <th>Total</th>
                     <th>Balance</th>
                     <th>Received</th>
@@ -2017,13 +2052,18 @@ export default function RentalCollectionDetails() {
                     const isReviewExpanded = expandedReviewRows[item.occupancyId] || false;
                     const isSavingReview = savingReviewRows[item.occupancyId] || false;
                     const savedReviewDate = formatReviewSavedDate(item.reviewVerifiedOn);
-                    const effectiveEbCharges = toNumber(item.charges);
-                    const totalDue = toNumber(item.proRataRent) + effectiveEbCharges;
-                    const hasPaymentRecord = Boolean(item.rentReceivedOn) || toNumber(item.rentReceived) > 0;
-                    const effectiveReceived = getEffectiveReceived(toNumber(item.rentReceived), effectiveEbCharges, hasPaymentRecord);
+                    const effectiveCharges = toNumber(item.charges);
+                    const totalDue = toNumber(item.proRataRent) + effectiveCharges;
+                    const hasPaymentRecord = Boolean(item.rentReceivedOn)
+                      || toNumber(item.rentReceived) > 0
+                      || toNumber(item.receivedCharges) > 0;
+                    const effectiveReceived = getEffectiveReceived(
+                      toNumber(item.rentReceived),
+                      hasPaymentRecord,
+                      toNumber(item.receivedCharges)
+                    );
                     const effectiveStatus = getEffectiveStatus(item);
-                    const isCheckoutEntry = isCheckoutPayment(item.modeOfPayment);
-                    const itemBalance = isCheckoutEntry ? 0 : Math.max(0, totalDue - effectiveReceived);
+                    const itemBalance = Math.max(0, totalDue - effectiveReceived);
                     const tenantReviewDecision = getReviewDecision(item);
                     // Check if this is a shop (room numbers like S1, S2, SHOP-1 etc or any number > 100 can be marked as shop)
                     const isShop = /^[Ss]/.test(item.roomNumber) || /[Ss]hop/i.test(item.roomNumber);
@@ -2083,8 +2123,8 @@ export default function RentalCollectionDetails() {
                         <td className="amount">{formatCurrency(item.proRataRent)}</td>
                         <td className="amount eb-charges">
                           <div className="eb-charge-content">
-                            <span>{formatCurrency(effectiveEbCharges)}</span>
-                            {effectiveEbCharges > 0 && (
+                            <span>{formatCurrency(effectiveCharges)}</span>
+                            {effectiveCharges > 0 && (
                               <button
                                 type="button"
                                 className="eb-charge-icon"
@@ -2099,7 +2139,7 @@ export default function RentalCollectionDetails() {
                         </td>
                         <td className="amount total-due">{formatCurrency(totalDue)}</td>
                         <td
-                          className={`amount balance ${isCheckoutEntry ? 'checkout-balance' : itemBalance > 0 ? 'pending' : 'success'}`}
+                          className={`amount balance ${itemBalance > 0 ? 'pending' : 'success'}`}
                           title={getBalanceTooltip(item)}
                         >
                           {formatCurrency(itemBalance)}

@@ -1354,8 +1354,8 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
           latestPayment.folder as folder,
           latestPayment.modeOfPayment as modeOfPayment,
           ISNULL(CAST(monthlyTotals.totalRentReceived AS FLOAT), 0) as rentReceived,
-          ISNULL(CAST(tenantServiceCharges.totalEbCharges AS FLOAT), 0) as charges,
-          ISNULL(CAST(tenantServiceCharges.totalEbCharges AS FLOAT), 0) as tenantServiceCharges,
+          ISNULL(CAST(monthlyTotals.totalCharges AS FLOAT), 0) as recordedCharges,
+          ISNULL(CAST(tenantServiceCharges.totalEbCharges AS FLOAT), 0) as ebCharges,
           CASE
             WHEN latestReview.IsVerified = 1 THEN 'approved'
             WHEN latestReview.IsDisputeRaised = 1 THEN 'rejected'
@@ -1381,7 +1381,7 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
         OUTER APPLY (
           SELECT
             SUM(ISNULL(CAST(rcMonth.RentReceived AS FLOAT), 0)) as totalRentReceived,
-            SUM(ISNULL(CAST(rcMonth.Charges AS FLOAT), 0)) as totalCharges
+            MAX(ISNULL(CAST(rcMonth.Charges AS FLOAT), 0)) as totalCharges
           FROM RentalCollection rcMonth
           WHERE rcMonth.OccupancyId = o.Id
             AND YEAR(CAST(rcMonth.RentReceivedOn AS DATE)) = @year
@@ -1448,11 +1448,12 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
     
     // Calculate pro-rata rent balance for each record
     const paymentRecords = result.recordset.map((record: any) => {
+      const { recordedCharges, ebCharges: serviceEbCharges, ...paymentRecord } = record;
       const rentFixed = record.rentFixed || 0;
       const rentReceived = record.rentReceived || 0;
-      const recordedCharges = Number(record.charges || 0);
-      const serviceCharges = Number(record.tenantServiceCharges || 0);
-      const charges = recordedCharges || serviceCharges;
+      const receivedCharges = Number(recordedCharges || 0);
+      const ebCharges = Number(serviceEbCharges || 0);
+      const charges = ebCharges > 0 ? ebCharges : receivedCharges;
 
       // Calculate pro-rata rent for this specific month based on check-in/check-out dates
       const proRataRent = calculateProRataRentForMonth(
@@ -1475,13 +1476,13 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
       // When rentReceivedOn is null, the tenant has not paid anything yet even if charges are due.
       const hasRecordedPayment = Boolean(record.rentReceivedOn) || Number(rentReceived) > 0;
       const totalDue = proRataRent + charges;
-      const effectiveReceived = hasRecordedPayment ? rentReceived + charges : 0;
+      const effectiveReceived = hasRecordedPayment ? rentReceived + receivedCharges : 0;
       const rentBalance = Math.max(0, totalDue - effectiveReceived);
 
       // Recalculate payment status from the actual due-vs-received math.
       // A full payment should still be marked paid even when a charge component is included.
       let paymentStatus: string;
-      if (proRataRent === 0 || rentFixed === 0) {
+      if (totalDue <= 0) {
         paymentStatus = 'merged';
       } else if (totalDue > 0 && effectiveReceived >= totalDue) {
         paymentStatus = 'paid';
@@ -1492,8 +1493,9 @@ app.get('/api/rental/payments/:monthYear', async (req: Request, res: Response) =
       }
       
       return {
-        ...record,
+        ...paymentRecord,
         charges,
+        receivedCharges,
         proRataRent,
         rentBalance,
         paymentStatus,
@@ -7267,15 +7269,44 @@ app.get('/api/rental/occupancy/:occupancyId', async (req: Request, res: Response
 // Upload payment screenshot and create/update rental collection record
 app.post('/api/rental/upload-payment', uploadPaymentScreenshot.single('screenshot'), async (req: Request, res: Response) => {
   try {
-    const { occupancyId, rentReceived, charges, modeOfPayment, rentReceivedOn } = req.body;
-    
-    if (!occupancyId || !rentReceived) {
+    const { recordId, occupancyId, rentReceived, charges, modeOfPayment, rentReceivedOn } = req.body;
+    const parsedOccupancyId = Number(occupancyId);
+    const parsedRecordId = recordId === undefined ? null : Number(recordId);
+    const parsedRentReceived = Number(rentReceived);
+    const parsedCharges = charges === undefined || charges === '' ? 0 : Number(charges);
+
+    if (!Number.isInteger(parsedOccupancyId) || parsedOccupancyId <= 0) {
       return res.status(400).json({ 
-        error: 'Occupancy ID and Rent Received amount are required' 
+        error: 'A valid occupancy ID is required'
       });
     }
 
+    if (!Number.isFinite(parsedRentReceived) || parsedRentReceived <= 0) {
+      return res.status(400).json({ error: 'Rent received must be greater than zero' });
+    }
+
+    if (!Number.isFinite(parsedCharges) || parsedCharges < 0) {
+      return res.status(400).json({ error: 'Charges must be a non-negative amount' });
+    }
+
+    if (parsedRecordId !== null && (!Number.isInteger(parsedRecordId) || parsedRecordId <= 0)) {
+      return res.status(400).json({ error: 'A valid payment record ID is required' });
+    }
+
     const paymentDate = rentReceivedOn || new Date().toISOString().split('T')[0];
+    const dateParts = typeof paymentDate === 'string' ? paymentDate.match(/^(\d{4})-(\d{2})-(\d{2})$/) : null;
+    const parsedDate = dateParts
+      ? new Date(Date.UTC(Number(dateParts[1]), Number(dateParts[2]) - 1, Number(dateParts[3])))
+      : null;
+    if (
+      !dateParts ||
+      parsedDate?.getUTCFullYear() !== Number(dateParts[1]) ||
+      parsedDate?.getUTCMonth() !== Number(dateParts[2]) - 1 ||
+      parsedDate?.getUTCDate() !== Number(dateParts[3])
+    ) {
+      return res.status(400).json({ error: 'Payment date must be a valid YYYY-MM-DD date' });
+    }
+
     const paymentProofContainer = getPaymentProofContainerName(paymentDate);
 
     let screenshotUrl = '';
@@ -7306,26 +7337,16 @@ app.post('/api/rental/upload-payment', uploadPaymentScreenshot.single('screensho
 
     const pool = getPool();
     
-    // Check if rental collection record exists for this occupancy and date
-    const existingRecord = await pool
-      .request()
-      .input('occupancyId', sql.Int, parseInt(occupancyId))
-      .input('rentReceivedOn', sql.NChar(10), paymentDate)
-      .query(`
-        SELECT Id FROM RentalCollection 
-        WHERE OccupancyId = @occupancyId 
-        AND RentReceivedOn = @rentReceivedOn
-      `);
-
     let result;
     
-    if (existingRecord.recordset.length > 0) {
-      // Update existing record
+    if (parsedRecordId !== null) {
       result = await pool
         .request()
-        .input('id', sql.Int, existingRecord.recordset[0].Id)
-        .input('rentReceived', sql.Money, parseFloat(rentReceived))
-        .input('charges', sql.Money, charges ? parseFloat(charges) : 0)
+        .input('id', sql.Int, parsedRecordId)
+        .input('occupancyId', sql.Int, parsedOccupancyId)
+        .input('rentReceivedOn', sql.NChar(10), paymentDate)
+        .input('rentReceived', sql.Money, parsedRentReceived)
+        .input('charges', sql.Money, parsedCharges)
         .input('modeOfPayment', sql.NVarChar(10), modeOfPayment || '')
         .input('screenshotUrl', sql.NVarChar(sql.MAX), screenshotUrl)
         .input('folder', sql.NVarChar(100), paymentProofContainer)
@@ -7333,26 +7354,26 @@ app.post('/api/rental/upload-payment', uploadPaymentScreenshot.single('screensho
         .query(`
           UPDATE RentalCollection
           SET 
+            RentReceivedOn = @rentReceivedOn,
             RentReceived = @rentReceived,
             Charges = @charges,
             ModeofPayment = @modeOfPayment,
             screenshoturl = CASE WHEN @screenshotUrl != '' THEN @screenshotUrl ELSE screenshoturl END,
             folder = CASE WHEN @screenshotUrl != '' THEN @folder ELSE folder END,
             UpdatedDate = @updateDate
-          WHERE Id = @id;
+          WHERE Id = @id AND OccupancyId = @occupancyId;
           
           SELECT Id, OccupancyId, RentReceivedOn, RentReceived, Charges, RentBalance, screenshoturl, folder
           FROM RentalCollection
-          WHERE Id = @id
+          WHERE Id = @id AND OccupancyId = @occupancyId
         `);
     } else {
-      // Create new record
       result = await pool
         .request()
-        .input('occupancyId', sql.Int, parseInt(occupancyId))
+        .input('occupancyId', sql.Int, parsedOccupancyId)
         .input('rentReceivedOn', sql.NChar(10), paymentDate)
-        .input('rentReceived', sql.Money, parseFloat(rentReceived))
-        .input('charges', sql.Money, charges ? parseFloat(charges) : 0)
+        .input('rentReceived', sql.Money, parsedRentReceived)
+        .input('charges', sql.Money, parsedCharges)
         .input('modeOfPayment', sql.NVarChar(10), modeOfPayment || '')
         .input('screenshotUrl', sql.NVarChar(sql.MAX), screenshotUrl)
         .input('folder', sql.NVarChar(100), paymentProofContainer)
@@ -7368,9 +7389,13 @@ app.post('/api/rental/upload-payment', uploadPaymentScreenshot.single('screensho
         `);
     }
 
+    if (parsedRecordId !== null && result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Payment record not found for this occupancy' });
+    }
+
     if (result.recordset.length > 0) {
       res.status(200).json({
-        message: existingRecord.recordset.length > 0 ? 'Payment updated successfully' : 'Payment recorded successfully',
+        message: parsedRecordId !== null ? 'Payment updated successfully' : 'Payment recorded successfully',
         data: result.recordset[0]
       });
     } else {
