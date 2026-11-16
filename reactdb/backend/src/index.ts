@@ -4490,9 +4490,24 @@ app.get('/api/room-cleaning/frequency', async (_req: Request, res: Response) => 
       ) cleanedRooms
       ORDER BY TRY_CONVERT(int, cleanedRooms.roomNumber), cleanedRooms.roomNumber;
     `);
+    const roomFrequenciesResult = await pool.request().query(`
+      SELECT
+        r.Id as roomId,
+        r.Number as roomNumber,
+        COUNT(s.RoomId) as cleaned
+      FROM RoomDetail r
+      LEFT JOIN RoomCleaningStatus s
+        ON s.RoomId = r.Id
+        AND s.[Status] = 'cleaned'
+        AND s.CleaningDate >= DATEADD(day, -29, CONVERT(date, GETDATE()))
+        AND s.CleaningDate <= CONVERT(date, GETDATE())
+      GROUP BY r.Id, r.Number
+      ORDER BY TRY_CONVERT(int, r.Number), r.Number;
+    `);
     res.json({
       ...result.recordset[0],
       cleanedRooms: cleanedRoomsResult.recordset,
+      roomFrequencies: roomFrequenciesResult.recordset,
     });
   } catch (error) {
     console.error('Get room cleaning frequency error:', error);

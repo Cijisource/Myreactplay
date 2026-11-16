@@ -234,10 +234,99 @@
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05);
 }
 
+.room-cleaning-frequency-chart h2 {
+  margin: 0;
+  color: #334155;
+  font-size: 1.1rem;
+}
+
 .room-cleaning-frequency-total {
   margin: 0;
   color: #475569;
   font-weight: 600;
+}
+
+.room-cleaning-column-chart-scroll {
+  overflow-x: auto;
+  padding-bottom: 0.35rem;
+}
+
+.room-cleaning-column-chart {
+  display: grid;
+  align-items: stretch;
+  gap: 0.35rem;
+  height: 230px;
+  padding: 0.5rem 0.35rem 0;
+  background: repeating-linear-gradient(
+    to top,
+    transparent 0,
+    transparent calc(25% - 1px),
+    #e2e8f0 calc(25% - 1px),
+    #e2e8f0 25%
+  );
+}
+
+.room-cleaning-column-chart-column {
+  display: grid;
+  grid-template-rows: 1.25rem minmax(0, 1fr) 1.5rem;
+  min-width: 0;
+  text-align: center;
+}
+
+.room-cleaning-column-chart-value,
+.room-cleaning-column-chart-label {
+  overflow: hidden;
+  color: #475569;
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-cleaning-column-chart-value {
+  font-weight: 700;
+}
+
+.room-cleaning-column-chart-plot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-height: 0;
+  border-bottom: 1px solid #94a3b8;
+}
+
+.room-cleaning-column-chart-bar {
+  width: min(1.65rem, 80%);
+  border-radius: 0.2rem 0.2rem 0 0;
+  background: #62c2c6;
+}
+
+.room-cleaning-status-column {
+  grid-template-rows: minmax(0, 1fr) 1.5rem 2rem;
+}
+
+.room-cleaning-status-column .room-cleaning-column-chart-bar {
+  height: 100%;
+}
+
+.room-cleaning-status-column .room-cleaning-column-chart-bar.cleaned {
+  background: #16a34a;
+}
+
+.room-cleaning-status-column .room-cleaning-column-chart-bar.pending {
+  background: #d97706;
+}
+
+.room-cleaning-column-chart-age {
+  overflow: hidden;
+  color: #64748b;
+  font-size: 0.65rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-cleaning-column-chart-empty {
+  margin: 0;
+  color: #64748b;
 }
 
 .room-cleaning-frequency-rooms {

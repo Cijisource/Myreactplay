@@ -25,6 +25,7 @@ interface CleaningFrequency {
   cleaned: number;
   pending: number;
   cleanedRooms: Array<{ roomId: number; roomNumber: string }>;
+  roomFrequencies: Array<{ roomId: number; roomNumber: string; cleaned: number }>;
 }
 
 interface FloorCleaningFrequency {
@@ -287,6 +288,15 @@ export default function CleaningStatusManagement(): JSX.Element {
         a.roomNumber.localeCompare(b.roomNumber, undefined, { numeric: true, sensitivity: 'base' })
       );
   }, [rooms]);
+
+  const roomFrequencyBars = useMemo(() => {
+    const frequencies = cleaningFrequency?.roomFrequencies ?? [];
+    const maxCleanings = frequencies.reduce((max, room) => Math.max(max, room.cleaned), 0);
+    return frequencies.map(room => ({
+      ...room,
+      percent: maxCleanings === 0 ? 0 : (room.cleaned / maxCleanings) * 100,
+    }));
+  }, [cleaningFrequency]);
 
   const cleanedAgeRooms = useMemo(() => {
     const asOfDate = getLocalDateInputValue();
@@ -596,20 +606,29 @@ export default function CleaningStatusManagement(): JSX.Element {
               Needs cleaning <strong>{totals.pending}</strong>
             </span>
           </div>
-          <div className="room-cleaning-chart-rows">
-            {graphRooms.map(room => (
-              <div className="room-cleaning-chart-row" key={room.roomId}>
-                <span className="room-cleaning-chart-room">Room {room.roomNumber}</span>
+          <div className="room-cleaning-column-chart-scroll">
+            <div
+              className="room-cleaning-column-chart"
+              style={{
+                gridTemplateColumns: `repeat(${graphRooms.length}, minmax(2.75rem, 1fr))`,
+                minWidth: `${graphRooms.length * 48}px`,
+              }}
+            >
+              {graphRooms.map(room => (
                 <div
-                  className={`room-cleaning-chart-track ${room.status}`}
+                  className="room-cleaning-column-chart-column room-cleaning-status-column"
+                  key={room.roomId}
                   role="img"
                   aria-label={`Room ${room.roomNumber}: ${room.status === 'cleaned' ? 'cleaned' : 'needs cleaning'}. Last cleaned ${formatCleanedAge(room.daysSinceCleaned)}.`}
                 >
-                  <span>{room.status === 'cleaned' ? 'Cleaned' : 'Needs cleaning'}</span>
-                  <small>Last cleaned: {formatCleanedAge(room.daysSinceCleaned)}</small>
+                  <div className="room-cleaning-column-chart-plot">
+                    <div className={`room-cleaning-column-chart-bar ${room.status}`} />
+                  </div>
+                  <span className="room-cleaning-column-chart-label">{room.roomNumber}</span>
+                  <span className="room-cleaning-column-chart-age">{formatCleanedAge(room.daysSinceCleaned)}</span>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </section>
       ) : activeView === 'frequency-graph' && cleaningFrequency ? (
@@ -678,6 +697,41 @@ export default function CleaningStatusManagement(): JSX.Element {
                     </div>
                   )}
                 </div>
+                <section className="room-cleaning-frequency-chart" aria-label="Room cleaning frequency over the last 30 days">
+                  <h2>Cleaning frequency by room</h2>
+                  <p className="room-cleaning-frequency-total">Cleanings recorded in the last 30 days</p>
+                  {roomFrequencyBars.length > 0 ? (
+                    <div className="room-cleaning-column-chart-scroll">
+                      <div
+                        className="room-cleaning-column-chart"
+                        style={{
+                          gridTemplateColumns: `repeat(${roomFrequencyBars.length}, minmax(2.75rem, 1fr))`,
+                          minWidth: `${roomFrequencyBars.length * 48}px`,
+                        }}
+                      >
+                        {roomFrequencyBars.map(room => (
+                          <div
+                            className="room-cleaning-column-chart-column"
+                            key={room.roomId}
+                            role="img"
+                            aria-label={`Room ${room.roomNumber}: cleaned ${room.cleaned} ${room.cleaned === 1 ? 'time' : 'times'} in the last 30 days`}
+                          >
+                            <span className="room-cleaning-column-chart-value">{room.cleaned}</span>
+                            <div className="room-cleaning-column-chart-plot">
+                              <div
+                                className="room-cleaning-column-chart-bar"
+                                style={{ height: `${room.percent}%` }}
+                              />
+                            </div>
+                            <span className="room-cleaning-column-chart-label">{room.roomNumber}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="room-cleaning-column-chart-empty">No rooms found.</p>
+                  )}
+                </section>
                 <div className="room-cleaning-floor-frequency">
                   <h3>Floor cleaning frequency</h3>
                   {floorCleaningFrequency.map(floor => {
