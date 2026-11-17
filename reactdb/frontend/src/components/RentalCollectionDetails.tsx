@@ -2392,7 +2392,16 @@ export default function RentalCollectionDetails() {
               </div>
               <div className="tenant-info-row">
                 <span className="tenant-info-label">Phone:</span>
-                <span className="tenant-info-value">{tenantInfoPopup.phoneNumber || 'N/A'}</span>
+                <span className="tenant-info-value">
+                  {tenantInfoPopup.phoneNumber && tenantInfoPopup.phoneNumber !== 'N/A' ? (
+                    <a
+                      className="tenant-info-phone-link"
+                      href={`tel:${tenantInfoPopup.phoneNumber.replace(/[^\d+]/g, '')}`}
+                    >
+                      {tenantInfoPopup.phoneNumber}
+                    </a>
+                  ) : 'N/A'}
+                </span>
               </div>
               <div className="tenant-info-row">
                 <span className="tenant-info-label">Advance Paid:</span>

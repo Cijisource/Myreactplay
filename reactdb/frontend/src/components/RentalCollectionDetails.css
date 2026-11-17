@@ -2102,6 +2102,11 @@
   word-break: break-word;
 }
 
+.tenant-info-phone-link {
+  color: inherit;
+  text-decoration: underline;
+}
+
 .proof-link {
   color: #667eea;
   text-decoration: none;
