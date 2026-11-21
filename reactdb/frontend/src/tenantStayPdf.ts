@@ -93,7 +93,38 @@ const imageFromFile = async (pdf: PDFDocument, file: TenantStayPdfFile): Promise
   if (mimeType.includes('jpeg') || mimeType.includes('jpg') || ['jpg', 'jpeg'].includes(extension || '')) {
     return pdf.embedJpg(data);
   }
-  return null;
+
+  if (!mimeType.startsWith('image/')) return null;
+
+  const objectUrl = URL.createObjectURL(new Blob([file.data], { type: file.contentType }));
+  try {
+    const converted = await new Promise<ArrayBuffer | null>((resolve) => {
+      const image = new Image();
+      image.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = image.naturalWidth;
+          canvas.height = image.naturalHeight;
+          const context = canvas.getContext('2d');
+          if (!context) {
+            resolve(null);
+            return;
+          }
+          context.drawImage(image, 0, 0);
+          canvas.toBlob(async (blob) => {
+            resolve(blob ? await blob.arrayBuffer() : null);
+          }, 'image/jpeg', 0.92);
+        } catch {
+          resolve(null);
+        }
+      };
+      image.onerror = () => resolve(null);
+      image.src = objectUrl;
+    });
+    return converted ? pdf.embedJpg(new Uint8Array(converted)) : null;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
 };
 
 export const createTenantStayPdf = async (input: TenantStayPdfInput): Promise<TenantStayPdfResult> => {

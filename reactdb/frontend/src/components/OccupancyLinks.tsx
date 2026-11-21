@@ -113,15 +113,15 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
   const [galleryInitialTab, setGalleryInitialTab] = useState<'photos' | 'proofs'>('photos');
 
   useEffect(() => {
-    const closeActionsMenu = (event: MouseEvent) => {
+    const closeActionsMenu = (event: PointerEvent) => {
       const target = event.target as HTMLElement;
       if (!target.closest('[data-actions-popup]')) {
         setOpenActionsOccupancyId(null);
       }
     };
 
-    document.addEventListener('mousedown', closeActionsMenu);
-    return () => document.removeEventListener('mousedown', closeActionsMenu);
+    document.addEventListener('pointerdown', closeActionsMenu);
+    return () => document.removeEventListener('pointerdown', closeActionsMenu);
   }, []);
 
   const buildTenantFromOccupancy = (occ: OccupancyLink): TenantWithOccupancy => ({
@@ -380,16 +380,16 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
           apiService.getTenantChargesForMonth(year, month, occ.tenantId, occ.roomId)
         )
       );
-      const checkInKey = occ.checkInDate.slice(0, 10);
-      const checkOutKey = occ.checkOutDate?.slice(0, 10) || null;
       const electricity: TenantStayElectricityRecord[] = electricityResponses
         .flatMap((response: { data: unknown }) =>
           Array.isArray(response.data) ? response.data as TenantStayElectricityRecord[] : []
         )
-        .filter((record) =>
-          String(record.checkInDate || '').slice(0, 10) === checkInKey
-          && (!checkOutKey || !record.checkOutDate || String(record.checkOutDate).slice(0, 10) === checkOutKey)
-        )
+        .filter((record) => {
+          const recordMonth = (record.billingYear * 12) + record.billingMonth;
+          const firstMonth = (checkInDate.getFullYear() * 12) + (checkInDate.getMonth() + 1);
+          const lastMonth = (stayEndDate.getFullYear() * 12) + (stayEndDate.getMonth() + 1);
+          return recordMonth >= firstMonth && recordMonth <= lastMonth;
+        })
         .sort((left, right) =>
           (left.billingYear - right.billingYear) || (left.billingMonth - right.billingMonth)
         );
@@ -412,6 +412,8 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
       const photoPaths = [
         tenant.azurePhotoUrl,
         tenant.photoUrl,
+        occ.azurePhotoUrl,
+        occ.tenantPhoto,
         tenant.photo2Url,
         tenant.photo3Url,
         tenant.photo4Url,

@@ -1299,11 +1299,29 @@
   .occupancy-table .actions-popup-trigger {
     width: 44px;
     height: 44px;
+    touch-action: manipulation;
   }
 
   .occupancy-table .actions-popup-menu {
-    left: 0;
-    right: auto;
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    top: auto;
+    width: auto;
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+    z-index: 2000;
+    padding: 8px;
+    border-radius: 14px;
+    box-shadow: 0 18px 50px rgba(15, 23, 42, 0.32);
+  }
+
+  .occupancy-table .actions-popup-item {
+    min-height: 48px;
+    padding: 9px 10px;
+    font-size: 0.92rem;
+    touch-action: manipulation;
   }
 
   .occupancy-table .action-btn {
