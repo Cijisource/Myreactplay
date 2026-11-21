@@ -16,6 +16,7 @@ interface OccupancyLink {
   tenantAddress: string;
   tenantCity: string;
   tenantPhoto?: string;
+  azurePhotoUrl?: string;
   roomId: number;
   roomNumber: string;
   roomRent: number;
@@ -312,27 +313,255 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
       .map(value => value.trim())
       .filter(Boolean)
       .join(', ') || 'N/A';
+    const tenantName = occ.tenantName.trim();
     const message = [
-      'Gnanabi Mansion, Arasaradi, Madurai.',
+      'Gnanabi Mansion, Arasaradi, Madurai',
       'Have a pleasant stay at Madurai.',
       '',
-      `Tenant: ${occ.tenantName.trim()}`,
+      `Dear ${tenantName},`,
+      'Welcome to Gnanabi Mansion. Your room details are confirmed as below:',
+      '',
+      'Tenant Details',
+      `Name: ${tenantName}`,
       `Phone: ${occ.tenantPhone.trim()}`,
       `Address: ${tenantAddress}`,
-      `Room: ${occ.roomNumber.trim()}`,
+      '',
+      'Stay Details',
+      `Room No: ${occ.roomNumber.trim()}`,
       `Status: ${occ.isActive ? 'Active' : 'Ended'}`,
       `Check-in: ${formatDate(occ.checkInDate)}`,
-      `Reserved check-out: ${occ.checkOutDate ? formatDate(occ.checkOutDate) : '—'}`,
-      `Rent: ${formatCurrency(occ.rentFixed)}`,
-      `Deposit received: ${formatCurrency(occ.advanceCollected)}`,
-      `Deposit refunded: ${formatCurrency(occ.depositRefunded)}`,
-      `Charges: ${formatCurrency(occ.charges)}`,
+      `Reserved Check-out: ${occ.checkOutDate ? formatDate(occ.checkOutDate) : '—'}`,
+      '',
+      'Payment Details',
+      `Monthly Rent: ${formatCurrency(occ.rentFixed)}`,
+      `Deposit Received: ${formatCurrency(occ.advanceCollected)}`,
+      `Deposit Refunded: ${formatCurrency(occ.depositRefunded)}`,
+      `Additional Charges: ${formatCurrency(occ.charges)}`,
       `Collected: ${formatCurrency(occ.currentRentReceived)}`,
       `Pending: ${formatCurrency(occ.currentPendingPayment)}`,
-      `Last payment: ${occ.lastPaymentDate ? formatDate(occ.lastPaymentDate) : '—'}`,
+      `Last Payment: ${occ.lastPaymentDate ? formatDate(occ.lastPaymentDate) : 'Not yet recorded'}`,
+      '',
+      'Thank you for choosing Gnanabi Mansion. For any assistance, please contact the manager.',
+      '',
+      'Warm Regards,',
+      'Gnanabi Mansion',
+      'Arasaradi, Madurai',
     ].join('\n');
 
     return `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(message)}`;
+  };
+
+  const getTenantPhotoUrl = (occ: OccupancyLink): string | null => {
+    if (occ.azurePhotoUrl) return occ.azurePhotoUrl;
+    if (!occ.tenantPhoto) return null;
+    if (occ.tenantPhoto.startsWith('http://') || occ.tenantPhoto.startsWith('https://')) {
+      return occ.tenantPhoto;
+    }
+    return getFileUrl(occ.tenantPhoto);
+  };
+
+  const drawRoundedRect = (
+    context: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius: number,
+  ): void => {
+    context.beginPath();
+    context.roundRect(x, y, width, height, radius);
+  };
+
+  const wrapCanvasText = (
+    context: CanvasRenderingContext2D,
+    text: string,
+    x: number,
+    y: number,
+    maxWidth: number,
+    lineHeight: number,
+  ): number => {
+    const words = text.split(' ');
+    let line = '';
+    let currentY = y;
+
+    words.forEach((word) => {
+      const testLine = line ? `${line} ${word}` : word;
+      if (context.measureText(testLine).width > maxWidth && line) {
+        context.fillText(line, x, currentY);
+        line = word;
+        currentY += lineHeight;
+      } else {
+        line = testLine;
+      }
+    });
+
+    if (line) context.fillText(line, x, currentY);
+    return currentY + lineHeight;
+  };
+
+  const loadCanvasImage = (url: string): Promise<HTMLImageElement | null> =>
+    new Promise((resolve) => {
+      const image = new Image();
+      image.crossOrigin = 'anonymous';
+      image.onload = () => resolve(image);
+      image.onerror = () => resolve(null);
+      image.src = url;
+    });
+
+  const generateGreetingCard = async (occ: OccupancyLink): Promise<File | null> => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1080;
+    canvas.height = 1350;
+    const context = canvas.getContext('2d');
+    if (!context) return null;
+
+    const tenantAddress = [occ.tenantAddress || '', occ.tenantCity || '']
+      .map(value => value.trim())
+      .filter(Boolean)
+      .join(', ') || 'N/A';
+
+    context.fillStyle = '#f6f2e8';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    const headerGradient = context.createLinearGradient(0, 0, canvas.width, 420);
+    headerGradient.addColorStop(0, '#17365d');
+    headerGradient.addColorStop(1, '#246a73');
+    context.fillStyle = headerGradient;
+    context.fillRect(0, 0, canvas.width, 420);
+
+    context.fillStyle = '#ffffff';
+    context.textAlign = 'center';
+    context.font = '700 54px Arial';
+    context.fillText('GNANABI MANSION', 540, 78);
+    context.font = '500 28px Arial';
+    context.fillText('Arasaradi, Madurai', 540, 118);
+
+    const photoUrl = getTenantPhotoUrl(occ);
+    const photo = photoUrl ? await loadCanvasImage(photoUrl) : null;
+    context.save();
+    context.beginPath();
+    context.arc(540, 230, 112, 0, Math.PI * 2);
+    context.closePath();
+    context.clip();
+    if (photo) {
+      const sourceSize = Math.min(photo.naturalWidth, photo.naturalHeight);
+      const sourceX = (photo.naturalWidth - sourceSize) / 2;
+      const sourceY = (photo.naturalHeight - sourceSize) / 2;
+      context.drawImage(photo, sourceX, sourceY, sourceSize, sourceSize, 428, 118, 224, 224);
+    } else {
+      context.fillStyle = '#e8f1f2';
+      context.fillRect(428, 118, 224, 224);
+      context.fillStyle = '#246a73';
+      context.font = '700 96px Arial';
+      context.fillText(
+        occ.tenantName.trim().charAt(0).toUpperCase() || 'G',
+        540,
+        270,
+      );
+    }
+    context.restore();
+
+    context.beginPath();
+    context.arc(540, 230, 112, 0, Math.PI * 2);
+    context.strokeStyle = '#ffffff';
+    context.lineWidth = 10;
+    context.stroke();
+
+    context.textAlign = 'left';
+    context.fillStyle = '#17365d';
+    context.font = '700 38px Arial';
+    context.fillText(`Welcome, ${occ.tenantName.trim()}`, 70, 495);
+
+    context.fillStyle = '#5b6573';
+    context.font = '400 27px Arial';
+    context.fillText('Your room details are confirmed', 70, 538);
+
+    drawRoundedRect(context, 55, 575, 970, 190, 24);
+    context.fillStyle = '#ffffff';
+    context.fill();
+    context.strokeStyle = '#ddd8ca';
+    context.lineWidth = 2;
+    context.stroke();
+
+    context.fillStyle = '#17365d';
+    context.font = '700 27px Arial';
+    context.fillText('TENANT DETAILS', 88, 622);
+    context.font = '500 24px Arial';
+    context.fillStyle = '#26364a';
+    context.fillText(`Name: ${occ.tenantName.trim()}`, 88, 662);
+    context.fillText(`Phone: ${occ.tenantPhone.trim()}`, 88, 698);
+    wrapCanvasText(context, `Address: ${tenantAddress}`, 88, 734, 890, 34);
+
+    drawRoundedRect(context, 55, 785, 970, 250, 24);
+    context.fillStyle = '#ffffff';
+    context.fill();
+    context.strokeStyle = '#ddd8ca';
+    context.stroke();
+
+    context.fillStyle = '#17365d';
+    context.font = '700 27px Arial';
+    context.fillText('STAY DETAILS', 88, 832);
+    context.font = '500 24px Arial';
+    context.fillStyle = '#26364a';
+    context.fillText(`Room No: ${occ.roomNumber.trim()}`, 88, 872);
+    context.fillText(`Status: ${occ.isActive ? 'Active' : 'Ended'}`, 88, 912);
+    context.fillText(`Check-in: ${formatDate(occ.checkInDate)}`, 88, 952);
+    context.fillText(`Reserved Check-out: ${occ.checkOutDate ? formatDate(occ.checkOutDate) : '—'}`, 88, 992);
+
+    drawRoundedRect(context, 55, 1055, 970, 190, 24);
+    context.fillStyle = '#17365d';
+    context.fill();
+
+    context.fillStyle = '#ffffff';
+    context.font = '700 27px Arial';
+    context.fillText('PAYMENT SUMMARY', 88, 1102);
+    context.font = '500 22px Arial';
+    context.fillText(`Monthly Rent: ${formatCurrency(occ.rentFixed)}`, 88, 1144);
+    context.fillText(`Deposit Received: ${formatCurrency(occ.advanceCollected)}`, 88, 1182);
+    context.fillText(`Deposit Refunded: ${formatCurrency(occ.depositRefunded)}`, 555, 1144);
+    context.fillText(`Additional Charges: ${formatCurrency(occ.charges)}`, 555, 1182);
+    context.fillText(`Collected: ${formatCurrency(occ.currentRentReceived)}`, 88, 1220);
+    context.fillText(`Pending: ${formatCurrency(occ.currentPendingPayment)}`, 555, 1220);
+
+    context.textAlign = 'center';
+    context.fillStyle = '#5b6573';
+    context.font = '500 24px Arial';
+    context.fillText('Have a pleasant stay at Madurai', 540, 1302);
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, 'image/png', 1),
+    );
+    if (!blob) return null;
+    return new File([blob], `Gnanabi-Mansion-${occ.tenantName.trim().replace(/\s+/g, '-')}.png`, {
+      type: 'image/png',
+    });
+  };
+
+  const shareToWhatsApp = async (occ: OccupancyLink, whatsappUrl: string): Promise<void> => {
+    const message = new URL(whatsappUrl).searchParams.get('text') || '';
+
+    if (navigator.share) {
+      try {
+        const greetingCard = await generateGreetingCard(occ);
+        if (greetingCard) {
+          const shareData = { text: message, files: [greetingCard] };
+          const canShareWithFiles = typeof navigator.canShare !== 'function'
+            || navigator.canShare(shareData);
+
+          if (canShareWithFiles) {
+            await navigator.share(shareData);
+            return;
+          }
+        }
+
+        await navigator.share({ text: message });
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+      }
+    }
+
+    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
   };
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -718,16 +947,15 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
                       📷
                     </button>
                     {whatsappUrl ? (
-                      <a
+                      <button
                         className="action-btn whatsapp-btn"
-                        href={whatsappUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        type="button"
+                        onClick={() => void shareToWhatsApp(occ, whatsappUrl)}
                         aria-label={`Share ${occ.tenantName.trim()}'s occupancy details on WhatsApp`}
-                        title="Share details on WhatsApp"
+                        title="Share tenant card and photo on WhatsApp"
                       >
                         <WhatsAppIcon />
-                      </a>
+                      </button>
                     ) : (
                       <button
                         className="action-btn whatsapp-btn"
