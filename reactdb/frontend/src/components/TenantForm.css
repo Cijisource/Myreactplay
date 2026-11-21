@@ -133,6 +133,53 @@
   border-bottom: 2px solid #e2e8f0;
 }
 
+.aadhaar-ocr {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  padding: 1rem;
+  margin-bottom: 1.25rem;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+}
+
+.aadhaar-ocr > div {
+  flex: 1 1 280px;
+}
+
+.aadhaar-ocr p {
+  margin-bottom: 0;
+}
+
+.aadhaar-ocr-button {
+  padding: 0.65rem 1rem;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.aadhaar-ocr-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.aadhaar-ocr-message,
+.aadhaar-ocr-error {
+  flex-basis: 100%;
+  font-size: 0.875rem;
+}
+
+.aadhaar-ocr-message {
+  color: #166534;
+}
+
+.aadhaar-ocr-error {
+  color: #b91c1c;
+}
+
 /* Photo Section */
 .photo-section {
   margin-bottom: 2.5rem;
