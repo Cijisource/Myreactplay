@@ -97,6 +97,14 @@ export default function TransactionManagement({
     return normalized.replace(/^0+(?=\d)/, '').toLowerCase();
   };
 
+  const getRoomNumberWithoutBed = (value?: string | null): string => {
+    const roomNumber = String(value ?? '').trim().replace(/\s+\d+\s*\/\s*\d+$/, '');
+    return roomNumber.split('/')[0].trim();
+  };
+
+  const normalizePreselectedRoomSearchValue = (value?: string | null): string =>
+    normalizeRoomSearchValue(getRoomNumberWithoutBed(value));
+
   // Get the date range for a selected month, defaulting to the current month
   const getMonthDateRange = (monthValue?: string | null) => {
     const activeMonth = monthValue || formatLocalDate(new Date()).slice(0, 7);
@@ -184,7 +192,7 @@ export default function TransactionManagement({
 
   useEffect(() => {
     if (preselectedRoomNumber) {
-      setSearchQuery(preselectedRoomNumber.trim());
+      setSearchQuery(getRoomNumberWithoutBed(preselectedRoomNumber));
     }
   }, [preselectedRoomNumber]);
 
@@ -260,7 +268,7 @@ export default function TransactionManagement({
     const startDate = new Date(dateRange.startDate);
     const endDate = new Date(dateRange.endDate);
     const isIncome = t.transactionType?.transactionType?.trim().toLowerCase() === 'income';
-    const roomSearchValue = normalizeRoomSearchValue(preselectedRoomNumber) || normalizeRoomSearchValue(searchQuery);
+    const roomSearchValue = normalizePreselectedRoomSearchValue(preselectedRoomNumber) || normalizeRoomSearchValue(searchQuery);
     const descriptionText = t.description.toLowerCase();
     const matchesRoomFilter =
       !roomSearchValue ||
