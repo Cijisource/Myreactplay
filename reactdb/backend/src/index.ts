@@ -1659,6 +1659,8 @@ app.get('/api/occupancy/links', verifyToken, requireRole(['admin', 'manager', 'a
         o.UpdatedDate as updatedDate,
         ISNULL(CAST(o.RentFixed AS FLOAT), 0) as rentFixed,
         ISNULL(CAST(o.DepositReceived AS FLOAT), 0) as advanceCollected,
+        ISNULL(CAST(o.DepositRefunded AS FLOAT), 0) as depositRefunded,
+        ISNULL(CAST(o.Charges AS FLOAT), 0) as charges,
         CASE WHEN o.CheckOutDate IS NULL OR o.CheckOutDate > CAST(GETDATE() AS DATE) THEN 1 ELSE 0 END as isActive,
         ISNULL(CAST(COALESCE(
           (SELECT TOP 1 CAST(RentReceived AS FLOAT) 

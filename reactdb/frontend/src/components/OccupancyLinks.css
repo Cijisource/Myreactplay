@@ -696,6 +696,35 @@
   transition: all 0.2s;
 }
 
+.whatsapp-btn {
+  display: inline-flex;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem;
+  border-radius: 50%;
+  background: #25d366;
+  color: #fff;
+  text-decoration: none;
+}
+
+.whatsapp-btn:hover {
+  background: #1fb855;
+}
+
+.whatsapp-btn svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+.whatsapp-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .checkout-btn {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
@@ -958,20 +987,102 @@
     font-size: clamp(0.85rem, 2vw, 1rem);
   }
 
-  /* Table Scrolling */
+  /* Present each occupancy as a readable card on narrow screens. */
   .table-wrapper {
-    overflow-x: auto;
+    overflow: visible;
     border-radius: 8px;
+    background: transparent;
+    box-shadow: none;
   }
 
   .occupancy-table {
-    font-size: clamp(0.75rem, 1.5vw, 0.85rem);
+    display: block;
+    width: 100%;
+    font-size: 0.875rem;
   }
 
-  .occupancy-table th,
+  .occupancy-table thead {
+    display: none;
+  }
+
+  .occupancy-table tbody {
+    display: grid;
+    gap: 0.875rem;
+  }
+
+  .occupancy-table tbody tr:not(.no-data) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+  }
+
   .occupancy-table td {
-    padding: clamp(0.5rem, 1vw, 0.75rem);
-    word-break: break-word;
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.3rem;
+    padding: 0.7rem 0.75rem;
+    border-bottom: 1px solid #edf2f7;
+    overflow-wrap: anywhere;
+  }
+
+  .occupancy-table td::before {
+    content: attr(data-label);
+    color: #64748b;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    line-height: 1.2;
+    text-transform: uppercase;
+  }
+
+  .occupancy-table .status-cell,
+  .occupancy-table .actions-cell {
+    grid-column: 1 / -1;
+  }
+
+  .occupancy-table .status-cell {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    background: #f8fafc;
+  }
+
+  .occupancy-table .room-cell,
+  .occupancy-table .tenant-cell {
+    justify-content: flex-start;
+  }
+
+  .occupancy-table .currency-cell {
+    text-align: left;
+  }
+
+  .occupancy-table .actions-cell {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.5rem;
+    border-bottom: 0;
+  }
+
+  .occupancy-table .action-btn {
+    min-height: 42px;
+  }
+
+  .occupancy-table tbody tr.no-data {
+    display: block;
+  }
+
+  .occupancy-table tbody tr.no-data td {
+    display: block;
+    border: 0;
   }
 
   .relationship-diagram {
@@ -1094,13 +1205,19 @@
     font-size: 0.7rem;
   }
 
-  .occupancy-table {
-    font-size: 0.7rem;
+  .occupancy-table td {
+    padding: 0.65rem 0.6rem;
   }
 
-  .occupancy-table th,
-  .occupancy-table td {
-    padding: 0.4rem 0.25rem;
+  .occupancy-table .status-thumb {
+    width: 32px;
+    height: 32px;
+    margin-right: 0;
+  }
+
+  .occupancy-table .badge {
+    padding: 0.4rem 0.55rem;
+    font-size: 0.75rem;
   }
 
   .relationship-info {

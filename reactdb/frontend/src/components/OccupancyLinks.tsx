@@ -23,6 +23,9 @@ interface OccupancyLink {
   checkInDate: string;
   checkOutDate: string | null;
   rentFixed: number;
+  advanceCollected: number;
+  depositRefunded: number;
+  charges: number;
   isActive: boolean;
   currentRentReceived: number;
   currentPendingPayment: number;
@@ -40,6 +43,12 @@ interface Stats {
 interface OccupancyLinksProps {
   showHeading?: boolean;
 }
+
+const WhatsAppIcon = (): JSX.Element => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M20.52 3.48A11.86 11.86 0 0 0 12.08 0C5.52 0 .18 5.34.18 11.9c0 2.1.55 4.15 1.6 5.96L.08 24l6.3-1.65a11.9 11.9 0 0 0 5.7 1.45h.01c6.56 0 11.9-5.34 11.9-11.9 0-3.18-1.24-6.17-3.47-8.42ZM12.09 21.8h-.01a9.9 9.9 0 0 1-5.04-1.38l-.36-.21-3.74.98 1-3.65-.24-.37a9.87 9.87 0 0 1-1.52-5.27c0-5.47 4.45-9.92 9.92-9.92a9.85 9.85 0 0 1 7.02 2.91 9.85 9.85 0 0 1 2.9 7.02c0 5.47-4.45 9.89-9.93 9.89Zm5.44-7.42c-.3-.15-1.77-.87-2.04-.97-.28-.1-.48-.15-.68.15-.2.3-.78.97-.95 1.17-.18.2-.35.22-.65.07-.3-.15-1.26-.46-2.4-1.47-.89-.8-1.49-1.78-1.67-2.08-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.53.15-.18.2-.3.3-.5.1-.2.05-.38-.03-.53-.07-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.53.08-.8.38-.28.3-1.05 1.02-1.05 2.48s1.08 2.87 1.23 3.07c.15.2 2.12 3.24 5.14 4.54.72.31 1.28.5 1.72.64.73.23 1.4.2 1.93.12.59-.09 1.77-.72 2.02-1.42.25-.7.25-1.3.18-1.42-.08-.13-.28-.2-.58-.35Z" />
+  </svg>
+);
 
 export default function OccupancyLinks({ showHeading = true }: OccupancyLinksProps): JSX.Element {
   const [occupancies, setOccupancies] = useState<OccupancyLink[]>([]);
@@ -285,6 +294,45 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
       month: 'short',
       day: 'numeric'
     });
+  };
+
+  const buildWhatsAppUrl = (occ: OccupancyLink): string | null => {
+    const phoneDigits = occ.tenantPhone.replace(/\D/g, '');
+    const whatsappPhone = phoneDigits.length === 10
+      ? `91${phoneDigits}`
+      : phoneDigits.length === 11 && phoneDigits.startsWith('0')
+        ? `91${phoneDigits.slice(1)}`
+        : phoneDigits.length === 12 && phoneDigits.startsWith('91')
+          ? phoneDigits
+          : null;
+
+    if (!whatsappPhone) return null;
+
+    const tenantAddress = [occ.tenantAddress || '', occ.tenantCity || '']
+      .map(value => value.trim())
+      .filter(Boolean)
+      .join(', ') || 'N/A';
+    const message = [
+      'Gnanabi Mansion, Arasaradi, Madurai.',
+      'Have a pleasant stay at Madurai.',
+      '',
+      `Tenant: ${occ.tenantName.trim()}`,
+      `Phone: ${occ.tenantPhone.trim()}`,
+      `Address: ${tenantAddress}`,
+      `Room: ${occ.roomNumber.trim()}`,
+      `Status: ${occ.isActive ? 'Active' : 'Ended'}`,
+      `Check-in: ${formatDate(occ.checkInDate)}`,
+      `Reserved check-out: ${occ.checkOutDate ? formatDate(occ.checkOutDate) : '—'}`,
+      `Rent: ${formatCurrency(occ.rentFixed)}`,
+      `Deposit received: ${formatCurrency(occ.advanceCollected)}`,
+      `Deposit refunded: ${formatCurrency(occ.depositRefunded)}`,
+      `Charges: ${formatCurrency(occ.charges)}`,
+      `Collected: ${formatCurrency(occ.currentRentReceived)}`,
+      `Pending: ${formatCurrency(occ.currentPendingPayment)}`,
+      `Last payment: ${occ.lastPaymentDate ? formatDate(occ.lastPaymentDate) : '—'}`,
+    ].join('\n');
+
+    return `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(message)}`;
   };
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -556,9 +604,11 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
           </thead>
           <tbody>
             {filteredAndSorted.length > 0 ? (
-              filteredAndSorted.map(occ => (
+              filteredAndSorted.map(occ => {
+                const whatsappUrl = buildWhatsAppUrl(occ);
+                return (
                 <tr key={occ.occupancyId} className={`row ${occ.isActive ? 'active' : 'inactive'}`}>
-                  <td className="status-cell">
+                  <td className="status-cell" data-label="Status">
                     {occ.tenantPhoto ? (
                       (() => {
                         // Prefer explicit azurePhotoUrl if provided by API, otherwise handle absolute URLs
@@ -620,30 +670,30 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
                       {occ.isActive ? '🟢 Active' : '🔴 Ended'}
                     </span>
                   </td>
-                  <td className="room-cell">
+                  <td className="room-cell" data-label="Room">
                     <strong>#{occ.roomNumber.trim()}</strong>
                     <small>{occ.beds} bed{occ.beds > 1 ? 's' : ''}</small>
                   </td>
-                  <td className="tenant-cell">
+                  <td className="tenant-cell" data-label="Tenant">
                     <strong>{occ.tenantName.trim()}</strong>
                     <small>{occ.tenantCity.trim()}</small>
                   </td>
-                  <td className="phone-cell">
+                  <td className="phone-cell" data-label="Phone">
                     <a href={`tel:${occ.tenantPhone.trim()}`}>{occ.tenantPhone.trim()}</a>
                   </td>
-                  <td>{formatDate(occ.checkInDate)}</td>
-                  <td>{occ.checkOutDate ? formatDate(occ.checkOutDate) : '-'}</td>
-                  <td className="currency-cell">
+                  <td data-label="Check-in">{formatDate(occ.checkInDate)}</td>
+                  <td data-label="Check-out">{occ.checkOutDate ? formatDate(occ.checkOutDate) : '-'}</td>
+                  <td className="currency-cell" data-label="Rent fixed">
                     <strong>{formatCurrency(occ.rentFixed)}</strong>
                   </td>
-                  <td className="currency-cell collected">
+                  <td className="currency-cell collected" data-label="Collected">
                     {formatCurrency(occ.currentRentReceived)}
                   </td>
-                  <td className="currency-cell pending">
+                  <td className="currency-cell pending" data-label="Pending">
                     {formatCurrency(occ.currentPendingPayment)}
                   </td>
-                  <td>{occ.lastPaymentDate ? formatDate(occ.lastPaymentDate) : '-'}</td>
-                  <td className="actions-cell">
+                  <td data-label="Last payment">{occ.lastPaymentDate ? formatDate(occ.lastPaymentDate) : '-'}</td>
+                  <td className="actions-cell" data-label="Actions">
                     <button
                       className="action-btn history-btn"
                       onClick={() => {
@@ -667,6 +717,28 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
                     >
                       📷
                     </button>
+                    {whatsappUrl ? (
+                      <a
+                        className="action-btn whatsapp-btn"
+                        href={whatsappUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Share ${occ.tenantName.trim()}'s occupancy details on WhatsApp`}
+                        title="Share details on WhatsApp"
+                      >
+                        <WhatsAppIcon />
+                      </a>
+                    ) : (
+                      <button
+                        className="action-btn whatsapp-btn"
+                        type="button"
+                        disabled
+                        aria-label="WhatsApp unavailable: tenant phone number is invalid"
+                        title="WhatsApp unavailable: tenant phone number is invalid"
+                      >
+                        <WhatsAppIcon />
+                      </button>
+                    )}
                     {occ.isActive && (
                       <button
                         className="action-btn checkout-btn"
@@ -680,7 +752,8 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
                     )}
                   </td>
                 </tr>
-              ))
+                );
+              })
             ) : (
               <tr className="no-data">
                 <td colSpan={11}>
