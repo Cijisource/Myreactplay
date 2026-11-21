@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import LoadingSpinner from './LoadingSpinner';
-import { getOccupancyLinks, getFileUrl } from '../api';
+import { apiService, downloadFileData, getFileUrl, getOccupancyLinks, getRentalPaymentProofUrl } from '../api';
 import SearchableDropdown from './SearchableDropdown';
 import CheckoutModal from './CheckoutModal';
 import TenantFullScreenView from './TenantFullScreenView';
 import TenantPhotoGalleryModal from './TenantPhotoGalleryModal';
 import type { TenantWithOccupancy } from './TenantManagement';
+import type { TenantStayPdfFile } from '../tenantStayPdf';
 import './OccupancyLinks.css';
 
 interface OccupancyLink {
@@ -33,6 +34,31 @@ interface OccupancyLink {
   lastPaymentDate?: string;
 }
 
+interface TenantStayPaymentRecord {
+  occupancyId: number;
+  rentReceivedOn: string;
+  rentReceived: number;
+  charges: number;
+  rentBalance?: number | null;
+  modeOfPayment?: string | null;
+  screenshotUrl?: string | null;
+  folder?: string | null;
+}
+
+interface TenantStayElectricityRecord {
+  billingYear: number;
+  billingMonth: number;
+  checkInDate: string;
+  checkOutDate?: string | null;
+  serviceName?: string;
+  meterNo?: string;
+  totalUnitsForRoom?: number;
+  proRataUnits?: number;
+  chargePerUnit?: number;
+  totalCharge?: number;
+  status?: string;
+}
+
 interface Stats {
   totalOccupancies: number;
   activeOccupancies: number;
@@ -47,7 +73,17 @@ interface OccupancyLinksProps {
 
 const WhatsAppIcon = (): JSX.Element => (
   <svg viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M20.52 3.48A11.86 11.86 0 0 0 12.08 0C5.52 0 .18 5.34.18 11.9c0 2.1.55 4.15 1.6 5.96L.08 24l6.3-1.65a11.9 11.9 0 0 0 5.7 1.45h.01c6.56 0 11.9-5.34 11.9-11.9 0-3.18-1.24-6.17-3.47-8.42ZM12.09 21.8h-.01a9.9 9.9 0 0 1-5.04-1.38l-.36-.21-3.74.98 1-3.65-.24-.37a9.87 9.87 0 0 1-1.52-5.27c0-5.47 4.45-9.92 9.92-9.92a9.85 9.85 0 0 1 7.02 2.91 9.85 9.85 0 0 1 2.9 7.02c0 5.47-4.45 9.89-9.93 9.89Zm5.44-7.42c-.3-.15-1.77-.87-2.04-.97-.28-.1-.48-.15-.68.15-.2.3-.78.97-.95 1.17-.18.2-.35.22-.65.07-.3-.15-1.26-.46-2.4-1.47-.89-.8-1.49-1.78-1.67-2.08-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.53.15-.18.2-.3.3-.5.1-.2.05-.38-.03-.53-.07-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.53.08-.8.38-.28.3-1.05 1.02-1.05 2.48s1.08 2.87 1.23 3.07c.15.2 2.12 3.24 5.14 4.54.72.31 1.28.5 1.72.64.73.23 1.4.2 1.93.12.59-.09 1.77-.72 2.02-1.42.25-.7.25-1.3.18-1.42-.08-.13-.28-.2-.58-.35Z" />
+    <path d="M12.05 2.25A9.65 9.65 0 0 0 3.8 16.9L2.5 21.75l4.98-1.31A9.72 9.72 0 1 0 12.05 2.25Zm0 17.72c-1.43 0-2.82-.38-4.04-1.1l-.29-.17-2.96.78.79-2.88-.19-.3A7.99 7.99 0 1 1 12.05 19.97Zm4.38-5.98c-.24-.12-1.42-.7-1.64-.78-.22-.08-.38-.12-.54.12-.16.24-.62.78-.76.94-.14.16-.28.18-.52.06-.24-.12-1.01-.37-1.93-1.19-.71-.64-1.19-1.42-1.33-1.66-.14-.24-.02-.37.1-.49.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.54-1.31-.74-1.79-.2-.47-.4-.41-.54-.42h-.46c-.16 0-.42.06-.64.3-.22.24-.84.82-.84 2s.86 2.32 1 2.48c.12.16 1.69 2.58 4.1 3.62.57.25 1.02.4 1.37.51.58.18 1.1.15 1.51.09.46-.07 1.42-.58 1.62-1.14.2-.56.2-1.04.14-1.14-.06-.1-.22-.16-.46-.28Z" />
+  </svg>
+);
+
+const PdfIcon = (): JSX.Element => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M6 2.5h7l5 5V21H6a2 2 0 0 1-2-2V4.5a2 2 0 0 1 2-2Z" fill="#fff" />
+    <path d="M13 2.5v5h5" fill="#e9edf2" />
+    <path d="M13 2.5v5h5" fill="none" stroke="#b42318" strokeWidth="1.2" />
+    <rect x="4.5" y="12" width="15" height="6.5" rx="1.5" fill="#b42318" />
+    <text x="12" y="16.9" fill="#fff" fontSize="5.8" fontWeight="800" textAnchor="middle" fontFamily="Arial, sans-serif">PDF</text>
   </svg>
 );
 
@@ -68,11 +104,25 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
   const [checkOutDateFrom, setCheckOutDateFrom] = useState<string>('');
   const [checkOutDateTo, setCheckOutDateTo] = useState<string>('');
   const [selectedOccupancy, setSelectedOccupancy] = useState<OccupancyLink | null>(null);
+  const [pdfDownloadOccupancyId, setPdfDownloadOccupancyId] = useState<number | null>(null);
+  const [openActionsOccupancyId, setOpenActionsOccupancyId] = useState<number | null>(null);
   const [fullScreenTenant, setFullScreenTenant] = useState<TenantWithOccupancy | null>(null);
   const [galleryTenant, setGalleryTenant] = useState<TenantWithOccupancy | null>(null);
   const [galleryInitialPhotoIndex, setGalleryInitialPhotoIndex] = useState<number | null>(0);
   const galleryInitialProofIndex: number | null = null;
   const [galleryInitialTab, setGalleryInitialTab] = useState<'photos' | 'proofs'>('photos');
+
+  useEffect(() => {
+    const closeActionsMenu = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('[data-actions-popup]')) {
+        setOpenActionsOccupancyId(null);
+      }
+    };
+
+    document.addEventListener('mousedown', closeActionsMenu);
+    return () => document.removeEventListener('mousedown', closeActionsMenu);
+  }, []);
 
   const buildTenantFromOccupancy = (occ: OccupancyLink): TenantWithOccupancy => ({
     id: occ.tenantId,
@@ -297,6 +347,205 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
     });
   };
 
+  const downloadTenantStayPdf = async (occ: OccupancyLink): Promise<void> => {
+    setPdfDownloadOccupancyId(occ.occupancyId);
+    setError(null);
+    try {
+      const { createTenantStayPdf } = await import('../tenantStayPdf');
+      const [tenantResponse, paymentResponse] = await Promise.all([
+        apiService.getTenantById(occ.tenantId),
+        apiService.getRentalCollectionByOccupancy(occ.occupancyId),
+      ]);
+      const tenant = tenantResponse.data;
+      const checkInDate = new Date(`${occ.checkInDate.slice(0, 10)}T00:00:00`);
+      const stayEndDate = occ.isActive
+        ? new Date()
+        : occ.checkOutDate
+          ? new Date(`${occ.checkOutDate.slice(0, 10)}T00:00:00`)
+          : new Date();
+      if (Number.isNaN(checkInDate.getTime()) || Number.isNaN(stayEndDate.getTime())) {
+        throw new Error('The occupancy dates are invalid, so the stay report cannot be generated.');
+      }
+
+      const months: Array<{ year: number; month: number }> = [];
+      const cursor = new Date(checkInDate.getFullYear(), checkInDate.getMonth(), 1);
+      const endMonth = new Date(stayEndDate.getFullYear(), stayEndDate.getMonth(), 1);
+      while (cursor <= endMonth) {
+        months.push({ year: cursor.getFullYear(), month: cursor.getMonth() + 1 });
+        cursor.setMonth(cursor.getMonth() + 1);
+      }
+
+      const electricityResponses = await Promise.all(
+        months.map(({ year, month }) =>
+          apiService.getTenantChargesForMonth(year, month, occ.tenantId, occ.roomId)
+        )
+      );
+      const checkInKey = occ.checkInDate.slice(0, 10);
+      const checkOutKey = occ.checkOutDate?.slice(0, 10) || null;
+      const electricity: TenantStayElectricityRecord[] = electricityResponses
+        .flatMap((response: { data: unknown }) =>
+          Array.isArray(response.data) ? response.data as TenantStayElectricityRecord[] : []
+        )
+        .filter((record) =>
+          String(record.checkInDate || '').slice(0, 10) === checkInKey
+          && (!checkOutKey || !record.checkOutDate || String(record.checkOutDate).slice(0, 10) === checkOutKey)
+        )
+        .sort((left, right) =>
+          (left.billingYear - right.billingYear) || (left.billingMonth - right.billingMonth)
+        );
+
+      const warnings: string[] = [];
+      const loadFile = async (path: string | null | undefined, label: string): Promise<TenantStayPdfFile | null> => {
+        if (!path) return null;
+        const url = getFileUrl(path);
+        const name = new URL(url, window.location.origin).pathname.split('/').pop() || label;
+        try {
+          const file = await downloadFileData(url);
+          return { name, contentType: file.contentType, data: file.data };
+        } catch (error) {
+          console.error(`Unable to include ${label} in tenant stay PDF`, error);
+          warnings.push(`${label} could not be downloaded and is not included.`);
+          return null;
+        }
+      };
+
+      const photoPaths = [
+        tenant.azurePhotoUrl,
+        tenant.photoUrl,
+        tenant.photo2Url,
+        tenant.photo3Url,
+        tenant.photo4Url,
+        tenant.photo5Url,
+        tenant.photo6Url,
+        tenant.photo7Url,
+        tenant.photo8Url,
+        tenant.photo9Url,
+        tenant.photo10Url,
+      ].filter((path): path is string => typeof path === 'string' && path.length > 0);
+      const uniquePhotoPaths = [...new Set(photoPaths)];
+      const [mainPhoto, ...additionalPhotoFiles] = await Promise.all(
+        uniquePhotoPaths.map((path, index) => loadFile(path, index === 0 ? 'Tenant photo' : `Additional tenant photo ${index}`))
+      );
+
+      const proofPaths = [
+        tenant.proof1Url,
+        tenant.proof2Url,
+        tenant.proof3Url,
+        tenant.proof4Url,
+        tenant.proof5Url,
+        tenant.proof6Url,
+        tenant.proof7Url,
+        tenant.proof8Url,
+        tenant.proof9Url,
+        tenant.proof10Url,
+      ].filter((path): path is string => typeof path === 'string' && path.length > 0);
+      const documentFiles = (await Promise.all(
+        proofPaths.map((path, index) => loadFile(path, `Tenant document ${index + 1}`))
+      )).filter((file): file is TenantStayPdfFile => file !== null);
+
+      const paymentRecords: TenantStayPaymentRecord[] = Array.isArray(paymentResponse.data)
+        ? paymentResponse.data as TenantStayPaymentRecord[]
+        : [];
+      const startTime = checkInDate.getTime();
+      const endTime = stayEndDate.getTime();
+      const stayPayments = paymentRecords
+        .filter((payment) => {
+          const paidOn = new Date(payment.rentReceivedOn).getTime();
+          return Number.isFinite(paidOn) && paidOn >= startTime && paidOn <= endTime + 24 * 60 * 60 * 1000;
+        })
+        .sort((left, right) =>
+          new Date(left.rentReceivedOn).getTime() - new Date(right.rentReceivedOn).getTime()
+        );
+
+      const paymentProofs = await Promise.all(stayPayments.map(async (payment, index) => {
+        if (!payment.screenshotUrl) return null;
+        const proofUrl = getRentalPaymentProofUrl(
+          payment.screenshotUrl,
+          payment.rentReceivedOn,
+          payment.folder
+        );
+        return loadFile(proofUrl, `Payment proof ${index + 1}`);
+      }));
+      documentFiles.push(...paymentProofs.filter((file): file is TenantStayPdfFile => file !== null));
+
+      const currency = (amount: number | null | undefined): string =>
+        new Intl.NumberFormat('en-IN', {
+          style: 'currency',
+          currency: 'INR',
+          maximumFractionDigits: 0,
+        }).format(amount || 0);
+      const date = (value: string | null | undefined): string =>
+        value ? new Date(`${value.slice(0, 10)}T00:00:00`).toLocaleDateString('en-IN', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        }) : 'Not set';
+
+      const report = await createTenantStayPdf({
+        tenant: {
+          name: tenant.name || occ.tenantName,
+          phone: tenant.phone || occ.tenantPhone,
+          address: tenant.address || occ.tenantAddress,
+          city: tenant.city || occ.tenantCity,
+        },
+        stay: {
+          roomNumber: occ.roomNumber,
+          checkInDate: date(occ.checkInDate),
+          checkOutDate: date(occ.checkOutDate),
+          status: occ.isActive ? 'Active' : 'Ended',
+          monthlyRent: currency(occ.rentFixed),
+          depositReceived: currency(occ.advanceCollected),
+          depositRefunded: currency(occ.depositRefunded),
+          additionalCharges: currency(occ.charges),
+        },
+        photo: mainPhoto || null,
+        documents: [...additionalPhotoFiles, ...documentFiles].filter(
+          (file): file is TenantStayPdfFile => file !== null
+        ),
+        payments: stayPayments.map((payment) => ({
+          date: date(payment.rentReceivedOn),
+          received: currency(payment.rentReceived),
+          charges: currency(payment.charges),
+          balance: currency(payment.rentBalance),
+          method: payment.modeOfPayment || 'Not recorded',
+        })),
+        totalReceived: currency(
+          stayPayments.reduce((total, payment) => total + (Number(payment.rentReceived) || 0), 0)
+        ),
+        electricity: electricity.map((record) => ({
+          period: `${record.billingMonth}/${record.billingYear}`,
+          serviceName: record.serviceName || 'Electricity',
+          meterNumber: record.meterNo || 'N/A',
+          roomUnits: `${record.totalUnitsForRoom ?? 0}`,
+          tenantUnits: `${record.proRataUnits ?? 0}`,
+          chargePerUnit: currency(record.chargePerUnit),
+          totalCharge: currency(record.totalCharge),
+          status: record.status || 'Not recorded',
+        })),
+      });
+
+      const pdfBuffer = new ArrayBuffer(report.bytes.byteLength);
+      new Uint8Array(pdfBuffer).set(report.bytes);
+      const blob = new Blob([pdfBuffer], { type: 'application/pdf' });
+      const downloadUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `Tenant-Stay-${occ.tenantName.trim().replace(/[^a-z0-9]+/gi, '-')}-Room-${occ.roomNumber.trim()}.pdf`;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+
+      const allWarnings = [...warnings, ...report.warnings];
+      if (allWarnings.length) {
+        window.alert(`The PDF downloaded, but some attachments could not be included:\n\n${allWarnings.join('\n')}`);
+      }
+    } catch (error) {
+      console.error('Failed to generate tenant stay PDF:', error);
+      setError(error instanceof Error ? error.message : 'Failed to generate tenant stay PDF.');
+    } finally {
+      setPdfDownloadOccupancyId(null);
+    }
+  };
+
   const buildWhatsAppUrl = (occ: OccupancyLink): string | null => {
     const phoneDigits = occ.tenantPhone.replace(/\D/g, '');
     const whatsappPhone = phoneDigits.length === 10
@@ -349,219 +598,6 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
     ].join('\n');
 
     return `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(message)}`;
-  };
-
-  const getTenantPhotoUrl = (occ: OccupancyLink): string | null => {
-    if (occ.azurePhotoUrl) return occ.azurePhotoUrl;
-    if (!occ.tenantPhoto) return null;
-    if (occ.tenantPhoto.startsWith('http://') || occ.tenantPhoto.startsWith('https://')) {
-      return occ.tenantPhoto;
-    }
-    return getFileUrl(occ.tenantPhoto);
-  };
-
-  const drawRoundedRect = (
-    context: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    radius: number,
-  ): void => {
-    context.beginPath();
-    context.roundRect(x, y, width, height, radius);
-  };
-
-  const wrapCanvasText = (
-    context: CanvasRenderingContext2D,
-    text: string,
-    x: number,
-    y: number,
-    maxWidth: number,
-    lineHeight: number,
-  ): number => {
-    const words = text.split(' ');
-    let line = '';
-    let currentY = y;
-
-    words.forEach((word) => {
-      const testLine = line ? `${line} ${word}` : word;
-      if (context.measureText(testLine).width > maxWidth && line) {
-        context.fillText(line, x, currentY);
-        line = word;
-        currentY += lineHeight;
-      } else {
-        line = testLine;
-      }
-    });
-
-    if (line) context.fillText(line, x, currentY);
-    return currentY + lineHeight;
-  };
-
-  const loadCanvasImage = (url: string): Promise<HTMLImageElement | null> =>
-    new Promise((resolve) => {
-      const image = new Image();
-      image.crossOrigin = 'anonymous';
-      image.onload = () => resolve(image);
-      image.onerror = () => resolve(null);
-      image.src = url;
-    });
-
-  const generateGreetingCard = async (occ: OccupancyLink): Promise<File | null> => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 1080;
-    canvas.height = 1350;
-    const context = canvas.getContext('2d');
-    if (!context) return null;
-
-    const tenantAddress = [occ.tenantAddress || '', occ.tenantCity || '']
-      .map(value => value.trim())
-      .filter(Boolean)
-      .join(', ') || 'N/A';
-
-    context.fillStyle = '#f6f2e8';
-    context.fillRect(0, 0, canvas.width, canvas.height);
-
-    const headerGradient = context.createLinearGradient(0, 0, canvas.width, 420);
-    headerGradient.addColorStop(0, '#17365d');
-    headerGradient.addColorStop(1, '#246a73');
-    context.fillStyle = headerGradient;
-    context.fillRect(0, 0, canvas.width, 420);
-
-    context.fillStyle = '#ffffff';
-    context.textAlign = 'center';
-    context.font = '700 54px Arial';
-    context.fillText('GNANABI MANSION', 540, 78);
-    context.font = '500 28px Arial';
-    context.fillText('Arasaradi, Madurai', 540, 118);
-
-    const photoUrl = getTenantPhotoUrl(occ);
-    const photo = photoUrl ? await loadCanvasImage(photoUrl) : null;
-    context.save();
-    context.beginPath();
-    context.arc(540, 230, 112, 0, Math.PI * 2);
-    context.closePath();
-    context.clip();
-    if (photo) {
-      const sourceSize = Math.min(photo.naturalWidth, photo.naturalHeight);
-      const sourceX = (photo.naturalWidth - sourceSize) / 2;
-      const sourceY = (photo.naturalHeight - sourceSize) / 2;
-      context.drawImage(photo, sourceX, sourceY, sourceSize, sourceSize, 428, 118, 224, 224);
-    } else {
-      context.fillStyle = '#e8f1f2';
-      context.fillRect(428, 118, 224, 224);
-      context.fillStyle = '#246a73';
-      context.font = '700 96px Arial';
-      context.fillText(
-        occ.tenantName.trim().charAt(0).toUpperCase() || 'G',
-        540,
-        270,
-      );
-    }
-    context.restore();
-
-    context.beginPath();
-    context.arc(540, 230, 112, 0, Math.PI * 2);
-    context.strokeStyle = '#ffffff';
-    context.lineWidth = 10;
-    context.stroke();
-
-    context.textAlign = 'left';
-    context.fillStyle = '#17365d';
-    context.font = '700 38px Arial';
-    context.fillText(`Welcome, ${occ.tenantName.trim()}`, 70, 495);
-
-    context.fillStyle = '#5b6573';
-    context.font = '400 27px Arial';
-    context.fillText('Your room details are confirmed', 70, 538);
-
-    drawRoundedRect(context, 55, 575, 970, 190, 24);
-    context.fillStyle = '#ffffff';
-    context.fill();
-    context.strokeStyle = '#ddd8ca';
-    context.lineWidth = 2;
-    context.stroke();
-
-    context.fillStyle = '#17365d';
-    context.font = '700 27px Arial';
-    context.fillText('TENANT DETAILS', 88, 622);
-    context.font = '500 24px Arial';
-    context.fillStyle = '#26364a';
-    context.fillText(`Name: ${occ.tenantName.trim()}`, 88, 662);
-    context.fillText(`Phone: ${occ.tenantPhone.trim()}`, 88, 698);
-    wrapCanvasText(context, `Address: ${tenantAddress}`, 88, 734, 890, 34);
-
-    drawRoundedRect(context, 55, 785, 970, 250, 24);
-    context.fillStyle = '#ffffff';
-    context.fill();
-    context.strokeStyle = '#ddd8ca';
-    context.stroke();
-
-    context.fillStyle = '#17365d';
-    context.font = '700 27px Arial';
-    context.fillText('STAY DETAILS', 88, 832);
-    context.font = '500 24px Arial';
-    context.fillStyle = '#26364a';
-    context.fillText(`Room No: ${occ.roomNumber.trim()}`, 88, 872);
-    context.fillText(`Status: ${occ.isActive ? 'Active' : 'Ended'}`, 88, 912);
-    context.fillText(`Check-in: ${formatDate(occ.checkInDate)}`, 88, 952);
-    context.fillText(`Reserved Check-out: ${occ.checkOutDate ? formatDate(occ.checkOutDate) : '—'}`, 88, 992);
-
-    drawRoundedRect(context, 55, 1055, 970, 190, 24);
-    context.fillStyle = '#17365d';
-    context.fill();
-
-    context.fillStyle = '#ffffff';
-    context.font = '700 27px Arial';
-    context.fillText('PAYMENT SUMMARY', 88, 1102);
-    context.font = '500 22px Arial';
-    context.fillText(`Monthly Rent: ${formatCurrency(occ.rentFixed)}`, 88, 1144);
-    context.fillText(`Deposit Received: ${formatCurrency(occ.advanceCollected)}`, 88, 1182);
-    context.fillText(`Deposit Refunded: ${formatCurrency(occ.depositRefunded)}`, 555, 1144);
-    context.fillText(`Additional Charges: ${formatCurrency(occ.charges)}`, 555, 1182);
-    context.fillText(`Collected: ${formatCurrency(occ.currentRentReceived)}`, 88, 1220);
-    context.fillText(`Pending: ${formatCurrency(occ.currentPendingPayment)}`, 555, 1220);
-
-    context.textAlign = 'center';
-    context.fillStyle = '#5b6573';
-    context.font = '500 24px Arial';
-    context.fillText('Have a pleasant stay at Madurai', 540, 1302);
-
-    const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, 'image/png', 1),
-    );
-    if (!blob) return null;
-    return new File([blob], `Gnanabi-Mansion-${occ.tenantName.trim().replace(/\s+/g, '-')}.png`, {
-      type: 'image/png',
-    });
-  };
-
-  const shareToWhatsApp = async (occ: OccupancyLink, whatsappUrl: string): Promise<void> => {
-    const message = new URL(whatsappUrl).searchParams.get('text') || '';
-
-    if (navigator.share) {
-      try {
-        const greetingCard = await generateGreetingCard(occ);
-        if (greetingCard) {
-          const shareData = { text: message, files: [greetingCard] };
-          const canShareWithFiles = typeof navigator.canShare !== 'function'
-            || navigator.canShare(shareData);
-
-          if (canShareWithFiles) {
-            await navigator.share(shareData);
-            return;
-          }
-        }
-
-        await navigator.share({ text: message });
-        return;
-      } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') return;
-      }
-    }
-
-    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
   };
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -825,8 +861,6 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
               <th>Check-In</th>
               <th>Check-Out</th>
               <th>Rent Fixed</th>
-              <th>Collected</th>
-              <th>Pending</th>
               <th>Last Payment</th>
               <th>Actions</th>
             </tr>
@@ -915,76 +949,117 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
                   <td className="currency-cell" data-label="Rent fixed">
                     <strong>{formatCurrency(occ.rentFixed)}</strong>
                   </td>
-                  <td className="currency-cell collected" data-label="Collected">
-                    {formatCurrency(occ.currentRentReceived)}
-                  </td>
-                  <td className="currency-cell pending" data-label="Pending">
-                    {formatCurrency(occ.currentPendingPayment)}
-                  </td>
                   <td data-label="Last payment">{occ.lastPaymentDate ? formatDate(occ.lastPaymentDate) : '-'}</td>
                   <td className="actions-cell" data-label="Actions">
-                    <button
-                      className="action-btn history-btn"
-                      onClick={() => {
-                        const tenant = buildTenantFromOccupancy(occ);
-                        setFullScreenTenant(tenant);
-                      }}
-                      title="View tenant history"
-                    >
-                      📜
-                    </button>
+                    <div className="actions-popup-container" data-actions-popup>
+                      <button
+                        type="button"
+                        className="actions-popup-trigger"
+                        aria-expanded={openActionsOccupancyId === occ.occupancyId}
+                        aria-haspopup="menu"
+                        aria-label={`Open actions for ${occ.tenantName.trim()}`}
+                        title="Actions"
+                        onClick={() => setOpenActionsOccupancyId((current) =>
+                          current === occ.occupancyId ? null : occ.occupancyId
+                        )}
+                      >
+                        <span aria-hidden="true">⋮</span>
+                      </button>
 
-                    <button
-                      className="action-btn photo-btn"
-                      onClick={() => {
-                        const tenant = buildTenantFromOccupancy(occ);
-                        setGalleryInitialPhotoIndex(0);
-                        setGalleryInitialTab('photos');
-                        setGalleryTenant(tenant);
-                      }}
-                      title="View guest photos"
-                    >
-                      📷
-                    </button>
-                    {whatsappUrl ? (
-                      <button
-                        className="action-btn whatsapp-btn"
-                        type="button"
-                        onClick={() => void shareToWhatsApp(occ, whatsappUrl)}
-                        aria-label={`Share ${occ.tenantName.trim()}'s occupancy details on WhatsApp`}
-                        title="Share tenant card and photo on WhatsApp"
-                      >
-                        <WhatsAppIcon />
-                      </button>
-                    ) : (
-                      <button
-                        className="action-btn whatsapp-btn"
-                        type="button"
-                        disabled
-                        aria-label="WhatsApp unavailable: tenant phone number is invalid"
-                        title="WhatsApp unavailable: tenant phone number is invalid"
-                      >
-                        <WhatsAppIcon />
-                      </button>
-                    )}
-                    {occ.isActive && (
-                      <button
-                        className="action-btn checkout-btn"
-                        onClick={() => {
-                          setSelectedOccupancy(occ);
-                        }}
-                        title="Checkout tenant"
-                      >
-                        Checkout
-                      </button>
-                    )}
+                      {openActionsOccupancyId === occ.occupancyId && (
+                        <div className="actions-popup-menu" role="menu">
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="actions-popup-item"
+                            onClick={() => {
+                              setOpenActionsOccupancyId(null);
+                              const tenant = buildTenantFromOccupancy(occ);
+                              setFullScreenTenant(tenant);
+                            }}
+                          >
+                            <span className="actions-popup-icon">📜</span>
+                            <span>Tenant history</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="actions-popup-item"
+                            onClick={() => {
+                              setOpenActionsOccupancyId(null);
+                              const tenant = buildTenantFromOccupancy(occ);
+                              setGalleryInitialPhotoIndex(0);
+                              setGalleryInitialTab('photos');
+                              setGalleryTenant(tenant);
+                            }}
+                          >
+                            <span className="actions-popup-icon">📷</span>
+                            <span>Photos</span>
+                          </button>
+
+                          {whatsappUrl ? (
+                            <a
+                              role="menuitem"
+                              className="actions-popup-item"
+                              href={whatsappUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={() => setOpenActionsOccupancyId(null)}
+                            >
+                              <span className="actions-popup-icon whatsapp-popup-icon"><WhatsAppIcon /></span>
+                              <span>WhatsApp</span>
+                            </a>
+                          ) : (
+                            <button
+                              type="button"
+                              role="menuitem"
+                              className="actions-popup-item"
+                              disabled
+                            >
+                              <span className="actions-popup-icon whatsapp-popup-icon"><WhatsAppIcon /></span>
+                              <span>WhatsApp unavailable</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="actions-popup-item"
+                            onClick={() => {
+                              setOpenActionsOccupancyId(null);
+                              void downloadTenantStayPdf(occ);
+                            }}
+                            disabled={pdfDownloadOccupancyId === occ.occupancyId}
+                          >
+                            <span className="actions-popup-icon pdf-popup-icon"><PdfIcon /></span>
+                            <span>{pdfDownloadOccupancyId === occ.occupancyId ? 'Preparing PDF...' : 'Download PDF'}</span>
+                          </button>
+
+                          {occ.isActive && (
+                            <button
+                              type="button"
+                              role="menuitem"
+                              className="actions-popup-item actions-popup-checkout"
+                              onClick={() => {
+                                setOpenActionsOccupancyId(null);
+                                setSelectedOccupancy(occ);
+                              }}
+                            >
+                              <span className="actions-popup-icon">✓</span>
+                              <span>Checkout tenant</span>
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </td>
                 </tr>
                 );
               })
             ) : (
               <tr className="no-data">
-                <td colSpan={11}>
+                <td colSpan={9}>
                   <p>📭 No occupancy history found matching your criteria</p>
                 </td>
               </tr>

@@ -324,6 +324,28 @@ export const getFileUrl = (filePath: string): string => {
   return fullUrl;
 };
 
+export const downloadFileData = async (fileUrl: string): Promise<{ data: ArrayBuffer; contentType: string }> => {
+  const fileOrigin = new URL(fileUrl, window.location.origin).origin;
+  const apiOrigin = new URL(API_URL, window.location.origin).origin;
+  if (fileOrigin !== apiOrigin) {
+    const response = await fetch(fileUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to download file (${response.status})`);
+    }
+    return {
+      data: await response.arrayBuffer(),
+      contentType: response.headers.get('content-type') || 'application/octet-stream',
+    };
+  }
+
+  const response = await api.get<ArrayBuffer>(fileUrl, { responseType: 'arraybuffer' });
+  const contentType = response.headers['content-type'];
+  return {
+    data: response.data,
+    contentType: typeof contentType === 'string' ? contentType : 'application/octet-stream',
+  };
+};
+
 export const getRentalPaymentProofUrl = (
   filePath: string,
   paymentDate?: string | null,
