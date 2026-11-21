@@ -1173,13 +1173,12 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
               onClick={() => aadhaarInputRef.current?.click()}
               disabled={loading || isReadingAadhaar}
             >
-              {isReadingAadhaar ? 'Reading card...' : 'Choose Aadhaar image'}
+              {isReadingAadhaar ? 'Reading card...' : 'Browse Aadhaar photo'}
             </button>
             <input
               ref={aadhaarInputRef}
               type="file"
               accept="image/*"
-              capture="environment"
               onChange={(event) => void handleAadhaarImageChange(event)}
               className="file-input"
               disabled={loading || isReadingAadhaar}
