@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import LoadingSpinner from './LoadingSpinner';
 import { apiService, downloadFileData, getFileUrl, getOccupancyLinks, getRentalPaymentProofUrl } from '../api';
 import SearchableDropdown from './SearchableDropdown';
@@ -50,6 +50,8 @@ interface TenantStayElectricityRecord {
   billingMonth: number;
   checkInDate: string;
   checkOutDate?: string | null;
+  occupancyDaysInMonth?: number;
+  totalDaysInMonth?: number;
   serviceName?: string;
   meterNo?: string;
   totalUnitsForRoom?: number;
@@ -88,7 +90,9 @@ const PdfIcon = (): JSX.Element => (
 );
 
 export default function OccupancyLinks({ showHeading = true }: OccupancyLinksProps): JSX.Element {
+  const occupancyPageSize = 5;
   const [occupancies, setOccupancies] = useState<OccupancyLink[]>([]);
+  const [visibleOccupancyCount, setVisibleOccupancyCount] = useState(occupancyPageSize);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
@@ -111,6 +115,7 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
   const [galleryInitialPhotoIndex, setGalleryInitialPhotoIndex] = useState<number | null>(0);
   const galleryInitialProofIndex: number | null = null;
   const [galleryInitialTab, setGalleryInitialTab] = useState<'photos' | 'proofs'>('photos');
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const closeActionsMenu = (event: PointerEvent) => {
@@ -325,9 +330,32 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
       if (sortBy === 'tenant') return a.tenantName.localeCompare(b.tenantName);
       if (sortBy === 'room') return a.roomNumber.localeCompare(b.roomNumber);
       // Default: checkIn
-      return new Date(b.checkInDate).getTime() - new Date(a.checkInDate).getTime();
+      const checkInDifference = new Date(b.checkInDate).getTime() - new Date(a.checkInDate).getTime();
+      return checkInDifference || b.occupancyId - a.occupancyId;
     });
   }, [occupancies, filterStatus, searchTerm, sortBy, selectedRoom, selectedTenant, selectedPhone, checkInDateFrom, checkInDateTo, checkOutDateFrom, checkOutDateTo]);
+
+  useEffect(() => {
+    setVisibleOccupancyCount(occupancyPageSize);
+  }, [filteredAndSorted, occupancyPageSize]);
+
+  useEffect(() => {
+    const loadMoreTarget = loadMoreRef.current;
+    if (!loadMoreTarget || visibleOccupancyCount >= filteredAndSorted.length) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some(entry => entry.isIntersecting)) {
+        setVisibleOccupancyCount(current =>
+          Math.min(current + occupancyPageSize, filteredAndSorted.length)
+        );
+      }
+    }, { rootMargin: '300px' });
+
+    observer.observe(loadMoreTarget);
+    return () => observer.disconnect();
+  }, [filteredAndSorted.length, occupancyPageSize, visibleOccupancyCount]);
+
+  const visibleOccupancies = filteredAndSorted.slice(0, visibleOccupancyCount);
 
   const formatCurrency = (value: number | undefined): string => {
     return new Intl.NumberFormat('en-US', {
@@ -384,12 +412,6 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
         .flatMap((response: { data: unknown }) =>
           Array.isArray(response.data) ? response.data as TenantStayElectricityRecord[] : []
         )
-        .filter((record) => {
-          const recordMonth = (record.billingYear * 12) + record.billingMonth;
-          const firstMonth = (checkInDate.getFullYear() * 12) + (checkInDate.getMonth() + 1);
-          const lastMonth = (stayEndDate.getFullYear() * 12) + (stayEndDate.getMonth() + 1);
-          return recordMonth >= firstMonth && recordMonth <= lastMonth;
-        })
         .sort((left, right) =>
           (left.billingYear - right.billingYear) || (left.billingMonth - right.billingMonth)
         );
@@ -448,13 +470,7 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
       const paymentRecords: TenantStayPaymentRecord[] = Array.isArray(paymentResponse.data)
         ? paymentResponse.data as TenantStayPaymentRecord[]
         : [];
-      const startTime = checkInDate.getTime();
-      const endTime = stayEndDate.getTime();
       const stayPayments = paymentRecords
-        .filter((payment) => {
-          const paidOn = new Date(payment.rentReceivedOn).getTime();
-          return Number.isFinite(paidOn) && paidOn >= startTime && paidOn <= endTime + 24 * 60 * 60 * 1000;
-        })
         .sort((left, right) =>
           new Date(left.rentReceivedOn).getTime() - new Date(right.rentReceivedOn).getTime()
         );
@@ -520,6 +536,7 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
           meterNumber: record.meterNo || 'N/A',
           roomUnits: `${record.totalUnitsForRoom ?? 0}`,
           tenantUnits: `${record.proRataUnits ?? 0}`,
+          occupancyDays: `${record.occupancyDaysInMonth ?? 'N/A'} / ${record.totalDaysInMonth ?? 'N/A'}`,
           chargePerUnit: currency(record.chargePerUnit),
           totalCharge: currency(record.totalCharge),
           status: record.status || 'Not recorded',
@@ -560,43 +577,31 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
 
     if (!whatsappPhone) return null;
 
-    const tenantAddress = [occ.tenantAddress || '', occ.tenantCity || '']
-      .map(value => value.trim())
-      .filter(Boolean)
-      .join(', ') || 'N/A';
     const tenantName = occ.tenantName.trim();
+    const formatMessageDate = (date: string | null | undefined): string => {
+      if (!date) return 'N/A';
+      return new Date(date).toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
+    };
     const message = [
       'Gnanabi Mansion, Arasaradi, Madurai',
-      'Have a pleasant stay at Madurai.',
-      '',
-      `Dear ${tenantName},`,
-      'Welcome to Gnanabi Mansion. Your room details are confirmed as below:',
-      '',
-      'Tenant Details',
-      `Name: ${tenantName}`,
-      `Phone: ${occ.tenantPhone.trim()}`,
-      `Address: ${tenantAddress}`,
-      '',
-      'Stay Details',
-      `Room No: ${occ.roomNumber.trim()}`,
-      `Status: ${occ.isActive ? 'Active' : 'Ended'}`,
-      `Check-in: ${formatDate(occ.checkInDate)}`,
-      `Reserved Check-out: ${occ.checkOutDate ? formatDate(occ.checkOutDate) : '—'}`,
-      '',
-      'Payment Details',
-      `Monthly Rent: ${formatCurrency(occ.rentFixed)}`,
-      `Deposit Received: ${formatCurrency(occ.advanceCollected)}`,
-      `Deposit Refunded: ${formatCurrency(occ.depositRefunded)}`,
-      `Additional Charges: ${formatCurrency(occ.charges)}`,
-      `Collected: ${formatCurrency(occ.currentRentReceived)}`,
+      `Welcome ${tenantName}, Room ${occ.roomNumber.trim()} is confirmed.`,
+      `Check-in: ${formatMessageDate(occ.checkInDate)}`,
+      `Check-out: ${formatMessageDate(occ.checkOutDate)}`,
+      `Rent: ${formatCurrency(occ.rentFixed)} / month (Fixed)`,
+      `Deposit: ${formatCurrency(occ.advanceCollected)} (${occ.advanceCollected > 0 ? 'Collected' : 'Pending'})`,
+      'Rent Due Date: 1st - 5th of every month',
+      'EB Charges: ₹15 / unit (Collected after usage)',
       `Pending: ${formatCurrency(occ.currentPendingPayment)}`,
-      `Last Payment: ${occ.lastPaymentDate ? formatDate(occ.lastPaymentDate) : 'Not yet recorded'}`,
-      '',
-      'Thank you for choosing Gnanabi Mansion. For any assistance, please contact the manager.',
-      '',
-      'Warm Regards,',
+      'For Help / Escalation:',
+      'Level 1 - Manager: 97872 63901',
+      'Level 2 - Owner: 99522 33310, 95973 55973',
+      'Level 3 - Emergency: Please call Manager / Owner directly',
+      'Thank you. Have a pleasant stay.',
       'Gnanabi Mansion',
-      'Arasaradi, Madurai',
     ].join('\n');
 
     return `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(message)}`;
@@ -869,7 +874,7 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
           </thead>
           <tbody>
             {filteredAndSorted.length > 0 ? (
-              filteredAndSorted.map(occ => {
+              visibleOccupancies.map(occ => {
                 const whatsappUrl = buildWhatsAppUrl(occ);
                 return (
                 <tr key={occ.occupancyId} className={`row ${occ.isActive ? 'active' : 'inactive'}`}>
@@ -1069,6 +1074,23 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
           </tbody>
         </table>
       </div>
+      {filteredAndSorted.length > 0 && (
+        <div className="occupancy-load-more" ref={loadMoreRef}>
+          <span>
+            Showing {visibleOccupancies.length} of {filteredAndSorted.length} bookings
+          </span>
+          {visibleOccupancies.length < filteredAndSorted.length && (
+            <button
+              type="button"
+              onClick={() => setVisibleOccupancyCount(current =>
+                Math.min(current + occupancyPageSize, filteredAndSorted.length)
+              )}
+            >
+              Load more
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Checkout Modal */}
       {selectedOccupancy && (

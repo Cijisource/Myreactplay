@@ -575,6 +575,30 @@
   border-radius: 999px;
 }
 
+.occupancy-load-more {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.75rem;
+  margin: -1rem 0 2rem;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.occupancy-load-more button {
+  padding: 0.5rem 1rem;
+  border: 0;
+  border-radius: 6px;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.occupancy-load-more button:hover {
+  background: #1d4ed8;
+}
+
 .occupancy-table {
   width: 100%;
   border-collapse: collapse;
@@ -627,9 +651,9 @@
   .occupancy-table th:nth-child(1),
   .occupancy-table td:nth-child(1) { width: 9%; }
   .occupancy-table th:nth-child(2),
-  .occupancy-table td:nth-child(2) { width: 7%; }
+  .occupancy-table td:nth-child(2) { width: 12%; }
   .occupancy-table th:nth-child(3),
-  .occupancy-table td:nth-child(3) { width: 10%; }
+  .occupancy-table td:nth-child(3) { width: 19%; }
   .occupancy-table th:nth-child(4),
   .occupancy-table td:nth-child(4) { width: 10%; }
   .occupancy-table th:nth-child(5),
@@ -641,7 +665,7 @@
   .occupancy-table th:nth-child(8),
   .occupancy-table td:nth-child(8) { width: 14%; }
   .occupancy-table th:nth-child(9),
-  .occupancy-table td:nth-child(9) { width: 19%; }
+  .occupancy-table td:nth-child(9) { width: 8%; }
 
   .occupancy-table th:nth-child(8),
   .occupancy-table td:nth-child(8) {
@@ -1207,17 +1231,18 @@
   }
 
   /* Present each occupancy as a readable card on narrow screens. */
-  .table-wrapper {
+  .occupancy-links-container .table-wrapper {
     overflow: visible;
     border-radius: 8px;
     background: transparent;
     box-shadow: none;
   }
 
-  .occupancy-table {
+  .occupancy-links-container .table-wrapper > .occupancy-table {
     display: block;
     width: 100%;
     min-width: 0;
+    max-width: 100%;
     font-size: 0.875rem;
   }
 
@@ -1410,12 +1435,19 @@
     width: 100%;
     margin-left: 0;
     flex-direction: row;
+    align-items: center;
     gap: 0.5rem;
   }
 
   .sort-controls label {
     font-size: 0.8rem;
     white-space: nowrap;
+  }
+
+  .sort-select {
+    flex: 1;
+    min-width: 0;
+    width: auto;
   }
 
   .filter-dropdowns {

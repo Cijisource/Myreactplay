@@ -39,6 +39,7 @@ export interface TenantStayPdfInput {
     meterNumber: string;
     roomUnits: string;
     tenantUnits: string;
+    occupancyDays: string;
     chargePerUnit: string;
     totalCharge: string;
     status: string;
@@ -275,7 +276,8 @@ export const createTenantStayPdf = async (input: TenantStayPdfInput): Promise<Te
     addText('No rent payments are recorded for this stay.', { color: muted });
   } else {
     addText(`Total rent received since check-in: ${input.totalReceived}`, { font: bold });
-    input.payments.forEach((payment) => {
+    input.payments.forEach((payment, index) => {
+      addText(`Payment ${index + 1}`, { font: bold, gap: 1 });
       addText(`${payment.date} | Received ${payment.received} | Charges ${payment.charges} | Balance ${payment.balance} | ${payment.method}`);
     });
   }
@@ -284,12 +286,20 @@ export const createTenantStayPdf = async (input: TenantStayPdfInput): Promise<Te
   if (!input.electricity.length) {
     addText('No electricity charges are recorded for this stay.', { color: muted });
   } else {
-    input.electricity.forEach((charge) => {
-      addText(`${charge.period} - ${charge.serviceName} (Meter ${charge.meterNumber})`, {
+    const totalElectricityCharges = input.electricity.reduce((total, charge) => {
+      const amount = Number(charge.totalCharge.replace(/[^\d.-]/g, ''));
+      return total + (Number.isFinite(amount) ? amount : 0);
+    }, 0);
+    addText(`Total electricity charges: INR ${totalElectricityCharges.toLocaleString('en-IN')}`, {
+      font: bold,
+      gap: 6,
+    });
+    input.electricity.forEach((charge, index) => {
+      addText(`EB charge ${index + 1}: ${charge.period} - ${charge.serviceName} (Meter ${charge.meterNumber})`, {
         font: bold,
         gap: 1,
       });
-      addText(`Room units: ${charge.roomUnits} | Tenant units: ${charge.tenantUnits} | Rate: ${charge.chargePerUnit} | Charge: ${charge.totalCharge} | ${charge.status}`, {
+      addText(`Room units: ${charge.roomUnits} | Tenant units: ${charge.tenantUnits} | Occupancy days: ${charge.occupancyDays} | Rate: ${charge.chargePerUnit} | Charge: ${charge.totalCharge} | Status: ${charge.status}`, {
         indent: 8,
         color: muted,
       });
