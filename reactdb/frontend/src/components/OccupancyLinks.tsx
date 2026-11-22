@@ -586,15 +586,47 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
         year: 'numeric',
       });
     };
+    const checkInDate = new Date(occ.checkInDate);
+    const checkOutDate = occ.checkOutDate ? new Date(occ.checkOutDate) : null;
+    const now = new Date();
+    const canCalculateProrata = Number.isFinite(checkInDate.getTime())
+      && checkInDate.getFullYear() === now.getFullYear()
+      && checkInDate.getMonth() === now.getMonth();
+    let prorataDays = 0;
+    if (canCalculateProrata) {
+      const monthEndDay = new Date(
+        checkInDate.getFullYear(),
+        checkInDate.getMonth() + 1,
+        0
+      ).getDate();
+      const checkOutIsInCheckInMonth = checkOutDate
+        && Number.isFinite(checkOutDate.getTime())
+        && checkOutDate.getFullYear() === checkInDate.getFullYear()
+        && checkOutDate.getMonth() === checkInDate.getMonth();
+      const prorataEndDay = checkOutIsInCheckInMonth
+        ? Math.min(monthEndDay, checkOutDate.getDate())
+        : monthEndDay;
+      prorataDays = Math.max(0, prorataEndDay - checkInDate.getDate() + 1);
+    }
+    const dailyRent = occ.rentFixed / 30;
+    const prorataRent = Math.round((dailyRent * prorataDays + Number.EPSILON) * 100) / 100;
+    const formatMessageCurrency = (amount: number): string => new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+    const rentDueMessage = canCalculateProrata
+      ? `Rent Due Date: 1st - 5th of every month (First month prorata: ${formatMessageCurrency(prorataRent)} for ${prorataDays} days)`
+      : 'Rent Due Date: 1st - 5th of every month';
     const message = [
       'Gnanabi Mansion, Arasaradi, Madurai',
       `Welcome ${tenantName}, Room ${occ.roomNumber.trim()} is confirmed.`,
       `Check-in: ${formatMessageDate(occ.checkInDate)}`,
-      `Check-out: ${formatMessageDate(occ.checkOutDate)}`,
       `Rent: ${formatCurrency(occ.rentFixed)} / month (Fixed)`,
       `Deposit: ${formatCurrency(occ.advanceCollected)} (${occ.advanceCollected > 0 ? 'Collected' : 'Pending'})`,
-      'Rent Due Date: 1st - 5th of every month',
-      'EB Charges: ₹15 / unit (Collected after usage)',
+      rentDueMessage,
+      'EB Charges: ₹15 / unit (Based on actual usage; payable on the 1st)',
       `Pending: ${formatCurrency(occ.currentPendingPayment)}`,
       'For Help / Escalation:',
       'Level 1 - Manager: 97872 63901',
