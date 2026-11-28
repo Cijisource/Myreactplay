@@ -16,6 +16,7 @@ interface SearchableDropdownProps {
   options: Option[];
   value: string | number | null;
   onChange: (option: Option) => void;
+  inputId?: string;
   placeholder?: string;
   searchPlaceholder?: string;
   label?: string;
@@ -29,6 +30,7 @@ export default function SearchableDropdown({
   options,
   value,
   onChange,
+  inputId,
   placeholder = 'Select an option',
   searchPlaceholder = 'Search...',
   label,
@@ -143,7 +145,7 @@ export default function SearchableDropdown({
 
   return (
     <div ref={wrapperRef} className="searchable-dropdown-wrapper">
-      {label && <label className="dropdown-label">{label}</label>}
+      {label && <label className="dropdown-label" htmlFor={inputId}>{label}</label>}
       
       <div className={`searchable-dropdown ${isOpen ? 'open' : ''} ${error ? 'error' : ''} ${disabled ? 'disabled' : ''}`}>
         <div
@@ -159,6 +161,7 @@ export default function SearchableDropdown({
         >
           <input
             ref={inputRef}
+            id={inputId}
             type="text"
             className="dropdown-input"
             placeholder={searchPlaceholder}

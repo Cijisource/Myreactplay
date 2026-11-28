@@ -4337,3 +4337,545 @@
     font-size: 1.05rem;
   }
 }
+
+/* Guest check-in workspace */
+.guest-checkin-container {
+  padding: clamp(1rem, 3vw, 2rem);
+  color: #172b4d;
+  background: #f5f7fb;
+  border: 1px solid #e3e8f0;
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(27, 45, 74, 0.08);
+}
+
+.guest-checkin-container::before {
+  display: none;
+}
+
+.guest-checkin-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.guest-checkin-page-header .section-heading {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: #172b4d;
+  font-size: clamp(1.55rem, 2.5vw, 2rem);
+  letter-spacing: -0.035em;
+}
+
+.guest-checkin-page-header p {
+  margin: 0.4rem 0 0;
+  color: #64748b;
+  font-size: 0.94rem;
+}
+
+.guest-checkin-eyebrow {
+  display: block;
+  margin-bottom: 0.3rem;
+  color: #52718d;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.guest-checkin-container .guest-checkin-add-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  min-height: 44px;
+  padding: 0.7rem 1rem;
+  border: 0;
+  border-radius: 9px;
+  background: #145c73;
+  box-shadow: 0 5px 12px rgba(20, 92, 115, 0.18);
+  white-space: nowrap;
+}
+
+.guest-checkin-container .guest-checkin-add-button:hover:not(:disabled) {
+  background: #104c60;
+}
+
+.guest-checkin-add-button span {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.guest-checkin-topbar {
+  display: grid;
+  grid-template-columns: minmax(250px, 0.95fr) minmax(250px, 1.2fr) auto;
+  gap: 1rem;
+  align-items: end;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid #e1e7ef;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(27, 45, 74, 0.035);
+}
+
+.guest-checkin-toolbar-group {
+  min-width: 0;
+}
+
+.guest-checkin-toolbar-inline {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.guest-checkin-filter-label,
+.guest-checkin-search-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  color: #52647a;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.guest-checkin-container .guest-checkin-filter-label .sort-select,
+.guest-checkin-container .guest-phone-filter-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #d5deea;
+  border-radius: 8px;
+  background: #fff;
+  color: #172b4d;
+  font-size: 0.88rem;
+  box-shadow: none;
+}
+
+.guest-checkin-toolbar-search .guest-phone-filter-group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.35rem 0.6rem;
+}
+
+.guest-checkin-search-label {
+  grid-column: 1 / -1;
+}
+
+.guest-checkin-container .guest-phone-filter-input {
+  width: 100%;
+}
+
+.guest-checkin-container .guest-checkin-topbar > .btn {
+  min-height: 42px;
+  padding: 0.55rem 1rem;
+  border-radius: 8px;
+}
+
+.guest-checkin-status-bar {
+  border: 1px solid #d9e7ee;
+  border-radius: 10px;
+  background: #edf5f7;
+  color: #31596b;
+}
+
+.guest-checkin-stats-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem !important;
+}
+
+.guest-checkin-stat-card {
+  min-height: 98px;
+  padding: 0.9rem 1rem;
+  border: 1px solid #e1e7ef;
+  border-left: 3px solid #6c91a3;
+  border-radius: 11px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(27, 45, 74, 0.035);
+}
+
+.guest-checkin-stat-card strong {
+  color: #172b4d;
+  font-size: clamp(1.15rem, 1.5vw, 1.45rem);
+}
+
+.guest-stat-label {
+  color: #66788d;
+  font-size: 0.68rem;
+  letter-spacing: 0.07em;
+}
+
+.guest-checkin-main-grid {
+  margin-bottom: 1rem;
+}
+
+.guest-checkin-add-section {
+  margin: 0 !important;
+  padding: clamp(1rem, 2.5vw, 1.5rem);
+  border: 1px solid #dce5eb;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(27, 45, 74, 0.045);
+}
+
+.guest-checkin-panel-header {
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e8edf2;
+}
+
+.guest-checkin-panel-header h3 {
+  margin: 0;
+  color: #172b4d;
+  font-size: 1.15rem;
+  letter-spacing: -0.015em;
+}
+
+.guest-checkin-panel-header p {
+  margin: 0.35rem 0 0;
+  color: #738196;
+  font-size: 0.86rem;
+}
+
+.guest-checkin-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.guest-checkin-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.guest-checkin-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.guest-checkin-field > label,
+.guest-checkin-upload-card label {
+  color: #33475b;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.guest-checkin-field > label span {
+  color: #7d8b9b;
+  font-weight: 500;
+}
+
+.guest-checkin-container .guest-checkin-form input:not([type="file"]),
+.guest-checkin-container .guest-checkin-form select,
+.guest-checkin-container .guest-checkin-form textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 43px;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #d5deea;
+  border-radius: 8px;
+  background: #fff;
+  color: #172b4d;
+  font: inherit;
+  font-size: 0.9rem;
+  box-shadow: none;
+}
+
+.guest-checkin-container .guest-checkin-form textarea {
+  min-height: 86px;
+  resize: vertical;
+}
+
+.guest-checkin-container .guest-checkin-form input:focus,
+.guest-checkin-container .guest-checkin-form select:focus,
+.guest-checkin-container .guest-checkin-form textarea:focus {
+  border-color: #3c8298;
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(60, 130, 152, 0.13);
+}
+
+.guest-checkin-field-wide {
+  grid-column: 1 / -1;
+}
+
+.guest-checkin-field-error {
+  color: #b42318;
+  font-size: 0.75rem;
+}
+
+.guest-checkin-uploads {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.guest-checkin-upload-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  min-width: 0;
+  padding: 0.85rem;
+  border: 1px dashed #cbd6df;
+  border-radius: 9px;
+  background: #f8fafc;
+}
+
+.guest-checkin-upload-card > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.guest-checkin-upload-card > div span {
+  color: #7a8796;
+  font-size: 0.72rem;
+}
+
+.guest-checkin-upload-card input[type="file"] {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-width: 0;
+  color: #66788d;
+  font-size: 0.75rem;
+}
+
+.guest-checkin-upload-card .btn {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.guest-checkin-selected-file {
+  grid-column: 1 / -1;
+  overflow-wrap: anywhere;
+  color: #31596b;
+  font-size: 0.75rem;
+}
+
+.guest-checkin-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  padding-top: 0.25rem;
+}
+
+.guest-checkin-form-actions .btn {
+  min-height: 42px;
+  padding: 0.65rem 1rem;
+  border-radius: 8px;
+}
+
+.guest-checkin-container .guest-checkin-form-actions .btn-success {
+  background: #145c73;
+}
+
+.guest-checkin-container .guest-checkin-form-actions .btn-success:hover:not(:disabled) {
+  background: #104c60;
+}
+
+.guest-checkin-list-panel {
+  border: 1px solid #e1e7ef;
+  border-radius: 12px;
+  background: #fff;
+  padding: 1rem;
+}
+
+.guest-checkin-container .guest-checkin-card {
+  border-color: #e1e7ef;
+  border-left-color: #6c91a3;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(27, 45, 74, 0.035);
+}
+
+.guest-checkin-container .guest-checkin-card.checked-out {
+  border-left-color: #8995a5;
+  background: #fbfcfd;
+}
+
+.guest-checkin-container .guest-checkin-card:hover {
+  border-color: #b9cbd4;
+  box-shadow: 0 7px 18px rgba(27, 45, 74, 0.075);
+  transform: none;
+}
+
+@media (max-width: 900px) {
+  .guest-checkin-topbar {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .guest-checkin-toolbar-inline {
+    grid-column: 1 / -1;
+  }
+
+  .guest-checkin-container .guest-checkin-topbar > .btn {
+    justify-self: end;
+  }
+
+  .guest-checkin-stats-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .guest-checkin-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .guest-checkin-page-header {
+    order: -4;
+  }
+}
+
+@media (max-width: 600px) {
+  .guest-checkin-page-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+
+  .guest-checkin-container .guest-checkin-add-button {
+    width: 100%;
+  }
+
+  .guest-checkin-topbar {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .guest-checkin-toolbar-inline {
+    grid-column: auto;
+  }
+
+  .guest-checkin-toolbar-search .guest-phone-filter-group {
+    grid-template-columns: 1fr;
+  }
+
+  .guest-checkin-search-label {
+    grid-column: auto;
+  }
+
+  .guest-checkin-container .guest-checkin-topbar > .btn {
+    width: 100%;
+  }
+
+  .guest-checkin-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .guest-checkin-form-grid,
+  .guest-checkin-uploads {
+    grid-template-columns: 1fr;
+  }
+
+  .guest-checkin-field-wide {
+    grid-column: auto;
+  }
+
+  .guest-checkin-form-actions {
+    flex-direction: column-reverse;
+  }
+
+  .guest-checkin-form-actions .btn {
+    width: 100%;
+  }
+
+  .guest-checkin-list-panel {
+    padding: 0.65rem;
+  }
+}
+
+.guest-checkin-container .guest-checkin-form .searchable-dropdown-wrapper {
+  margin: 0;
+}
+
+.guest-checkin-container .guest-checkin-form .guest-checkin-field .dropdown-label {
+  margin: 0;
+  color: #33475b;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.guest-checkin-container .guest-checkin-form .searchable-dropdown .dropdown-input-wrapper {
+  box-sizing: border-box;
+  min-height: 43px;
+  padding: 0 0.25rem 0 0.75rem;
+  border: 1px solid #d5deea;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: none;
+}
+
+.guest-checkin-container .guest-checkin-form .searchable-dropdown .dropdown-input-wrapper:focus-within {
+  border-color: #3c8298;
+  box-shadow: 0 0 0 3px rgba(60, 130, 152, 0.13);
+}
+
+.guest-checkin-container .guest-checkin-form .searchable-dropdown input.dropdown-input,
+.guest-checkin-container .guest-checkin-form .searchable-dropdown input.dropdown-input:focus {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 41px;
+  padding: 0.65rem 0;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  color: #172b4d;
+  font: inherit;
+  font-size: 0.9rem;
+  box-shadow: none;
+}
+
+.guest-checkin-autocomplete {
+  position: relative;
+  width: 100%;
+}
+
+.guest-checkin-autocomplete-list {
+  position: absolute;
+  top: calc(100% + 0.3rem);
+  right: 0;
+  left: 0;
+  z-index: 1100;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid #d5deea;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(27, 45, 74, 0.16);
+}
+
+.guest-checkin-autocomplete-option {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  padding: 0.65rem 0.75rem;
+  border: 0;
+  border-bottom: 1px solid #edf1f5;
+  background: #fff;
+  color: #172b4d;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.guest-checkin-autocomplete-option:last-child {
+  border-bottom: 0;
+}
+
+.guest-checkin-autocomplete-option:hover,
+.guest-checkin-autocomplete-option.active {
+  background: #edf5f7;
+}
+
+.guest-checkin-autocomplete-option small {
+  color: #64788a;
+  font-size: 0.75rem;
+}

@@ -324,6 +324,70 @@ export const getFileUrl = (filePath: string): string => {
   return fullUrl;
 };
 
+export const downloadFileData = async (fileUrl: string): Promise<{ data: ArrayBuffer; contentType: string }> => {
+  const fileOrigin = new URL(fileUrl, window.location.origin).origin;
+  const apiOrigin = new URL(API_URL, window.location.origin).origin;
+  if (fileOrigin !== apiOrigin) {
+    try {
+      const response = await fetch(fileUrl);
+      if (response.ok) {
+        return {
+          data: await response.arrayBuffer(),
+          contentType: response.headers.get('content-type') || 'application/octet-stream',
+        };
+      }
+    } catch {
+      // Try browser image decoding below.
+    }
+
+    const imageFallback = await new Promise<{ data: ArrayBuffer; contentType: string } | null>((resolve) => {
+      const image = new Image();
+      image.crossOrigin = 'anonymous';
+      image.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = image.naturalWidth;
+          canvas.height = image.naturalHeight;
+          const context = canvas.getContext('2d');
+          if (!context) {
+            resolve(null);
+            return;
+          }
+          context.drawImage(image, 0, 0);
+          canvas.toBlob(async (blob) => {
+            resolve(blob ? { data: await blob.arrayBuffer(), contentType: blob.type || 'image/jpeg' } : null);
+          }, 'image/jpeg', 0.92);
+        } catch {
+          resolve(null);
+        }
+      };
+      image.onerror = () => resolve(null);
+      image.src = fileUrl;
+    });
+
+    if (!imageFallback) throw new Error(`Unable to download attachment: ${fileUrl}`);
+    return imageFallback;
+  }
+
+  try {
+    const response = await api.get<ArrayBuffer>(fileUrl, { responseType: 'arraybuffer' });
+    const contentType = response.headers['content-type'];
+    return {
+      data: response.data,
+      contentType: typeof contentType === 'string' ? contentType : 'application/octet-stream',
+    };
+  } catch (error) {
+    const token = readAuthStorageItem(ACCESS_TOKEN_KEY);
+    const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+    const response = await fetch(fileUrl, { headers });
+    if (!response.ok) throw error instanceof Error ? error : new Error(`Failed to download file (${response.status})`);
+    return {
+      data: await response.arrayBuffer(),
+      contentType: response.headers.get('content-type') || 'application/octet-stream',
+    };
+  }
+};
+
 export const getRentalPaymentProofUrl = (
   filePath: string,
   paymentDate?: string | null,

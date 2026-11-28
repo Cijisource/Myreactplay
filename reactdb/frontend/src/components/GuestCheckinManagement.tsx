@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { apiService, getGuestCheckinFileUrl } from '../api';
 import { useAuth } from './AuthContext';
 import LoadingSpinner from './LoadingSpinner';
+import SearchableDropdown from './SearchableDropdown';
 import './ManagementStyles.css';
 
 interface CameraCaptureProps {
@@ -175,6 +176,136 @@ interface Room {
   number: string;
   rent: number;
   beds: number;
+}
+
+interface GuestAutocompleteSuggestion {
+  id: string;
+  label: string;
+  detail?: string;
+  guestName: string;
+  phoneNumber: string;
+}
+
+interface GuestAutocompleteInputProps {
+  id: string;
+  value: string;
+  placeholder: string;
+  suggestions: GuestAutocompleteSuggestion[];
+  onChange: (value: string) => void;
+  onSelect: (suggestion: GuestAutocompleteSuggestion) => void;
+  inputMode?: 'text' | 'numeric' | 'tel' | 'search' | 'email' | 'url' | 'decimal' | 'none';
+  maxLength?: number;
+  required?: boolean;
+}
+
+function GuestAutocompleteInput({
+  id,
+  value,
+  placeholder,
+  suggestions,
+  onChange,
+  onSelect,
+  inputMode,
+  maxLength,
+  required = false
+}: GuestAutocompleteInputProps) {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const filteredSuggestions = suggestions
+    .filter((suggestion) => {
+      const query = value.trim().toLocaleLowerCase();
+      return !query
+        || suggestion.label.toLocaleLowerCase().includes(query)
+        || (suggestion.detail || '').toLocaleLowerCase().includes(query);
+    })
+    .slice(0, 8);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        setActiveIndex(-1);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [isOpen]);
+
+  const selectSuggestion = (suggestion: GuestAutocompleteSuggestion) => {
+    onSelect(suggestion);
+    setIsOpen(false);
+    setActiveIndex(-1);
+  };
+
+  return (
+    <div className="guest-checkin-autocomplete" ref={wrapperRef}>
+      <input
+        id={id}
+        type="text"
+        className="guest-checkin-autocomplete-input"
+        value={value}
+        placeholder={placeholder}
+        inputMode={inputMode}
+        maxLength={maxLength}
+        required={required}
+        autoComplete="off"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded={isOpen && filteredSuggestions.length > 0}
+        aria-controls={`${id}-suggestions`}
+        aria-activedescendant={activeIndex >= 0 ? `${id}-suggestion-${activeIndex}` : undefined}
+        onFocus={() => {
+          setIsOpen(true);
+          setActiveIndex(-1);
+        }}
+        onBlur={() => setIsOpen(false)}
+        onChange={(event) => {
+          onChange(event.target.value);
+          setIsOpen(true);
+          setActiveIndex(-1);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowDown' && filteredSuggestions.length > 0) {
+            event.preventDefault();
+            setIsOpen(true);
+            setActiveIndex((current) => Math.min(current + 1, filteredSuggestions.length - 1));
+          } else if (event.key === 'ArrowUp' && filteredSuggestions.length > 0) {
+            event.preventDefault();
+            setActiveIndex((current) => Math.max(current - 1, 0));
+          } else if (event.key === 'Enter' && isOpen && activeIndex >= 0) {
+            event.preventDefault();
+            selectSuggestion(filteredSuggestions[activeIndex]);
+          } else if (event.key === 'Escape') {
+            setIsOpen(false);
+            setActiveIndex(-1);
+          }
+        }}
+      />
+      {isOpen && filteredSuggestions.length > 0 && (
+        <div id={`${id}-suggestions`} className="guest-checkin-autocomplete-list" role="listbox">
+          {filteredSuggestions.map((suggestion, index) => (
+            <button
+              id={`${id}-suggestion-${index}`}
+              key={suggestion.id}
+              type="button"
+              className={`guest-checkin-autocomplete-option${activeIndex === index ? ' active' : ''}`}
+              role="option"
+              aria-selected={activeIndex === index}
+              onPointerDown={(event) => event.preventDefault()}
+              onClick={() => selectSuggestion(suggestion)}
+            >
+              <span>{suggestion.label}</span>
+              {suggestion.detail && <small>{suggestion.detail}</small>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 const guestCheckinStatusesCacheKey = 'guest-checkin-management:statuses';
@@ -486,7 +617,7 @@ export default function GuestCheckinManagement() {
     purpose: '',
     visitingRoomNo: '',
     rentAmount: '',
-    depositAmount: '',
+    depositAmount: '0.01',
     checkInDate: getDateInputValue(new Date())
   });
 
@@ -638,7 +769,13 @@ export default function GuestCheckinManagement() {
     return { totalGuests, checkedOutGuests, activeGuests, totalRent, totalDeposit };
   }, [guestCheckins]);
 
-  const guestHistorySource = previousGuestHistory.length > 0 ? previousGuestHistory : guestCheckins;
+  const guestHistorySource = useMemo(() => {
+    const uniqueGuests = new Map<number, GuestCheckIn>();
+    [...previousGuestHistory, ...guestCheckins].forEach((guest) => uniqueGuests.set(guest.id, guest));
+    return Array.from(uniqueGuests.values()).sort(
+      (left, right) => new Date(right.checkInTime).getTime() - new Date(left.checkInTime).getTime()
+    );
+  }, [previousGuestHistory, guestCheckins]);
 
   const guestSearchOptions = useMemo(() => {
     const seen = new Map<string, string>();
@@ -665,21 +802,29 @@ export default function GuestCheckinManagement() {
       .sort((left, right) => left.value.localeCompare(right.value));
   }, [guestHistorySource]);
 
-  const guestEntrySuggestions = useMemo(() => {
-    const candidates = new Set<string>();
-
+  const guestNameSuggestions = useMemo(() => {
+    const names = new Map<string, { name: string; phoneNumber: string }>();
     guestHistorySource.forEach((guest) => {
-      const guestName = guest.guestName?.trim();
-      if (guestName) candidates.add(guestName);
-
+      const name = guest.guestName?.trim();
+      if (!name) return;
       const phoneNumber = normalizePhoneDigits(guest.phoneNumber || '');
-      if (phoneNumber) candidates.add(phoneNumber);
-
-      const purpose = guest.purpose?.trim();
-      if (purpose) candidates.add(purpose);
+      const key = `${name.toLocaleLowerCase()}|${phoneNumber}`;
+      if (!names.has(key)) {
+        names.set(key, { name, phoneNumber });
+      }
     });
+    return Array.from(names.values()).sort((left, right) => left.name.localeCompare(right.name));
+  }, [guestHistorySource]);
 
-    return Array.from(candidates).sort((left, right) => left.localeCompare(right));
+  const guestPhoneSuggestions = useMemo(() => {
+    const phones = new Map<string, string>();
+    guestHistorySource.forEach((guest) => {
+      const phoneNumber = normalizePhoneDigits(guest.phoneNumber || '');
+      if (phoneNumber && !phones.has(phoneNumber)) {
+        phones.set(phoneNumber, guest.guestName?.trim() || '');
+      }
+    });
+    return Array.from(phones.entries()).map(([phoneNumber, guestName]) => ({ phoneNumber, guestName }));
   }, [guestHistorySource]);
 
   const applyPreviousEntrySuggestion = (
@@ -689,20 +834,44 @@ export default function GuestCheckinManagement() {
     const trimmed = value.trim();
     if (!trimmed) return;
 
-    const source = previousGuestHistory.length > 0 ? previousGuestHistory : guestCheckins;
-    const match = source.find((guest) => {
-      const guestName = (guest.guestName || '').trim().toLowerCase();
-      const phoneNumber = normalizePhoneDigits(guest.phoneNumber || '');
+    if (field === 'guestName' || field === 'phoneNumber') {
+      const normalizedName = trimmed.toLocaleLowerCase().replace(/\s+/g, ' ');
+      const normalizedPhone = normalizePhoneDigits(trimmed);
+      if (field === 'phoneNumber' && !normalizedPhone) return;
+      const matches = guestHistorySource.filter((guest) =>
+        field === 'guestName'
+          ? (guest.guestName || '').trim().toLocaleLowerCase().replace(/\s+/g, ' ') === normalizedName
+          : normalizePhoneDigits(guest.phoneNumber || '') === normalizedPhone
+      );
+      const uniqueMatches = new Map<string, GuestCheckIn>();
+      matches.forEach((guest) => {
+        const phoneNumber = normalizePhoneDigits(guest.phoneNumber || '');
+        const guestName = (guest.guestName || '').trim().toLocaleLowerCase();
+        const identity = phoneNumber ? `phone:${phoneNumber}` : `name:${guestName}`;
+        if (!uniqueMatches.has(identity)) {
+          uniqueMatches.set(identity, guest);
+        }
+      });
+
+      if (uniqueMatches.size !== 1) return;
+
+      const match = Array.from(uniqueMatches.values())[0];
+      setFormData((prev) => ({
+        ...prev,
+        guestName: match.guestName?.trim() || prev.guestName,
+        phoneNumber: normalizePhoneDigits(match.phoneNumber || '') || prev.phoneNumber
+      }));
+      return;
+    }
+
+    const match = guestHistorySource.find((guest) => {
       const purpose = (guest.purpose || '').trim().toLowerCase();
       const depositAmount = guest.depositAmount != null ? String(guest.depositAmount).trim() : '';
       const normalizedValue = trimmed.toLowerCase();
-      const normalizedPhoneInput = normalizePhoneDigits(trimmed);
       const normalizedDepositInput = trimmed.replace(/[^\d.]/g, '');
 
       return (
-        (field === 'guestName' && guestName.includes(normalizedValue))
-        || (field === 'phoneNumber' && (phoneNumber.includes(normalizedPhoneInput) || normalizedPhoneInput.includes(phoneNumber)))
-        || (field === 'depositAmount' && depositAmount.includes(normalizedDepositInput))
+        (field === 'depositAmount' && depositAmount.includes(normalizedDepositInput))
         || (field === 'purpose' && purpose.includes(normalizedValue))
       );
     });
@@ -711,8 +880,6 @@ export default function GuestCheckinManagement() {
 
     setFormData((prev) => ({
       ...prev,
-      guestName: field === 'guestName' ? trimmed : prev.guestName || match.guestName || prev.guestName,
-      phoneNumber: field === 'phoneNumber' ? normalizePhoneDigits(trimmed) : prev.phoneNumber || normalizePhoneDigits(match.phoneNumber || '') || prev.phoneNumber,
       depositAmount: field === 'depositAmount'
         ? String(match.depositAmount ?? prev.depositAmount)
         : prev.depositAmount || String(match.depositAmount ?? '') || prev.depositAmount,
@@ -1045,7 +1212,7 @@ export default function GuestCheckinManagement() {
         purpose: '',
         visitingRoomNo: '',
         rentAmount: '',
-        depositAmount: '',
+        depositAmount: '0.01',
         checkInDate: getDateInputValue(new Date())
       });
       setFormFiles({ proof: null, photo: null });
@@ -1394,34 +1561,75 @@ export default function GuestCheckinManagement() {
 
   return (
     <div className="management-container guest-checkin-container guest-checkin-mobile-layout">
-      <h2 className="section-heading">Guest Check-In Management</h2>
+      <header className="guest-checkin-page-header">
+        <div>
+          <span className="guest-checkin-eyebrow">VISITOR OPERATIONS</span>
+          <h2 className="section-heading">Guest check-in</h2>
+          <p>Manage arrivals, stays and visitor records across your property.</p>
+        </div>
+        <button
+          type="button"
+          className="btn btn-primary guest-checkin-add-button"
+          onClick={() => {
+            const today = getDateInputValue(new Date());
+            setViewMode('daily');
+            setSelectedDate(today);
+            setFormData((prev) => ({ ...prev, checkInDate: today }));
+            setShowAddGuestForm(true);
+            setError(null);
+          }}
+        >
+          <span aria-hidden="true">+</span>
+          Add guest
+        </button>
+      </header>
 
       <div className="toolbar guest-checkin-toolbar guest-checkin-topbar">
         <div className="guest-checkin-toolbar-group guest-checkin-toolbar-inline">
-          <select
-            className="sort-select"
-            value={viewMode}
-            onChange={(e) => setViewMode(e.target.value as 'daily' | 'weekly' | 'monthly')}
-          >
-            <option value="daily">Daily View</option>
-            <option value="weekly">Weekly Consolidated</option>
-            <option value="monthly">Monthly Consolidated</option>
-          </select>
+          <label className="guest-checkin-filter-label">
+            <span>View</span>
+            <select
+              className="sort-select"
+              value={viewMode}
+              onChange={(e) => {
+                const nextMode = e.target.value as 'daily' | 'weekly' | 'monthly';
+                setViewMode(nextMode);
+                if (nextMode !== 'daily') {
+                  setShowAddGuestForm(false);
+                }
+              }}
+            >
+              <option value="daily">Daily View</option>
+              <option value="weekly">Weekly Consolidated</option>
+              <option value="monthly">Monthly Consolidated</option>
+            </select>
+          </label>
 
-          <input
-            type="date"
-            className="sort-select"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-          />
+          <label className="guest-checkin-filter-label">
+            <span>{viewMode === 'daily' ? 'Date' : 'Period'}</span>
+            <input
+              type="date"
+              className="sort-select"
+              value={selectedDate}
+              onChange={(e) => {
+                const nextDate = e.target.value;
+                setSelectedDate(nextDate);
+                if (showAddGuestForm) {
+                  setFormData((prev) => ({ ...prev, checkInDate: nextDate }));
+                }
+              }}
+            />
+          </label>
         </div>
 
         <div className="guest-checkin-toolbar-group guest-checkin-toolbar-search">
           <div className="guest-phone-filter-group">
+            <label className="guest-checkin-search-label" htmlFor="guest-checkin-search">Search guests</label>
             <input
+              id="guest-checkin-search"
               type="text"
               className="search-input guest-phone-filter-input"
-              placeholder="Search by guest name, phone or purpose"
+              placeholder="Name, phone or purpose"
               value={phoneFilter}
               onChange={(e) => setPhoneFilter(e.target.value)}
               list={guestPhoneFilterListId}
@@ -1441,7 +1649,7 @@ export default function GuestCheckinManagement() {
                 className="btn btn-secondary btn-sm"
                 onClick={() => setPhoneFilter('')}
               >
-                Clear Phone Filter
+                Clear
               </button>
             )}
           </div>
@@ -1458,7 +1666,7 @@ export default function GuestCheckinManagement() {
           }}
           disabled={!selectedDate || loading}
         >
-          Refresh
+          {loading ? 'Refreshing…' : 'Refresh'}
         </button>
       </div>
 
@@ -1473,23 +1681,6 @@ export default function GuestCheckinManagement() {
             Showing {filteredGuestCheckins.length} of {guestCheckins.length} guest check-in{guestCheckins.length === 1 ? '' : 's'}
             {phoneFilter ? ` for phone match ${phoneFilter}` : ''}
           </p>
-        </div>
-      )}
-
-      {!showAddGuestForm && viewMode !== 'daily' && (
-        <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'flex-end' }}>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => {
-              setShowAddGuestForm(true);
-              const today = getDateInputValue(new Date());
-              setSelectedDate((prev) => prev || today);
-              setFormData((prev) => ({ ...prev, checkInDate: today }));
-            }}
-          >
-            + Add Guest Check-In
-          </button>
         </div>
       )}
 
@@ -1516,20 +1707,18 @@ export default function GuestCheckinManagement() {
         </div>
       </div>
 
-      <datalist id="guest-checkin-entry-suggestions">
-        {guestEntrySuggestions.map((option) => (
-          <option key={option} value={option} />
-        ))}
-      </datalist>
-
-      {error && <div className="error-message">{error}</div>}
-      {success && <div className="success-message">{success}</div>}
+      {error && <div className="error-message" role="alert">{error}</div>}
+      {success && <div className="success-message" role="status">{success}</div>}
 
       <div className="guest-checkin-main-grid">
-        {(viewMode === 'daily' || showAddGuestForm) && (
-          <div className="form-container guest-checkin-add-section guest-checkin-panel" style={{ marginBottom: '1rem' }}>
+        {showAddGuestForm && (
+          <section className="guest-checkin-add-section guest-checkin-panel" aria-labelledby="guest-checkin-form-title">
             <div className="guest-checkin-panel-header">
-              <h3>Add Guest Check-In</h3>
+              <div>
+                <span className="guest-checkin-eyebrow">NEW VISITOR</span>
+                <h3 id="guest-checkin-form-title">Add guest check-in</h3>
+                <p>Enter the guest details and assign their visiting room.</p>
+              </div>
             </div>
             {formCamera && (
               <CameraCapture
@@ -1541,160 +1730,194 @@ export default function GuestCheckinManagement() {
                 onCancel={() => setFormCamera(null)}
               />
             )}
-            <form onSubmit={handleCreateCheckin}>
-              <div style={{ marginBottom: '0.5rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>Check-In Date</label>
+            <form className="guest-checkin-form" onSubmit={handleCreateCheckin}>
+              <div className="guest-checkin-field">
+                <label htmlFor="guest-checkin-date">Check-in date</label>
                 <input
+                  id="guest-checkin-date"
                   type="date"
                   value={formData.checkInDate}
                   max={formatDateForInput(new Date())}
-                  onChange={(e) => setFormData(prev => ({ ...prev, checkInDate: e.target.value }))}
+                  onChange={(e) => {
+                    setFormData(prev => ({ ...prev, checkInDate: e.target.value }));
+                    setSelectedDate(e.target.value);
+                  }}
                   required
-                  style={{ width: '100%' }}
                 />
               </div>
-              <input
-                type="text"
-                placeholder="Guest Name *"
-                value={formData.guestName}
-                list="guest-checkin-entry-suggestions"
-                onChange={(e) => {
-                  const nextValue = e.target.value;
-                  setFormData(prev => ({ ...prev, guestName: nextValue }));
-                  applyPreviousEntrySuggestion('guestName', nextValue);
-                }}
-                required
-              />
-              {guestNameValidationMessage && (
-                <div className="error-message" style={{ marginTop: '-0.5rem', marginBottom: '0.5rem' }}>
-                  {guestNameValidationMessage}
+              <div className="guest-checkin-form-grid">
+                <div className="guest-checkin-field">
+                  <label htmlFor="guest-checkin-name">Guest name</label>
+                  <GuestAutocompleteInput
+                    id="guest-checkin-name"
+                    placeholder="Enter full name"
+                    value={formData.guestName}
+                    suggestions={guestNameSuggestions.map((suggestion) => ({
+                      id: `name:${suggestion.name.toLocaleLowerCase()}:${suggestion.phoneNumber}`,
+                      label: suggestion.name,
+                      detail: suggestion.phoneNumber ? `Phone ${suggestion.phoneNumber}` : undefined,
+                      guestName: suggestion.name,
+                      phoneNumber: suggestion.phoneNumber
+                    }))}
+                    required
+                    onChange={(nextValue) => {
+                      setFormData(prev => ({ ...prev, guestName: nextValue }));
+                      applyPreviousEntrySuggestion('guestName', nextValue);
+                    }}
+                    onSelect={(suggestion) => {
+                      setFormData((prev) => ({
+                        ...prev,
+                        guestName: suggestion.guestName,
+                        phoneNumber: suggestion.phoneNumber || prev.phoneNumber
+                      }));
+                    }}
+                  />
+                  {guestNameValidationMessage && <span className="guest-checkin-field-error">{guestNameValidationMessage}</span>}
                 </div>
-              )}
-              <input
-                type="text"
-                placeholder="Phone Number"
-                value={formData.phoneNumber}
-                list="guest-checkin-entry-suggestions"
-                onChange={(e) => {
-                  const nextValue = e.target.value;
-                  handlePhoneChange(nextValue);
-                  applyPreviousEntrySuggestion('phoneNumber', nextValue);
-                }}
-                maxLength={10}
-                inputMode="numeric"
-                required
-              />
-              {phoneValidationMessage && (
-                <div className="error-message" style={{ marginTop: '-0.5rem', marginBottom: '0.5rem' }}>
-                  {phoneValidationMessage}
+                <div className="guest-checkin-field">
+                  <label htmlFor="guest-checkin-phone">Phone number</label>
+                  <GuestAutocompleteInput
+                    id="guest-checkin-phone"
+                    placeholder="10-digit mobile number"
+                    value={formData.phoneNumber}
+                    inputMode="numeric"
+                    maxLength={10}
+                    suggestions={guestPhoneSuggestions.map((suggestion) => ({
+                      id: `phone:${suggestion.phoneNumber}`,
+                      label: suggestion.phoneNumber,
+                      detail: suggestion.guestName,
+                      guestName: suggestion.guestName,
+                      phoneNumber: suggestion.phoneNumber
+                    }))}
+                    required
+                    onChange={(nextValue) => {
+                      handlePhoneChange(nextValue);
+                      applyPreviousEntrySuggestion('phoneNumber', nextValue);
+                    }}
+                    onSelect={(suggestion) => {
+                      setFormData((prev) => ({
+                        ...prev,
+                        guestName: suggestion.guestName || prev.guestName,
+                        phoneNumber: suggestion.phoneNumber
+                      }));
+                    }}
+                  />
+                  {phoneValidationMessage && <span className="guest-checkin-field-error">{phoneValidationMessage}</span>}
                 </div>
-              )}
-              <input
-                type="text"
-                list="guest-checkin-room-options"
-                placeholder="Select Visiting Room *"
-                value={formData.visitingRoomNo}
-                onChange={(e) => handleRoomChange(e.target.value)}
-                required
-              />
-              <datalist id="guest-checkin-room-options">
-                {rooms.map((room) => (
-                  <option key={room.id} value={room.number}>
-                    Room {room.number} (Rent: {room.rent})
-                  </option>
-                ))}
-              </datalist>
-              {roomValidationMessage && (
-                <div className="error-message" style={{ marginTop: '-0.5rem', marginBottom: '0.5rem' }}>
-                  {roomValidationMessage}
+                <div className="guest-checkin-field">
+                  <SearchableDropdown
+                    inputId="guest-checkin-room"
+                    label="Visiting room"
+                    options={rooms.map((room) => ({
+                      id: room.id,
+                      label: `Room ${room.number}`,
+                      value: `Room ${room.number} ${room.rent}`,
+                      optionBadgeText: `₹${room.rent}`
+                    }))}
+                    value={rooms.find((room) => room.number === formData.visitingRoomNo)?.id ?? null}
+                    onChange={(option) => {
+                      const room = rooms.find((item) => item.id === Number(option.id));
+                      if (room) {
+                        handleRoomChange(room.number);
+                      }
+                    }}
+                    placeholder={rooms.length ? 'Select a room' : 'No rooms available'}
+                    searchPlaceholder="Search room number..."
+                    disabled={rooms.length === 0}
+                  />
+                  {roomValidationMessage && <span className="guest-checkin-field-error">{roomValidationMessage}</span>}
                 </div>
-              )}
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="Rent Amount"
-                value={formData.rentAmount}
-                onChange={(e) => setFormData(prev => ({ ...prev, rentAmount: e.target.value }))}
-                required
-              />
-              {rentValidationMessage && (
-                <div className="error-message" style={{ marginTop: '-0.5rem', marginBottom: '0.5rem' }}>
-                  {rentValidationMessage}
-                </div>
-              )}
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="Deposit Amount"
-                value={formData.depositAmount}
-                onChange={(e) => {
-                  const nextValue = e.target.value;
-                  setFormData(prev => ({ ...prev, depositAmount: nextValue }));
-                  applyPreviousEntrySuggestion('depositAmount', nextValue);
-                }}
-                required
-              />
-              {depositValidationMessage && (
-                <div className="error-message" style={{ marginTop: '-0.5rem', marginBottom: '0.5rem' }}>
-                  {depositValidationMessage}
-                </div>
-              )}
-              <textarea
-                placeholder="Purpose"
-                rows={2}
-                value={formData.purpose}
-                onChange={(e) => {
-                  const nextValue = e.target.value;
-                  setFormData(prev => ({ ...prev, purpose: nextValue }));
-                  applyPreviousEntrySuggestion('purpose', nextValue);
-                }}
-                required
-              />
-              {purposeValidationMessage && (
-                <div className="error-message" style={{ marginTop: '-0.5rem', marginBottom: '0.5rem' }}>
-                  {purposeValidationMessage}
-                </div>
-              )}
-              <div style={{ marginBottom: '0.5rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
-                  Proof (ID/document photo)
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <div className="guest-checkin-field">
+                  <label htmlFor="guest-checkin-rent">Rent amount <span>(₹)</span></label>
                   <input
+                    id="guest-checkin-rent"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={formData.rentAmount}
+                    onChange={(e) => setFormData(prev => ({ ...prev, rentAmount: e.target.value }))}
+                    required
+                  />
+                  {rentValidationMessage && <span className="guest-checkin-field-error">{rentValidationMessage}</span>}
+                </div>
+                <div className="guest-checkin-field">
+                  <label htmlFor="guest-checkin-deposit">Deposit amount <span>(₹)</span></label>
+                  <input
+                    id="guest-checkin-deposit"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={formData.depositAmount}
+                    onChange={(e) => {
+                      const nextValue = e.target.value;
+                      setFormData(prev => ({ ...prev, depositAmount: nextValue }));
+                      applyPreviousEntrySuggestion('depositAmount', nextValue);
+                    }}
+                    required
+                  />
+                  {depositValidationMessage && <span className="guest-checkin-field-error">{depositValidationMessage}</span>}
+                </div>
+                <div className="guest-checkin-field guest-checkin-field-wide">
+                  <label htmlFor="guest-checkin-purpose">Visit purpose</label>
+                  <textarea
+                    id="guest-checkin-purpose"
+                    placeholder="Briefly describe the reason for the visit"
+                    rows={3}
+                    value={formData.purpose}
+                    onChange={(e) => {
+                      const nextValue = e.target.value;
+                      setFormData(prev => ({ ...prev, purpose: nextValue }));
+                      applyPreviousEntrySuggestion('purpose', nextValue);
+                    }}
+                    required
+                  />
+                  {purposeValidationMessage && <span className="guest-checkin-field-error">{purposeValidationMessage}</span>}
+                </div>
+              </div>
+
+              <div className="guest-checkin-uploads">
+                <div className="guest-checkin-upload-card">
+                  <div>
+                    <label htmlFor="guest-checkin-proof">Identity document</label>
+                    <span>Optional · Upload an ID or proof of identity</span>
+                  </div>
+                  <input
+                    id="guest-checkin-proof"
                     type="file"
                     accept="image/*"
                     onChange={(e) => setFormFiles(prev => ({ ...prev, proof: e.target.files?.[0] ?? null }))}
                   />
                   <button type="button" className="btn btn-sm btn-secondary" onClick={() => setFormCamera('proof')}>
-                    Use Camera
+                    Capture
                   </button>
-                  {formFiles.proof && <span style={{ fontSize: '0.85rem', color: '#555' }}>{formFiles.proof.name}</span>}
+                  {formFiles.proof && <span className="guest-checkin-selected-file">{formFiles.proof.name}</span>}
                 </div>
-              </div>
-              <div style={{ marginBottom: '0.5rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
-                  Guest Photo
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <div className="guest-checkin-upload-card">
+                  <div>
+                    <label htmlFor="guest-checkin-photo">Guest photo</label>
+                    <span>Optional · Take or upload a visitor photo</span>
+                  </div>
                   <input
+                    id="guest-checkin-photo"
                     type="file"
                     accept="image/*"
                     onChange={(e) => setFormFiles(prev => ({ ...prev, photo: e.target.files?.[0] ?? null }))}
                   />
                   <button type="button" className="btn btn-sm btn-secondary" onClick={() => setFormCamera('photo')}>
-                    Use Camera
+                    Capture
                   </button>
-                  {formFiles.photo && <span style={{ fontSize: '0.85rem', color: '#555' }}>{formFiles.photo.name}</span>}
+                  {formFiles.photo && <span className="guest-checkin-selected-file">{formFiles.photo.name}</span>}
                 </div>
               </div>
-              <div className="form-buttons">
-                <button type="button" className="btn btn-secondary" style={{ marginRight: '0.5rem' }} onClick={() => setShowAddGuestForm(false)}>
+
+              <div className="guest-checkin-form-actions">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowAddGuestForm(false)} disabled={saving}>
                   Cancel
                 </button>
                 <button type="submit" className="btn btn-success" disabled={saving || !formData.checkInDate || !isFormValid}>
-                  {saving ? 'Saving...' : 'Check In Guest'}
+                  {saving ? 'Saving guest…' : 'Confirm check-in'}
                 </button>
               </div>
               {saving && createUploadProgress > 0 && (
@@ -1715,7 +1938,7 @@ export default function GuestCheckinManagement() {
                 </div>
               )}
             </form>
-          </div>
+          </section>
         )}
       </div>
 

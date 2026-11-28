@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo, useEffect } from 'react';
+import { createWorker, PSM } from 'tesseract.js';
 import { apiService, getFileUrl } from '../api';
 import { TenantWithOccupancy } from './TenantManagement';
 import './TenantForm.css';
@@ -26,12 +27,139 @@ const MAX_PHOTOS = 10;
 const MAX_PROOFS = 10;
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
+const INDIAN_STATES_AND_TERRITORIES = [
+  'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Goa', 'Gujarat',
+  'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh',
+  'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab',
+  'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura', 'Uttar Pradesh',
+  'Uttarakhand', 'West Bengal', 'Andaman and Nicobar Islands', 'Chandigarh',
+  'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Jammu and Kashmir', 'Ladakh',
+  'Lakshadweep', 'Puducherry',
+];
+
+const createEnhancedOcrImage = async (file: File): Promise<HTMLCanvasElement> => {
+  const image = await createImageBitmap(file);
+  const scale = Math.min(2, 3000 / Math.max(image.width, image.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(image.width * scale));
+  canvas.height = Math.max(1, Math.round(image.height * scale));
+  const context = canvas.getContext('2d');
+  if (!context) {
+    image.close();
+    throw new Error('Unable to prepare image for OCR.');
+  }
+  try {
+    context.filter = 'grayscale(1) contrast(1.35)';
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  } finally {
+    image.close();
+  }
+  return canvas;
+};
+
+interface AadhaarDetails {
+  name: string;
+  address: string;
+  city: string;
+}
+
+const extractAadhaarDetails = (text: string): AadhaarDetails => {
+  const normalizedText = text.replace(/\r/g, '\n').replace(/[ \t]+/g, ' ');
+  const lines = normalizedText
+    .split(/\n/)
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+
+  const headerPattern = /^(government of india|govt\.? of india|uidai|aadhaar|unique identification authority|dob|date of birth|year of birth|male|female|transgender)\b/i;
+  const cleanName = (value: string): string => value
+    .replace(/\b(?:dob|date of birth|year of birth|gender|male|female|transgender|address|aadhaar)\b.*$/i, '')
+    .replace(/\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b/g, '')
+    .replace(/^(?:government of india|govt\.? of india|uidai|unique identification authority)\s*/i, '')
+    .replace(/^\s*(?:name\s*[:\-]?\s*)/i, '')
+    .trim();
+  const labeledName = normalizedText.match(/\bname\b\s*[:\-]?\s*([^\n]+)/i)?.[1] || '';
+  const separateNameLabelIndex = lines.findIndex((line) => /^name\s*[:\-]?\s*$/i.test(line));
+  let name = cleanName(labeledName) ||
+    (separateNameLabelIndex >= 0 ? cleanName(lines[separateNameLabelIndex + 1] || '') : '');
+
+  if (!name) {
+    const identityLineIndex = lines.findIndex((line) =>
+      /\b(dob|date of birth|year of birth|male|female|transgender)\b/i.test(line)
+    );
+    const candidateLines = identityLineIndex >= 0
+      ? lines.slice(0, identityLineIndex).reverse()
+      : lines;
+    name = candidateLines
+      .map(cleanName)
+      .find((line) =>
+        !headerPattern.test(line) &&
+        !/\d/.test(line) &&
+        !/[,:]/.test(line) &&
+        !/\b(?:s\/o|d\/o|w\/o|c\/o|care of|house|street|road|village|district|state|pin)\b/i.test(line) &&
+        /^[\p{L}][\p{L} .'-]{1,60}$/u.test(line) &&
+        line.split(/\s+/).length <= 5
+      ) || '';
+  }
+
+  const addressMatch = normalizedText.match(/\baddress\b\s*[:\-]?\s*([\s\S]*)/i);
+  const relationshipLineIndex = lines.findIndex((line) =>
+    /\b(?:s\/o|d\/o|w\/o|c\/o|care of|son of|daughter of|wife of)\b/i.test(line)
+  );
+  const addressText = addressMatch?.[1] ||
+    (relationshipLineIndex >= 0 ? lines.slice(relationshipLineIndex).join('\n') : '');
+  let address = '';
+  if (addressText) {
+    const addressLines: string[] = [];
+    for (const line of addressText.split(/\n/).map((value) => value.trim()).filter(Boolean)) {
+      if (
+        /\b(vid|virtual id|aadhaar no|aadhaar number|unique identification authority|www\.uidai)\b/i.test(line) ||
+        /(?:\d[\s-]*){12,}/.test(line) ||
+        (/^[\d\s-]+$/.test(line) && line.replace(/\D/g, '').length >= 4)
+      ) break;
+      const cleanedLine = line.replace(/^address\b\s*[:\-]?\s*/i, '').trim();
+      if (cleanedLine) addressLines.push(cleanedLine);
+    }
+    address = addressLines.join(', ');
+  }
+
+  let city = address.match(
+    /\b(?:district|dist\.?|city|town|village)\s*[:\-]?\s*([^,;\n]+?)(?=\s+\b(?:state|pin(?:code)?|postal code)\b|[,;]|$)/i
+  )?.[1]?.trim() || '';
+  if (!city) {
+    const statePattern = new RegExp(`\\b(?:${INDIAN_STATES_AND_TERRITORIES.join('|')})\\b`, 'i');
+    const stateMatch = statePattern.exec(address);
+    if (stateMatch?.index !== undefined) {
+      const locationSegments = address.slice(0, stateMatch.index)
+        .split(/[,;\n]/)
+        .map((segment) => segment.trim())
+        .filter(Boolean);
+      const lastSegment = locationSegments[locationSegments.length - 1] || '';
+      const candidate = lastSegment.replace(/^(?:district|city|town|village)\s*[:\-]?\s*/i, '').trim();
+      if (
+        locationSegments.length > 1 &&
+        candidate.length > 1 &&
+        candidate.length <= 60 &&
+        !/\d/.test(candidate) &&
+        !/\b(?:house|street|road|lane|layout|cross|ward|post office)\b/i.test(candidate)
+      ) {
+        city = candidate;
+      }
+    }
+  }
+  return { name, address, city };
+};
+
 export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = false }: TenantFormProps) {
   const getDefaultCheckoutDate = (baseDate?: string): string => {
     const date = baseDate ? new Date(baseDate) : new Date();
     date.setMonth(date.getMonth() + 3);
     return date.toISOString().split('T')[0];
   };
+  const tenantRoomIds = tenant?.roomIds?.length
+    ? tenant.roomIds.map(String)
+    : tenant?.roomId
+      ? [String(tenant.roomId)]
+      : [];
 
   const [formData, setFormData] = useState({
     name: tenant?.name || '',
@@ -39,12 +167,16 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
     address: tenant?.address || '',
     city: tenant?.city || '',
     roomId: '',
-    roomIds: [] as string[],
+    roomIds: tenantRoomIds,
     roomRent: '',
     advanceAmount: '',
     checkInDate: '',
     checkOutDate: tenant?.checkOutDate ?? (!tenant ? getDefaultCheckoutDate() : ''),
   });
+  const roomSelectionChanged = Boolean(tenant?.id) && (
+    formData.roomIds.length !== tenantRoomIds.length ||
+    formData.roomIds.some((roomId) => !tenantRoomIds.includes(roomId))
+  );
 
   const [photos, setPhotos] = useState<FilePreview[]>([]);
   const [proofs, setProofs] = useState<FilePreview[]>([]);
@@ -81,6 +213,10 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
   const proofInputRef = useRef<HTMLInputElement>(null);
   const replacePhotoInputRef = useRef<HTMLInputElement>(null);
   const replaceProofInputRef = useRef<HTMLInputElement>(null);
+  const aadhaarInputRef = useRef<HTMLInputElement>(null);
+  const [isReadingAadhaar, setIsReadingAadhaar] = useState(false);
+  const [aadhaarOcrMessage, setAadhaarOcrMessage] = useState<string | null>(null);
+  const [aadhaarOcrError, setAadhaarOcrError] = useState<string | null>(null);
 
   // Get existing photos and proofs
   const existingPhotos = useMemo<ExistingFile[]>(() => {
@@ -123,7 +259,7 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
       address: tenant?.address || '',
       city: tenant?.city || '',
       roomId: tenant?.roomId ? String(tenant.roomId) : '',
-      roomIds: tenant?.roomId ? [String(tenant.roomId)] : [],
+      roomIds: tenantRoomIds,
       roomRent: tenant?.rentFixed ? String(tenant.rentFixed) : '',
       advanceAmount: tenant?.depositReceived ? String(tenant.depositReceived) : '',
       checkInDate: tenant?.checkInDate || '',
@@ -415,6 +551,92 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
     return null;
   };
 
+  const handleAadhaarImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    setAadhaarOcrMessage(null);
+    setAadhaarOcrError(null);
+    setShowCitySuggestions(false);
+    if (!file) return;
+
+    const validationError = validateFile(file);
+    if (validationError) {
+      setAadhaarOcrError(validationError);
+      return;
+    }
+
+    setIsReadingAadhaar(true);
+    let worker: Awaited<ReturnType<typeof createWorker>> | null = null;
+    try {
+      worker = await createWorker('eng');
+      await worker.setParameters({ tessedit_pageseg_mode: PSM.AUTO });
+      const firstPass = await worker.recognize(file);
+      const firstDetails = extractAadhaarDetails(firstPass.data.text);
+      let details = firstDetails;
+
+      if (!firstDetails.name || !firstDetails.address || !firstDetails.city) {
+        try {
+          const enhancedImage = await createEnhancedOcrImage(file);
+          await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT });
+          const secondPass = await worker.recognize(enhancedImage);
+          const secondDetails = extractAadhaarDetails(secondPass.data.text);
+          details = {
+            name: firstDetails.name || secondDetails.name,
+            address: firstDetails.address || secondDetails.address,
+            city: firstDetails.city || secondDetails.city,
+          };
+        } catch (enhancedOcrError) {
+          console.error('Enhanced Aadhaar OCR pass failed:', enhancedOcrError);
+        }
+      }
+
+      const extractedFields: string[] = [];
+      const nextFormData = { ...formData };
+      if (details.name && !formData.name.trim()) {
+        nextFormData.name = details.name;
+        extractedFields.push('name');
+      }
+      if (details.address && !formData.address.trim()) {
+        nextFormData.address = details.address;
+        extractedFields.push('address');
+      }
+      if (details.city && !formData.city.trim()) {
+        nextFormData.city = details.city;
+        extractedFields.push('city');
+      }
+      setFormData(nextFormData);
+
+      if (extractedFields.length) {
+        const missingFields = (['name', 'address', 'city'] as const).filter((field) => !details[field]);
+        const missingMessage = missingFields.length
+          ? ` Could not detect ${missingFields.join(', ')}; enter those manually.`
+          : '';
+        setAadhaarOcrMessage(`Read ${extractedFields.join(', ')}. Please verify the values before saving.${missingMessage}`);
+      } else if (details.name || details.address || details.city) {
+        const missingFields = (['name', 'address', 'city'] as const).filter((field) => !details[field]);
+        const missingMessage = missingFields.length
+          ? ` Could not detect ${missingFields.join(', ')}; enter those manually.`
+          : '';
+        setAadhaarOcrMessage(`Details were recognized, but existing form values were left unchanged. Review the card and update fields if needed.${missingMessage}`);
+      } else {
+        setAadhaarOcrError('No name or address was recognized. Use a clear, straight-on photo; scan the front for name and the back for address.');
+      }
+    } catch (ocrError) {
+      console.error('Aadhaar image OCR failed:', ocrError);
+      setAadhaarOcrError('Could not read this image. Try a clear JPG or PNG image and try again.');
+    } finally {
+      if (worker) {
+        try {
+          await worker.terminate();
+        } catch (terminationError) {
+          console.error('Aadhaar OCR worker cleanup failed:', terminationError);
+          setAadhaarOcrError('OCR completed, but its local worker did not close cleanly. Please close and reopen the form.');
+        }
+      }
+      setIsReadingAadhaar(false);
+    }
+  };
+
   const handlePhotosChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
@@ -636,8 +858,8 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
       setError('Check-in date is required when selecting a room for a new tenant');
       return false;
     }
-    // For EXISTING tenants: if assigning rooms, require check-in date
-    if (tenant?.id && formData.roomIds.length > 0 && !formData.checkInDate) {
+    // For EXISTING tenants: require dates only when assigning different rooms
+    if (tenant?.id && roomSelectionChanged && formData.roomIds.length > 0 && !formData.checkInDate) {
       setError('Check-in date is required when assigning room(s)');
       return false;
     }
@@ -646,9 +868,12 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
       setError('Room is required when setting a check-in date');
       return false;
     }
-    if (formData.checkInDate && !formData.checkOutDate) {
-      setError('Checkout date is required when a check-in date is set');
-      return false;
+    if ((!tenant?.id && formData.checkInDate) ||
+      (tenant?.id && roomSelectionChanged && formData.roomIds.length > 0)) {
+      if (!formData.checkOutDate) {
+        setError('Checkout date is required when a check-in date is set');
+        return false;
+      }
     }
     if (formData.checkInDate && formData.checkOutDate) {
       const checkIn = new Date(formData.checkInDate);
@@ -873,11 +1098,16 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
         address: formData.address.trim(),
         city: formData.city.trim(),
         roomId: !tenant?.id && formData.roomId ? parseInt(formData.roomId) : undefined,
-        roomIds: tenant?.id ? formData.roomIds.map((roomId) => parseInt(roomId, 10)).filter((roomId) => Number.isInteger(roomId) && roomId > 0) : undefined,
+        roomIds: tenant?.id && roomSelectionChanged
+          ? formData.roomIds.map((roomId) => parseInt(roomId, 10)).filter((roomId) => Number.isInteger(roomId) && roomId > 0)
+          : undefined,
         roomRent: formData.roomRent && !Number.isNaN(Number(formData.roomRent)) ? Number(formData.roomRent) : undefined,
         depositReceived: formData.advanceAmount && !Number.isNaN(Number(formData.advanceAmount)) ? Number(formData.advanceAmount) : 0,
         checkInDate: formData.checkInDate || undefined,
-        checkOutDate: formData.checkOutDate ? formData.checkOutDate : undefined,
+        checkOutDate: formData.checkOutDate &&
+          (!tenant?.id || roomSelectionChanged || formData.checkOutDate !== (tenant?.checkOutDate || ''))
+          ? formData.checkOutDate
+          : undefined,
         photoUrl: photoUrls[0],
         photo2Url: photoUrls[1],
         photo3Url: photoUrls[2],
@@ -931,6 +1161,33 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
       <div className="form-section">
         <h3>Basic Information</h3>
 
+        {!tenant && (
+          <div className="aadhaar-ocr">
+            <div>
+              <strong>Fill from Aadhaar card</strong>
+              <p className="field-hint">Reads the name and address on this device. Aadhaar numbers are ignored; the image is not saved or uploaded.</p>
+            </div>
+            <button
+              type="button"
+              className="btn-secondary aadhaar-ocr-button"
+              onClick={() => aadhaarInputRef.current?.click()}
+              disabled={loading || isReadingAadhaar}
+            >
+              {isReadingAadhaar ? 'Reading card...' : 'Browse Aadhaar photo'}
+            </button>
+            <input
+              ref={aadhaarInputRef}
+              type="file"
+              accept="image/*"
+              onChange={(event) => void handleAadhaarImageChange(event)}
+              className="file-input"
+              disabled={loading || isReadingAadhaar}
+            />
+            {aadhaarOcrMessage && <p className="aadhaar-ocr-message" role="status">{aadhaarOcrMessage}</p>}
+            {aadhaarOcrError && <p className="aadhaar-ocr-error" role="alert">{aadhaarOcrError}</p>}
+          </div>
+        )}
+
         <div className="form-group">
           <label htmlFor="name">Name *</label>
           <input
@@ -940,7 +1197,7 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
             value={formData.name}
             onChange={handleInputChange}
             placeholder="Enter tenant name"
-            disabled={loading}
+            disabled={loading || isReadingAadhaar}
             required
           />
         </div>
@@ -966,7 +1223,7 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
             value={formData.phone}
             onChange={handleInputChange}
             placeholder="Enter phone number (exactly 10 digits)"
-            disabled={loading}
+            disabled={loading || isReadingAadhaar}
             required
             className={phoneError ? 'input-error' : formData.phone.trim() && !isCheckingPhone && !phoneError ? 'input-success' : ''}
           />
@@ -1005,7 +1262,7 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
                   onChange={handleInputChange}
                   onFocus={() => formData.city && setShowCitySuggestions(true)}
                   placeholder="Start typing to search cities..."
-                  disabled={loading}
+                  disabled={loading || isReadingAadhaar}
                   required
                   autoComplete="off"
                 />
@@ -1033,7 +1290,7 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
                   value={formData.address}
                   onChange={handleInputChange}
                   placeholder="Enter address"
-                  disabled={loading}
+                  disabled={loading || isReadingAadhaar}
                   required
                 />
               </div>
@@ -1192,16 +1449,15 @@ export default function TenantForm({ tenant, onSubmit, onCancel, cardMode = fals
                   disabled={loading}
                   min={formData.checkInDate || undefined}
                   required={Boolean(
-                    formData.checkInDate ||
                     (!tenant?.id && formData.roomId) ||
-                    (tenant?.id && (tenant.isCurrentlyOccupied || formData.roomIds.length > 0))
+                    (tenant?.id && roomSelectionChanged && formData.roomIds.length > 0)
                   )}
                 />
                 <p className="field-hint">
                   {tenant?.id
-                    ? tenant.isCurrentlyOccupied
-                      ? 'This tenant is currently occupied. A checkout date is required to save occupancy changes.'
-                      : 'Include a checkout date when assigning room(s) or updating this tenant.'
+                    ? roomSelectionChanged && formData.roomIds.length > 0
+                      ? 'A checkout date is required when assigning room(s).'
+                      : 'Leave unchanged to keep the current occupancy dates.'
                     : 'Defaults to 3 months from today for new tenants.'}
                 </p>
               </div>

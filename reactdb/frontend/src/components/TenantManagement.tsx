@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { AxiosError } from 'axios';
 import { apiService } from '../api';
 import SearchableDropdown from './SearchableDropdown';
 import TenantForm from './TenantForm';
@@ -405,7 +406,11 @@ export default function TenantManagement({ tenantSelectionRequest = null, tenant
       await fetchTenants();
       setTimeout(() => setSuccessMessage(null), 4000);
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to save tenant';
+      const errorMsg = err instanceof AxiosError
+        ? [err.response?.data?.error, err.response?.data?.details]
+            .filter((message): message is string => typeof message === 'string' && message.length > 0)
+            .join(': ') || err.message
+        : err instanceof Error ? err.message : 'Failed to save tenant';
       setError(errorMsg);
     }
   };

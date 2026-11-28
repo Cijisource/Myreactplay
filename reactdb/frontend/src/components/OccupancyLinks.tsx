@@ -1,11 +1,12 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import LoadingSpinner from './LoadingSpinner';
-import { getOccupancyLinks, getFileUrl } from '../api';
+import { apiService, downloadFileData, getFileUrl, getOccupancyLinks, getRentalPaymentProofUrl } from '../api';
 import SearchableDropdown from './SearchableDropdown';
 import CheckoutModal from './CheckoutModal';
 import TenantFullScreenView from './TenantFullScreenView';
 import TenantPhotoGalleryModal from './TenantPhotoGalleryModal';
 import type { TenantWithOccupancy } from './TenantManagement';
+import type { TenantStayPdfFile } from '../tenantStayPdf';
 import './OccupancyLinks.css';
 
 interface OccupancyLink {
@@ -16,6 +17,7 @@ interface OccupancyLink {
   tenantAddress: string;
   tenantCity: string;
   tenantPhoto?: string;
+  azurePhotoUrl?: string;
   roomId: number;
   roomNumber: string;
   roomRent: number;
@@ -23,10 +25,40 @@ interface OccupancyLink {
   checkInDate: string;
   checkOutDate: string | null;
   rentFixed: number;
+  advanceCollected: number;
+  depositRefunded: number;
+  charges: number;
   isActive: boolean;
   currentRentReceived: number;
   currentPendingPayment: number;
   lastPaymentDate?: string;
+}
+
+interface TenantStayPaymentRecord {
+  occupancyId: number;
+  rentReceivedOn: string;
+  rentReceived: number;
+  charges: number;
+  rentBalance?: number | null;
+  modeOfPayment?: string | null;
+  screenshotUrl?: string | null;
+  folder?: string | null;
+}
+
+interface TenantStayElectricityRecord {
+  billingYear: number;
+  billingMonth: number;
+  checkInDate: string;
+  checkOutDate?: string | null;
+  occupancyDaysInMonth?: number;
+  totalDaysInMonth?: number;
+  serviceName?: string;
+  meterNo?: string;
+  totalUnitsForRoom?: number;
+  proRataUnits?: number;
+  chargePerUnit?: number;
+  totalCharge?: number;
+  status?: string;
 }
 
 interface Stats {
@@ -41,8 +73,26 @@ interface OccupancyLinksProps {
   showHeading?: boolean;
 }
 
+const WhatsAppIcon = (): JSX.Element => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M12.05 2.25A9.65 9.65 0 0 0 3.8 16.9L2.5 21.75l4.98-1.31A9.72 9.72 0 1 0 12.05 2.25Zm0 17.72c-1.43 0-2.82-.38-4.04-1.1l-.29-.17-2.96.78.79-2.88-.19-.3A7.99 7.99 0 1 1 12.05 19.97Zm4.38-5.98c-.24-.12-1.42-.7-1.64-.78-.22-.08-.38-.12-.54.12-.16.24-.62.78-.76.94-.14.16-.28.18-.52.06-.24-.12-1.01-.37-1.93-1.19-.71-.64-1.19-1.42-1.33-1.66-.14-.24-.02-.37.1-.49.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.54-1.31-.74-1.79-.2-.47-.4-.41-.54-.42h-.46c-.16 0-.42.06-.64.3-.22.24-.84.82-.84 2s.86 2.32 1 2.48c.12.16 1.69 2.58 4.1 3.62.57.25 1.02.4 1.37.51.58.18 1.1.15 1.51.09.46-.07 1.42-.58 1.62-1.14.2-.56.2-1.04.14-1.14-.06-.1-.22-.16-.46-.28Z" />
+  </svg>
+);
+
+const PdfIcon = (): JSX.Element => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M6 2.5h7l5 5V21H6a2 2 0 0 1-2-2V4.5a2 2 0 0 1 2-2Z" fill="#fff" />
+    <path d="M13 2.5v5h5" fill="#e9edf2" />
+    <path d="M13 2.5v5h5" fill="none" stroke="#b42318" strokeWidth="1.2" />
+    <rect x="4.5" y="12" width="15" height="6.5" rx="1.5" fill="#b42318" />
+    <text x="12" y="16.9" fill="#fff" fontSize="5.8" fontWeight="800" textAnchor="middle" fontFamily="Arial, sans-serif">PDF</text>
+  </svg>
+);
+
 export default function OccupancyLinks({ showHeading = true }: OccupancyLinksProps): JSX.Element {
+  const occupancyPageSize = 5;
   const [occupancies, setOccupancies] = useState<OccupancyLink[]>([]);
+  const [visibleOccupancyCount, setVisibleOccupancyCount] = useState(occupancyPageSize);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
@@ -58,11 +108,26 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
   const [checkOutDateFrom, setCheckOutDateFrom] = useState<string>('');
   const [checkOutDateTo, setCheckOutDateTo] = useState<string>('');
   const [selectedOccupancy, setSelectedOccupancy] = useState<OccupancyLink | null>(null);
+  const [pdfDownloadOccupancyId, setPdfDownloadOccupancyId] = useState<number | null>(null);
+  const [openActionsOccupancyId, setOpenActionsOccupancyId] = useState<number | null>(null);
   const [fullScreenTenant, setFullScreenTenant] = useState<TenantWithOccupancy | null>(null);
   const [galleryTenant, setGalleryTenant] = useState<TenantWithOccupancy | null>(null);
   const [galleryInitialPhotoIndex, setGalleryInitialPhotoIndex] = useState<number | null>(0);
   const galleryInitialProofIndex: number | null = null;
   const [galleryInitialTab, setGalleryInitialTab] = useState<'photos' | 'proofs'>('photos');
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const closeActionsMenu = (event: PointerEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('[data-actions-popup]')) {
+        setOpenActionsOccupancyId(null);
+      }
+    };
+
+    document.addEventListener('pointerdown', closeActionsMenu);
+    return () => document.removeEventListener('pointerdown', closeActionsMenu);
+  }, []);
 
   const buildTenantFromOccupancy = (occ: OccupancyLink): TenantWithOccupancy => ({
     id: occ.tenantId,
@@ -265,9 +330,32 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
       if (sortBy === 'tenant') return a.tenantName.localeCompare(b.tenantName);
       if (sortBy === 'room') return a.roomNumber.localeCompare(b.roomNumber);
       // Default: checkIn
-      return new Date(b.checkInDate).getTime() - new Date(a.checkInDate).getTime();
+      const checkInDifference = new Date(b.checkInDate).getTime() - new Date(a.checkInDate).getTime();
+      return checkInDifference || b.occupancyId - a.occupancyId;
     });
   }, [occupancies, filterStatus, searchTerm, sortBy, selectedRoom, selectedTenant, selectedPhone, checkInDateFrom, checkInDateTo, checkOutDateFrom, checkOutDateTo]);
+
+  useEffect(() => {
+    setVisibleOccupancyCount(occupancyPageSize);
+  }, [filteredAndSorted, occupancyPageSize]);
+
+  useEffect(() => {
+    const loadMoreTarget = loadMoreRef.current;
+    if (!loadMoreTarget || visibleOccupancyCount >= filteredAndSorted.length) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some(entry => entry.isIntersecting)) {
+        setVisibleOccupancyCount(current =>
+          Math.min(current + occupancyPageSize, filteredAndSorted.length)
+        );
+      }
+    }, { rootMargin: '300px' });
+
+    observer.observe(loadMoreTarget);
+    return () => observer.disconnect();
+  }, [filteredAndSorted.length, occupancyPageSize, visibleOccupancyCount]);
+
+  const visibleOccupancies = filteredAndSorted.slice(0, visibleOccupancyCount);
 
   const formatCurrency = (value: number | undefined): string => {
     return new Intl.NumberFormat('en-US', {
@@ -285,6 +373,270 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
       month: 'short',
       day: 'numeric'
     });
+  };
+
+  const downloadTenantStayPdf = async (occ: OccupancyLink): Promise<void> => {
+    setPdfDownloadOccupancyId(occ.occupancyId);
+    setError(null);
+    try {
+      const { createTenantStayPdf } = await import('../tenantStayPdf');
+      const [tenantResponse, paymentResponse] = await Promise.all([
+        apiService.getTenantById(occ.tenantId),
+        apiService.getRentalCollectionByOccupancy(occ.occupancyId),
+      ]);
+      const tenant = tenantResponse.data;
+      const checkInDate = new Date(`${occ.checkInDate.slice(0, 10)}T00:00:00`);
+      const stayEndDate = occ.isActive
+        ? new Date()
+        : occ.checkOutDate
+          ? new Date(`${occ.checkOutDate.slice(0, 10)}T00:00:00`)
+          : new Date();
+      if (Number.isNaN(checkInDate.getTime()) || Number.isNaN(stayEndDate.getTime())) {
+        throw new Error('The occupancy dates are invalid, so the stay report cannot be generated.');
+      }
+
+      const months: Array<{ year: number; month: number }> = [];
+      const cursor = new Date(checkInDate.getFullYear(), checkInDate.getMonth(), 1);
+      const endMonth = new Date(stayEndDate.getFullYear(), stayEndDate.getMonth(), 1);
+      while (cursor <= endMonth) {
+        months.push({ year: cursor.getFullYear(), month: cursor.getMonth() + 1 });
+        cursor.setMonth(cursor.getMonth() + 1);
+      }
+
+      const electricityResponses = await Promise.all(
+        months.map(({ year, month }) =>
+          apiService.getTenantChargesForMonth(year, month, occ.tenantId, occ.roomId)
+        )
+      );
+      const electricity: TenantStayElectricityRecord[] = electricityResponses
+        .flatMap((response: { data: unknown }) =>
+          Array.isArray(response.data) ? response.data as TenantStayElectricityRecord[] : []
+        )
+        .sort((left, right) =>
+          (left.billingYear - right.billingYear) || (left.billingMonth - right.billingMonth)
+        );
+
+      const warnings: string[] = [];
+      const loadFile = async (path: string | null | undefined, label: string): Promise<TenantStayPdfFile | null> => {
+        if (!path) return null;
+        const url = getFileUrl(path);
+        const name = new URL(url, window.location.origin).pathname.split('/').pop() || label;
+        try {
+          const file = await downloadFileData(url);
+          return { name, contentType: file.contentType, data: file.data };
+        } catch (error) {
+          console.error(`Unable to include ${label} in tenant stay PDF`, error);
+          warnings.push(`${label} could not be downloaded and is not included.`);
+          return null;
+        }
+      };
+
+      const photoPaths = [
+        tenant.azurePhotoUrl,
+        tenant.photoUrl,
+        occ.azurePhotoUrl,
+        occ.tenantPhoto,
+        tenant.photo2Url,
+        tenant.photo3Url,
+        tenant.photo4Url,
+        tenant.photo5Url,
+        tenant.photo6Url,
+        tenant.photo7Url,
+        tenant.photo8Url,
+        tenant.photo9Url,
+        tenant.photo10Url,
+      ].filter((path): path is string => typeof path === 'string' && path.length > 0);
+      const uniquePhotoPaths = [...new Set(photoPaths)];
+      const [mainPhoto, ...additionalPhotoFiles] = await Promise.all(
+        uniquePhotoPaths.map((path, index) => loadFile(path, index === 0 ? 'Tenant photo' : `Additional tenant photo ${index}`))
+      );
+
+      const proofPaths = [
+        tenant.proof1Url,
+        tenant.proof2Url,
+        tenant.proof3Url,
+        tenant.proof4Url,
+        tenant.proof5Url,
+        tenant.proof6Url,
+        tenant.proof7Url,
+        tenant.proof8Url,
+        tenant.proof9Url,
+        tenant.proof10Url,
+      ].filter((path): path is string => typeof path === 'string' && path.length > 0);
+      const documentFiles = (await Promise.all(
+        proofPaths.map((path, index) => loadFile(path, `Tenant document ${index + 1}`))
+      )).filter((file): file is TenantStayPdfFile => file !== null);
+
+      const paymentRecords: TenantStayPaymentRecord[] = Array.isArray(paymentResponse.data)
+        ? paymentResponse.data as TenantStayPaymentRecord[]
+        : [];
+      const stayPayments = paymentRecords
+        .sort((left, right) =>
+          new Date(left.rentReceivedOn).getTime() - new Date(right.rentReceivedOn).getTime()
+        );
+
+      const paymentProofs = await Promise.all(stayPayments.map(async (payment, index) => {
+        if (!payment.screenshotUrl) return null;
+        const proofUrl = getRentalPaymentProofUrl(
+          payment.screenshotUrl,
+          payment.rentReceivedOn,
+          payment.folder
+        );
+        return loadFile(proofUrl, `Payment proof ${index + 1}`);
+      }));
+      documentFiles.push(...paymentProofs.filter((file): file is TenantStayPdfFile => file !== null));
+
+      const currency = (amount: number | null | undefined): string =>
+        new Intl.NumberFormat('en-IN', {
+          style: 'currency',
+          currency: 'INR',
+          maximumFractionDigits: 0,
+        }).format(amount || 0);
+      const date = (value: string | null | undefined): string =>
+        value ? new Date(`${value.slice(0, 10)}T00:00:00`).toLocaleDateString('en-IN', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        }) : 'Not set';
+
+      const report = await createTenantStayPdf({
+        tenant: {
+          name: tenant.name || occ.tenantName,
+          phone: tenant.phone || occ.tenantPhone,
+          address: tenant.address || occ.tenantAddress,
+          city: tenant.city || occ.tenantCity,
+        },
+        stay: {
+          roomNumber: occ.roomNumber,
+          checkInDate: date(occ.checkInDate),
+          checkOutDate: date(occ.checkOutDate),
+          status: occ.isActive ? 'Active' : 'Ended',
+          monthlyRent: currency(occ.rentFixed),
+          depositReceived: currency(occ.advanceCollected),
+          depositRefunded: currency(occ.depositRefunded),
+          additionalCharges: currency(occ.charges),
+        },
+        photo: mainPhoto || null,
+        documents: [...additionalPhotoFiles, ...documentFiles].filter(
+          (file): file is TenantStayPdfFile => file !== null
+        ),
+        payments: stayPayments.map((payment) => ({
+          date: date(payment.rentReceivedOn),
+          received: currency(payment.rentReceived),
+          charges: currency(payment.charges),
+          balance: currency(payment.rentBalance),
+          method: payment.modeOfPayment || 'Not recorded',
+        })),
+        totalReceived: currency(
+          stayPayments.reduce((total, payment) => total + (Number(payment.rentReceived) || 0), 0)
+        ),
+        electricity: electricity.map((record) => ({
+          period: `${record.billingMonth}/${record.billingYear}`,
+          serviceName: record.serviceName || 'Electricity',
+          meterNumber: record.meterNo || 'N/A',
+          roomUnits: `${record.totalUnitsForRoom ?? 0}`,
+          tenantUnits: `${record.proRataUnits ?? 0}`,
+          occupancyDays: `${record.occupancyDaysInMonth ?? 'N/A'} / ${record.totalDaysInMonth ?? 'N/A'}`,
+          chargePerUnit: currency(record.chargePerUnit),
+          totalCharge: currency(record.totalCharge),
+          status: record.status || 'Not recorded',
+        })),
+      });
+
+      const pdfBuffer = new ArrayBuffer(report.bytes.byteLength);
+      new Uint8Array(pdfBuffer).set(report.bytes);
+      const blob = new Blob([pdfBuffer], { type: 'application/pdf' });
+      const downloadUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `Tenant-Stay-${occ.tenantName.trim().replace(/[^a-z0-9]+/gi, '-')}-Room-${occ.roomNumber.trim()}.pdf`;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+
+      const allWarnings = [...warnings, ...report.warnings];
+      if (allWarnings.length) {
+        window.alert(`The PDF downloaded, but some attachments could not be included:\n\n${allWarnings.join('\n')}`);
+      }
+    } catch (error) {
+      console.error('Failed to generate tenant stay PDF:', error);
+      setError(error instanceof Error ? error.message : 'Failed to generate tenant stay PDF.');
+    } finally {
+      setPdfDownloadOccupancyId(null);
+    }
+  };
+
+  const buildWhatsAppUrl = (occ: OccupancyLink): string | null => {
+    const phoneDigits = occ.tenantPhone.replace(/\D/g, '');
+    const whatsappPhone = phoneDigits.length === 10
+      ? `91${phoneDigits}`
+      : phoneDigits.length === 11 && phoneDigits.startsWith('0')
+        ? `91${phoneDigits.slice(1)}`
+        : phoneDigits.length === 12 && phoneDigits.startsWith('91')
+          ? phoneDigits
+          : null;
+
+    if (!whatsappPhone) return null;
+
+    const tenantName = occ.tenantName.trim();
+    const formatMessageDate = (date: string | null | undefined): string => {
+      if (!date) return 'N/A';
+      return new Date(date).toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
+    };
+    const checkInDate = new Date(occ.checkInDate);
+    const checkOutDate = occ.checkOutDate ? new Date(occ.checkOutDate) : null;
+    const now = new Date();
+    const canCalculateProrata = Number.isFinite(checkInDate.getTime())
+      && checkInDate.getFullYear() === now.getFullYear()
+      && checkInDate.getMonth() === now.getMonth();
+    let prorataDays = 0;
+    if (canCalculateProrata) {
+      const monthEndDay = new Date(
+        checkInDate.getFullYear(),
+        checkInDate.getMonth() + 1,
+        0
+      ).getDate();
+      const checkOutIsInCheckInMonth = checkOutDate
+        && Number.isFinite(checkOutDate.getTime())
+        && checkOutDate.getFullYear() === checkInDate.getFullYear()
+        && checkOutDate.getMonth() === checkInDate.getMonth();
+      const prorataEndDay = checkOutIsInCheckInMonth
+        ? Math.min(monthEndDay, checkOutDate.getDate())
+        : monthEndDay;
+      prorataDays = Math.max(0, prorataEndDay - checkInDate.getDate() + 1);
+    }
+    const dailyRent = occ.rentFixed / 30;
+    const prorataRent = Math.round((dailyRent * prorataDays + Number.EPSILON) * 100) / 100;
+    const formatMessageCurrency = (amount: number): string => new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+    const rentDueMessage = canCalculateProrata
+      ? `Rent Due Date: 1st - 5th of every month (First month prorata: ${formatMessageCurrency(prorataRent)} for ${prorataDays} days)`
+      : 'Rent Due Date: 1st - 5th of every month';
+    const message = [
+      'Gnanabi Mansion, Arasaradi, Madurai',
+      `Welcome ${tenantName}, Room ${occ.roomNumber.trim()} is confirmed.`,
+      `Check-in: ${formatMessageDate(occ.checkInDate)}`,
+      `Rent: ${formatCurrency(occ.rentFixed)} / month (Fixed)`,
+      `Deposit: ${formatCurrency(occ.advanceCollected)} (${occ.advanceCollected > 0 ? 'Collected' : 'Pending'})`,
+      rentDueMessage,
+      'EB Charges: ₹15 / unit (Based on actual usage; payable on the 1st)',
+      `Pending: ${formatCurrency(occ.currentPendingPayment)}`,
+      'For Help / Escalation:',
+      'Level 1 - Manager: 97872 63901',
+      'Level 2 - Owner: 99522 33310, 95973 55973',
+      'Level 3 - Emergency: Please call Manager / Owner directly',
+      'Thank you. Have a pleasant stay.',
+      'Gnanabi Mansion',
+    ].join('\n');
+
+    return `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(message)}`;
   };
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -548,17 +900,17 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
               <th>Check-In</th>
               <th>Check-Out</th>
               <th>Rent Fixed</th>
-              <th>Collected</th>
-              <th>Pending</th>
               <th>Last Payment</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {filteredAndSorted.length > 0 ? (
-              filteredAndSorted.map(occ => (
+              visibleOccupancies.map(occ => {
+                const whatsappUrl = buildWhatsAppUrl(occ);
+                return (
                 <tr key={occ.occupancyId} className={`row ${occ.isActive ? 'active' : 'inactive'}`}>
-                  <td className="status-cell">
+                  <td className="status-cell" data-label="Status">
                     {occ.tenantPhoto ? (
                       (() => {
                         // Prefer explicit azurePhotoUrl if provided by API, otherwise handle absolute URLs
@@ -620,70 +972,133 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
                       {occ.isActive ? '🟢 Active' : '🔴 Ended'}
                     </span>
                   </td>
-                  <td className="room-cell">
+                  <td className="room-cell" data-label="Room">
                     <strong>#{occ.roomNumber.trim()}</strong>
                     <small>{occ.beds} bed{occ.beds > 1 ? 's' : ''}</small>
                   </td>
-                  <td className="tenant-cell">
+                  <td className="tenant-cell" data-label="Tenant">
                     <strong>{occ.tenantName.trim()}</strong>
                     <small>{occ.tenantCity.trim()}</small>
                   </td>
-                  <td className="phone-cell">
+                  <td className="phone-cell" data-label="Phone">
                     <a href={`tel:${occ.tenantPhone.trim()}`}>{occ.tenantPhone.trim()}</a>
                   </td>
-                  <td>{formatDate(occ.checkInDate)}</td>
-                  <td>{occ.checkOutDate ? formatDate(occ.checkOutDate) : '-'}</td>
-                  <td className="currency-cell">
+                  <td data-label="Check-in">{formatDate(occ.checkInDate)}</td>
+                  <td data-label="Check-out">{occ.checkOutDate ? formatDate(occ.checkOutDate) : '-'}</td>
+                  <td className="currency-cell" data-label="Rent fixed">
                     <strong>{formatCurrency(occ.rentFixed)}</strong>
                   </td>
-                  <td className="currency-cell collected">
-                    {formatCurrency(occ.currentRentReceived)}
-                  </td>
-                  <td className="currency-cell pending">
-                    {formatCurrency(occ.currentPendingPayment)}
-                  </td>
-                  <td>{occ.lastPaymentDate ? formatDate(occ.lastPaymentDate) : '-'}</td>
-                  <td className="actions-cell">
-                    <button
-                      className="action-btn history-btn"
-                      onClick={() => {
-                        const tenant = buildTenantFromOccupancy(occ);
-                        setFullScreenTenant(tenant);
-                      }}
-                      title="View tenant history"
-                    >
-                      📜
-                    </button>
-
-                    <button
-                      className="action-btn photo-btn"
-                      onClick={() => {
-                        const tenant = buildTenantFromOccupancy(occ);
-                        setGalleryInitialPhotoIndex(0);
-                        setGalleryInitialTab('photos');
-                        setGalleryTenant(tenant);
-                      }}
-                      title="View guest photos"
-                    >
-                      📷
-                    </button>
-                    {occ.isActive && (
+                  <td data-label="Last payment">{occ.lastPaymentDate ? formatDate(occ.lastPaymentDate) : '-'}</td>
+                  <td className="actions-cell" data-label="Actions">
+                    <div className="actions-popup-container" data-actions-popup>
                       <button
-                        className="action-btn checkout-btn"
-                        onClick={() => {
-                          setSelectedOccupancy(occ);
-                        }}
-                        title="Checkout tenant"
+                        type="button"
+                        className="actions-popup-trigger"
+                        aria-expanded={openActionsOccupancyId === occ.occupancyId}
+                        aria-haspopup="menu"
+                        aria-label={`Open actions for ${occ.tenantName.trim()}`}
+                        title="Actions"
+                        onClick={() => setOpenActionsOccupancyId((current) =>
+                          current === occ.occupancyId ? null : occ.occupancyId
+                        )}
                       >
-                        Checkout
+                        <span aria-hidden="true">⋮</span>
                       </button>
-                    )}
+
+                      {openActionsOccupancyId === occ.occupancyId && (
+                        <div className="actions-popup-menu" role="menu">
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="actions-popup-item"
+                            onClick={() => {
+                              setOpenActionsOccupancyId(null);
+                              const tenant = buildTenantFromOccupancy(occ);
+                              setFullScreenTenant(tenant);
+                            }}
+                          >
+                            <span className="actions-popup-icon">📜</span>
+                            <span>Tenant history</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="actions-popup-item"
+                            onClick={() => {
+                              setOpenActionsOccupancyId(null);
+                              const tenant = buildTenantFromOccupancy(occ);
+                              setGalleryInitialPhotoIndex(0);
+                              setGalleryInitialTab('photos');
+                              setGalleryTenant(tenant);
+                            }}
+                          >
+                            <span className="actions-popup-icon">📷</span>
+                            <span>Photos</span>
+                          </button>
+
+                          {whatsappUrl ? (
+                            <a
+                              role="menuitem"
+                              className="actions-popup-item"
+                              href={whatsappUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={() => setOpenActionsOccupancyId(null)}
+                            >
+                              <span className="actions-popup-icon whatsapp-popup-icon"><WhatsAppIcon /></span>
+                              <span>WhatsApp</span>
+                            </a>
+                          ) : (
+                            <button
+                              type="button"
+                              role="menuitem"
+                              className="actions-popup-item"
+                              disabled
+                            >
+                              <span className="actions-popup-icon whatsapp-popup-icon"><WhatsAppIcon /></span>
+                              <span>WhatsApp unavailable</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="actions-popup-item"
+                            onClick={() => {
+                              setOpenActionsOccupancyId(null);
+                              void downloadTenantStayPdf(occ);
+                            }}
+                            disabled={pdfDownloadOccupancyId === occ.occupancyId}
+                          >
+                            <span className="actions-popup-icon pdf-popup-icon"><PdfIcon /></span>
+                            <span>{pdfDownloadOccupancyId === occ.occupancyId ? 'Preparing PDF...' : 'Download PDF'}</span>
+                          </button>
+
+                          {occ.isActive && (
+                            <button
+                              type="button"
+                              role="menuitem"
+                              className="actions-popup-item actions-popup-checkout"
+                              onClick={() => {
+                                setOpenActionsOccupancyId(null);
+                                setSelectedOccupancy(occ);
+                              }}
+                            >
+                              <span className="actions-popup-icon">✓</span>
+                              <span>Checkout tenant</span>
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </td>
                 </tr>
-              ))
+                );
+              })
             ) : (
               <tr className="no-data">
-                <td colSpan={11}>
+                <td colSpan={9}>
                   <p>📭 No occupancy history found matching your criteria</p>
                 </td>
               </tr>
@@ -691,6 +1106,23 @@ export default function OccupancyLinks({ showHeading = true }: OccupancyLinksPro
           </tbody>
         </table>
       </div>
+      {filteredAndSorted.length > 0 && (
+        <div className="occupancy-load-more" ref={loadMoreRef}>
+          <span>
+            Showing {visibleOccupancies.length} of {filteredAndSorted.length} bookings
+          </span>
+          {visibleOccupancies.length < filteredAndSorted.length && (
+            <button
+              type="button"
+              onClick={() => setVisibleOccupancyCount(current =>
+                Math.min(current + occupancyPageSize, filteredAndSorted.length)
+              )}
+            >
+              Load more
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Checkout Modal */}
       {selectedOccupancy && (
